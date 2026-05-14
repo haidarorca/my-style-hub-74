@@ -280,6 +280,110 @@ function ProductPage() {
             </div>
           )}
 
+          {(imageCustom || textCustom) && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">Personnalisation</p>
+
+              {imageCustom && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold">Votre image</p>
+                  {imageCustom.image_size_message && (
+                    <p className="mb-2 text-[11px] text-muted-foreground">{imageCustom.image_size_message}</p>
+                  )}
+                  {customImageFile ? (
+                    <div className="relative inline-block">
+                      <img src={URL.createObjectURL(customImageFile)} alt="" className="h-24 w-24 rounded-lg object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCustomImageFile(null)}
+                        className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 shadow"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
+                      <Upload className="h-5 w-5" />
+                      Choisir
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setCustomImageFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {textCustom && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold">Votre texte</p>
+                    <Input
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                      placeholder="Saisissez le texte à imprimer"
+                      maxLength={60}
+                    />
+                  </div>
+
+                  {(textCustom.allow_all_fonts || (textCustom.allowed_fonts && textCustom.allowed_fonts.length > 0)) && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold">Police</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(textCustom.allow_all_fonts ? DEFAULT_FONTS : textCustom.allowed_fonts ?? []).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setCustomFont(f)}
+                            className={`rounded-md border px-2 py-1 text-xs ${
+                              customFont === f ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                            }`}
+                            style={{ fontFamily: f }}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(textCustom.allow_all_colors || (textCustom.allowed_colors && textCustom.allowed_colors.length > 0)) && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold">Couleur du texte</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(textCustom.allow_all_colors ? DEFAULT_COLORS : textCustom.allowed_colors ?? []).map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setCustomColor(c)}
+                            className={`h-7 w-7 rounded-full border-2 ${
+                              customColor === c ? "border-primary ring-2 ring-primary/30" : "border-border"
+                            }`}
+                            style={{ backgroundColor: c }}
+                            aria-label={c}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {customText && (
+                    <div className="rounded-lg border border-border bg-background p-3 text-center">
+                      <p
+                        className="break-words text-lg font-semibold"
+                        style={{ fontFamily: customFont || undefined, color: customColor || undefined }}
+                      >
+                        {customText}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <p className="mb-1.5 text-xs font-semibold">Quantité</p>
             <div className="inline-flex items-center rounded-md border border-border">
