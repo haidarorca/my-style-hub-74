@@ -30,6 +30,7 @@ interface Variant {
   color: string | null;
   color_hex: string | null;
   price_override: number | null;
+  image_url: string | null;
 }
 
 function ProductPage() {
@@ -146,18 +147,24 @@ function ProductPage() {
     <div className="min-h-screen bg-background pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
-        {/* Gallery */}
-        <div className="relative aspect-square w-full overflow-hidden bg-muted">
-          {images[imgIdx]?.url ? (
-            <img src={images[imgIdx].url} alt={data.name} className="h-full w-full object-cover" />
-          ) : null}
-          <Link
-            to="/"
-            className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Link>
-        </div>
+        {/* Gallery — show variant image if a color/model with image is selected */}
+        {(() => {
+          const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
+          const displayUrl = variantImg ?? images[imgIdx]?.url;
+          return (
+            <div className="relative aspect-square w-full overflow-hidden bg-muted">
+              {displayUrl ? (
+                <img src={displayUrl} alt={data.name} className="h-full w-full object-cover" />
+              ) : null}
+              <Link
+                to="/"
+                className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Link>
+            </div>
+          );
+        })()}
         {images.length > 1 && (
           <div className="flex gap-2 overflow-x-auto p-3">
             {images.map((im, i) => (
@@ -207,25 +214,29 @@ function ProductPage() {
 
           {colors.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold">Couleur</p>
+              <p className="mb-1.5 text-xs font-semibold">Couleur / Modèle</p>
               <div className="flex flex-wrap gap-2">
-                {colors.map(([c, hex]) => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
-                      color === c ? "border-primary" : "border-border"
-                    }`}
-                  >
-                    {hex && (
-                      <span
-                        className="h-4 w-4 rounded-full border border-border"
-                        style={{ backgroundColor: hex }}
-                      />
-                    )}
-                    {c}
-                  </button>
-                ))}
+                {colors.map(([c, hex]) => {
+                  const vImg = variants.find((v) => v.color === c && v.image_url)?.image_url;
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setColor(c)}
+                      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
+                        color === c ? "border-primary ring-2 ring-primary/30" : "border-border"
+                      }`}
+                    >
+                      {vImg ? (
+                        <span className="h-5 w-5 overflow-hidden rounded border border-border">
+                          <img src={vImg} alt="" className="h-full w-full object-cover" />
+                        </span>
+                      ) : hex ? (
+                        <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: hex }} />
+                      ) : null}
+                      {c}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
