@@ -111,17 +111,49 @@ function ProductPage() {
   const price = matchedVariant?.price_override ?? data?.price ?? 0;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
-  const canAdd = !needsSize && !needsColor && (variants.length === 0 || !!matchedVariant);
+  const needsCustomImage = !!imageCustom && !customImageFile;
+  const needsCustomText = !!textCustom && !customText.trim();
+  const canAdd =
+    !needsSize && !needsColor && !needsCustomImage && !needsCustomText &&
+    (variants.length === 0 || !!matchedVariant);
 
   const onAdd = async () => {
     if (!data) return;
+    if (!user) {
+      toast.error("Connectez-vous pour ajouter au panier");
+      return;
+    }
     setSubmitting(true);
-    await addToCart({
-      productId: data.id,
-      variantId: matchedVariant?.id ?? null,
-      quantity: qty,
-    });
-    setSubmitting(false);
+    try {
+      const customization: Record<string, unknown> = {};
+      if (imageCustom && customImageFile) {
+        const ext = customImageFile.name.split(".").pop() || "jpg";
+        const path = `${user.id}/${data.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("customization-uploads")
+          .upload(path, customImageFile);
+        if (upErr) {
+          toast.error(upErr.message);
+          setSubmitting(false);
+          return;
+        }
+        const url = supabase.storage.from("customization-uploads").getPublicUrl(path).data.publicUrl;
+        customization.image_url = url;
+      }
+      if (textCustom && customText.trim()) {
+        customization.text = customText.trim();
+        if (customFont) customization.font = customFont;
+        if (customColor) customization.color = customColor;
+      }
+      await addToCart({
+        productId: data.id,
+        variantId: matchedVariant?.id ?? null,
+        quantity: qty,
+        customization: Object.keys(customization).length > 0 ? customization : null,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const onReport = async () => {
