@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Minus, Plus, Trash2, Store, ShoppingBag } from "lucide-react";
+import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -19,26 +19,36 @@ import { useCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
 
-const checkoutSchema = z.object({
-  customer_name: z.string().trim().min(2, "Nom trop court").max(100),
-  customer_phone: z
-    .string()
-    .trim()
-    .min(7, "Numéro invalide")
-    .max(20)
-    .regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
+const newAddressSchema = z.object({
+  label: z.string().trim().min(1, "Libellé requis").max(50),
+  full_name: z.string().trim().min(2, "Nom trop court").max(100),
+  phone: z.string().trim().min(7, "Numéro invalide").max(20).regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
   address: z.string().trim().min(3, "Adresse requise").max(300),
   city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
   note: z.string().trim().max(500).optional().or(z.literal("")),
 });
+
+interface Address {
+  id: string;
+  label: string;
+  full_name: string;
+  phone: string;
+  address: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  note: string | null;
+  is_default: boolean;
+}
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
 });
 
 function CartPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
 
   if (!user) {
@@ -57,13 +67,12 @@ function CartPage() {
     );
   }
 
-  // Group by vendor
   const groups = new Map<string, { shopName: string; vendorId: string; items: typeof items }>();
   for (const it of items) {
     const p = (it as any).products;
     if (!p) continue;
-    const profile = p.profiles;
-    const shopName = profile?.shop_name || profile?.full_name || "Boutique";
+    const profileShop = p.profiles;
+    const shopName = profileShop?.shop_name || profileShop?.full_name || "Boutique";
     const key = p.vendor_id;
     if (!groups.has(key)) groups.set(key, { shopName, vendorId: key, items: [] });
     groups.get(key)!.items.push(it);
@@ -84,41 +93,116 @@ function CartPage() {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    customer_name: "",
-    customer_phone: "",
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"saved" | "new">("saved");
+  const [newForm, setNewForm] = useState({
+    label: "Domicile",
+    full_name: "",
+    phone: "",
     address: "",
     city: "",
     note: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [locating, setLocating] = useState(false);
 
-  const submitOrder = async () => {
-    if (items.length === 0) return;
-    const parsed = checkoutSchema.safeParse(form);
+  const loadAddresses = async () => {
+    const { data } = await (supabase as any)
+      .from("customer_addresses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const list = (data ?? []) as Address[];
+    setAddresses(list);
+    if (list.length > 0) {
+      setMode("saved");
+      setSelectedId(list[0].id);
+    } else {
+      setMode("new");
+      setNewForm((f) => ({
+        ...f,
+        full_name: profile?.full_name ?? "",
+        phone: profile?.phone ?? "",
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (checkoutOpen) void loadAddresses();
+    // eslint-disable-next-line
+  }, [checkoutOpen]);
+
+  const useGeolocation = () => {
+    if (!navigator.geolocation) return toast.error("Géolocalisation non disponible");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNewForm((f) => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
+        setLocating(false);
+        toast.success("Position enregistrée");
+      },
+      () => { setLocating(false); toast.error("Impossible d'obtenir la position"); },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const resolveAddress = async (): Promise<Address | null> => {
+    if (mode === "saved") {
+      return addresses.find((a) => a.id === selectedId) ?? null;
+    }
+    const parsed = newAddressSchema.safeParse(newForm);
     if (!parsed.success) {
-      const errs: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const k = issue.path[0] as string;
-        if (!errs[k]) errs[k] = issue.message;
+      const e: Record<string, string> = {};
+      for (const i of parsed.error.issues) {
+        const k = i.path[0] as string;
+        if (!e[k]) e[k] = i.message;
       }
-      setErrors(errs);
-      return;
+      setErrors(e);
+      return null;
     }
     setErrors({});
+    const payload = {
+      ...parsed.data,
+      note: parsed.data.note || null,
+      latitude: newForm.latitude,
+      longitude: newForm.longitude,
+      user_id: user.id,
+      is_default: addresses.length === 0,
+    };
+    const { data, error } = await (supabase as any)
+      .from("customer_addresses")
+      .insert(payload)
+      .select("*")
+      .single();
+    if (error) {
+      toast.error("Erreur lors de l'enregistrement de l'adresse");
+      return null;
+    }
+    return data as Address;
+  };
+
+  const submitOrder = async (openWhatsApp: boolean) => {
+    if (items.length === 0) return;
     setSubmitting(true);
     try {
+      const addr = await resolveAddress();
+      if (!addr) { setSubmitting(false); return; }
+
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
           buyer_id: user.id,
           total: grandTotal,
           status: "new",
-          customer_name: parsed.data.customer_name,
-          customer_phone: parsed.data.customer_phone,
-          address: parsed.data.address,
-          city: parsed.data.city,
-          note: parsed.data.note || null,
+          customer_name: addr.full_name,
+          customer_phone: addr.phone,
+          address: addr.address,
+          city: addr.city,
+          note: addr.note,
         })
         .select("id")
         .single();
@@ -142,34 +226,35 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
-      const lines: WhatsAppLine[] = items.map((it: any) => ({
-        shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
-        code: it.products?.code ?? "",
-        name: it.products?.name ?? "",
-        size: it.product_variants?.size ?? null,
-        color: it.product_variants?.color ?? null,
-        customization: customizationSummary(it.customization),
-        quantity: it.quantity,
-        unitPrice: unitPrice(it),
-      }));
-      const msg = buildWhatsAppMessage(lines, {
-        name: parsed.data.customer_name,
-        phone: parsed.data.customer_phone,
-        address: parsed.data.address,
-        city: parsed.data.city,
-        note: parsed.data.note,
-        orderId: order.id,
-      });
-
-      // Clear cart
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       refresh();
       setCheckoutOpen(false);
       toast.success("Commande enregistrée");
-      window.open(whatsappUrl(msg), "_blank");
-    } catch (e: any) {
-      toast.error("Erreur lors de l'enregistrement de la commande");
+
+      if (openWhatsApp) {
+        const lines: WhatsAppLine[] = items.map((it: any) => ({
+          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
+          code: it.products?.code ?? "",
+          name: it.products?.name ?? "",
+          size: it.product_variants?.size ?? null,
+          color: it.product_variants?.color ?? null,
+          customization: customizationSummary(it.customization),
+          quantity: it.quantity,
+          unitPrice: unitPrice(it),
+        }));
+        const msg = buildWhatsAppMessage(lines, {
+          name: addr.full_name,
+          phone: addr.phone,
+          address: addr.address,
+          city: addr.city,
+          note: addr.note,
+          orderId: order.id,
+        });
+        window.open(whatsappUrl(msg), "_blank");
+      }
+    } catch (e) {
       console.error(e);
+      toast.error("Erreur lors de l'enregistrement de la commande");
     } finally {
       setSubmitting(false);
     }
@@ -219,25 +304,15 @@ function CartPage() {
                               {price.toLocaleString("fr-FR")} FCFA
                             </p>
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => removeItem(it.id)}
-                                className="text-muted-foreground hover:text-destructive"
-                                aria-label="Supprimer"
-                              >
+                              <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label="Supprimer">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                               <div className="inline-flex items-center rounded-md border border-border">
-                                <button
-                                  className="flex h-7 w-7 items-center justify-center"
-                                  onClick={() => updateQuantity(it.id, it.quantity - 1)}
-                                >
+                                <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity - 1)}>
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
                                 <span className="w-8 text-center text-sm font-semibold">{it.quantity}</span>
-                                <button
-                                  className="flex h-7 w-7 items-center justify-center"
-                                  onClick={() => updateQuantity(it.id, it.quantity + 1)}
-                                >
+                                <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity + 1)}>
                                   <Plus className="h-3.5 w-3.5" />
                                 </button>
                               </div>
@@ -263,10 +338,7 @@ function CartPage() {
                 {grandTotal.toLocaleString("fr-FR")} FCFA
               </p>
             </div>
-            <Button
-              className="h-12 rounded-full px-6 text-sm font-semibold"
-              onClick={() => setCheckoutOpen(true)}
-            >
+            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
               Passer la commande
             </Button>
           </div>
@@ -274,69 +346,126 @@ function CartPage() {
       )}
 
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Informations de livraison</DialogTitle>
+            <DialogTitle>Adresse de livraison</DialogTitle>
             <DialogDescription>
-              Remplissez vos coordonnées. La commande sera enregistrée puis WhatsApp s'ouvrira avec le récapitulatif.
+              Choisissez une adresse enregistrée ou ajoutez-en une nouvelle.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="cust_name">Nom du client *</Label>
-              <Input
-                id="cust_name"
-                value={form.customer_name}
-                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                maxLength={100}
-              />
-              {errors.customer_name && <p className="mt-1 text-xs text-destructive">{errors.customer_name}</p>}
+
+          {addresses.length > 0 && (
+            <div className="mb-2 flex gap-2 rounded-full bg-muted p-1">
+              <button
+                className={cn("flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors",
+                  mode === "saved" ? "bg-background shadow-sm" : "text-muted-foreground")}
+                onClick={() => setMode("saved")}
+              >
+                Mes adresses ({addresses.length})
+              </button>
+              <button
+                className={cn("flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors",
+                  mode === "new" ? "bg-background shadow-sm" : "text-muted-foreground")}
+                onClick={() => setMode("new")}
+              >
+                + Nouvelle
+              </button>
             </div>
-            <div>
-              <Label htmlFor="cust_phone">Téléphone WhatsApp *</Label>
-              <Input
-                id="cust_phone"
-                type="tel"
-                placeholder="+221 77 000 00 00"
-                value={form.customer_phone}
-                onChange={(e) => setForm({ ...form, customer_phone: e.target.value })}
-                maxLength={20}
-              />
-              {errors.customer_phone && <p className="mt-1 text-xs text-destructive">{errors.customer_phone}</p>}
+          )}
+
+          {mode === "saved" && addresses.length > 0 ? (
+            <ul className="space-y-2">
+              {addresses.map((a) => {
+                const sel = a.id === selectedId;
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(a.id)}
+                      className={cn(
+                        "w-full rounded-xl border p-3 text-left transition-colors",
+                        sel ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-accent",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">
+                            {a.label}
+                            {a.is_default && <span className="ml-2 text-[10px] font-normal text-primary">★ par défaut</span>}
+                          </p>
+                          <p className="text-sm">{a.full_name} · {a.phone}</p>
+                          <p className="text-xs text-muted-foreground">{a.address} — {a.city}</p>
+                        </div>
+                        {sel && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+              <li>
+                <Link to="/account" className="block text-center text-xs text-primary hover:underline">
+                  Gérer mes adresses
+                </Link>
+              </li>
+            </ul>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="n_label">Libellé *</Label>
+                <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
+                  onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
+                {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
+              </div>
+              <div>
+                <Label htmlFor="n_name">Nom complet *</Label>
+                <Input id="n_name" value={newForm.full_name}
+                  onChange={(e) => setNewForm({ ...newForm, full_name: e.target.value })} maxLength={100} />
+                {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
+              </div>
+              <div>
+                <Label htmlFor="n_phone">Téléphone WhatsApp *</Label>
+                <Input id="n_phone" type="tel" placeholder="+221 77 000 00 00" value={newForm.phone}
+                  onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })} maxLength={20} />
+                {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+              </div>
+              <div>
+                <Label htmlFor="n_addr">Adresse *</Label>
+                <Input id="n_addr" value={newForm.address}
+                  onChange={(e) => setNewForm({ ...newForm, address: e.target.value })} maxLength={300} />
+                {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
+              </div>
+              <div>
+                <Label htmlFor="n_city">Quartier / Ville *</Label>
+                <Input id="n_city" value={newForm.city}
+                  onChange={(e) => setNewForm({ ...newForm, city: e.target.value })} maxLength={100} />
+                {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
+                <Crosshair className="h-4 w-4" />
+                {locating ? "Localisation…" : newForm.latitude ? "Position enregistrée — actualiser" : "Utiliser ma position"}
+              </Button>
+              <div>
+                <Label htmlFor="n_note">Note (optionnel)</Label>
+                <Textarea id="n_note" rows={2} value={newForm.note}
+                  onChange={(e) => setNewForm({ ...newForm, note: e.target.value })} maxLength={500} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                <MapPin className="mr-1 inline h-3 w-3" />
+                Cette adresse sera enregistrée dans votre carnet pour vos prochaines commandes.
+              </p>
             </div>
-            <div>
-              <Label htmlFor="cust_addr">Adresse de livraison *</Label>
-              <Input
-                id="cust_addr"
-                value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                maxLength={300}
-              />
-              {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
-            </div>
-            <div>
-              <Label htmlFor="cust_city">Quartier / Ville *</Label>
-              <Input
-                id="cust_city"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                maxLength={100}
-              />
-              {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
-            </div>
-            <div>
-              <Label htmlFor="cust_note">Note (optionnel)</Label>
-              <Textarea
-                id="cust_note"
-                rows={2}
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                maxLength={500}
-              />
-            </div>
-            <Button onClick={submitOrder} disabled={submitting} className="w-full">
-              {submitting ? "Envoi…" : "Confirmer et ouvrir WhatsApp"}
+          )}
+
+          <div className="mt-4 space-y-2 border-t border-border pt-3">
+            <Button onClick={() => submitOrder(false)} disabled={submitting} variant="outline" className="w-full">
+              {submitting ? "Envoi…" : "Valider la commande"}
             </Button>
+            <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
+              {submitting ? "Envoi…" : "Valider et envoyer sur WhatsApp"}
+            </Button>
+            <p className="text-center text-[11px] text-muted-foreground">
+              WhatsApp est optionnel — la commande est enregistrée dans tous les cas.
+            </p>
           </div>
         </DialogContent>
       </Dialog>
