@@ -263,12 +263,83 @@ function CartPage() {
                 {grandTotal.toLocaleString("fr-FR")} FCFA
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={onCheckout}>
-              Passer la commande (WhatsApp)
+            <Button
+              className="h-12 rounded-full px-6 text-sm font-semibold"
+              onClick={() => setCheckoutOpen(true)}
+            >
+              Passer la commande
             </Button>
           </div>
         </div>
       )}
+
+      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Informations de livraison</DialogTitle>
+            <DialogDescription>
+              Remplissez vos coordonnées. La commande sera enregistrée puis WhatsApp s'ouvrira avec le récapitulatif.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="cust_name">Nom du client *</Label>
+              <Input
+                id="cust_name"
+                value={form.customer_name}
+                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                maxLength={100}
+              />
+              {errors.customer_name && <p className="mt-1 text-xs text-destructive">{errors.customer_name}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_phone">Téléphone WhatsApp *</Label>
+              <Input
+                id="cust_phone"
+                type="tel"
+                placeholder="+221 77 000 00 00"
+                value={form.customer_phone}
+                onChange={(e) => setForm({ ...form, customer_phone: e.target.value })}
+                maxLength={20}
+              />
+              {errors.customer_phone && <p className="mt-1 text-xs text-destructive">{errors.customer_phone}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_addr">Adresse de livraison *</Label>
+              <Input
+                id="cust_addr"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                maxLength={300}
+              />
+              {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_city">Quartier / Ville *</Label>
+              <Input
+                id="cust_city"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                maxLength={100}
+              />
+              {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_note">Note (optionnel)</Label>
+              <Textarea
+                id="cust_note"
+                rows={2}
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                maxLength={500}
+              />
+            </div>
+            <Button onClick={submitOrder} disabled={submitting} className="w-full">
+              {submitting ? "Envoi…" : "Confirmer et ouvrir WhatsApp"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
