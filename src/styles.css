@@ -151,3 +151,14 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* Fluid native scrolling on mobile across all pages and overlays */
+html, body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+}
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
