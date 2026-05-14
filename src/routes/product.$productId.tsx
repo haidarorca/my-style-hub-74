@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft } from "lucide-react";
+import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,19 @@ interface Variant {
   image_url: string | null;
 }
 
+interface Customization {
+  id: string;
+  type: string; // 'image' | 'name' | 'logo'
+  image_size_message: string | null;
+  allow_all_fonts: boolean | null;
+  allowed_fonts: string[] | null;
+  allow_all_colors: boolean | null;
+  allowed_colors: string[] | null;
+}
+
+const DEFAULT_FONTS = ["Arial", "Helvetica", "Times New Roman", "Georgia", "Impact", "Pacifico", "Lobster", "Bebas Neue"];
+const DEFAULT_COLORS = ["#000000", "#ffffff", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+
 function ProductPage() {
   const { productId } = Route.useParams();
   const { user } = useAuth();
@@ -46,6 +59,12 @@ function ProductPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Customization state
+  const [customImageFile, setCustomImageFile] = useState<File | null>(null);
+  const [customText, setCustomText] = useState("");
+  const [customFont, setCustomFont] = useState<string>("");
+  const [customColor, setCustomColor] = useState<string>("");
+
   const { data, isLoading } = useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
@@ -55,6 +74,7 @@ function ProductPage() {
           `id, name, code, designation, description, price, vendor_id, category_id,
            product_images(url, position),
            product_variants(*),
+           product_customizations(*),
            profiles:vendor_id(full_name, shop_name)`,
         )
         .eq("id", productId)
@@ -66,6 +86,9 @@ function ProductPage() {
 
   const variants = (data?.product_variants ?? []) as Variant[];
   const images = (data?.product_images ?? []) as { url: string; position: number | null }[];
+  const customizations = (data?.product_customizations ?? []) as Customization[];
+  const imageCustom = customizations.find((c) => c.type === "image") ?? null;
+  const textCustom = customizations.find((c) => c.type === "name" || c.type === "logo") ?? null;
   const sizes = useMemo(
     () => Array.from(new Set(variants.map((v) => v.size).filter(Boolean) as string[])),
     [variants],
@@ -88,17 +111,49 @@ function ProductPage() {
   const price = matchedVariant?.price_override ?? data?.price ?? 0;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
-  const canAdd = !needsSize && !needsColor && (variants.length === 0 || !!matchedVariant);
+  const needsCustomImage = !!imageCustom && !customImageFile;
+  const needsCustomText = !!textCustom && !customText.trim();
+  const canAdd =
+    !needsSize && !needsColor && !needsCustomImage && !needsCustomText &&
+    (variants.length === 0 || !!matchedVariant);
 
   const onAdd = async () => {
     if (!data) return;
+    if (!user) {
+      toast.error("Connectez-vous pour ajouter au panier");
+      return;
+    }
     setSubmitting(true);
-    await addToCart({
-      productId: data.id,
-      variantId: matchedVariant?.id ?? null,
-      quantity: qty,
-    });
-    setSubmitting(false);
+    try {
+      const customization: Record<string, unknown> = {};
+      if (imageCustom && customImageFile) {
+        const ext = customImageFile.name.split(".").pop() || "jpg";
+        const path = `${user.id}/${data.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("customization-uploads")
+          .upload(path, customImageFile);
+        if (upErr) {
+          toast.error(upErr.message);
+          setSubmitting(false);
+          return;
+        }
+        const url = supabase.storage.from("customization-uploads").getPublicUrl(path).data.publicUrl;
+        customization.image_url = url;
+      }
+      if (textCustom && customText.trim()) {
+        customization.text = customText.trim();
+        if (customFont) customization.font = customFont;
+        if (customColor) customization.color = customColor;
+      }
+      await addToCart({
+        productId: data.id,
+        variantId: matchedVariant?.id ?? null,
+        quantity: qty,
+        customization: Object.keys(customization).length > 0 ? customization : null,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const onReport = async () => {
@@ -225,6 +280,110 @@ function ProductPage() {
             </div>
           )}
 
+          {(imageCustom || textCustom) && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">Personnalisation</p>
+
+              {imageCustom && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold">Votre image</p>
+                  {imageCustom.image_size_message && (
+                    <p className="mb-2 text-[11px] text-muted-foreground">{imageCustom.image_size_message}</p>
+                  )}
+                  {customImageFile ? (
+                    <div className="relative inline-block">
+                      <img src={URL.createObjectURL(customImageFile)} alt="" className="h-24 w-24 rounded-lg object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCustomImageFile(null)}
+                        className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 shadow"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
+                      <Upload className="h-5 w-5" />
+                      Choisir
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setCustomImageFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {textCustom && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold">Votre texte</p>
+                    <Input
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                      placeholder="Saisissez le texte à imprimer"
+                      maxLength={60}
+                    />
+                  </div>
+
+                  {(textCustom.allow_all_fonts || (textCustom.allowed_fonts && textCustom.allowed_fonts.length > 0)) && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold">Police</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(textCustom.allow_all_fonts ? DEFAULT_FONTS : textCustom.allowed_fonts ?? []).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setCustomFont(f)}
+                            className={`rounded-md border px-2 py-1 text-xs ${
+                              customFont === f ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                            }`}
+                            style={{ fontFamily: f }}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(textCustom.allow_all_colors || (textCustom.allowed_colors && textCustom.allowed_colors.length > 0)) && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold">Couleur du texte</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(textCustom.allow_all_colors ? DEFAULT_COLORS : textCustom.allowed_colors ?? []).map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setCustomColor(c)}
+                            className={`h-7 w-7 rounded-full border-2 ${
+                              customColor === c ? "border-primary ring-2 ring-primary/30" : "border-border"
+                            }`}
+                            style={{ backgroundColor: c }}
+                            aria-label={c}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {customText && (
+                    <div className="rounded-lg border border-border bg-background p-3 text-center">
+                      <p
+                        className="break-words text-lg font-semibold"
+                        style={{ fontFamily: customFont || undefined, color: customColor || undefined }}
+                      >
+                        {customText}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <p className="mb-1.5 text-xs font-semibold">Quantité</p>
             <div className="inline-flex items-center rounded-md border border-border">
@@ -308,7 +467,7 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : "Ajouter au panier"}
+            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : "Ajouter au panier"}
           </Button>
         </div>
       </div>
