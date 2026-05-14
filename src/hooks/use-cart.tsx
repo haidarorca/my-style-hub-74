@@ -42,13 +42,15 @@ export function useCart() {
     }
     const qty = input.quantity ?? 1;
     // Look for an existing identical line
-    const { data: existing } = await supabase
+    let existingQuery = supabase
       .from("cart_items")
       .select("id, quantity")
       .eq("user_id", user.id)
-      .eq("product_id", input.productId)
-      .is("variant_id", input.variantId ?? null as never)
-      .maybeSingle();
+      .eq("product_id", input.productId);
+    existingQuery = input.variantId
+      ? existingQuery.eq("variant_id", input.variantId)
+      : existingQuery.is("variant_id", null);
+    const { data: existing } = await existingQuery.maybeSingle();
 
     if (existing && !input.customization) {
       const { error } = await supabase
