@@ -51,6 +51,52 @@ function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
 
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"saved" | "new">("saved");
+  const [newForm, setNewForm] = useState({
+    label: "Domicile",
+    full_name: "",
+    phone: "",
+    address: "",
+    city: "",
+    note: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [locating, setLocating] = useState(false);
+
+  const loadAddresses = async () => {
+    if (!user) return;
+    const { data } = await (supabase as any)
+      .from("customer_addresses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const list = (data ?? []) as Address[];
+    setAddresses(list);
+    if (list.length > 0) {
+      setMode("saved");
+      setSelectedId(list[0].id);
+    } else {
+      setMode("new");
+      setNewForm((f) => ({
+        ...f,
+        full_name: profile?.full_name ?? "",
+        phone: profile?.phone ?? "",
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (checkoutOpen) void loadAddresses();
+    // eslint-disable-next-line
+  }, [checkoutOpen]);
+
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
@@ -90,52 +136,6 @@ function CartPage() {
     if (c.image_url) parts.push("image fournie");
     return parts.length ? parts.join(", ") : null;
   };
-
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"saved" | "new">("saved");
-  const [newForm, setNewForm] = useState({
-    label: "Domicile",
-    full_name: "",
-    phone: "",
-    address: "",
-    city: "",
-    note: "",
-    latitude: null as number | null,
-    longitude: null as number | null,
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [locating, setLocating] = useState(false);
-
-  const loadAddresses = async () => {
-    const { data } = await (supabase as any)
-      .from("customer_addresses")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_default", { ascending: false })
-      .order("created_at", { ascending: true });
-    const list = (data ?? []) as Address[];
-    setAddresses(list);
-    if (list.length > 0) {
-      setMode("saved");
-      setSelectedId(list[0].id);
-    } else {
-      setMode("new");
-      setNewForm((f) => ({
-        ...f,
-        full_name: profile?.full_name ?? "",
-        phone: profile?.phone ?? "",
-      }));
-    }
-  };
-
-  useEffect(() => {
-    if (checkoutOpen) void loadAddresses();
-    // eslint-disable-next-line
-  }, [checkoutOpen]);
-
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error("Géolocalisation non disponible");
     setLocating(true);
