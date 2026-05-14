@@ -2,6 +2,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
 
 export function AppHeader() {
   const { user, profile, isAdmin, isVendor, signOut } = useAuth();
+  const { count } = useCart();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -39,9 +41,16 @@ export function AppHeader() {
         </Link>
 
         {/* Top-positioned actions so phone gesture bar doesn't interfere */}
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => toast.info("Panier — bientôt disponible")}>
-          <ShoppingBag className="h-5 w-5" />
-        </Button>
+        <Link to="/cart" className="relative">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ShoppingBag className="h-5 w-5" />
+          </Button>
+          {count > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              {count}
+            </span>
+          )}
+        </Link>
 
         {user ? (
           <DropdownMenu>
