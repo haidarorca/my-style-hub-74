@@ -1,0 +1,87 @@
+import { Link, useRouter } from "@tanstack/react-router";
+import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export function AppHeader() {
+  const { user, profile, isAdmin, isVendor, signOut } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.navigate({ to: "/" });
+  };
+
+  return (
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
+        <Link to="/" className="flex items-center gap-1.5 shrink-0">
+          <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
+            ORCA
+          </span>
+        </Link>
+
+        <Link
+          to="/"
+          className="flex h-9 flex-1 items-center gap-2 rounded-full bg-muted px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
+        >
+          <Search className="h-4 w-4" />
+          <span>Rechercher un produit…</span>
+        </Link>
+
+        {/* Top-positioned actions so phone gesture bar doesn't interfere */}
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => toast.info("Panier — bientôt disponible")}>
+          <ShoppingBag className="h-5 w-5" />
+        </Button>
+
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="truncate">
+                {profile?.full_name || profile?.email || "Mon compte"}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => toast.info("Mon compte — bientôt disponible")}>
+                Mon compte
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => toast.info("Espace admin — bientôt disponible")}>
+                  <ShieldCheck className="mr-2 h-4 w-4" /> Espace admin
+                </DropdownMenuItem>
+              )}
+              {isVendor && (
+                <DropdownMenuItem onClick={() => toast.info("Espace vendeur — bientôt disponible")}>
+                  <Store className="mr-2 h-4 w-4" /> Espace vendeur
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Se déconnecter
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Link to="/login">
+            <Button size="sm" className="rounded-full">
+              Connexion
+            </Button>
+          </Link>
+        )}
+      </div>
+    </header>
+  );
+}
