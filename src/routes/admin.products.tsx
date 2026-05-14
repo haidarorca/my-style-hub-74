@@ -226,7 +226,15 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               {img && <img src={img} alt={p.name} className="h-full w-full object-cover" />}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{p.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="truncate text-sm font-semibold">{p.name}</div>
+                {p.is_edit && status === "pending" && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600">Modification</Badge>
+                )}
+                {!p.is_edit && status === "pending" && (
+                  <Badge variant="secondary">Nouveau</Badge>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground">Code {p.code} • {p.price} FCFA</div>
               {p.rejection_reason && <div className="mt-1 text-xs text-destructive">Motif : {p.rejection_reason}</div>}
             </div>
