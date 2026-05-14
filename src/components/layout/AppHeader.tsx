@@ -1,6 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin } from "lucide-react";
-import { toast } from "sonner";
+
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
