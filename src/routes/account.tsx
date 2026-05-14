@@ -110,6 +110,8 @@ function AccountPage() {
       label: a.label,
       full_name: a.full_name,
       phone: a.phone,
+      phone_secondary: a.phone_secondary ?? "",
+      phone_alt: a.phone_alt ?? "",
       address: a.address,
       city: a.city,
       note: a.note ?? "",
