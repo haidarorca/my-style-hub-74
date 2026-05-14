@@ -2,12 +2,17 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { Check, X, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
@@ -18,6 +23,7 @@ export const Route = createFileRoute("/admin/products")({
 
 type ProductRow = {
   id: string; name: string; code: string; price: number;
+  description: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
   product_images: { url: string }[] | null;
@@ -27,13 +33,15 @@ type ProductRow = {
 function ProductList({ status }: { status: "pending" | "approved" | "rejected" }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<ProductRow | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", price: "", description: "" });
 
   const { data: items } = useQuery({
     queryKey: ["admin", "products", status],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, status, rejection_reason, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, status, rejection_reason, vendor_id, product_images(url)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -48,6 +56,32 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     const { error } = await supabase.from("products").update(payload).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success(next === "approved" ? "Approuvé" : "Rejeté");
+    qc.invalidateQueries({ queryKey: ["admin", "products"] });
+  }
+
+  async function deleteProduct(id: string) {
+    if (!confirm("Supprimer définitivement ce produit ?")) return;
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Produit supprimé");
+    qc.invalidateQueries({ queryKey: ["admin", "products"] });
+  }
+
+  function openEdit(p: ProductRow) {
+    setEditing(p);
+    setEditForm({ name: p.name, price: String(p.price), description: p.description ?? "" });
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const { error } = await supabase.from("products").update({
+      name: editForm.name.trim(),
+      price: Number(editForm.price) || 0,
+      description: editForm.description.trim() || null,
+    }).eq("id", editing.id);
+    if (error) return toast.error(error.message);
+    toast.success("Produit mis à jour");
+    setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin", "products"] });
   }
 
