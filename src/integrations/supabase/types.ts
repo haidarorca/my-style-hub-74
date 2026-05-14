@@ -247,6 +247,7 @@ export type Database = {
           color_hex: string | null
           created_at: string
           id: string
+          image_url: string | null
           price_override: number | null
           product_id: string
           size: string | null
@@ -257,6 +258,7 @@ export type Database = {
           color_hex?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           price_override?: number | null
           product_id: string
           size?: string | null
@@ -267,6 +269,7 @@ export type Database = {
           color_hex?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           price_override?: number | null
           product_id?: string
           size?: string | null
