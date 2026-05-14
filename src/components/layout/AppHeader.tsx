@@ -72,9 +72,9 @@ export function AppHeader() {
                   <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> Espace admin</Link>
                 </DropdownMenuItem>
               )}
-              {isVendor && (
-                <DropdownMenuItem onClick={() => toast.info("Espace vendeur — bientôt disponible")}>
-                  <Store className="mr-2 h-4 w-4" /> Espace vendeur
+              {(isVendor || isAdmin) && (
+                <DropdownMenuItem asChild>
+                  <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> Espace vendeur</Link>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
