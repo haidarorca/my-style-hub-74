@@ -1,6 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store } from "lucide-react";
-import { toast } from "sonner";
+import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin } from "lucide-react";
+
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
@@ -64,8 +64,8 @@ export function AppHeader() {
                 {profile?.full_name || profile?.email || "Mon compte"}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => toast.info("Mon compte — bientôt disponible")}>
-                Mon compte
+              <DropdownMenuItem asChild>
+                <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
               </DropdownMenuItem>
               {isAdmin && (
                 <DropdownMenuItem asChild>
