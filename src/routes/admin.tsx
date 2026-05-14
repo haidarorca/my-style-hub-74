@@ -6,7 +6,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_admin")({
+export const Route = createFileRoute("/admin")({
   component: AdminLayout,
 });
 
