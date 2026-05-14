@@ -26,6 +26,8 @@ const addressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
   full_name: z.string().trim().min(2, "Nom trop court").max(100),
   phone: z.string().trim().min(7, "Numéro invalide").max(20).regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
+  phone_secondary: z.string().trim().max(20).regex(/^[+0-9 ()-]*$/, "Numéro invalide").optional().or(z.literal("")),
+  phone_alt: z.string().trim().max(20).regex(/^[+0-9 ()-]*$/, "Numéro invalide").optional().or(z.literal("")),
   address: z.string().trim().min(3, "Adresse requise").max(300),
   city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
   note: z.string().trim().max(500).optional().or(z.literal("")),
@@ -37,6 +39,8 @@ export interface Address {
   label: string;
   full_name: string;
   phone: string;
+  phone_secondary: string | null;
+  phone_alt: string | null;
   address: string;
   city: string;
   latitude: number | null;
@@ -49,6 +53,8 @@ const emptyForm = {
   label: "Domicile",
   full_name: "",
   phone: "",
+  phone_secondary: "",
+  phone_alt: "",
   address: "",
   city: "",
   note: "",
@@ -104,6 +110,8 @@ function AccountPage() {
       label: a.label,
       full_name: a.full_name,
       phone: a.phone,
+      phone_secondary: a.phone_secondary ?? "",
+      phone_alt: a.phone_alt ?? "",
       address: a.address,
       city: a.city,
       note: a.note ?? "",
@@ -152,6 +160,8 @@ function AccountPage() {
       const payload = {
         ...parsed.data,
         note: parsed.data.note || null,
+        phone_secondary: parsed.data.phone_secondary || null,
+        phone_alt: parsed.data.phone_alt || null,
         latitude: form.latitude,
         longitude: form.longitude,
         user_id: user.id,
@@ -256,7 +266,7 @@ function AccountPage() {
                       )}
                     </div>
                     <p className="mt-1 text-sm">{a.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{a.phone}</p>
+                    <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
                     <p className="mt-1 text-sm">{a.address}</p>
                     <p className="text-xs text-muted-foreground">{a.city}</p>
                     {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
@@ -282,7 +292,7 @@ function AccountPage() {
                     className="mt-2 h-8 rounded-full text-xs"
                     onClick={() => setDefault(a)}
                   >
-                    <Star className="h-3 w-3" /> Définir par défaut
+                    <Star className="h-3 w-3" /> Définir comme adresse principale
                   </Button>
                 )}
               </li>
@@ -311,10 +321,24 @@ function AccountPage() {
               {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
             </div>
             <div>
-              <Label htmlFor="a_phone">Numéro WhatsApp *</Label>
+              <Label htmlFor="a_phone">Téléphone principal *</Label>
               <Input id="a_phone" type="tel" placeholder="+221 77 000 00 00" value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} maxLength={20} />
+              <p className="mt-1 text-[11px] text-muted-foreground">WhatsApp si disponible</p>
               {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+            </div>
+            <div>
+              <Label htmlFor="a_phone2">Téléphone secondaire (optionnel)</Label>
+              <Input id="a_phone2" type="tel" placeholder="+221 …" value={form.phone_secondary}
+                onChange={(e) => setForm({ ...form, phone_secondary: e.target.value })} maxLength={20} />
+              {errors.phone_secondary && <p className="mt-1 text-xs text-destructive">{errors.phone_secondary}</p>}
+            </div>
+            <div>
+              <Label htmlFor="a_phone3">Téléphone alternatif (optionnel)</Label>
+              <Input id="a_phone3" type="tel" placeholder="+221 …" value={form.phone_alt}
+                onChange={(e) => setForm({ ...form, phone_alt: e.target.value })} maxLength={20} />
+              <p className="mt-1 text-[11px] text-muted-foreground">Au cas où un numéro ne fonctionne pas</p>
+              {errors.phone_alt && <p className="mt-1 text-xs text-destructive">{errors.phone_alt}</p>}
             </div>
             <div>
               <Label htmlFor="a_addr">Adresse *</Label>
