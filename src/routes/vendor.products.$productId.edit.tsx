@@ -115,17 +115,15 @@ function EditProductPage() {
       }
 
       // Update product
-      const updatePayload: Record<string, unknown> = {
+      const updatePayload = {
         name: name.trim(),
         designation: designation.trim() || null,
         description: description.trim() || null,
         price: Number(price) || 0,
+        ...(sensitiveChanged && status === "approved"
+          ? { status: "pending" as const, is_edit: true, rejection_reason: null }
+          : {}),
       };
-      if (sensitiveChanged && status === "approved") {
-        updatePayload.status = "pending";
-        updatePayload.is_edit = true;
-        updatePayload.rejection_reason = null;
-      }
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
       if (updErr) throw updErr;
 
