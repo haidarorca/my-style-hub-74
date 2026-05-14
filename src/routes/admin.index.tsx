@@ -46,6 +46,43 @@ function Dashboard() {
     { label: "Signalements ouverts", value: reports.data, icon: Flag, color: "text-destructive" },
   ];
 
+  const vendorStats = useQuery({
+    queryKey: ["admin", "vendor-stats"],
+    queryFn: async () => {
+      const { data: roles, error: rErr } = await supabase
+        .from("user_roles")
+        .select("user_id, profiles:profiles!inner(shop_name, full_name, email)")
+        .eq("role", "vendeur");
+      if (rErr) throw rErr;
+      const list = (roles ?? []) as unknown as Array<{
+        user_id: string;
+        profiles: { shop_name: string | null; full_name: string | null; email: string | null } | null;
+      }>;
+      const ids = list.map((v) => v.user_id);
+      let countsByVendor: Record<string, { total: number; approved: number; pending: number }> = {};
+      if (ids.length > 0) {
+        const { data: prods } = await supabase
+          .from("products")
+          .select("vendor_id, status")
+          .in("vendor_id", ids);
+        for (const p of prods ?? []) {
+          const v = (p as { vendor_id: string }).vendor_id;
+          const s = (p as { status: string }).status;
+          countsByVendor[v] ??= { total: 0, approved: 0, pending: 0 };
+          countsByVendor[v].total += 1;
+          if (s === "approved") countsByVendor[v].approved += 1;
+          if (s === "pending") countsByVendor[v].pending += 1;
+        }
+      }
+      return list.map((v) => ({
+        user_id: v.user_id,
+        name: v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email || "—",
+        email: v.profiles?.email,
+        ...(countsByVendor[v.user_id] ?? { total: 0, approved: 0, pending: 0 }),
+      }));
+    },
+  });
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
@@ -62,6 +99,33 @@ function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Vendeurs et leurs produits</CardTitle></CardHeader>
+        <CardContent>
+          {!vendorStats.data ? (
+            <p className="text-sm text-muted-foreground">Chargement…</p>
+          ) : vendorStats.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun vendeur.</p>
+          ) : (
+            <ul className="divide-y">
+              {vendorStats.data.map((v) => (
+                <li key={v.user_id} className="flex items-center gap-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{v.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{v.email}</div>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <div className="text-center"><div className="font-bold">{v.total}</div><div className="text-muted-foreground">total</div></div>
+                    <div className="text-center"><div className="font-bold text-emerald-600">{v.approved}</div><div className="text-muted-foreground">publiés</div></div>
+                    <div className="text-center"><div className="font-bold text-amber-600">{v.pending}</div><div className="text-muted-foreground">en attente</div></div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
