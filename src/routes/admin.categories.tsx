@@ -72,7 +72,7 @@ function CategoriesPage() {
       });
       if (error) throw error;
       toast.success("Catégorie créée");
-      setName(""); setLogoFile(null); setParentId(null);
+      setName(""); setLogoFile(null); setParentId(null); setGrandParentId(null);
       await qc.invalidateQueries({ queryKey: ["admin", "categories"] });
       await qc.invalidateQueries({ queryKey: ["categories", "level1"] });
     } catch (e) {
