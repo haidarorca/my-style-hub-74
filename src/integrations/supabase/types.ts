@@ -107,6 +107,54 @@ export type Database = {
           },
         ]
       }
+      customer_addresses: {
+        Row: {
+          address: string
+          city: string
+          created_at: string
+          full_name: string
+          id: string
+          is_default: boolean
+          label: string
+          latitude: number | null
+          longitude: number | null
+          note: string | null
+          phone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          city: string
+          created_at?: string
+          full_name: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          latitude?: number | null
+          longitude?: number | null
+          note?: string | null
+          phone: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          latitude?: number | null
+          longitude?: number | null
+          note?: string | null
+          phone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           buyer_id: string
