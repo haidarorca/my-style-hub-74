@@ -17,6 +17,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VendorIndexRouteImport } from './routes/vendor.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
 import { Route as ShopVendorIdRouteImport } from './routes/shop.$vendorId'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CCategoryIdRouteImport } from './routes/c.$categoryId'
@@ -67,6 +68,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const VendorOrdersRoute = VendorOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => VendorRoute,
 } as any)
 const ShopVendorIdRoute = ShopVendorIdRouteImport.update({
   id: '/shop/$vendorId',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/orders': typeof VendorOrdersRoute
   '/admin/': typeof AdminIndexRoute
   '/vendor/': typeof VendorIndexRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/orders': typeof VendorOrdersRoute
   '/admin': typeof AdminIndexRoute
   '/vendor': typeof VendorIndexRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/orders': typeof VendorOrdersRoute
   '/admin/': typeof AdminIndexRoute
   '/vendor/': typeof VendorIndexRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/orders'
     | '/admin/'
     | '/vendor/'
     | '/vendor/products/new'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/orders'
     | '/admin'
     | '/vendor'
     | '/vendor/products/new'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/orders'
     | '/admin/'
     | '/vendor/'
     | '/vendor/products/new'
@@ -309,6 +321,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/vendor/orders': {
+      id: '/vendor/orders'
+      path: '/orders'
+      fullPath: '/vendor/orders'
+      preLoaderRoute: typeof VendorOrdersRouteImport
+      parentRoute: typeof VendorRoute
     }
     '/shop/$vendorId': {
       id: '/shop/$vendorId'
@@ -404,12 +423,14 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface VendorRouteChildren {
+  VendorOrdersRoute: typeof VendorOrdersRoute
   VendorIndexRoute: typeof VendorIndexRoute
   VendorProductsNewRoute: typeof VendorProductsNewRoute
   VendorProductsProductIdEditRoute: typeof VendorProductsProductIdEditRoute
 }
 
 const VendorRouteChildren: VendorRouteChildren = {
+  VendorOrdersRoute: VendorOrdersRoute,
   VendorIndexRoute: VendorIndexRoute,
   VendorProductsNewRoute: VendorProductsNewRoute,
   VendorProductsProductIdEditRoute: VendorProductsProductIdEditRoute,
