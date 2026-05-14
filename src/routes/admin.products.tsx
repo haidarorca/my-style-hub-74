@@ -159,6 +159,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   const qc = useQueryClient();
   const [reason, setReason] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<ProductRow | null>(null);
+  const [viewing, setViewing] = useState<ProductRow | null>(null);
   const [editForm, setEditForm] = useState({ name: "", price: "", description: "" });
 
   const { data: items } = useQuery({
@@ -166,7 +167,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, description, status, rejection_reason, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, designation, status, rejection_reason, vendor_id, product_images(url)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
