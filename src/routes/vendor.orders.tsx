@@ -1,106 +1,138 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Package, ImageIcon } from "lucide-react";
+import { Package, ImageIcon, Phone, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/vendor/orders")({
   component: VendorOrders,
 });
 
-interface OrderItem {
-  id: string;
-  order_id: string;
-  product_id: string;
-  product_name: string;
-  product_code: string;
-  product_image_url: string | null;
-  size: string | null;
-  color: string | null;
-  unit_price: number;
-  quantity: number;
-  customization: any;
-  created_at: string;
-  buyer_id: string;
-}
+const STATUSES = [
+  { value: "new", label: "Nouvelle" },
+  { value: "confirmed", label: "Confirmée" },
+  { value: "delivered", label: "Livrée" },
+  { value: "cancelled", label: "Annulée" },
+];
+
+const statusVariant = (s: string) =>
+  s === "delivered" ? "default" : s === "cancelled" ? "destructive" : s === "confirmed" ? "secondary" : "outline";
 
 function VendorOrders() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const qc = useQueryClient();
   const [zoomImg, setZoomImg] = useState<string | null>(null);
 
-  const { data: itemsRaw } = useQuery({
+  const { data: orders } = useQuery({
     queryKey: ["vendor-orders", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch items first (vendor-scoped) then their orders.
+      const { data: items, error } = await supabase
         .from("order_items")
         .select("*")
         .eq("vendor_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as OrderItem[];
+      const orderIds = Array.from(new Set((items ?? []).map((i: any) => i.order_id)));
+      if (orderIds.length === 0) return [];
+      const { data: ords } = await supabase
+        .from("orders")
+        .select("*")
+        .in("id", orderIds)
+        .order("created_at", { ascending: false });
+      return (ords ?? []).map((o: any) => ({
+        ...o,
+        items: (items ?? []).filter((i: any) => i.order_id === o.id),
+      }));
     },
   });
 
-  const items = itemsRaw ?? [];
-
-  // Fetch buyer profiles
-  const buyerIds = Array.from(new Set(items.map((i) => i.buyer_id)));
-  const { data: buyers } = useQuery({
-    queryKey: ["vendor-orders-buyers", buyerIds.sort().join(",")],
-    enabled: buyerIds.length > 0,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, phone")
-        .in("id", buyerIds);
-      const map: Record<string, { full_name: string | null; phone: string | null }> = {};
-      for (const b of data ?? []) map[b.id] = { full_name: b.full_name, phone: b.phone };
-      return map;
-    },
-  });
-
-  // Group items by order_id
-  const orders = new Map<string, OrderItem[]>();
-  for (const it of items) {
-    if (!orders.has(it.order_id)) orders.set(it.order_id, []);
-    orders.get(it.order_id)!.push(it);
-  }
+  const updateStatus = async (orderId: string, status: string) => {
+    const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
+    if (error) {
+      toast.error("Impossible de changer le statut");
+      return;
+    }
+    toast.success("Statut mis à jour");
+    qc.invalidateQueries({ queryKey: ["vendor-orders"] });
+  };
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Commandes reçues</h1>
 
-      {orders.size === 0 ? (
+      {!orders || orders.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           <Package className="mx-auto mb-2 h-8 w-8 opacity-50" />
           Aucune commande pour le moment.
         </div>
       ) : (
         <ul className="space-y-4">
-          {Array.from(orders.entries()).map(([orderId, list]) => {
-            const total = list.reduce((s, i) => s + Number(i.unit_price) * i.quantity, 0);
-            const date = new Date(list[0].created_at);
-            const buyer = buyers?.[list[0].buyer_id];
+          {orders.map((o: any) => {
+            const date = new Date(o.created_at);
+            const myItemsTotal = o.items.reduce(
+              (s: number, i: any) => s + Number(i.unit_price) * i.quantity,
+              0,
+            );
             return (
-              <li key={orderId} className="overflow-hidden rounded-xl border bg-card">
+              <li key={o.id} className="overflow-hidden rounded-xl border bg-card">
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
                   <div>
-                    <div className="text-xs font-semibold">Commande #{orderId.slice(0, 8)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {date.toLocaleString("fr-FR")}
-                      {buyer?.full_name && <> · {buyer.full_name}</>}
-                      {buyer?.phone && <> · {buyer.phone}</>}
-                    </div>
+                    <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
+                    <div className="text-[11px] text-muted-foreground">{date.toLocaleString("fr-FR")}</div>
                   </div>
-                  <Badge variant="default">{total.toLocaleString("fr-FR")} FCFA</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusVariant(o.status) as any}>
+                      {STATUSES.find((s) => s.value === o.status)?.label ?? o.status}
+                    </Badge>
+                    <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v)}>
+                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </header>
+
+                <div className="border-b bg-muted/20 px-3 py-2 text-xs">
+                  <div className="font-semibold">{o.customer_name ?? "—"}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                    {o.customer_phone && (
+                      <a href={`tel:${o.customer_phone}`} className="inline-flex items-center gap-1 hover:text-primary">
+                        <Phone className="h-3 w-3" /> {o.customer_phone}
+                      </a>
+                    )}
+                    {(o.address || o.city) && (
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {[o.address, o.city].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
+                </div>
+
                 <ul>
-                  {list.map((it) => {
+                  {o.items.map((it: any) => {
                     const c = it.customization || {};
                     return (
                       <li key={it.id} className="flex gap-3 border-b p-3 last:border-0">
@@ -128,8 +160,14 @@ function VendorOrders() {
                               <div className="mb-1 font-semibold text-primary">Personnalisation</div>
                               {c.text && (
                                 <div className="space-y-1">
-                                  <div>Texte : <span className="font-medium">{c.text}</span></div>
-                                  {c.font && <div>Police : <span className="font-medium">{c.font}</span></div>}
+                                  <div>
+                                    Texte : <span className="font-medium">{c.text}</span>
+                                  </div>
+                                  {c.font && (
+                                    <div>
+                                      Police : <span className="font-medium">{c.font}</span>
+                                    </div>
+                                  )}
                                   {c.color && (
                                     <div className="flex items-center gap-1">
                                       Couleur :
@@ -178,6 +216,15 @@ function VendorOrders() {
                     );
                   })}
                 </ul>
+
+                <div className="flex items-center justify-between border-t bg-muted/10 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {isAdmin ? "Total commande" : "Sous-total (vos articles)"}
+                  </span>
+                  <span className="font-bold text-primary">
+                    {(isAdmin ? Number(o.total) : myItemsTotal).toLocaleString("fr-FR")} FCFA
+                  </span>
+                </div>
               </li>
             );
           })}
@@ -193,7 +240,9 @@ function VendorOrders() {
             <div className="space-y-3">
               <img src={zoomImg} alt="zoom" className="max-h-[70vh] w-full object-contain" />
               <a href={zoomImg} target="_blank" rel="noreferrer">
-                <Button variant="outline" className="w-full">Ouvrir dans un nouvel onglet</Button>
+                <Button variant="outline" className="w-full">
+                  Ouvrir dans un nouvel onglet
+                </Button>
               </a>
             </div>
           )}

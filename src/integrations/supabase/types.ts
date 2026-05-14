@@ -171,23 +171,38 @@ export type Database = {
       }
       orders: {
         Row: {
+          address: string | null
           buyer_id: string
+          city: string | null
           created_at: string
+          customer_name: string | null
+          customer_phone: string | null
           id: string
+          note: string | null
           status: string
           total: number
         }
         Insert: {
+          address?: string | null
           buyer_id: string
+          city?: string | null
           created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
+          note?: string | null
           status?: string
           total?: number
         }
         Update: {
+          address?: string | null
           buyer_id?: string
+          city?: string | null
           created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
+          note?: string | null
           status?: string
           total?: number
         }

@@ -1,12 +1,37 @@
+import { useState } from "react";
+import { z } from "zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2, Store, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
+
+const checkoutSchema = z.object({
+  customer_name: z.string().trim().min(2, "Nom trop court").max(100),
+  customer_phone: z
+    .string()
+    .trim()
+    .min(7, "Numéro invalide")
+    .max(20)
+    .regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
+  address: z.string().trim().min(3, "Adresse requise").max(300),
+  city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+});
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -57,12 +82,44 @@ function CartPage() {
     return parts.length ? parts.join(", ") : null;
   };
 
-  const onCheckout = async () => {
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    customer_name: "",
+    customer_phone: "",
+    address: "",
+    city: "",
+    note: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const submitOrder = async () => {
     if (items.length === 0) return;
+    const parsed = checkoutSchema.safeParse(form);
+    if (!parsed.success) {
+      const errs: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const k = issue.path[0] as string;
+        if (!errs[k]) errs[k] = issue.message;
+      }
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
     try {
       const { data: order, error: oErr } = await supabase
         .from("orders")
-        .insert({ buyer_id: user.id, total: grandTotal, status: "pending" })
+        .insert({
+          buyer_id: user.id,
+          total: grandTotal,
+          status: "new",
+          customer_name: parsed.data.customer_name,
+          customer_phone: parsed.data.customer_phone,
+          address: parsed.data.address,
+          city: parsed.data.city,
+          note: parsed.data.note || null,
+        })
         .select("id")
         .single();
       if (oErr || !order) throw oErr ?? new Error("order failed");
@@ -85,27 +142,37 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
+      const lines: WhatsAppLine[] = items.map((it: any) => ({
+        shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
+        code: it.products?.code ?? "",
+        name: it.products?.name ?? "",
+        size: it.product_variants?.size ?? null,
+        color: it.product_variants?.color ?? null,
+        customization: customizationSummary(it.customization),
+        quantity: it.quantity,
+        unitPrice: unitPrice(it),
+      }));
+      const msg = buildWhatsAppMessage(lines, {
+        name: parsed.data.customer_name,
+        phone: parsed.data.customer_phone,
+        address: parsed.data.address,
+        city: parsed.data.city,
+        note: parsed.data.note,
+        orderId: order.id,
+      });
+
       // Clear cart
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       refresh();
+      setCheckoutOpen(false);
+      toast.success("Commande enregistrée");
+      window.open(whatsappUrl(msg), "_blank");
     } catch (e: any) {
       toast.error("Erreur lors de l'enregistrement de la commande");
       console.error(e);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    const lines: WhatsAppLine[] = items.map((it: any) => ({
-      shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
-      code: it.products?.code ?? "",
-      name: it.products?.name ?? "",
-      size: it.product_variants?.size ?? null,
-      color: it.product_variants?.color ?? null,
-      customization: customizationSummary(it.customization),
-      quantity: it.quantity,
-      unitPrice: unitPrice(it),
-    }));
-    const msg = buildWhatsAppMessage(lines);
-    window.open(whatsappUrl(msg), "_blank");
   };
 
   return (
@@ -196,12 +263,83 @@ function CartPage() {
                 {grandTotal.toLocaleString("fr-FR")} FCFA
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={onCheckout}>
-              Passer la commande (WhatsApp)
+            <Button
+              className="h-12 rounded-full px-6 text-sm font-semibold"
+              onClick={() => setCheckoutOpen(true)}
+            >
+              Passer la commande
             </Button>
           </div>
         </div>
       )}
+
+      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Informations de livraison</DialogTitle>
+            <DialogDescription>
+              Remplissez vos coordonnées. La commande sera enregistrée puis WhatsApp s'ouvrira avec le récapitulatif.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="cust_name">Nom du client *</Label>
+              <Input
+                id="cust_name"
+                value={form.customer_name}
+                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                maxLength={100}
+              />
+              {errors.customer_name && <p className="mt-1 text-xs text-destructive">{errors.customer_name}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_phone">Téléphone WhatsApp *</Label>
+              <Input
+                id="cust_phone"
+                type="tel"
+                placeholder="+221 77 000 00 00"
+                value={form.customer_phone}
+                onChange={(e) => setForm({ ...form, customer_phone: e.target.value })}
+                maxLength={20}
+              />
+              {errors.customer_phone && <p className="mt-1 text-xs text-destructive">{errors.customer_phone}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_addr">Adresse de livraison *</Label>
+              <Input
+                id="cust_addr"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                maxLength={300}
+              />
+              {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_city">Quartier / Ville *</Label>
+              <Input
+                id="cust_city"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                maxLength={100}
+              />
+              {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cust_note">Note (optionnel)</Label>
+              <Textarea
+                id="cust_note"
+                rows={2}
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                maxLength={500}
+              />
+            </div>
+            <Button onClick={submitOrder} disabled={submitting} className="w-full">
+              {submitting ? "Envoi…" : "Confirmer et ouvrir WhatsApp"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
