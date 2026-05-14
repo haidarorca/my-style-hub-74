@@ -97,10 +97,12 @@ function AccountPage() {
 
   const openNew = () => {
     setEditing(null);
+    const parsedProfile = profile?.phone ? parsePhone(profile.phone) : null;
+    setCountry(parsedProfile?.country ?? DEFAULT_COUNTRY);
     setForm({
       ...emptyForm,
       full_name: profile?.full_name ?? "",
-      phone: profile?.phone ?? "",
+      phone: parsedProfile?.local ?? "",
     });
     setErrors({});
     setOpen(true);
@@ -108,12 +110,16 @@ function AccountPage() {
 
   const openEdit = (a: Address) => {
     setEditing(a);
+    const p1 = parsePhone(a.phone);
+    const p2 = a.phone_secondary ? parsePhone(a.phone_secondary) : null;
+    const p3 = a.phone_alt ? parsePhone(a.phone_alt) : null;
+    setCountry(p1.country);
     setForm({
       label: a.label,
       full_name: a.full_name,
-      phone: a.phone,
-      phone_secondary: a.phone_secondary ?? "",
-      phone_alt: a.phone_alt ?? "",
+      phone: p1.local,
+      phone_secondary: p2?.local ?? "",
+      phone_alt: p3?.local ?? "",
       address: a.address,
       city: a.city,
       note: a.note ?? "",
