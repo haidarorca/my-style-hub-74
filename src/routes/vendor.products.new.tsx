@@ -36,6 +36,7 @@ interface VariantInput {
   color_hex: string;
   stock: number;
   price_override: string; // string for input, parsed on submit
+  image_file: File | null;
 }
 
 function NewProductPage() {
@@ -106,7 +107,7 @@ function NewProductPage() {
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
 
   const addVariant = () =>
-    setVariants((v) => [...v, { size: "", color: "", color_hex: "#000000", stock: 0, price_override: "" }]);
+    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
@@ -172,18 +173,34 @@ function NewProductPage() {
       const { error: imgErr } = await supabase.from("product_images").insert(imageRows);
       if (imgErr) throw imgErr;
 
-      // 3. Insert variants
+      // 3. Insert variants (with optional per-variant image)
       if (variants.length > 0) {
-        const { error: varErr } = await supabase.from("product_variants").insert(
-          variants.map((v) => ({
+        const variantRows: Array<{
+          product_id: string; size: string | null; color: string | null;
+          color_hex: string | null; stock: number; price_override: number | null;
+          image_url: string | null;
+        }> = [];
+        for (let i = 0; i < variants.length; i++) {
+          const v = variants[i];
+          let image_url: string | null = null;
+          if (v.image_file) {
+            const ext = v.image_file.name.split(".").pop() || "jpg";
+            const path = `${user.id}/${productId}/variants/${Date.now()}-${i}.${ext}`;
+            const { error: upErr } = await supabase.storage.from("product-images").upload(path, v.image_file);
+            if (upErr) throw upErr;
+            image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+          }
+          variantRows.push({
             product_id: productId,
             size: v.size.trim() || null,
             color: v.color.trim() || null,
             color_hex: v.color_hex || null,
             stock: v.stock || 0,
             price_override: v.price_override ? Number(v.price_override) : null,
-          })),
-        );
+            image_url,
+          });
+        }
+        const { error: varErr } = await supabase.from("product_variants").insert(variantRows);
         if (varErr) throw varErr;
       }
 
@@ -324,38 +341,58 @@ function NewProductPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Variantes (taille / couleur)</CardTitle>
+          <CardTitle className="text-base">Variantes (taille / couleur ou modèle)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Ajoutez une ligne par combinaison disponible. Laissez vide ce qui ne s'applique pas. Le prix de la ligne remplace le prix de base si renseigné.
+            Une ligne par combinaison. Pour un <b>modèle</b> (Modèle A, B…), saisissez son nom dans « Couleur / Modèle » et laissez la pastille Hex vide. Ajoutez une image par variante : elle s'affichera quand le client la sélectionne.
           </p>
           {variants.map((v, i) => (
-            <div key={i} className="grid grid-cols-12 items-end gap-2 rounded-lg border bg-background p-2">
-              <div className="col-span-3">
-                <Label className="text-[10px]">Taille</Label>
-                <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
+            <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
+              <div className="grid grid-cols-12 items-end gap-2">
+                <div className="col-span-2">
+                  <Label className="text-[10px]">Taille</Label>
+                  <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[10px]">Couleur / Modèle</Label>
+                  <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder="Rouge ou Modèle A" />
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-[10px]">Hex</Label>
+                  <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-[10px]">Stock</Label>
+                  <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[10px]">Prix (opt.)</Label>
+                  <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="col-span-3">
-                <Label className="text-[10px]">Couleur</Label>
-                <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder="Rouge…" />
-              </div>
-              <div className="col-span-1">
-                <Label className="text-[10px]">Hex</Label>
-                <input type="color" value={v.color_hex} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-[10px]">Stock</Label>
-                <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-[10px]">Prix (opt.)</Label>
-                <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
-              </div>
-              <div className="col-span-1">
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center gap-2">
+                {v.image_file ? (
+                  <div className="relative h-14 w-14 overflow-hidden rounded border">
+                    <img src={URL.createObjectURL(v.image_file)} alt="" className="h-full w-full object-cover" />
+                    <button type="button" onClick={() => updateVariant(i, { image_file: null })}
+                      className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={(e) => updateVariant(i, { image_file: e.target.files?.[0] ?? null })} />
+                  </label>
+                )}
+                <p className="text-[11px] text-muted-foreground">Image affichée quand cette variante est choisie (optionnel).</p>
               </div>
             </div>
           ))}
