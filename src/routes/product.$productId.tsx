@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
+import { ReviewsSection } from "@/components/product/ReviewsSection";
+import { SimilarProducts } from "@/components/product/SimilarProducts";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
