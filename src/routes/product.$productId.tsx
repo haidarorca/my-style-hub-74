@@ -467,7 +467,7 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : "Ajouter au panier"}
+            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : "Ajouter au panier"}
           </Button>
         </div>
       </div>
