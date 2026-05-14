@@ -102,9 +102,8 @@ function Home() {
               {products.map((p) => {
                 const img = (p.product_images as { url: string }[] | null)?.[0]?.url;
                 return (
-                  <Link
+                  <div
                     key={p.id}
-                    to="/"
                     className="group overflow-hidden rounded-xl bg-card shadow-soft transition-shadow hover:shadow-card"
                   >
                     <div className="aspect-[3/4] overflow-hidden bg-muted">
@@ -116,7 +115,7 @@ function Home() {
                       <p className="line-clamp-2 text-xs">{p.name}</p>
                       <p className="mt-1 text-sm font-bold text-primary">{p.price} FCFA</p>
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>

@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,11 +39,9 @@ export function AppHeader() {
         </Link>
 
         {/* Top-positioned actions so phone gesture bar doesn't interfere */}
-        <Link to="/cart" className="relative">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ShoppingBag className="h-5 w-5" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => toast.info("Panier — bientôt disponible")}>
+          <ShoppingBag className="h-5 w-5" />
+        </Button>
 
         {user ? (
           <DropdownMenu>
@@ -56,21 +55,17 @@ export function AppHeader() {
                 {profile?.full_name || profile?.email || "Mon compte"}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/account">Mon compte</Link>
+              <DropdownMenuItem onClick={() => toast.info("Mon compte — bientôt disponible")}>
+                Mon compte
               </DropdownMenuItem>
               {isAdmin && (
-                <DropdownMenuItem asChild>
-                  <Link to="/admin">
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Espace admin
-                  </Link>
+                <DropdownMenuItem onClick={() => toast.info("Espace admin — bientôt disponible")}>
+                  <ShieldCheck className="mr-2 h-4 w-4" /> Espace admin
                 </DropdownMenuItem>
               )}
               {isVendor && (
-                <DropdownMenuItem asChild>
-                  <Link to="/vendor">
-                    <Store className="mr-2 h-4 w-4" /> Espace vendeur
-                  </Link>
+                <DropdownMenuItem onClick={() => toast.info("Espace vendeur — bientôt disponible")}>
+                  <Store className="mr-2 h-4 w-4" /> Espace vendeur
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
