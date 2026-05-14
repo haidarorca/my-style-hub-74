@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PhoneInput } from "@/components/ui/phone-input";
+import { CountryPicker, PhoneDigitsInput, DEFAULT_COUNTRY, parsePhone, type Country } from "@/components/ui/phone-input";
 import {
   Dialog,
   DialogContent,
