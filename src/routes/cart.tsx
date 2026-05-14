@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2, Store, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/cart")({
@@ -12,7 +14,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { user } = useAuth();
-  const { items, updateQuantity, removeItem } = useCart();
+  const { items, updateQuantity, removeItem, refresh } = useCart();
 
   if (!user) {
     return (
@@ -45,13 +47,60 @@ function CartPage() {
   const unitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
-  const onCheckout = () => {
+  const customizationSummary = (c: any): string | null => {
+    if (!c) return null;
+    const parts: string[] = [];
+    if (c.text) parts.push(`texte « ${c.text} »`);
+    if (c.font) parts.push(`police ${c.font}`);
+    if (c.color) parts.push(`couleur ${c.color}`);
+    if (c.image_url) parts.push("image fournie");
+    return parts.length ? parts.join(", ") : null;
+  };
+
+  const onCheckout = async () => {
+    if (items.length === 0) return;
+    try {
+      const { data: order, error: oErr } = await supabase
+        .from("orders")
+        .insert({ buyer_id: user.id, total: grandTotal, status: "pending" })
+        .select("id")
+        .single();
+      if (oErr || !order) throw oErr ?? new Error("order failed");
+
+      const rows = items.map((it: any) => ({
+        order_id: order.id,
+        product_id: it.products.id,
+        variant_id: it.variant_id ?? null,
+        vendor_id: it.products.vendor_id,
+        buyer_id: user.id,
+        product_name: it.products.name,
+        product_code: it.products.code,
+        product_image_url: it.products.product_images?.[0]?.url ?? null,
+        size: it.product_variants?.size ?? null,
+        color: it.product_variants?.color ?? null,
+        unit_price: unitPrice(it),
+        quantity: it.quantity,
+        customization: it.customization ?? null,
+      }));
+      const { error: iErr } = await supabase.from("order_items").insert(rows);
+      if (iErr) throw iErr;
+
+      // Clear cart
+      await supabase.from("cart_items").delete().eq("user_id", user.id);
+      refresh();
+    } catch (e: any) {
+      toast.error("Erreur lors de l'enregistrement de la commande");
+      console.error(e);
+      return;
+    }
+
     const lines: WhatsAppLine[] = items.map((it: any) => ({
       shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
       code: it.products?.code ?? "",
       name: it.products?.name ?? "",
       size: it.product_variants?.size ?? null,
       color: it.product_variants?.color ?? null,
+      customization: customizationSummary(it.customization),
       quantity: it.quantity,
       unitPrice: unitPrice(it),
     }));
@@ -81,6 +130,7 @@ function CartPage() {
                   {g.items.map((it: any) => {
                     const img = it.products?.product_images?.[0]?.url;
                     const price = unitPrice(it);
+                    const cust = customizationSummary(it.customization);
                     return (
                       <li key={it.id} className="flex gap-3 border-b border-border p-3 last:border-0">
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
@@ -96,6 +146,7 @@ function CartPage() {
                               {it.product_variants.color && <>Couleur : {it.product_variants.color}</>}
                             </p>
                           )}
+                          {cust && <p className="text-xs text-primary">Perso : {cust}</p>}
                           <div className="mt-auto flex items-end justify-between pt-2">
                             <p className="text-sm font-bold text-primary">
                               {price.toLocaleString("fr-FR")} FCFA

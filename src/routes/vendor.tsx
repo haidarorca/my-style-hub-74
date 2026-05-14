@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { ArrowLeft, LayoutDashboard, Plus } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Plus, Package } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/vendor")({
 const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/vendor", label: "Mes produits", icon: LayoutDashboard, exact: true },
   { to: "/vendor/products/new", label: "Nouveau produit", icon: Plus },
+  { to: "/vendor/orders", label: "Commandes", icon: Package },
 ];
 
 function VendorLayout() {
