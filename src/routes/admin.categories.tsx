@@ -108,7 +108,7 @@ function CategoriesPage() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium">Niveau</label>
-              <Select value={String(level)} onValueChange={(v) => { setLevel(Number(v) as 1|2|3); setParentId(null); }}>
+              <Select value={String(level)} onValueChange={(v) => { setLevel(Number(v) as 1|2|3); setParentId(null); setGrandParentId(null); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">Niveau 1 (principale)</SelectItem>
@@ -117,9 +117,9 @@ function CategoriesPage() {
                 </SelectContent>
               </Select>
             </div>
-            {level > 1 && (
+            {level === 2 && (
               <div className="space-y-1">
-                <label className="text-xs font-medium">Parent</label>
+                <label className="text-xs font-medium">Catégorie parente (Niveau 1)</label>
                 <Select value={parentId ?? ""} onValueChange={setParentId}>
                   <SelectTrigger><SelectValue placeholder="Choisir…" /></SelectTrigger>
                   <SelectContent>
@@ -129,6 +129,32 @@ function CategoriesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            )}
+            {level === 3 && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Catégorie principale (Niveau 1)</label>
+                  <Select value={grandParentId ?? ""} onValueChange={(v) => { setGrandParentId(v); setParentId(null); }}>
+                    <SelectTrigger><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                    <SelectContent>
+                      {level1Options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Sous-catégorie (Niveau 2)</label>
+                  <Select value={parentId ?? ""} onValueChange={setParentId} disabled={!grandParentId}>
+                    <SelectTrigger><SelectValue placeholder={grandParentId ? "Choisir…" : "Choisis d'abord la catégorie principale"} /></SelectTrigger>
+                    <SelectContent>
+                      {parentOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
           </div>
           <div className="space-y-1">
