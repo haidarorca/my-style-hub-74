@@ -107,6 +107,92 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          buyer_id: string
+          color: string | null
+          created_at: string
+          customization: Json | null
+          id: string
+          order_id: string
+          product_code: string
+          product_id: string
+          product_image_url: string | null
+          product_name: string
+          quantity: number
+          size: string | null
+          unit_price: number
+          variant_id: string | null
+          vendor_id: string
+        }
+        Insert: {
+          buyer_id: string
+          color?: string | null
+          created_at?: string
+          customization?: Json | null
+          id?: string
+          order_id: string
+          product_code: string
+          product_id: string
+          product_image_url?: string | null
+          product_name: string
+          quantity?: number
+          size?: string | null
+          unit_price?: number
+          variant_id?: string | null
+          vendor_id: string
+        }
+        Update: {
+          buyer_id?: string
+          color?: string | null
+          created_at?: string
+          customization?: Json | null
+          id?: string
+          order_id?: string
+          product_code?: string
+          product_id?: string
+          product_image_url?: string | null
+          product_name?: string
+          quantity?: number
+          size?: string | null
+          unit_price?: number
+          variant_id?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          buyer_id: string
+          created_at: string
+          id: string
+          status: string
+          total: number
+        }
+        Insert: {
+          buyer_id: string
+          created_at?: string
+          id?: string
+          status?: string
+          total?: number
+        }
+        Update: {
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          status?: string
+          total?: number
+        }
+        Relationships: []
+      }
       product_customizations: {
         Row: {
           allow_all_colors: boolean | null
