@@ -160,6 +160,8 @@ function AccountPage() {
       const payload = {
         ...parsed.data,
         note: parsed.data.note || null,
+        phone_secondary: parsed.data.phone_secondary || null,
+        phone_alt: parsed.data.phone_alt || null,
         latitude: form.latitude,
         longitude: form.longitude,
         user_id: user.id,
