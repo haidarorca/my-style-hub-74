@@ -39,14 +39,22 @@ function CategoriesPage() {
 
   const [name, setName] = useState("");
   const [level, setLevel] = useState<1 | 2 | 3>(1);
+  const [grandParentId, setGrandParentId] = useState<string | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parentOptions = (cats ?? []).filter((c) => c.level === level - 1);
+  const level1Options = (cats ?? []).filter((c) => c.level === 1);
+  const parentOptions =
+    level === 2
+      ? (cats ?? []).filter((c) => c.level === 1)
+      : level === 3
+      ? (cats ?? []).filter((c) => c.level === 2 && c.parent_id === grandParentId)
+      : [];
 
   async function handleCreate() {
     if (!name.trim()) return toast.error("Nom requis");
+    if (level === 3 && !grandParentId) return toast.error("Catégorie principale requise");
     if (level > 1 && !parentId) return toast.error("Catégorie parente requise");
     setBusy(true);
     try {
@@ -65,7 +73,7 @@ function CategoriesPage() {
       });
       if (error) throw error;
       toast.success("Catégorie créée");
-      setName(""); setLogoFile(null); setParentId(null);
+      setName(""); setLogoFile(null); setParentId(null); setGrandParentId(null);
       await qc.invalidateQueries({ queryKey: ["admin", "categories"] });
       await qc.invalidateQueries({ queryKey: ["categories", "level1"] });
     } catch (e) {
@@ -100,7 +108,7 @@ function CategoriesPage() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium">Niveau</label>
-              <Select value={String(level)} onValueChange={(v) => { setLevel(Number(v) as 1|2|3); setParentId(null); }}>
+              <Select value={String(level)} onValueChange={(v) => { setLevel(Number(v) as 1|2|3); setParentId(null); setGrandParentId(null); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">Niveau 1 (principale)</SelectItem>
@@ -109,9 +117,9 @@ function CategoriesPage() {
                 </SelectContent>
               </Select>
             </div>
-            {level > 1 && (
+            {level === 2 && (
               <div className="space-y-1">
-                <label className="text-xs font-medium">Parent</label>
+                <label className="text-xs font-medium">Catégorie parente (Niveau 1)</label>
                 <Select value={parentId ?? ""} onValueChange={setParentId}>
                   <SelectTrigger><SelectValue placeholder="Choisir…" /></SelectTrigger>
                   <SelectContent>
@@ -121,6 +129,32 @@ function CategoriesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            )}
+            {level === 3 && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Catégorie principale (Niveau 1)</label>
+                  <Select value={grandParentId ?? ""} onValueChange={(v) => { setGrandParentId(v); setParentId(null); }}>
+                    <SelectTrigger><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                    <SelectContent>
+                      {level1Options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Sous-catégorie (Niveau 2)</label>
+                  <Select value={parentId ?? ""} onValueChange={setParentId} disabled={!grandParentId}>
+                    <SelectTrigger><SelectValue placeholder={grandParentId ? "Choisir…" : "Choisis d'abord la catégorie principale"} /></SelectTrigger>
+                    <SelectContent>
+                      {parentOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
           </div>
           <div className="space-y-1">
