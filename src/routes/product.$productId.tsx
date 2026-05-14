@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
