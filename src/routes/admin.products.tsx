@@ -12,7 +12,7 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 
-export const Route = createFileRoute("/_admin/products")({
+export const Route = createFileRoute("/admin/products")({
   component: ProductsPage,
 });
 

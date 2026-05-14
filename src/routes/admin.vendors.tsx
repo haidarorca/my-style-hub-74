@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { createVendor, deleteVendor } from "@/lib/admin.functions";
 
-export const Route = createFileRoute("/_admin/vendors")({
+export const Route = createFileRoute("/admin/vendors")({
   component: VendorsPage,
 });
 

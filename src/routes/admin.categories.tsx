@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const Route = createFileRoute("/_admin/categories")({
+export const Route = createFileRoute("/admin/categories")({
   component: CategoriesPage,
 });
 
