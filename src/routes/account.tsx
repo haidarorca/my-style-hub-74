@@ -292,7 +292,7 @@ function AccountPage() {
                     className="mt-2 h-8 rounded-full text-xs"
                     onClick={() => setDefault(a)}
                   >
-                    <Star className="h-3 w-3" /> Définir par défaut
+                    <Star className="h-3 w-3" /> Définir comme adresse principale
                   </Button>
                 )}
               </li>
