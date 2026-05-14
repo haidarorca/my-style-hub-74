@@ -64,8 +64,8 @@ export function AppHeader() {
                 {profile?.full_name || profile?.email || "Mon compte"}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => toast.info("Mon compte — bientôt disponible")}>
-                Mon compte
+              <DropdownMenuItem asChild>
+                <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
               </DropdownMenuItem>
               {isAdmin && (
                 <DropdownMenuItem asChild>
