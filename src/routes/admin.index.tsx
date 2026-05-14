@@ -87,6 +87,24 @@ function Dashboard() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
+
+      <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <PackageCheck className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold">Validation des produits</div>
+            <div className="text-xs text-muted-foreground">
+              {pending.data ?? 0} produit{(pending.data ?? 0) > 1 ? "s" : ""} en attente — approuver ou rejeter
+            </div>
+          </div>
+          <Button asChild size="sm">
+            <Link to="/admin/products">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (
           <Card key={t.label}>
