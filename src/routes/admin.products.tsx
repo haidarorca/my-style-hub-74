@@ -255,6 +255,9 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               </div>
             )}
             <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setViewing(p)} title="Voir détails">
+                <Eye className="h-4 w-4" />
+              </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(p)} title="Modifier">
                 <Pencil className="h-4 w-4" />
               </Button>
