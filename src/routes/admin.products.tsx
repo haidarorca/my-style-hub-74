@@ -128,9 +128,32 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
                 )}
               </div>
             )}
+            <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(p)} title="Modifier">
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteProduct(p.id)} title="Supprimer">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
           </li>
         );
       })}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Modifier le produit</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Nom</Label><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div><Label>Prix (FCFA)</Label><Input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} /></div>
+            <div><Label>Description</Label><Textarea rows={4} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Annuler</Button>
+            <Button onClick={saveEdit}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ul>
   );
 }
