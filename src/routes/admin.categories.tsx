@@ -54,6 +54,7 @@ function CategoriesPage() {
 
   async function handleCreate() {
     if (!name.trim()) return toast.error("Nom requis");
+    if (level === 3 && !grandParentId) return toast.error("Catégorie principale requise");
     if (level > 1 && !parentId) return toast.error("Catégorie parente requise");
     setBusy(true);
     try {
