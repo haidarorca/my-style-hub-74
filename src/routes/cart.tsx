@@ -136,35 +136,6 @@ function CartPage() {
     if (c.image_url) parts.push("image fournie");
     return parts.length ? parts.join(", ") : null;
   };
-
-
-  const loadAddresses = async () => {
-    const { data } = await (supabase as any)
-      .from("customer_addresses")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_default", { ascending: false })
-      .order("created_at", { ascending: true });
-    const list = (data ?? []) as Address[];
-    setAddresses(list);
-    if (list.length > 0) {
-      setMode("saved");
-      setSelectedId(list[0].id);
-    } else {
-      setMode("new");
-      setNewForm((f) => ({
-        ...f,
-        full_name: profile?.full_name ?? "",
-        phone: profile?.phone ?? "",
-      }));
-    }
-  };
-
-  useEffect(() => {
-    if (checkoutOpen) void loadAddresses();
-    // eslint-disable-next-line
-  }, [checkoutOpen]);
-
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error("Géolocalisation non disponible");
     setLocating(true);
