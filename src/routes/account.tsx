@@ -71,6 +71,7 @@ function AccountPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Address | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
