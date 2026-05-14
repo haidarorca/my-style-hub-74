@@ -74,6 +74,7 @@ function ProductPage() {
           `id, name, code, designation, description, price, vendor_id, category_id,
            product_images(url, position),
            product_variants(*),
+           product_customizations(*),
            profiles:vendor_id(full_name, shop_name)`,
         )
         .eq("id", productId)
@@ -85,6 +86,9 @@ function ProductPage() {
 
   const variants = (data?.product_variants ?? []) as Variant[];
   const images = (data?.product_images ?? []) as { url: string; position: number | null }[];
+  const customizations = (data?.product_customizations ?? []) as Customization[];
+  const imageCustom = customizations.find((c) => c.type === "image") ?? null;
+  const textCustom = customizations.find((c) => c.type === "name" || c.type === "logo") ?? null;
   const sizes = useMemo(
     () => Array.from(new Set(variants.map((v) => v.size).filter(Boolean) as string[])),
     [variants],
