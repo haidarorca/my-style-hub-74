@@ -27,6 +27,7 @@ type ProductRow = {
   designation: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  is_edit: boolean | null;
   product_images: { url: string }[] | null;
   vendor_id: string;
 };
