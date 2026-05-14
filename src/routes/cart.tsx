@@ -1,12 +1,37 @@
+import { useState } from "react";
+import { z } from "zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2, Store, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
+
+const checkoutSchema = z.object({
+  customer_name: z.string().trim().min(2, "Nom trop court").max(100),
+  customer_phone: z
+    .string()
+    .trim()
+    .min(7, "Numéro invalide")
+    .max(20)
+    .regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
+  address: z.string().trim().min(3, "Adresse requise").max(300),
+  city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+});
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -57,12 +82,44 @@ function CartPage() {
     return parts.length ? parts.join(", ") : null;
   };
 
-  const onCheckout = async () => {
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    customer_name: "",
+    customer_phone: "",
+    address: "",
+    city: "",
+    note: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const submitOrder = async () => {
     if (items.length === 0) return;
+    const parsed = checkoutSchema.safeParse(form);
+    if (!parsed.success) {
+      const errs: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const k = issue.path[0] as string;
+        if (!errs[k]) errs[k] = issue.message;
+      }
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
     try {
       const { data: order, error: oErr } = await supabase
         .from("orders")
-        .insert({ buyer_id: user.id, total: grandTotal, status: "pending" })
+        .insert({
+          buyer_id: user.id,
+          total: grandTotal,
+          status: "new",
+          customer_name: parsed.data.customer_name,
+          customer_phone: parsed.data.customer_phone,
+          address: parsed.data.address,
+          city: parsed.data.city,
+          note: parsed.data.note || null,
+        })
         .select("id")
         .single();
       if (oErr || !order) throw oErr ?? new Error("order failed");
@@ -85,27 +142,37 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
+      const lines: WhatsAppLine[] = items.map((it: any) => ({
+        shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
+        code: it.products?.code ?? "",
+        name: it.products?.name ?? "",
+        size: it.product_variants?.size ?? null,
+        color: it.product_variants?.color ?? null,
+        customization: customizationSummary(it.customization),
+        quantity: it.quantity,
+        unitPrice: unitPrice(it),
+      }));
+      const msg = buildWhatsAppMessage(lines, {
+        name: parsed.data.customer_name,
+        phone: parsed.data.customer_phone,
+        address: parsed.data.address,
+        city: parsed.data.city,
+        note: parsed.data.note,
+        orderId: order.id,
+      });
+
       // Clear cart
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       refresh();
+      setCheckoutOpen(false);
+      toast.success("Commande enregistrée");
+      window.open(whatsappUrl(msg), "_blank");
     } catch (e: any) {
       toast.error("Erreur lors de l'enregistrement de la commande");
       console.error(e);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    const lines: WhatsAppLine[] = items.map((it: any) => ({
-      shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
-      code: it.products?.code ?? "",
-      name: it.products?.name ?? "",
-      size: it.product_variants?.size ?? null,
-      color: it.product_variants?.color ?? null,
-      customization: customizationSummary(it.customization),
-      quantity: it.quantity,
-      unitPrice: unitPrice(it),
-    }));
-    const msg = buildWhatsAppMessage(lines);
-    window.open(whatsappUrl(msg), "_blank");
   };
 
   return (
