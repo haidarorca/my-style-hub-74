@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, X, Pencil, Trash2 } from "lucide-react";
+import { Check, X, Pencil, Trash2, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
@@ -24,16 +24,142 @@ export const Route = createFileRoute("/admin/products")({
 type ProductRow = {
   id: string; name: string; code: string; price: number;
   description: string | null;
+  designation: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
   product_images: { url: string }[] | null;
   vendor_id: string;
 };
 
+type Variant = {
+  id: string; size: string | null; color: string | null;
+  color_hex: string | null; stock: number; price_override: number | null;
+  image_url: string | null;
+};
+
+type Customization = {
+  id: string; type: string;
+  allow_all_fonts: boolean | null; allowed_fonts: string[] | null;
+  allow_all_colors: boolean | null; allowed_colors: string[] | null;
+  image_size_message: string | null;
+};
+
+function ProductDetailDialog({ product, onClose }: { product: ProductRow | null; onClose: () => void }) {
+  const { data: details } = useQuery({
+    queryKey: ["admin", "product-details", product?.id],
+    enabled: !!product,
+    queryFn: async () => {
+      const [imgs, vars, custs, vendor] = await Promise.all([
+        supabase.from("product_images").select("url, position").eq("product_id", product!.id).order("position"),
+        supabase.from("product_variants").select("*").eq("product_id", product!.id),
+        supabase.from("product_customizations").select("*").eq("product_id", product!.id),
+        supabase.from("profiles").select("full_name, shop_name, email, phone").eq("id", product!.vendor_id).maybeSingle(),
+      ]);
+      return {
+        images: (imgs.data ?? []) as { url: string; position: number }[],
+        variants: (vars.data ?? []) as Variant[],
+        customizations: (custs.data ?? []) as Customization[],
+        vendor: vendor.data as { full_name: string | null; shop_name: string | null; email: string | null; phone: string | null } | null,
+      };
+    },
+  });
+
+  return (
+    <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{product?.name}</DialogTitle>
+          <DialogDescription>Code {product?.code} • {product?.price} FCFA</DialogDescription>
+        </DialogHeader>
+        {!product ? null : (
+          <div className="space-y-4 text-sm">
+            {details?.vendor && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="text-xs font-semibold text-muted-foreground">Vendeur</div>
+                <div>{details.vendor.shop_name || details.vendor.full_name || "—"}</div>
+                <div className="text-xs text-muted-foreground">{details.vendor.email}{details.vendor.phone && ` • ${details.vendor.phone}`}</div>
+              </div>
+            )}
+
+            {product.designation && (
+              <div><div className="text-xs font-semibold text-muted-foreground">Désignation</div><div>{product.designation}</div></div>
+            )}
+            {product.description && (
+              <div><div className="text-xs font-semibold text-muted-foreground">Description</div><div className="whitespace-pre-wrap">{product.description}</div></div>
+            )}
+
+            <div>
+              <div className="mb-2 text-xs font-semibold text-muted-foreground">Images ({details?.images.length ?? 0})</div>
+              <div className="grid grid-cols-3 gap-2">
+                {details?.images.map((im, i) => (
+                  <a key={i} href={im.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-lg bg-muted">
+                    <img src={im.url} alt="" className="h-full w-full object-cover" />
+                  </a>
+                ))}
+                {details && details.images.length === 0 && <div className="col-span-3 text-xs text-muted-foreground">Aucune image.</div>}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-xs font-semibold text-muted-foreground">Variantes ({details?.variants.length ?? 0})</div>
+              {details && details.variants.length === 0 ? (
+                <div className="text-xs text-muted-foreground">Aucune variante.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {details?.variants.map((v) => (
+                    <li key={v.id} className="flex items-center gap-2 rounded-lg border p-2">
+                      {v.image_url ? (
+                        <a href={v.image_url} target="_blank" rel="noreferrer" className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted">
+                          <img src={v.image_url} alt="" className="h-full w-full object-cover" />
+                        </a>
+                      ) : v.color_hex ? (
+                        <div className="h-12 w-12 shrink-0 rounded border" style={{ background: v.color_hex }} />
+                      ) : (
+                        <div className="h-12 w-12 shrink-0 rounded bg-muted" />
+                      )}
+                      <div className="flex-1 text-xs">
+                        {v.color && <div><b>Couleur/Modèle :</b> {v.color}</div>}
+                        {v.size && <div><b>Taille :</b> {v.size}</div>}
+                        <div className="text-muted-foreground">Stock {v.stock}{v.price_override != null && ` • ${v.price_override} FCFA`}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {details && details.customizations.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-semibold text-muted-foreground">Personnalisation</div>
+                <ul className="space-y-2">
+                  {details.customizations.map((c) => (
+                    <li key={c.id} className="rounded-lg border p-2 text-xs">
+                      <div className="font-semibold">Type : {c.type}</div>
+                      {c.type === "image" && c.image_size_message && <div>Consignes image : {c.image_size_message}</div>}
+                      {c.type === "logo" && (
+                        <>
+                          <div>Polices : {c.allow_all_fonts ? "toutes" : (c.allowed_fonts ?? []).join(", ") || "—"}</div>
+                          <div>Couleurs : {c.allow_all_colors ? "toutes" : (c.allowed_colors ?? []).join(", ") || "—"}</div>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter><Button variant="outline" onClick={onClose}>Fermer</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ProductList({ status }: { status: "pending" | "approved" | "rejected" }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<ProductRow | null>(null);
+  const [viewing, setViewing] = useState<ProductRow | null>(null);
   const [editForm, setEditForm] = useState({ name: "", price: "", description: "" });
 
   const { data: items } = useQuery({
@@ -41,7 +167,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, description, status, rejection_reason, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, designation, status, rejection_reason, vendor_id, product_images(url)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -129,6 +255,9 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               </div>
             )}
             <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setViewing(p)} title="Voir détails">
+                <Eye className="h-4 w-4" />
+              </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(p)} title="Modifier">
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -154,6 +283,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ProductDetailDialog product={viewing} onClose={() => setViewing(null)} />
     </ul>
   );
 }
