@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -147,39 +148,22 @@ function ProductPage() {
     <div className="min-h-screen bg-background pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
-        {/* Gallery — show variant image if a color/model with image is selected */}
+        {/* Gallery — swipeable */}
         {(() => {
           const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
-          const displayUrl = variantImg ?? images[imgIdx]?.url;
+          const urls = images.map((i) => i.url);
+          const galleryUrls = variantImg
+            ? [variantImg, ...urls.filter((u) => u !== variantImg)]
+            : urls;
           return (
-            <div className="relative aspect-square w-full overflow-hidden bg-muted">
-              {displayUrl ? (
-                <img src={displayUrl} alt={data.name} className="h-full w-full object-cover" />
-              ) : null}
-              <Link
-                to="/"
-                className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Link>
-            </div>
+            <ProductGallery
+              urls={galleryUrls}
+              alt={data.name}
+              activeIndex={imgIdx}
+              onIndexChange={setImgIdx}
+            />
           );
         })()}
-        {images.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto p-3">
-            {images.map((im, i) => (
-              <button
-                key={i}
-                onClick={() => setImgIdx(i)}
-                className={`h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 ${
-                  i === imgIdx ? "border-primary" : "border-transparent"
-                }`}
-              >
-                <img src={im.url} alt="" className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="space-y-4 px-4 py-3">
           <div>
@@ -331,3 +315,88 @@ function ProductPage() {
     </div>
   );
 }
+
+interface ProductGalleryProps {
+  urls: string[];
+  alt: string;
+  activeIndex: number;
+  onIndexChange: (i: number) => void;
+}
+
+function ProductGallery({ urls, alt, activeIndex, onIndexChange }: ProductGalleryProps) {
+  const [api, setApi] = useState<CarouselApi | null>(null);
+
+  useEffect(() => {
+    if (!api) return;
+    const onSelect = () => onIndexChange(api.selectedScrollSnap());
+    api.on("select", onSelect);
+    return () => {
+      api.off("select", onSelect);
+    };
+  }, [api, onIndexChange]);
+
+  useEffect(() => {
+    if (!api) return;
+    if (api.selectedScrollSnap() !== activeIndex) {
+      api.scrollTo(activeIndex);
+    }
+  }, [api, activeIndex]);
+
+  if (urls.length === 0) {
+    return (
+      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        <Link
+          to="/"
+          className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <Carousel setApi={setApi} opts={{ loop: false, align: "start" }}>
+        <CarouselContent className="ml-0">
+          {urls.map((url, i) => (
+            <CarouselItem key={`${url}-${i}`} className="pl-0 basis-full">
+              <div className="relative aspect-square w-full overflow-hidden bg-muted">
+                <img
+                  src={url}
+                  alt={`${alt} ${i + 1}`}
+                  className="h-full w-full object-cover select-none"
+                  draggable={false}
+                />
+              </div>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+      </Carousel>
+      <Link
+        to="/"
+        className="absolute left-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </Link>
+      {urls.length > 1 && (
+        <>
+          <div className="absolute right-3 top-3 z-10 rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium backdrop-blur">
+            {activeIndex + 1} / {urls.length}
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1.5">
+            {urls.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === activeIndex ? "w-5 bg-primary" : "w-1.5 bg-background/70"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
