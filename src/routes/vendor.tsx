@@ -8,10 +8,10 @@ export const Route = createFileRoute("/vendor")({
   component: VendorLayout,
 });
 
-const NAV = [
+const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/vendor", label: "Mes produits", icon: LayoutDashboard, exact: true },
   { to: "/vendor/products/new", label: "Nouveau produit", icon: Plus },
-] as const;
+];
 
 function VendorLayout() {
   const { loading, user, isVendor, isAdmin } = useAuth();
