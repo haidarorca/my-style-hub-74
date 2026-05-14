@@ -26,6 +26,8 @@ const addressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
   full_name: z.string().trim().min(2, "Nom trop court").max(100),
   phone: z.string().trim().min(7, "Numéro invalide").max(20).regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
+  phone_secondary: z.string().trim().max(20).regex(/^[+0-9 ()-]*$/, "Numéro invalide").optional().or(z.literal("")),
+  phone_alt: z.string().trim().max(20).regex(/^[+0-9 ()-]*$/, "Numéro invalide").optional().or(z.literal("")),
   address: z.string().trim().min(3, "Adresse requise").max(300),
   city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
   note: z.string().trim().max(500).optional().or(z.literal("")),
