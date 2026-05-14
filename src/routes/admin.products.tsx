@@ -27,6 +27,7 @@ type ProductRow = {
   designation: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  is_edit: boolean | null;
   product_images: { url: string }[] | null;
   vendor_id: string;
 };
@@ -167,7 +168,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, description, designation, status, rejection_reason, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, designation, status, rejection_reason, is_edit, vendor_id, product_images(url)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -176,9 +177,10 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   });
 
   async function setStatus(id: string, next: "approved" | "rejected") {
-    const payload: { status: "approved" | "rejected"; rejection_reason?: string | null } = { status: next };
+    const payload: { status: "approved" | "rejected"; rejection_reason?: string | null; is_edit?: boolean } = { status: next };
     if (next === "rejected") payload.rejection_reason = reason[id] || "Non conforme";
     else payload.rejection_reason = null;
+    if (next === "approved") payload.is_edit = false;
     const { error } = await supabase.from("products").update(payload).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success(next === "approved" ? "Approuvé" : "Rejeté");
@@ -224,7 +226,15 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               {img && <img src={img} alt={p.name} className="h-full w-full object-cover" />}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{p.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="truncate text-sm font-semibold">{p.name}</div>
+                {p.is_edit && status === "pending" && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600">Modification</Badge>
+                )}
+                {!p.is_edit && status === "pending" && (
+                  <Badge variant="secondary">Nouveau</Badge>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground">Code {p.code} • {p.price} FCFA</div>
               {p.rejection_reason && <div className="mt-1 text-xs text-destructive">Motif : {p.rejection_reason}</div>}
             </div>

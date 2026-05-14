@@ -322,6 +322,7 @@ export type Database = {
           description: string | null
           designation: string | null
           id: string
+          is_edit: boolean
           name: string
           price: number
           rejection_reason: string | null
@@ -336,6 +337,7 @@ export type Database = {
           description?: string | null
           designation?: string | null
           id?: string
+          is_edit?: boolean
           name: string
           price?: number
           rejection_reason?: string | null
@@ -350,6 +352,7 @@ export type Database = {
           description?: string | null
           designation?: string | null
           id?: string
+          is_edit?: boolean
           name?: string
           price?: number
           rejection_reason?: string | null
