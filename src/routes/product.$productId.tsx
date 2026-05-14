@@ -148,39 +148,22 @@ function ProductPage() {
     <div className="min-h-screen bg-background pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
-        {/* Gallery — show variant image if a color/model with image is selected */}
+        {/* Gallery — swipeable */}
         {(() => {
           const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
-          const displayUrl = variantImg ?? images[imgIdx]?.url;
+          const urls = images.map((i) => i.url);
+          const galleryUrls = variantImg
+            ? [variantImg, ...urls.filter((u) => u !== variantImg)]
+            : urls;
           return (
-            <div className="relative aspect-square w-full overflow-hidden bg-muted">
-              {displayUrl ? (
-                <img src={displayUrl} alt={data.name} className="h-full w-full object-cover" />
-              ) : null}
-              <Link
-                to="/"
-                className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Link>
-            </div>
+            <ProductGallery
+              urls={galleryUrls}
+              alt={data.name}
+              activeIndex={imgIdx}
+              onIndexChange={setImgIdx}
+            />
           );
         })()}
-        {images.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto p-3">
-            {images.map((im, i) => (
-              <button
-                key={i}
-                onClick={() => setImgIdx(i)}
-                className={`h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 ${
-                  i === imgIdx ? "border-primary" : "border-transparent"
-                }`}
-              >
-                <img src={im.url} alt="" className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="space-y-4 px-4 py-3">
           <div>
