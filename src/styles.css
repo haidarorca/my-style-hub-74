@@ -146,3 +146,8 @@
   /* Bottom nav with extra clearance so phone gesture buttons don't conflict */
   .bottom-safe { bottom: calc(1rem + var(--safe-bottom)); }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

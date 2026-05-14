@@ -1,6 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { ProductCard } from "@/components/product/ProductCard";
+import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 
@@ -8,8 +11,14 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+const ALL = "__all__";
+
 function Home() {
-  const { data: categories } = useQuery({
+  const [universeId, setUniverseId] = useState<string>(ALL);
+  const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
+  const [quickAddProductId, setQuickAddProductId] = useState<string | null>(null);
+
+  const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -22,23 +31,122 @@ function Home() {
     },
   });
 
-  const { data: products } = useQuery({
-    queryKey: ["products", "approved"],
+  const { data: subCategories } = useQuery({
+    queryKey: ["categories", "level2", universeId],
+    enabled: universeId !== ALL,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products")
-        .select("id, name, price, code, product_images(url)")
-        .eq("status", "approved")
-        .order("created_at", { ascending: false })
-        .limit(24);
+        .from("categories")
+        .select("id, name, slug")
+        .eq("parent_id", universeId)
+        .order("position");
       if (error) throw error;
       return data ?? [];
     },
   });
 
+  // Get descendant category ids for filtering
+  const { data: descendantIds } = useQuery({
+    queryKey: ["category-descendants", universeId, subCategoryId],
+    enabled: universeId !== ALL,
+    queryFn: async () => {
+      const root = subCategoryId ?? universeId;
+      // Fetch level 2 + 3 children
+      const { data: l2 } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("parent_id", root);
+      const ids = [root, ...(l2 ?? []).map((c) => c.id)];
+      if (l2 && l2.length > 0) {
+        const { data: l3 } = await supabase
+          .from("categories")
+          .select("id")
+          .in("parent_id", l2.map((c) => c.id));
+        ids.push(...(l3 ?? []).map((c) => c.id));
+      }
+      return ids;
+    },
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ["products", "approved", universeId, subCategoryId, descendantIds],
+    queryFn: async () => {
+      let q = supabase
+        .from("products")
+        .select("id, name, price, code, product_images(url)")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(40);
+      if (universeId !== ALL && descendantIds && descendantIds.length > 0) {
+        q = q.in("category_id", descendantIds);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const universeTabs = useMemo(
+    () => [{ id: ALL, name: "Tout" }, ...(universes ?? [])],
+    [universes],
+  );
+
+  const onSelectUniverse = (id: string) => {
+    setUniverseId(id);
+    setSubCategoryId(null);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
+
+      {/* Universe tabs (horizontal swipe) */}
+      <div className="sticky top-14 z-30 border-b border-border bg-background">
+        <div className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-2">
+          {universeTabs.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => onSelectUniverse(u.id)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                universeId === u.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
+              }`}
+            >
+              {u.name}
+            </button>
+          ))}
+        </div>
+        {/* Sub-categories */}
+        {universeId !== ALL && subCategories && subCategories.length > 0 && (
+          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
+            <button
+              onClick={() => setSubCategoryId(null)}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs ${
+                subCategoryId === null
+                  ? "bg-foreground text-background"
+                  : "bg-accent text-foreground"
+              }`}
+            >
+              Tout
+            </button>
+            {subCategories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setSubCategoryId(c.id)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs ${
+                  subCategoryId === c.id
+                    ? "bg-foreground text-background"
+                    : "bg-accent text-foreground"
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <main className="mx-auto max-w-7xl px-3 pb-safe">
         {/* Hero promo banner */}
         <section className="mt-3 overflow-hidden rounded-2xl gradient-flash p-5 text-primary-foreground shadow-pink">
@@ -69,13 +177,17 @@ function Home() {
           </div>
         </section>
 
-        {/* Categories */}
-        <section className="mt-6">
-          <h2 className="mb-3 text-base font-bold">Catégories</h2>
-          {categories && categories.length > 0 ? (
+        {/* Categories logos */}
+        {universes && universes.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-3 text-base font-bold">Catégories</h2>
             <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
-              {categories.map((c) => (
-                <div key={c.id} className="flex flex-col items-center gap-1.5 text-center">
+              {universes.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => onSelectUniverse(c.id)}
+                  className="flex flex-col items-center gap-1.5 text-center"
+                >
                   <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
                     {c.logo_url ? (
                       <img src={c.logo_url} alt={c.name} className="h-full w-full object-cover" />
@@ -84,48 +196,37 @@ function Home() {
                     )}
                   </div>
                   <span className="line-clamp-1 text-xs">{c.name}</span>
-                </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Tendances */}
+        <section className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Flame className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-bold">Tendances</h2>
+          </div>
+          {products && products.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} onQuickAdd={setQuickAddProductId} />
               ))}
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Aucune catégorie pour le moment. L'admin pourra les créer depuis l'espace admin.
-            </p>
-          )}
-        </section>
-
-        {/* Products grid */}
-        <section className="mt-6">
-          <h2 className="mb-3 text-base font-bold">Tendances</h2>
-          {products && products.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
-              {products.map((p) => {
-                const img = (p.product_images as { url: string }[] | null)?.[0]?.url;
-                return (
-                  <div
-                    key={p.id}
-                    className="group overflow-hidden rounded-xl bg-card shadow-soft transition-shadow hover:shadow-card"
-                  >
-                    <div className="aspect-[3/4] overflow-hidden bg-muted">
-                      {img ? (
-                        <img src={img} alt={p.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-                      ) : null}
-                    </div>
-                    <div className="p-2">
-                      <p className="line-clamp-2 text-xs">{p.name}</p>
-                      <p className="mt-1 text-sm font-bold text-primary">{p.price} FCFA</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Aucun produit publié pour l'instant.
+              Aucun produit publié pour cette sélection.
             </p>
           )}
         </section>
       </main>
+
+      <QuickAddSheet
+        productId={quickAddProductId}
+        open={!!quickAddProductId}
+        onOpenChange={(o) => !o && setQuickAddProductId(null)}
+      />
     </div>
   );
 }
