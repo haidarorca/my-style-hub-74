@@ -39,11 +39,18 @@ function CategoriesPage() {
 
   const [name, setName] = useState("");
   const [level, setLevel] = useState<1 | 2 | 3>(1);
+  const [grandParentId, setGrandParentId] = useState<string | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parentOptions = (cats ?? []).filter((c) => c.level === level - 1);
+  const level1Options = (cats ?? []).filter((c) => c.level === 1);
+  const parentOptions =
+    level === 2
+      ? (cats ?? []).filter((c) => c.level === 1)
+      : level === 3
+      ? (cats ?? []).filter((c) => c.level === 2 && c.parent_id === grandParentId)
+      : [];
 
   async function handleCreate() {
     if (!name.trim()) return toast.error("Nom requis");
