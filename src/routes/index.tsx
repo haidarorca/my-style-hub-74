@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -183,9 +183,10 @@ function Home() {
             <h2 className="mb-3 text-base font-bold">Catégories</h2>
             <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
               {universes.map((c) => (
-                <button
+                <Link
                   key={c.id}
-                  onClick={() => onSelectUniverse(c.id)}
+                  to="/c/$categoryId"
+                  params={{ categoryId: c.id }}
                   className="flex flex-col items-center gap-1.5 text-center"
                 >
                   <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
@@ -196,7 +197,7 @@ function Home() {
                     )}
                   </div>
                   <span className="line-clamp-1 text-xs">{c.name}</span>
-                </button>
+                </Link>
               ))}
             </div>
           </section>

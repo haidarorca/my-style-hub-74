@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
+import { ReviewsSection } from "@/components/product/ReviewsSection";
+import { SimilarProducts } from "@/components/product/SimilarProducts";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
@@ -48,7 +50,7 @@ function ProductPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          `id, name, code, designation, description, price, vendor_id,
+          `id, name, code, designation, description, price, vendor_id, category_id,
            product_images(url, position),
            product_variants(*),
            profiles:vendor_id(full_name, shop_name)`,
@@ -249,7 +251,11 @@ function ProductPage() {
           )}
 
           {/* Boutique */}
-          <div className="rounded-xl border border-border bg-card p-3">
+          <Link
+            to="/shop/$vendorId"
+            params={{ vendorId: data.vendor_id }}
+            className="block rounded-xl border border-border bg-card p-3 hover:bg-accent"
+          >
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Boutique
             </p>
@@ -259,10 +265,16 @@ function ProductPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{shopName}</p>
-                <p className="text-xs text-muted-foreground">Vendeur sur ORCA</p>
+                <p className="text-xs text-muted-foreground">Voir tous ses produits →</p>
               </div>
             </div>
-          </div>
+          </Link>
+
+          {/* Reviews */}
+          <ReviewsSection productId={productId} />
+
+          {/* Similar */}
+          <SimilarProducts productId={productId} categoryId={(data as any).category_id ?? null} />
 
           <Dialog open={reportOpen} onOpenChange={setReportOpen}>
             <DialogTrigger asChild>
