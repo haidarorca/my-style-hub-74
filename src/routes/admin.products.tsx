@@ -168,7 +168,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, description, designation, status, rejection_reason, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, designation, status, rejection_reason, is_edit, vendor_id, product_images(url)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -177,9 +177,10 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   });
 
   async function setStatus(id: string, next: "approved" | "rejected") {
-    const payload: { status: "approved" | "rejected"; rejection_reason?: string | null } = { status: next };
+    const payload: { status: "approved" | "rejected"; rejection_reason?: string | null; is_edit?: boolean } = { status: next };
     if (next === "rejected") payload.rejection_reason = reason[id] || "Non conforme";
     else payload.rejection_reason = null;
+    if (next === "approved") payload.is_edit = false;
     const { error } = await supabase.from("products").update(payload).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success(next === "approved" ? "Approuvé" : "Rejeté");
