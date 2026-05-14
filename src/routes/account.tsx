@@ -266,7 +266,7 @@ function AccountPage() {
                       )}
                     </div>
                     <p className="mt-1 text-sm">{a.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{a.phone}</p>
+                    <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
                     <p className="mt-1 text-sm">{a.address}</p>
                     <p className="text-xs text-muted-foreground">{a.city}</p>
                     {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
