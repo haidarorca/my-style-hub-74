@@ -11,7 +11,16 @@ export interface WhatsAppLine {
   unitPrice: number;
 }
 
-export function buildWhatsAppMessage(lines: WhatsAppLine[]): string {
+export interface WhatsAppCustomer {
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  note?: string | null;
+  orderId?: string | null;
+}
+
+export function buildWhatsAppMessage(lines: WhatsAppLine[], customer?: WhatsAppCustomer): string {
   const groups = new Map<string, WhatsAppLine[]>();
   for (const l of lines) {
     if (!groups.has(l.shopName)) groups.set(l.shopName, []);
@@ -20,9 +29,21 @@ export function buildWhatsAppMessage(lines: WhatsAppLine[]): string {
 
   const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
 
-  let msg = "🛒 *Nouvelle commande*\n\n";
-  let grandTotal = 0;
+  let msg = "🛒 *Nouvelle commande*\n";
+  if (customer?.orderId) msg += `N° ${customer.orderId.slice(0, 8)}\n`;
+  msg += "\n";
 
+  if (customer) {
+    msg += "👤 *Client*\n";
+    msg += `Nom : ${customer.name}\n`;
+    msg += `Téléphone : ${customer.phone}\n`;
+    msg += `Adresse : ${customer.address}\n`;
+    msg += `Quartier/Ville : ${customer.city}\n`;
+    if (customer.note) msg += `Note : ${customer.note}\n`;
+    msg += "\n────────────────\n\n";
+  }
+
+  let grandTotal = 0;
   for (const [shop, items] of groups) {
     msg += `🏪 *Boutique : ${shop}*\n`;
     let shopTotal = 0;
