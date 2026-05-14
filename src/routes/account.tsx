@@ -39,6 +39,8 @@ export interface Address {
   label: string;
   full_name: string;
   phone: string;
+  phone_secondary: string | null;
+  phone_alt: string | null;
   address: string;
   city: string;
   latitude: number | null;
@@ -51,6 +53,8 @@ const emptyForm = {
   label: "Domicile",
   full_name: "",
   phone: "",
+  phone_secondary: "",
+  phone_alt: "",
   address: "",
   city: "",
   note: "",
