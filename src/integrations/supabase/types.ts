@@ -120,6 +120,8 @@ export type Database = {
           longitude: number | null
           note: string | null
           phone: string
+          phone_alt: string | null
+          phone_secondary: string | null
           updated_at: string
           user_id: string
         }
@@ -135,6 +137,8 @@ export type Database = {
           longitude?: number | null
           note?: string | null
           phone: string
+          phone_alt?: string | null
+          phone_secondary?: string | null
           updated_at?: string
           user_id: string
         }
@@ -150,6 +154,8 @@ export type Database = {
           longitude?: number | null
           note?: string | null
           phone?: string
+          phone_alt?: string | null
+          phone_secondary?: string | null
           updated_at?: string
           user_id?: string
         }
