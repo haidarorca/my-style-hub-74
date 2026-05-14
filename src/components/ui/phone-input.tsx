@@ -45,13 +45,12 @@ export const COUNTRIES: Country[] = [
   { code: "CA", name: "Canada", dial: "+1", flag: "🇨🇦" },
 ];
 
-const DEFAULT = COUNTRIES[0];
+export const DEFAULT_COUNTRY = COUNTRIES[0];
 
-/** Parse a stored E.164-ish value into a country + local digits. */
-function parseValue(value: string): { country: Country; local: string } {
+/** Parse a stored value like "+221 77 000" into { country, local } */
+export function parsePhone(value: string): { country: Country; local: string } {
   const v = (value ?? "").trim();
   if (v.startsWith("+")) {
-    // longest dial first
     const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
     for (const c of sorted) {
       if (v.startsWith(c.dial)) {
@@ -59,88 +58,118 @@ function parseValue(value: string): { country: Country; local: string } {
       }
     }
   }
-  return { country: DEFAULT, local: v.replace(/[^\d ]/g, "") };
+  return { country: DEFAULT_COUNTRY, local: v.replace(/[^\d ]/g, "") };
 }
 
-export interface PhoneInputProps {
-  id?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
+export function findCountryByCode(code: string | undefined): Country {
+  return COUNTRIES.find((c) => c.code === code) ?? DEFAULT_COUNTRY;
+}
+
+/** Country selector with search. Single-pick, controlled. */
+export function CountryPicker({
+  value,
+  onChange,
+  className,
+}: {
+  value: Country;
+  onChange: (c: Country) => void;
   className?: string;
-  defaultCountry?: string; // ISO code
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.dial.includes(q) ||
+        c.code.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
+      <PopoverTrigger
+        type="button"
+        className={cn(
+          "flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm hover:bg-accent",
+          className,
+        )}
+      >
+        <span className="text-base leading-none">{value.flag}</span>
+        <span className="flex-1 truncate text-left">{value.name}</span>
+        <span className="text-xs font-medium text-muted-foreground">{value.dial}</span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-64 p-0">
+        <div className="border-b border-border p-2">
+          <Input
+            autoFocus
+            placeholder="Rechercher un pays…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8"
+          />
+        </div>
+        <ul
+          className="max-h-72 overflow-y-auto overscroll-contain py-1 text-sm"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-4 text-center text-xs text-muted-foreground">Aucun résultat</li>
+          ) : (
+            filtered.map((c) => (
+              <li key={c.code}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(c); setOpen(false); setQuery(""); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
+                >
+                  <span className="text-base">{c.flag}</span>
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="text-xs text-muted-foreground">{c.dial}</span>
+                  {c.code === value.code && <Check className="h-3 w-3 text-primary" />}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
-export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
-  ({ id, value, onChange, placeholder, disabled, className, defaultCountry }, ref) => {
-    const initial = React.useMemo(() => {
-      if (value) return parseValue(value);
-      const c = COUNTRIES.find((x) => x.code === (defaultCountry ?? "SN")) ?? DEFAULT;
-      return { country: c, local: "" };
-    }, []); // eslint-disable-line
-    const [country, setCountry] = React.useState<Country>(initial.country);
-    const [local, setLocal] = React.useState<string>(initial.local);
-    const [open, setOpen] = React.useState(false);
+/** Phone input with a fixed (non-editable) dial code prefix. */
+export function PhoneDigitsInput({
+  id,
+  dial,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id?: string;
+  dial: string;
+  value: string;
+  onChange: (digits: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex items-stretch">
+      <span className="inline-flex h-9 select-none items-center rounded-l-md border border-r-0 border-input bg-muted px-2 text-sm font-medium text-muted-foreground">
+        {dial}
+      </span>
+      <Input
+        id={id}
+        type="tel"
+        inputMode="tel"
+        placeholder={placeholder ?? "77 000 00 00"}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^\d ]/g, ""))}
+        maxLength={20}
+        className="rounded-l-none"
+      />
+    </div>
+  );
+}
 
-    // Sync downstream value
-    React.useEffect(() => {
-      const merged = local ? `${country.dial} ${local}` : "";
-      if (merged !== value) onChange(merged);
-      // eslint-disable-next-line
-    }, [country.dial, local]);
-
-    // If parent clears value externally
-    React.useEffect(() => {
-      if (!value && local) setLocal("");
-      // eslint-disable-next-line
-    }, [value]);
-
-    return (
-      <div className={cn("flex items-stretch gap-2", className)}>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            type="button"
-            disabled={disabled}
-            className="flex h-9 items-center gap-1 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm hover:bg-accent disabled:opacity-50"
-          >
-            <span className="text-base leading-none">{country.flag}</span>
-            <span className="font-medium">{country.dial}</span>
-            <ChevronDown className="h-3 w-3 opacity-60" />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-0">
-            <ul className="max-h-72 overflow-y-auto py-1 text-sm">
-              {COUNTRIES.map((c) => (
-                <li key={c.code}>
-                  <button
-                    type="button"
-                    onClick={() => { setCountry(c); setOpen(false); }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
-                  >
-                    <span className="text-base">{c.flag}</span>
-                    <span className="flex-1 truncate">{c.name}</span>
-                    <span className="text-xs text-muted-foreground">{c.dial}</span>
-                    {c.code === country.code && <Check className="h-3 w-3 text-primary" />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </PopoverContent>
-        </Popover>
-        <Input
-          id={id}
-          ref={ref}
-          type="tel"
-          inputMode="tel"
-          placeholder={placeholder ?? "77 000 00 00"}
-          disabled={disabled}
-          value={local}
-          onChange={(e) => setLocal(e.target.value.replace(/[^\d ]/g, ""))}
-          maxLength={20}
-          className="flex-1"
-        />
-      </div>
-    );
-  },
-);
-PhoneInput.displayName = "PhoneInput";
