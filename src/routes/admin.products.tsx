@@ -283,6 +283,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ProductDetailDialog product={viewing} onClose={() => setViewing(null)} />
     </ul>
   );
 }
