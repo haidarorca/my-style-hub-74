@@ -66,6 +66,11 @@ function VendorHome() {
                 >
                   {p.status === "approved" ? "Publié" : p.status === "rejected" ? "Rejeté" : "En attente"}
                 </Badge>
+                <Link to="/vendor/products/$productId/edit" params={{ productId: p.id }}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" title="Modifier">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </Link>
               </li>
             );
           })}
