@@ -28,7 +28,7 @@ export function AppHeader() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
         <Link to="/" className="flex items-center gap-1.5 shrink-0">
           <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
-            KAWZONE
+            ORCA
           </span>
         </Link>
 

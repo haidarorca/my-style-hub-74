@@ -149,24 +149,16 @@ function Home() {
 
       <main className="mx-auto max-w-7xl px-3 pb-safe">
         {/* Hero promo banner */}
-        <section className="mt-3 overflow-hidden rounded-3xl gradient-flash p-6 text-primary-foreground shadow-pink relative">
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-          <div className="absolute -bottom-10 -left-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-          <div className="relative">
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] opacity-90">
-              <Flame className="h-3.5 w-3.5" /> Bienvenue sur Kawzone
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold leading-[1.05] md:text-5xl">
-              Mode, beauté & lifestyle<br />
-              <span className="opacity-90">à petits prix</span>
-            </h1>
-            <p className="mt-3 max-w-md text-sm opacity-90">
-              Des milliers de produits tendance, livrés rapidement. Commande directe sur WhatsApp.
-            </p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur">
-              ⚡ Flash Sale — jusqu'à -70%
-            </div>
+        <section className="mt-3 overflow-hidden rounded-2xl gradient-flash p-5 text-primary-foreground shadow-pink">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-90">
+            <Flame className="h-4 w-4" /> Nouveautés
           </div>
+          <h1 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
+            Vos produits préférés,<br />personnalisés à votre image
+          </h1>
+          <p className="mt-2 max-w-md text-sm opacity-90">
+            Ajoutez votre nom, votre logo, votre photo. Commande envoyée directement sur WhatsApp.
+          </p>
         </section>
 
         {/* Trust strip */}
