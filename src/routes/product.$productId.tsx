@@ -34,6 +34,19 @@ interface Variant {
   image_url: string | null;
 }
 
+interface Customization {
+  id: string;
+  type: string; // 'image' | 'name' | 'logo'
+  image_size_message: string | null;
+  allow_all_fonts: boolean | null;
+  allowed_fonts: string[] | null;
+  allow_all_colors: boolean | null;
+  allowed_colors: string[] | null;
+}
+
+const DEFAULT_FONTS = ["Arial", "Helvetica", "Times New Roman", "Georgia", "Impact", "Pacifico", "Lobster", "Bebas Neue"];
+const DEFAULT_COLORS = ["#000000", "#ffffff", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+
 function ProductPage() {
   const { productId } = Route.useParams();
   const { user } = useAuth();
@@ -45,6 +58,12 @@ function ProductPage() {
   const [reportReason, setReportReason] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Customization state
+  const [customImageFile, setCustomImageFile] = useState<File | null>(null);
+  const [customText, setCustomText] = useState("");
+  const [customFont, setCustomFont] = useState<string>("");
+  const [customColor, setCustomColor] = useState<string>("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["product", productId],
