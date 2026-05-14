@@ -339,21 +339,28 @@ function AccountPage() {
               {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
             </div>
             <div>
+              <Label>Pays *</Label>
+              <CountryPicker value={country} onChange={setCountry} />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                L'indicatif {country.dial} s'applique aux trois numéros.
+              </p>
+            </div>
+            <div>
               <Label htmlFor="a_phone">Téléphone principal *</Label>
-              <PhoneInput id="a_phone" value={form.phone}
+              <PhoneDigitsInput id="a_phone" dial={country.dial} value={form.phone}
                 onChange={(v) => setForm({ ...form, phone: v })} />
               <p className="mt-1 text-[11px] text-muted-foreground">WhatsApp si disponible</p>
               {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div>
               <Label htmlFor="a_phone2">Téléphone secondaire (optionnel)</Label>
-              <PhoneInput id="a_phone2" value={form.phone_secondary}
+              <PhoneDigitsInput id="a_phone2" dial={country.dial} value={form.phone_secondary}
                 onChange={(v) => setForm({ ...form, phone_secondary: v })} />
               {errors.phone_secondary && <p className="mt-1 text-xs text-destructive">{errors.phone_secondary}</p>}
             </div>
             <div>
               <Label htmlFor="a_phone3">Téléphone alternatif (optionnel)</Label>
-              <PhoneInput id="a_phone3" value={form.phone_alt}
+              <PhoneDigitsInput id="a_phone3" dial={country.dial} value={form.phone_alt}
                 onChange={(v) => setForm({ ...form, phone_alt: v })} />
               <p className="mt-1 text-[11px] text-muted-foreground">Au cas où un numéro ne fonctionne pas</p>
               {errors.phone_alt && <p className="mt-1 text-xs text-destructive">{errors.phone_alt}</p>}
