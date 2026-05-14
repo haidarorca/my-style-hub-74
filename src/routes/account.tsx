@@ -152,7 +152,17 @@ function AccountPage() {
 
   const save = async () => {
     if (!user) return;
-    const parsed = addressSchema.safeParse(form);
+    const combine = (digits: string) => {
+      const d = (digits ?? "").trim();
+      return d ? `${country.dial} ${d}` : "";
+    };
+    const toValidate = {
+      ...form,
+      phone: combine(form.phone),
+      phone_secondary: combine(form.phone_secondary),
+      phone_alt: combine(form.phone_alt),
+    };
+    const parsed = addressSchema.safeParse(toValidate);
     if (!parsed.success) {
       const e: Record<string, string> = {};
       for (const i of parsed.error.issues) {
