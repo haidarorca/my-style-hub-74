@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X } from "lucide-react";
+import { Plus, Trash2, Upload, X, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { RequestCategoryDialog } from "@/components/vendor/RequestCategoryDialog";
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
@@ -51,10 +50,14 @@ function NewProductPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
 
-  // Category 3-level
+  // Category 3-level (existing) — or proposed new at one level
   const [cat1, setCat1] = useState<string>("");
   const [cat2, setCat2] = useState<string>("");
   const [cat3, setCat3] = useState<string>("");
+  // Proposal at a single level. When set, finalCategoryId becomes null
+  // and a category_request is created on submit, parent_id = selected parent.
+  const [proposeLevel, setProposeLevel] = useState<0 | 1 | 2 | 3>(0);
+  const [proposeName, setProposeName] = useState("");
 
   // Images
   const [images, setImages] = useState<File[]>([]);
@@ -97,7 +100,27 @@ function NewProductPage() {
     },
   });
 
-  const finalCategoryId = useMemo(() => cat3 || cat2 || cat1 || null, [cat1, cat2, cat3]);
+  // If a proposal is active, do not assign an existing category; the product
+  // will be linked to the pending request instead.
+  const finalCategoryId = useMemo(
+    () => (proposeLevel > 0 ? null : (cat3 || cat2 || cat1 || null)),
+    [cat1, cat2, cat3, proposeLevel],
+  );
+
+  const proposalParentId = useMemo<string | null>(() => {
+    if (proposeLevel === 2) return cat1 || null;
+    if (proposeLevel === 3) return cat2 || null;
+    return null;
+  }, [proposeLevel, cat1, cat2]);
+
+  function startProposal(level: 1 | 2 | 3) {
+    setProposeLevel(level);
+    setProposeName("");
+    if (level === 1) { setCat1(""); setCat2(""); setCat3(""); }
+    if (level === 2) { setCat2(""); setCat3(""); }
+    if (level === 3) { setCat3(""); }
+  }
+  function cancelProposal() { setProposeLevel(0); setProposeName(""); }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -135,8 +158,45 @@ function NewProductPage() {
       return;
     }
 
+    // Validate category — must have either an existing pick or a valid proposal
+    let pendingReqId: string | null = null;
+    if (proposeLevel > 0) {
+      const trimmed = proposeName.trim();
+      if (trimmed.length < 2) {
+        toast.error("Nom de la nouvelle catégorie trop court.");
+        return;
+      }
+      if (proposeLevel === 2 && !cat1) {
+        toast.error("Choisissez d'abord le rayon parent.");
+        return;
+      }
+      if (proposeLevel === 3 && !cat2) {
+        toast.error("Choisissez d'abord la catégorie parente.");
+        return;
+      }
+    } else if (!finalCategoryId) {
+      toast.error("Choisissez une catégorie ou proposez-en une nouvelle.");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // 0. If proposing a new category, create the request first
+      if (proposeLevel > 0) {
+        const { data: req, error: reqErr } = await supabase
+          .from("category_requests")
+          .insert({
+            vendor_id: user.id,
+            level: proposeLevel,
+            name: proposeName.trim(),
+            parent_id: proposalParentId,
+          })
+          .select("id")
+          .single();
+        if (reqErr) throw reqErr;
+        pendingReqId = req.id as string;
+      }
+
       // 1. Insert product
       const { data: prod, error: prodErr } = await supabase
         .from("products")
@@ -148,8 +208,9 @@ function NewProductPage() {
           description: description.trim() || null,
           price: priceNum,
           category_id: finalCategoryId,
+          pending_category_request_id: pendingReqId,
           status: "pending",
-        })
+        } as never)
         .select("id")
         .single();
       if (prodErr) {
@@ -306,43 +367,91 @@ function NewProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div>
-            <Label>Rayon</Label>
-            <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-              <SelectContent>
-                {cats1?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {cat1 && cats2 && cats2.length > 0 && (
+          {/* Niveau 1 — Rayon */}
+          {proposeLevel === 1 ? (
+            <ProposeRow
+              label="Nouveau rayon"
+              value={proposeName}
+              onChange={setProposeName}
+              onCancel={cancelProposal}
+            />
+          ) : (
             <div>
-              <Label>Catégorie</Label>
-              <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
+              <div className="flex items-center justify-between">
+                <Label>Rayon</Label>
+                <button type="button" onClick={() => startProposal(1)} className="text-[11px] font-medium text-primary hover:underline">
+                  + Nouveau rayon
+                </button>
+              </div>
+              <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
-                  {cats2.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {cats1?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
-          {cat2 && cats3 && cats3.length > 0 && (
-            <div>
-              <Label>Sous-catégorie</Label>
-              <Select value={cat3} onValueChange={setCat3}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {cats3.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+          {/* Niveau 2 — Catégorie */}
+          {cat1 && proposeLevel !== 1 && (
+            proposeLevel === 2 ? (
+              <ProposeRow
+                label="Nouvelle catégorie"
+                value={proposeName}
+                onChange={setProposeName}
+                onCancel={cancelProposal}
+              />
+            ) : (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Catégorie</Label>
+                  <button type="button" onClick={() => startProposal(2)} className="text-[11px] font-medium text-primary hover:underline">
+                    + Nouvelle catégorie
+                  </button>
+                </div>
+                <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
+                  <SelectTrigger><SelectValue placeholder={cats2 && cats2.length > 0 ? "Choisir" : "Aucune — proposez-en une"} /></SelectTrigger>
+                  <SelectContent>
+                    {cats2?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          {/* Niveau 3 — Sous-catégorie */}
+          {cat2 && proposeLevel !== 1 && proposeLevel !== 2 && (
+            proposeLevel === 3 ? (
+              <ProposeRow
+                label="Nouvelle sous-catégorie"
+                value={proposeName}
+                onChange={setProposeName}
+                onCancel={cancelProposal}
+              />
+            ) : (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Sous-catégorie</Label>
+                  <button type="button" onClick={() => startProposal(3)} className="text-[11px] font-medium text-primary hover:underline">
+                    + Nouvelle sous-catégorie
+                  </button>
+                </div>
+                <Select value={cat3} onValueChange={setCat3}>
+                  <SelectTrigger><SelectValue placeholder={cats3 && cats3.length > 0 ? "Choisir" : "Aucune — proposez-en une"} /></SelectTrigger>
+                  <SelectContent>
+                    {cats3?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          {proposeLevel > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <Sparkles className="mr-1 inline h-3 w-3" />
+              Votre nouvelle catégorie sera envoyée à l'admin. Le produit reste en attente jusqu'à validation.
             </div>
           )}
-          <div className="pt-1">
-            <RequestCategoryDialog />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Vous ne trouvez pas la bonne catégorie ? Proposez-en une à l'admin.
-            </p>
-          </div>
         </CardContent>
       </Card>
 
@@ -503,3 +612,31 @@ function NewProductPage() {
     </form>
   );
 }
+
+function ProposeRow({
+  label, value, onChange, onCancel,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <button type="button" onClick={onCancel} className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
+          Annuler
+        </button>
+      </div>
+      <Input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={80}
+        placeholder="Nom de la nouvelle catégorie"
+      />
+    </div>
+  );
+}
+
