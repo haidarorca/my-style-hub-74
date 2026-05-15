@@ -34,15 +34,25 @@ export function AppHeader() {
     if (pathname === "/search") setQuery(urlQ);
   }, [urlQ, pathname]);
 
-  // Live-update URL while typing on /search so results refresh without a second bar
+  // Live-update results: as the user types from any page, navigate to /search?q=…
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (pathname !== "/search") return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const q = query.trim();
-      if (q === (urlQ ?? "")) return;
-      router.navigate({ to: "/search", search: q ? { q } : {}, replace: true });
+      if (!q) {
+        // On /search with empty input, clear the q param. Elsewhere do nothing.
+        if (pathname === "/search" && urlQ) {
+          router.navigate({ to: "/search", search: {}, replace: true });
+        }
+        return;
+      }
+      if (pathname === "/search") {
+        if (q === (urlQ ?? "")) return;
+        router.navigate({ to: "/search", search: { q }, replace: true });
+      } else {
+        router.navigate({ to: "/search", search: { q } });
+      }
     }, 220);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
