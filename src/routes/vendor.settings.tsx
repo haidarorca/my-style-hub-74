@@ -196,6 +196,20 @@ function VendorSettings() {
         </div>
       </div>
 
+      <div className="space-y-3 rounded-xl border bg-card p-4">
+        <Label className="text-base font-semibold">Pays d'origine des produits</Label>
+        <p className="text-[11px] text-muted-foreground">
+          Utilisé pour calculer la commission en fonction du pays de livraison de l'acheteur.
+        </p>
+        <CountrySelect
+          value={sourceCountryId}
+          onChange={setSourceCountryId}
+          allowNull
+          nullLabel="— Non défini —"
+          placeholder="Choisir votre pays"
+          onlyEnabled
+        />
+      </div>
       {/* Schedule editor */}
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <div className="flex items-center justify-between">
