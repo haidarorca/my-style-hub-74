@@ -1,83 +1,119 @@
-## Système multilingue complet (FR / EN / AR) — KawZone
 
-Objectif : afficher tout le site (client, vendeur, admin) dans la langue du téléphone, avec FR par défaut, sélecteur manuel, mémoire de la langue, et RTL pour l'arabe. Contenu vendeur (produits, catégories) saisi en plusieurs langues directement en base.
+# Système de commissions par pays (source → destination)
 
-### 1. Base de données — colonnes multilingues
+## 1. Modèle de données
 
-Migration unique ajoutant des colonnes JSONB `i18n` (pas de duplication name_en/name_ar — un seul champ JSON `{ "en": "...", "ar": "..." }` par contenu traduit) :
+### Nouvelle table `countries` (gérée par l'admin)
+- `id`, `code` (ISO-2, ex. `SN`, `FR`, `LB`, `CN`), `name`, `name_i18n`, `flag_emoji`, `is_enabled`, `position`
+- RLS : lecture publique, écriture admin
 
-- `categories.name_i18n jsonb` (clé `en`, `ar` ; FR reste dans `name`)
-- `products.name_i18n jsonb`, `products.designation_i18n jsonb`, `products.description_i18n jsonb`
-- `site_settings.hero_title_i18n jsonb`, `hero_subtitle_i18n jsonb`, `footer_text_i18n jsonb`, `promo_bar_text_i18n jsonb`
-- `home_banners.title_i18n jsonb`
-- `profiles.shop_description_i18n jsonb`, `shop_hours_i18n jsonb`
+### `profiles` (vendeur = source)
+- Ajout `source_country_id uuid` (nullable, FK logique vers `countries`)
+- Le vendeur le choisit dans ses paramètres ; admin peut éditer
 
-Approche JSONB : 1 seule colonne par champ, extensible à toute nouvelle langue sans migration. RLS inchangée (les colonnes héritent des policies des tables).
+### `customer_addresses` + `orders`
+- Ajout `destination_country_id uuid` sur `customer_addresses`
+- `orders` reçoit `destination_country_id` (copié au moment du checkout)
+- Pour les commandes existantes : null (fallback = aucune règle pays)
 
-### 2. Helper de lecture côté front
+### `commission_rules` (extension)
+- Ajout `source_country_id uuid NULL`
+- Ajout `destination_country_id uuid NULL`
+- Le scope `country_pair` est nouveau (en plus de `global` / `vendor` / `category` / `product`)
+- Contrainte : selon le scope, certains champs requis (validation côté trigger)
+- Index composites `(destination_country_id, source_country_id, scope)` pour perfs
 
-Nouveau `src/lib/i18n/localized.ts` :
+### Migration douce
+Les règles existantes restent valides : `source_country_id` et `destination_country_id` à NULL = "tous pays". Aucune donnée n'est cassée.
 
-```ts
-export function pickI18n(base: string|null, i18n: Record<string,string>|null, lang: Lang, fallback="fr"): string
+## 2. Logique de résolution (fonction `resolve_commission`)
+
+Réécriture de la fonction Postgres. Nouveaux paramètres : `_product_id`, `_destination_country_id`.
+
+Ordre de priorité (premier match gagne) :
+
+```text
+1. PRODUIT spécifique
+   1a. + vendor override
+   1b. règle produit
+2. CATÉGORIE (remontée arbre, deepest first)
+   pour chaque niveau :
+     2a. + (source + destination) matchant
+     2b. + destination matchant
+     2c. + source matchant
+     2d. catégorie seule
+3. VENDEUR (override transversal, comme aujourd'hui)
+4. PAIRE PAYS (source + destination)
+5. DESTINATION seule
+6. SOURCE seule
+7. GLOBAL
 ```
 
-Règle : `i18n[lang] ?? base (FR) ?? ""`. Utilisé partout où on affiche `product.name`, `category.name`, etc.
+Le `set_order_item_commission` trigger passe maintenant aussi la destination de la commande.
 
-### 3. Dictionnaire UI étendu
+## 3. Dashboard admin `/admin/commissions` (refonte)
 
-Étendre `src/lib/i18n/translations.ts` avec toutes les clés UI utilisées dans :
-- Header / nav / bottom nav / FAB
-- Pages : home, search, categories, c/$id, product, cart, checkout, login, signup, account, orders, shop
-- Pages vendor.* (dashboard, products, orders, settings, notifications, messages)
-- Pages admin.* (dashboard, products, orders, vendors, admins, categories, category-requests, commissions, reports, reviews, settings)
-- Composants partagés : ProductCard, QuickAddSheet, ReviewsSection, SimilarProducts, BackButton, PromoBar, dialogs
+### Structure
+- **Topbar** : tabs par pays de destination (`Toutes`, `Sénégal`, `France`, `Liban`, …) — alimentées par `countries`
+- **Pour chaque destination** : matrice / liste des pays sources avec leur commission effective
+- **Drill-down** : cliquer sur une cellule `Chine → France` ouvre un panel avec :
+  - Règle globale de la paire
+  - Règles catégorie/sous-catégorie (arbre pliable)
+  - Règles produits spécifiques
+  - Compteur "X produits affectés"
+  - Badge "règle active" pour celle qui s'appliquerait par défaut
 
-Toutes les traductions FR / EN / AR fournies dans le même fichier (organisé par section). Format clé : `section.key` (ex : `vendor.products.add_button`, `admin.orders.status_new`).
+### Composants
+- `CountryTabs` (sticky, scroll horizontal mobile)
+- `CountryMatrix` (grid source × destination avec %)
+- `RuleTree` (arbre catégories → produits avec règle effective par nœud)
+- `RuleEditorDialog` (création/édition d'une règle, scope-aware)
+- `RulePreviewDialog` (avant validation : "X produits passeront de Y% à Z%")
 
-### 4. Migration des composants
+### Recherche & filtres
+- Recherche produit/vendeur (debounce)
+- Filtre par scope, statut activé/désactivé
+- Tri par % décroissant / nb produits affectés
 
-Refactor systématique de chaque route/composant pour :
-- remplacer chaque chaîne FR codée en dur par `t("…")`
-- envelopper les noms/descriptions de produits et catégories dans `pickI18n(...)`
-- ajouter `dir`-aware classes Tailwind (`rtl:` / `ltr:`) où l'alignement compte (icônes, marges)
+### Anti-conflits
+- Au save, le backend vérifie qu'il n'existe pas déjà une règle équivalente (même scope + mêmes refs + mêmes pays) → message "Règle dupliquée, voulez-vous la mettre à jour ?"
+- Indicateur visuel "règle masquée par une plus prioritaire"
 
-### 5. Saisie multilingue côté vendeur/admin
+### Performance
+- Toutes les règles chargées en bloc (table petite) + Tanstack Query cache
+- Résolution effective calculée côté serveur via `resolve_commission(product_id, dest)` exposée en RPC, appelée à la demande pour l'aperçu (pas pour toute la liste)
+- Liste produits paginée (50/page) avec règle effective calculée en batch côté serveur
 
-Nouveau composant `MultilingualInput` (et `MultilingualTextarea`) : 3 onglets FR / EN / AR avec un seul champ visible à la fois. Bouton "Traduire automatiquement" optionnel (Lovable AI Gemini Flash) pour pré-remplir EN/AR depuis le FR — l'utilisateur peut éditer ensuite.
+## 4. Paramètres vendeur & checkout
 
-Intégré dans :
-- `vendor.products.new`, `vendor.products.$productId.edit` (name, designation, description)
-- `admin.categories` (name)
-- `admin.products.$productId.edit` (idem produits)
-- `admin.settings` (hero, footer, promo bar)
-- `vendor.settings` (shop_description, shop_hours)
+- `vendor.settings` : sélecteur "Pays d'origine de vos produits" (combobox cherchable)
+- Checkout (`cart.tsx` / formulaire adresse) : champ pays destination (obligatoire), persisté sur `customer_addresses.destination_country_id` et `orders.destination_country_id`
+- Liste des pays alimentée par `countries` (cache i18n)
 
-### 6. Server function de traduction (optionnelle, pour le bouton "Traduire")
+## 5. Étapes d'exécution
 
-`src/lib/translate.functions.ts` : `translateText({ text, from, to })` utilisant Lovable AI (`google/gemini-2.5-flash`, gratuit). Cache léger en mémoire côté serveur.
+1. **Migration SQL** : table `countries` + colonnes pays sur profiles/addresses/orders/commission_rules + nouvelle `resolve_commission` + trigger order_items mis à jour + seed (Sénégal, France, Liban, Chine, Côte d'Ivoire, Maroc — admin pourra ajouter)
+2. **Hook & types** : `useCountries`, mise à jour `auth-types` profile
+3. **UI vendeur** : champ pays dans `vendor.settings.tsx`
+4. **UI checkout** : champ pays destination + persistance
+5. **Refonte `admin.commissions.tsx`** : nouveau dashboard avec tabs/matrice/drill-down
+6. **Page admin `/admin/countries`** : CRUD pays
+7. **Aperçu avant validation** : dialog qui appelle `resolve_commission` pour échantillon de produits avant `UPDATE`
+8. **Traductions i18n** : nouvelles clés `commission.*` et `country.*` (fr/en/ar)
 
-### 7. Détection + RTL
+## Détails techniques
 
-Le hook `use-i18n` existant détecte déjà bien la langue et applique `dir`. Confirmer que `__root.tsx` charge bien `<I18nProvider>` autour de tout. Ajouter dans `styles.css` quelques règles RTL globales (mirroring d'icônes flèches notamment).
+- Toutes les RLS : pays publics en lecture, écriture super_admin uniquement pour `countries` et `commission_rules`
+- `resolve_commission` reste `SECURITY DEFINER`
+- Le trigger `set_order_item_commission` lit `orders.destination_country_id` via jointure
+- Pour les commandes guest sans pays sélectionné : fallback sur `destination_country_id = NULL` → utilise règles "toutes destinations"
 
-### 8. Règles strictes
+## Hors scope (à confirmer)
 
-- Ne jamais traduire : `KawZone`, codes produits (`product.code`), prix, numéros de commande, marques, noms propres.
-- Traduire : noms de produits/catégories/désignations **si** une traduction est saisie, sinon afficher la version FR.
-- Sélecteur manuel : déjà présent dans `LanguageSwitcher` (header). Ajouter aussi dans le menu compte mobile pour visibilité.
+- Conversion devise (toujours en MRU/devise unique)
+- Historique des commissions effectives par commande (déjà figé dans `order_items.commission_*`)
+- UI publique pour afficher la commission à l'acheteur (non, reste interne)
 
-### Détails techniques
+---
 
-- Pas de bibliothèque i18n externe : la solution maison existante (`useI18n`) est conservée et étendue. Évite ~30 KB de bundle (i18next).
-- JSONB partial index si besoin futur de recherche multilingue ; pas dans cette itération.
-- Tous les `head()` (titres SEO) restent statiques en FR pour l'instant — un suivi pourra les rendre dynamiques par langue plus tard.
-- Aucun changement RLS : les colonnes ajoutées héritent des policies existantes des tables.
-
-### Livraison en 3 étapes
-
-1. **Migration DB** + helper `pickI18n` + composants `MultilingualInput/Textarea` + dictionnaire UI complet (FR/EN/AR).
-2. **Refactor pages client** (home, search, categories, product, cart, checkout, account, orders, shop, login, signup) — usage `t()` + `pickI18n`.
-3. **Refactor pages vendor + admin** + intégration de `MultilingualInput` dans les formulaires de saisie.
-
-Vu l'ampleur (≈ 30 fichiers touchés), je traite les 3 étapes dans la même session mais en lots séquentiels pour rester lisible.
+**Confirmez-vous ce plan ?** Si oui, je commence par la migration SQL (étape 1) — c'est le point bloquant qui nécessite votre approbation explicite avant tout le reste.

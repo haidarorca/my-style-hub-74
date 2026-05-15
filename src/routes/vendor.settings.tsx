@@ -17,6 +17,7 @@ import {
 import {
   COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, splitPhone, joinPhone,
 } from "@/lib/phone-countries";
+import { CountrySelect } from "@/components/CountrySelect";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
@@ -53,6 +54,7 @@ function VendorSettings() {
   const [phoneLocal, setPhoneLocal] = useState("");
   const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [waLocal, setWaLocal] = useState("");
+  const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
@@ -83,6 +85,7 @@ function VendorSettings() {
     setWaCountry(wa.code);
     setWaLocal(wa.local);
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
+    setSourceCountryId((p.source_country_id as string | null) ?? null);
   }, [profile]);
 
   const updateDay = (day: DayKey, patch: Partial<ShopSchedule[DayKey]>) =>
@@ -122,7 +125,7 @@ function VendorSettings() {
     setSaving(true);
     const phoneFull = joinPhone(phoneCountry, phoneLocal);
     const waFull = joinPhone(waCountry, waLocal);
-    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule };
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
@@ -193,6 +196,20 @@ function VendorSettings() {
         </div>
       </div>
 
+      <div className="space-y-3 rounded-xl border bg-card p-4">
+        <Label className="text-base font-semibold">Pays d'origine des produits</Label>
+        <p className="text-[11px] text-muted-foreground">
+          Utilisé pour calculer la commission en fonction du pays de livraison de l'acheteur.
+        </p>
+        <CountrySelect
+          value={sourceCountryId}
+          onChange={setSourceCountryId}
+          allowNull
+          nullLabel="— Non défini —"
+          placeholder="Choisir votre pays"
+          onlyEnabled
+        />
+      </div>
       {/* Schedule editor */}
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <div className="flex items-center justify-between">
