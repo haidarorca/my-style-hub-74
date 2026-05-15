@@ -161,6 +161,39 @@ export type Database = {
         }
         Relationships: []
       }
+      home_banners: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          image_url: string
+          link_url: string | null
+          position: number
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          image_url: string
+          link_url?: string | null
+          position?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          image_url?: string
+          link_url?: string | null
+          position?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           buyer_id: string
@@ -578,6 +611,63 @@ export type Database = {
           sex?: Database["public"]["Enums"]["user_sex"] | null
           shop_name?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          accent_color: string
+          created_at: string
+          footer_text: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
+          id: string
+          logo_url: string | null
+          primary_color: string
+          promo_bar_bg_color: string
+          promo_bar_enabled: boolean
+          promo_bar_text: string | null
+          promo_bar_text_color: string
+          site_name: string
+          updated_at: string
+          whatsapp_default_message: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          accent_color?: string
+          created_at?: string
+          footer_text?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string
+          promo_bar_bg_color?: string
+          promo_bar_enabled?: boolean
+          promo_bar_text?: string | null
+          promo_bar_text_color?: string
+          site_name?: string
+          updated_at?: string
+          whatsapp_default_message?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          accent_color?: string
+          created_at?: string
+          footer_text?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string
+          promo_bar_bg_color?: string
+          promo_bar_enabled?: boolean
+          promo_bar_text?: string | null
+          promo_bar_text_color?: string
+          site_name?: string
+          updated_at?: string
+          whatsapp_default_message?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }

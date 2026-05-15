@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
+import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { supabase } from "@/integrations/supabase/client";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
+import { useSiteSettings, useHomeBanners } from "@/hooks/use-site-settings";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -20,6 +22,8 @@ function Home() {
   const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);
   const [quickAddProductId, setQuickAddProductId] = useState<string | null>(null);
   const hideTabs = useHideOnScroll();
+  const settings = useSiteSettings();
+  const { data: banners } = useHomeBanners();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
@@ -204,18 +208,22 @@ function Home() {
       </div>
 
       <main className="mx-auto max-w-7xl px-3 pb-safe">
-        {/* Hero promo banner */}
-        <section className="mt-3 overflow-hidden rounded-2xl gradient-flash p-5 text-primary-foreground shadow-pink">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-90">
-            <Flame className="h-4 w-4" /> Nouveautés
-          </div>
-          <h1 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
-            Vos produits préférés,<br />personnalisés à votre image
-          </h1>
-          <p className="mt-2 max-w-md text-sm opacity-90">
-            Ajoutez votre nom, votre logo, votre photo. Commande envoyée directement sur WhatsApp.
-          </p>
-        </section>
+        {/* Hero: carousel if banners exist, else gradient */}
+        {banners && banners.length > 0 ? (
+          <HeroCarousel />
+        ) : (
+          <section className="mt-3 overflow-hidden rounded-2xl gradient-flash p-5 text-primary-foreground shadow-pink">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-90">
+              <Flame className="h-4 w-4" /> Nouveautés
+            </div>
+            <h1 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
+              {settings.hero_title || "Vos produits préférés, personnalisés à votre image"}
+            </h1>
+            <p className="mt-2 max-w-md text-sm opacity-90">
+              {settings.hero_subtitle || "Ajoutez votre nom, votre logo, votre photo. Commande envoyée directement sur WhatsApp."}
+            </p>
+          </section>
+        )}
 
         {/* Trust strip */}
         <section className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
