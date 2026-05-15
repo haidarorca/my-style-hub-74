@@ -458,7 +458,34 @@ function AdminEditProductPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorisation</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
+        <CardContent className="space-y-3">
+          {(() => {
+            const byId = new Map((data.categories ?? []).map(c => [c.id, c]));
+            const chain: string[] = [];
+            let cur = data.product.category_id ? byId.get(data.product.category_id) : undefined;
+            while (cur) { chain.unshift(cur.name); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+            const currentLabel = chain.length ? chain.join(" › ") : null;
+            const pending = data.pendingCategoryRequest;
+            if (!currentLabel && !pending) return null;
+            return (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1">
+                {currentLabel && (
+                  <div>
+                    <span className="text-xs font-semibold text-muted-foreground">Choisi par le vendeur :</span>{" "}
+                    <span className="font-medium">{currentLabel}</span>
+                  </div>
+                )}
+                {pending && (
+                  <div>
+                    <span className="text-xs font-semibold text-amber-700">Demande de nouvelle catégorie (niveau {pending.level}) :</span>{" "}
+                    <span className="font-medium">« {pending.name} »</span>{" "}
+                    <span className="text-xs text-muted-foreground">— statut : {pending.status}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <div className="grid gap-3 md:grid-cols-3">
           <div>
             <Label>Catégorie</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
