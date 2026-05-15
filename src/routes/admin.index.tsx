@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox } from "lucide-react";
+import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent } from "lucide-react";
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
@@ -23,6 +24,7 @@ function useCount(table: string, filter?: { col: string; val: string }) {
 }
 
 function Dashboard() {
+  const { isSuperAdmin } = useAuth();
   const products = useCount("products");
   const pending = useCount("products", { col: "status", val: "pending" });
   const categories = useCount("categories");
@@ -128,6 +130,23 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {isSuperAdmin && (
+        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <Percent className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">Commissions</div>
+              <div className="text-xs text-muted-foreground">Configurer les modes vendeurs et les taux par vendeur, catégorie ou produit</div>
+            </div>
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/admin/commissions">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (

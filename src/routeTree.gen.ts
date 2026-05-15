@@ -34,6 +34,7 @@ import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
 import { Route as AdminCategoryRequestsRouteImport } from './routes/admin.category-requests'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
@@ -167,6 +168,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCommissionsRoute = AdminCommissionsRouteImport.update({
+  id: '/commissions',
+  path: '/commissions',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoryRequestsRoute = AdminCategoryRequestsRouteImport.update({
   id: '/category-requests',
   path: '/category-requests',
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -322,6 +331,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commissions'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commissions'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commissions'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -602,6 +614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/commissions': {
+      id: '/admin/commissions'
+      path: '/commissions'
+      fullPath: '/admin/commissions'
+      preLoaderRoute: typeof AdminCommissionsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/category-requests': {
       id: '/admin/category-requests'
       path: '/category-requests'
@@ -670,6 +689,7 @@ interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryRequestsRoute: typeof AdminCategoryRequestsRoute
+  AdminCommissionsRoute: typeof AdminCommissionsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminReportsRoute: typeof AdminReportsRoute
@@ -683,6 +703,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAdminsRoute: AdminAdminsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryRequestsRoute: AdminCategoryRequestsRoute,
+  AdminCommissionsRoute: AdminCommissionsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminReportsRoute: AdminReportsRoute,
@@ -737,13 +758,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

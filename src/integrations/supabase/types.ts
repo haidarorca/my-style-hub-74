@@ -228,6 +228,84 @@ export type Database = {
           },
         ]
       }
+      commission_rule_history: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          reason: string | null
+          rule_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          rule_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          rule_id?: string | null
+        }
+        Relationships: []
+      }
+      commission_rules: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_enabled: boolean
+          note: string | null
+          product_id: string | null
+          rate_percent: number
+          scope: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          note?: string | null
+          product_id?: string | null
+          rate_percent?: number
+          scope: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          note?: string | null
+          product_id?: string | null
+          rate_percent?: number
+          scope?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
       customer_addresses: {
         Row: {
           address: string
@@ -349,6 +427,9 @@ export type Database = {
         Row: {
           buyer_id: string | null
           color: string | null
+          commission_amount: number | null
+          commission_rate: number | null
+          commission_rule_id: string | null
           created_at: string
           customization: Json | null
           id: string
@@ -366,6 +447,9 @@ export type Database = {
         Insert: {
           buyer_id?: string | null
           color?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_rule_id?: string | null
           created_at?: string
           customization?: Json | null
           id?: string
@@ -383,6 +467,9 @@ export type Database = {
         Update: {
           buyer_id?: string | null
           color?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_rule_id?: string | null
           created_at?: string
           customization?: Json | null
           id?: string
@@ -739,6 +826,7 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string | null
+          hide_contact_publicly: boolean
           id: string
           is_verified: boolean
           latitude: number | null
@@ -753,12 +841,14 @@ export type Database = {
           shop_name: string | null
           shop_whatsapp: string | null
           updated_at: string
+          vendor_mode: Database["public"]["Enums"]["vendor_mode"]
         }
         Insert: {
           address?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
+          hide_contact_publicly?: boolean
           id: string
           is_verified?: boolean
           latitude?: number | null
@@ -773,12 +863,14 @@ export type Database = {
           shop_name?: string | null
           shop_whatsapp?: string | null
           updated_at?: string
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
         }
         Update: {
           address?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
+          hide_contact_publicly?: boolean
           id?: string
           is_verified?: boolean
           latitude?: number | null
@@ -793,6 +885,7 @@ export type Database = {
           shop_name?: string | null
           shop_whatsapp?: string | null
           updated_at?: string
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
         }
         Relationships: []
       }
@@ -950,6 +1043,13 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_commission: {
+        Args: { _product_id: string }
+        Returns: {
+          rate: number
+          rule_id: string
+        }[]
+      }
     }
     Enums: {
       admin_permission:
@@ -961,12 +1061,18 @@ export type Database = {
         | "customers"
         | "support"
         | "settings"
+        | "commissions"
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
       customization_type: "name" | "image"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
       user_sex: "homme" | "femme"
+      vendor_mode:
+        | "no_commission"
+        | "commission"
+        | "autonomous"
+        | "partially_managed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1103,6 +1209,7 @@ export const Constants = {
         "customers",
         "support",
         "settings",
+        "commissions",
       ],
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
@@ -1110,6 +1217,12 @@ export const Constants = {
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
       user_sex: ["homme", "femme"],
+      vendor_mode: [
+        "no_commission",
+        "commission",
+        "autonomous",
+        "partially_managed",
+      ],
     },
   },
 } as const

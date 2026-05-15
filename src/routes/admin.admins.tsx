@@ -26,7 +26,7 @@ export const Route = createFileRoute("/admin/admins")({
 
 const ALL_PERMS: AdminPermission[] = [
   "orders", "products", "product_validation", "categories",
-  "vendors", "customers", "support", "settings",
+  "vendors", "customers", "support", "settings", "commissions",
 ];
 
 interface AdminRow {

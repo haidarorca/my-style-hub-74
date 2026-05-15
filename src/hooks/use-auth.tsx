@@ -12,7 +12,8 @@ export type AdminPermission =
   | "vendors"
   | "customers"
   | "support"
-  | "settings";
+  | "settings"
+  | "commissions";
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   orders: "Commandes",
@@ -23,6 +24,7 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   customers: "Clients",
   support: "Support (avis & signalements)",
   settings: "Paramètres du site",
+  commissions: "Commissions (lecture seule)",
 };
 
 export interface ProfileData {

@@ -166,12 +166,29 @@ function AdminOrders() {
                 })}
               </ul>
 
-              <div className="flex items-center justify-between border-t bg-muted/10 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-bold text-primary">
-                  {Number(o.total).toLocaleString("fr-FR")} FCFA
-                </span>
-              </div>
+              {(() => {
+                const commission = (o.items ?? []).reduce(
+                  (s: number, it: any) => s + Number(it.commission_amount ?? 0), 0,
+                );
+                return (
+                  <div className="space-y-1 border-t bg-muted/10 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Total</span>
+                      <span className="font-bold text-primary">
+                        {Number(o.total).toLocaleString("fr-FR")} FCFA
+                      </span>
+                    </div>
+                    {commission > 0 && (
+                      <div className="flex items-center justify-between text-emerald-700">
+                        <span>Commission plateforme</span>
+                        <span className="font-semibold">
+                          {commission.toLocaleString("fr-FR")} FCFA
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </li>
           ))}
         </ul>
