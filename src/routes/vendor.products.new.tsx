@@ -612,3 +612,31 @@ function NewProductPage() {
     </form>
   );
 }
+
+function ProposeRow({
+  label, value, onChange, onCancel,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <button type="button" onClick={onCancel} className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
+          Annuler
+        </button>
+      </div>
+      <Input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={80}
+        placeholder="Nom de la nouvelle catégorie"
+      />
+    </div>
+  );
+}
+
