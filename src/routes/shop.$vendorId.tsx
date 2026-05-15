@@ -174,20 +174,61 @@ function ShopPage() {
           </div>
         </section>
 
-        <section className="mt-5">
-          <h2 className="mb-3 text-base font-bold">Tous les produits</h2>
-          {products && products.length > 0 ? (
+        {l1List.length > 0 && (
+          <section className="mt-5 space-y-2">
+            <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex gap-2 pb-1">
+                <CatChip active={!selL1} onClick={() => { setSelL1(null); setSelL2(null); setSelL3(null); }}>Tout</CatChip>
+                {l1List.map((c) => (
+                  <CatChip key={c.id} active={selL1 === c.id} onClick={() => { setSelL1(c.id); setSelL2(null); setSelL3(null); }}>
+                    {c.name}
+                  </CatChip>
+                ))}
+              </div>
+            </div>
+            {l2List.length > 0 && (
+              <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex gap-2 pb-1">
+                  {l2List.map((c) => (
+                    <CatChip key={c.id} active={selL2 === c.id} onClick={() => { setSelL2(selL2 === c.id ? null : c.id); setSelL3(null); }} small>
+                      {c.name}
+                    </CatChip>
+                  ))}
+                </div>
+              </div>
+            )}
+            {l3List.length > 0 && (
+              <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex gap-2 pb-1">
+                  {l3List.map((c) => (
+                    <CatChip key={c.id} active={selL3 === c.id} onClick={() => setSelL3(selL3 === c.id ? null : c.id)} small>
+                      {c.name}
+                    </CatChip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        <section className="mt-4">
+          <h2 className="mb-3 text-base font-bold">
+            {selL1 ? "Produits" : "Tous les produits"}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">({filteredProducts.length})</span>
+          </h2>
+          {filteredProducts.length > 0 ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {products.map((p) => (
+              {filteredProducts.map((p) => (
                 <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
               ))}
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Cette boutique n'a aucun produit pour l'instant.
+              {selL1 ? "Aucun produit dans cette catégorie." : "Cette boutique n'a aucun produit pour l'instant."}
             </p>
           )}
         </section>
+
 
         {/* Discreet schedule footer */}
         <section className="mt-8 mb-6 rounded-xl border bg-muted/30 px-4 py-3">
