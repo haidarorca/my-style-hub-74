@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Home } from "lucide-react";
+import { BackButton } from "@/components/layout/BackButton";
 import { EditableLabel } from "@/components/admin/EditableLabel";
+import { useI18n } from "@/hooks/use-i18n";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
