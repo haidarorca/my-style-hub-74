@@ -22,10 +22,17 @@ export function AppHeader() {
   const router = useRouter();
   const hidden = useHideOnScroll();
   const settings = useSiteSettings();
+  const [query, setQuery] = useState("");
 
   const handleSignOut = async () => {
     await signOut();
     router.navigate({ to: "/" });
+  };
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    router.navigate({ to: "/search", search: q ? { q } : {} });
   };
 
   return (
