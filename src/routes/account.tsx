@@ -78,9 +78,12 @@ function AccountPage() {
   const [editing, setEditing] = useState<Address | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
+  const [destinationCountryId, setDestinationCountryId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const { data: countriesList } = useCountries({ onlyEnabled: true });
+  const labelOfCountry = useCountryLabel();
 
   useEffect(() => {
     if (!loading && !user) router.navigate({ to: "/login" });
