@@ -44,6 +44,7 @@ interface Address {
   phone: string;
   address: string;
   city: string;
+  destination_country_id: string | null;
   latitude: number | null;
   longitude: number | null;
   note: string | null;
@@ -188,6 +189,7 @@ function CartPage() {
         phone: parsed.data.phone,
         address: parsed.data.address,
         city: parsed.data.city,
+        destination_country_id: destinationCountryId,
         latitude: newForm.latitude,
         longitude: newForm.longitude,
         note: parsed.data.note || null,
@@ -202,6 +204,7 @@ function CartPage() {
       longitude: newForm.longitude,
       user_id: user.id,
       is_default: addresses.length === 0,
+      destination_country_id: destinationCountryId,
     };
     const { data, error } = await (supabase as any)
       .from("customer_addresses")
