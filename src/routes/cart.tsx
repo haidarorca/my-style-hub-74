@@ -22,6 +22,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
@@ -52,6 +54,7 @@ export const Route = createFileRoute("/cart")({
 function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
+  const { lang, t } = useI18n();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -112,7 +115,7 @@ function CartPage() {
     const p = (it as any).products;
     if (!p) continue;
     const profileShop = p.profiles;
-    const shopName = profileShop?.shop_name || profileShop?.full_name || "Boutique";
+    const shopName = profileShop?.shop_name || profileShop?.full_name || t("product.shop");
     const key = p.vendor_id;
     if (!groups.has(key)) groups.set(key, { shopName, vendorId: key, items: [] });
     groups.get(key)!.items.push(it);
@@ -124,22 +127,22 @@ function CartPage() {
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
     const parts: string[] = [];
-    if (c.text) parts.push(`texte « ${c.text} »`);
-    if (c.font) parts.push(`police ${c.font}`);
-    if (c.color) parts.push(`couleur ${c.color}`);
-    if (c.image_url) parts.push("image fournie");
+    if (c.text) parts.push(`${t("product.your_text")} « ${c.text} »`);
+    if (c.font) parts.push(`${t("product.font")} ${c.font}`);
+    if (c.color) parts.push(`${t("product.color")} ${c.color}`);
+    if (c.image_url) parts.push(t("product.your_image"));
     return parts.length ? parts.join(", ") : null;
   };
   const useGeolocation = () => {
-    if (!navigator.geolocation) return toast.error("Géolocalisation non disponible");
+    if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setNewForm((f) => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
         setLocating(false);
-        toast.success("Position enregistrée");
+        toast.success(t("common.location_saved"));
       },
-      () => { setLocating(false); toast.error("Impossible d'obtenir la position"); },
+      () => { setLocating(false); toast.error(t("common.location_failed")); },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
@@ -190,7 +193,7 @@ function CartPage() {
       .select("*")
       .single();
     if (error) {
-      toast.error("Erreur lors de l'enregistrement de l'adresse");
+      toast.error(t("checkout.address_save_error"));
       return null;
     }
     return data as Address;
@@ -226,7 +229,7 @@ function CartPage() {
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
         buyer_id: user?.id ?? null,
-        product_name: it.products.name,
+        product_name: pickI18n(it.products.name, it.products.name_i18n, lang),
         product_code: it.products.code,
         product_image_url: it.products.product_images?.[0]?.url ?? null,
         size: it.product_variants?.size ?? null,
@@ -245,15 +248,15 @@ function CartPage() {
       }
       refresh();
       setCheckoutOpen(false);
-      toast.success("Commande enregistrée — En attente de validation");
+      toast.success(t("checkout.order_saved_pending"));
       if (user) router.navigate({ to: "/orders" });
       else router.navigate({ to: "/" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
-          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
+          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
           code: it.products?.code ?? "",
-          name: it.products?.name ?? "",
+          name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
           size: it.product_variants?.size ?? null,
           color: it.product_variants?.color ?? null,
           customization: customizationSummary(it.customization),
@@ -272,7 +275,7 @@ function CartPage() {
       }
     } catch (e) {
       console.error(e);
-      toast.error("Erreur lors de l'enregistrement de la commande");
+      toast.error(t("checkout.order_save_error"));
     } finally {
       setSubmitting(false);
     }
@@ -283,11 +286,11 @@ function CartPage() {
       <AppHeader />
       <main className="mx-auto max-w-3xl px-3 py-3">
         <BackButton fallbackTo="/" />
-        <h1 className="mb-3 mt-2 text-lg font-bold">Mon panier</h1>
+        <h1 className="mb-3 mt-2 text-lg font-bold">{t("cart.title")}</h1>
 
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            Votre panier est vide.
+            {t("cart.empty")}
           </div>
         ) : (
           <div className="space-y-4">
@@ -308,22 +311,22 @@ function CartPage() {
                           {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" />}
                         </div>
                         <div className="flex flex-1 flex-col">
-                          <p className="line-clamp-2 text-sm">{it.products.name}</p>
-                          <p className="text-xs text-muted-foreground">Code : {it.products.code}</p>
+                          <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
+                          <p className="text-xs text-muted-foreground">{t("product.code")} : {it.products.code}</p>
                           {(it.product_variants?.size || it.product_variants?.color) && (
                             <p className="text-xs text-muted-foreground">
-                              {it.product_variants.size && <>Taille : {it.product_variants.size}</>}
+                              {it.product_variants.size && <>{t("product.size")} : {it.product_variants.size}</>}
                               {it.product_variants.size && it.product_variants.color && " · "}
-                              {it.product_variants.color && <>Couleur : {it.product_variants.color}</>}
+                              {it.product_variants.color && <>{t("product.color")} : {it.product_variants.color}</>}
                             </p>
                           )}
-                          {cust && <p className="text-xs text-primary">Perso : {cust}</p>}
+                          {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
                           <div className="mt-auto flex items-end justify-between pt-2">
                             <p className="text-sm font-bold text-primary">
                               {price.toLocaleString("fr-FR")} FCFA
                             </p>
                             <div className="flex items-center gap-2">
-                              <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label="Supprimer">
+                                <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
                                 <Trash2 className="h-4 w-4" />
                               </button>
                               <div className="inline-flex items-center rounded-md border border-border">
@@ -352,13 +355,13 @@ function CartPage() {
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur pb-safe">
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-3 py-3">
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
               <p className="text-lg font-extrabold text-primary">
                 {grandTotal.toLocaleString("fr-FR")} FCFA
               </p>
             </div>
             <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
-              <EditableLabel uiKey="cart.checkout" defaultLabel="Passer la commande" defaultSize="md" />
+              <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
             </Button>
           </div>
         </div>
@@ -367,9 +370,9 @@ function CartPage() {
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adresse de livraison</DialogTitle>
+            <DialogTitle>{t("checkout.delivery_address")}</DialogTitle>
             <DialogDescription>
-              Choisissez une adresse enregistrée ou ajoutez-en une nouvelle.
+              {t("checkout.address_choice_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -380,14 +383,14 @@ function CartPage() {
                   mode === "saved" ? "bg-background shadow-sm" : "text-muted-foreground")}
                 onClick={() => setMode("saved")}
               >
-                Mes adresses ({addresses.length})
+                {t("checkout.saved_addresses")} ({addresses.length})
               </button>
               <button
                 className={cn("flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors",
                   mode === "new" ? "bg-background shadow-sm" : "text-muted-foreground")}
                 onClick={() => setMode("new")}
               >
-                + Nouvelle
+                + {t("checkout.new_address")}
               </button>
             </div>
           )}
@@ -410,7 +413,7 @@ function CartPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">
                             {a.label}
-                            {a.is_default && <span className="ml-2 text-[10px] font-normal text-primary">★ par défaut</span>}
+                            {a.is_default && <span className="ms-2 text-[10px] font-normal text-primary">★ {t("common.default")}</span>}
                           </p>
                           <p className="text-sm">{a.full_name} · {a.phone}</p>
                           <p className="text-xs text-muted-foreground">{a.address} — {a.city}</p>
@@ -423,7 +426,7 @@ function CartPage() {
               })}
               <li>
                 <Link to="/account" className="block text-center text-xs text-primary hover:underline">
-                  Gérer mes adresses
+                  {t("checkout.manage_addresses")}
                 </Link>
               </li>
             </ul>
@@ -431,55 +434,55 @@ function CartPage() {
             <div className="space-y-3">
               {user && (
                 <div>
-                  <Label htmlFor="n_label">Libellé *</Label>
-                  <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
+                  <Label htmlFor="n_label">{t("checkout.label")} *</Label>
+                  <Input id="n_label" placeholder={t("checkout.label_placeholder")} value={newForm.label}
                     onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
                   {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
                 </div>
               )}
               <div>
-                <Label htmlFor="n_name">Nom complet *</Label>
+                <Label htmlFor="n_name">{t("checkout.full_name")} *</Label>
                 <Input id="n_name" value={newForm.full_name}
                   onChange={(e) => setNewForm({ ...newForm, full_name: e.target.value })} maxLength={100} />
                 {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
               </div>
               <div>
-                <Label htmlFor="n_phone">Téléphone WhatsApp *</Label>
+                <Label htmlFor="n_phone">{t("checkout.whatsapp_phone")} *</Label>
                 <Input id="n_phone" type="tel" placeholder="+221 77 000 00 00" value={newForm.phone}
                   onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })} maxLength={20} />
                 {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
               </div>
               <div>
-                <Label htmlFor="n_addr">Adresse *</Label>
+                <Label htmlFor="n_addr">{t("checkout.address")} *</Label>
                 <Input id="n_addr" value={newForm.address}
                   onChange={(e) => setNewForm({ ...newForm, address: e.target.value })} maxLength={300} />
                 {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
               </div>
               <div>
-                <Label htmlFor="n_city">Quartier / Ville *</Label>
+                <Label htmlFor="n_city">{t("checkout.city")} *</Label>
                 <Input id="n_city" value={newForm.city}
                   onChange={(e) => setNewForm({ ...newForm, city: e.target.value })} maxLength={100} />
                 {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
               </div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
                 <Crosshair className="h-4 w-4" />
-                {locating ? "Localisation…" : newForm.latitude ? "Position enregistrée — actualiser" : "Utiliser ma position"}
+                {locating ? t("common.loading") : newForm.latitude ? t("checkout.location_refresh") : t("checkout.use_location")}
               </Button>
               <div>
-                <Label htmlFor="n_note">Note (optionnel)</Label>
+                <Label htmlFor="n_note">{t("checkout.note")}</Label>
                 <Textarea id="n_note" rows={2} value={newForm.note}
                   onChange={(e) => setNewForm({ ...newForm, note: e.target.value })} maxLength={500} />
               </div>
               <p className="text-[11px] text-muted-foreground">
                 <MapPin className="mr-1 inline h-3 w-3" />
-                Cette adresse sera enregistrée dans votre carnet pour vos prochaines commandes.
+                {t("checkout.address_saved_next")}
               </p>
             </div>
           )}
 
           <div className="mt-4 space-y-2 border-t border-border pt-3">
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-              {submitting ? "Envoi…" : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel="Valider et envoyer sur WhatsApp" defaultSize="md" />}
+              {submitting ? t("checkout.submitting") : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel={t("checkout.confirm_whatsapp")} defaultSize="md" />}
             </Button>
           </div>
         </DialogContent>

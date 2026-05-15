@@ -84,7 +84,7 @@ export function AppHeader() {
           to="/"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           className="flex items-center gap-1.5 shrink-0"
-          aria-label="Retour à l'accueil"
+          aria-label={t("nav.home")}
         >
           {settings.logo_url ? (
             <img src={settings.logo_url} alt={settings.site_name} className="h-7 w-auto max-w-[56px] object-contain sm:h-8 sm:max-w-[120px]" />
@@ -102,13 +102,6 @@ export function AppHeader() {
             onSubmit={submitSearch}
             className="mx-auto flex h-9 w-full max-w-[220px] items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30 sm:max-w-md"
           >
-            <button
-              type="submit"
-              aria-label="Lancer la recherche"
-              className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary"
-            >
-              <Search className="h-4 w-4" />
-            </button>
             <input
               type="search"
               value={query}
@@ -122,17 +115,14 @@ export function AppHeader() {
               <button
                 type="button"
                 onClick={() => setQuery("")}
-                aria-label="Effacer"
+                aria-label={t("search.clear")}
                 className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              type="submit"
-              className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform sm:px-3 sm:text-xs"
-            >
-              OK
+            <button type="submit" aria-label={t("common.search")} className="shrink-0 rounded-full p-1.5 text-primary hover:text-foreground">
+              <Search className="h-4 w-4" />
             </button>
           </form>
         )}

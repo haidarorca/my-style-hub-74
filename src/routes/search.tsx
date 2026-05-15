@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
@@ -66,7 +67,7 @@ function useDebounced<T>(value: T, ms = 250) {
 function SearchPage() {
   const { q: initialQ } = Route.useSearch();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
@@ -93,7 +94,7 @@ function SearchPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name")
+        .select("id, name, name_i18n")
         .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(6);
@@ -110,7 +111,7 @@ function SearchPage() {
       const first = term.charAt(0);
       let q1 = supabase
         .from("products")
-        .select("id, name, price, designation, product_images(url), product_variants(size, color)")
+        .select("id, name, name_i18n, price, designation, designation_i18n, product_images(url), product_variants(size, color)")
         .eq("status", "approved")
         .or(
           `name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%,designation.ilike.${first}%`,
@@ -149,7 +150,7 @@ function SearchPage() {
       const first = term.charAt(0);
       const { data } = await supabase
         .from("categories")
-        .select("id, name, level, logo_url")
+        .select("id, name, name_i18n, level, logo_url")
         .or(`name.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
       const rows = data ?? [];
@@ -189,11 +190,11 @@ function SearchPage() {
   const suggestions = useMemo(() => {
     if (!debounced || debounced.length < 1) return [];
     const set = new Set<string>();
-    (products ?? []).slice(0, 5).forEach((p) => set.add(p.name));
-    (categories ?? []).slice(0, 3).forEach((c) => set.add(c.name));
+    (products ?? []).slice(0, 5).forEach((p) => set.add(pickI18n(p.name, p.name_i18n, lang)));
+    (categories ?? []).slice(0, 3).forEach((c) => set.add(pickI18n(c.name, c.name_i18n, lang)));
     (shops ?? []).slice(0, 3).forEach((s) => s.shop_name && set.add(s.shop_name));
     return Array.from(set).slice(0, 6);
-  }, [debounced, products, categories, shops]);
+  }, [debounced, products, categories, shops, lang]);
 
   const submitTerm = (t: string) => {
     pushRecent(t);
@@ -368,10 +369,10 @@ function SearchPage() {
               <section>
                 <div className="mb-2 flex items-center justify-between">
                   <h2 className="flex items-center gap-1.5 text-sm font-bold">
-                    <Clock className="h-4 w-4" /> Recherches récentes
+                    <Clock className="h-4 w-4" /> {t("search.recent")}
                   </h2>
                   <button onClick={clearRecent} className="text-xs text-muted-foreground hover:text-foreground">
-                    Effacer
+                    {t("search.clear")}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -391,7 +392,7 @@ function SearchPage() {
             {trending && trending.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <TrendingUp className="h-4 w-4" /> Tendances
+                  <TrendingUp className="h-4 w-4" /> {t("search.trending")}
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {trending.map((t) => (
@@ -400,7 +401,7 @@ function SearchPage() {
                       onClick={() => submitTerm(t.name)}
                       className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
                     >
-                      {t.name}
+                      {pickI18n(t.name, t.name_i18n, lang)}
                     </button>
                   ))}
                 </div>
@@ -409,7 +410,7 @@ function SearchPage() {
 
             {recent.length === 0 && (!trending || trending.length === 0) && (
               <p className="mt-10 text-center text-sm text-muted-foreground">
-                Tapez pour rechercher des produits, catégories ou boutiques.
+                {t("search.empty_hint")}
               </p>
             )}
           </div>
@@ -437,7 +438,7 @@ function SearchPage() {
             {showCategories && categories && categories.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <LayoutGrid className="h-4 w-4" /> Catégories
+                  <LayoutGrid className="h-4 w-4" /> {t("search.tab_categories")}
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {categories.map((c) => (
@@ -448,7 +449,7 @@ function SearchPage() {
                       className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-accent"
                     >
                       {c.logo_url && <img src={c.logo_url} alt="" className="h-5 w-5 rounded-full object-cover" />}
-                      {c.name}
+                      {pickI18n(c.name, c.name_i18n, lang)}
                     </Link>
                   ))}
                 </div>
@@ -459,7 +460,7 @@ function SearchPage() {
             {showShops && shops && shops.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Store className="h-4 w-4" /> Boutiques
+                  <Store className="h-4 w-4" /> {t("search.tab_shops")}
                 </h2>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {shops.map((s) => (
@@ -492,9 +493,9 @@ function SearchPage() {
             {showProducts && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Package className="h-4 w-4" /> Produits
+                  <Package className="h-4 w-4" /> {t("search.tab_products")}
                 </h2>
-                {pLoading && <p className="text-sm text-muted-foreground">Recherche…</p>}
+                {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
                 {!pLoading && products && products.length > 0 ? (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                     {products.map((p) => (
@@ -506,18 +507,18 @@ function SearchPage() {
                       >
                         <div className="aspect-square overflow-hidden bg-muted">
                           {p.product_images?.[0]?.url ? (
-                            <img src={p.product_images[0].url} alt={p.name} className="h-full w-full object-cover" />
+                            <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
                           ) : null}
                         </div>
                         <div className="p-2">
-                          <div className="line-clamp-2 text-xs font-semibold">{p.name}</div>
-                          <div className="mt-1 text-sm font-bold text-primary">{p.price} FCFA</div>
+                          <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
+                          <div className="mt-1 text-sm font-bold text-primary">{Number(p.price).toLocaleString("fr-FR")} {t("misc.currency")}</div>
                         </div>
                       </Link>
                     ))}
                   </div>
                 ) : (
-                  !pLoading && <p className="text-sm text-muted-foreground">Aucun produit trouvé.</p>
+                  !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
                 )}
               </section>
             )}
@@ -528,7 +529,7 @@ function SearchPage() {
               counts.categories === 0 &&
               counts.shops === 0 && (
                 <p className="mt-6 text-center text-sm text-muted-foreground">
-                  Aucun résultat pour « {debounced} ». Vérifiez l'orthographe ou essayez un autre mot.
+                  {t("search.no_results_for")} « {debounced} ». {t("search.check_spelling")}
                 </p>
               )}
           </div>

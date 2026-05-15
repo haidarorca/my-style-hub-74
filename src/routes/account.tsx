@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/account")({
@@ -66,6 +67,7 @@ const emptyForm = {
 
 function AccountPage() {
   const { user, profile, loading, isAdmin, isVendor } = useAuth();
+  const { t, dir } = useI18n();
   const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -133,7 +135,7 @@ function AccountPage() {
 
   const useGeolocation = () => {
     if (!navigator.geolocation) {
-      toast.error("Géolocalisation non disponible");
+      toast.error(t("common.location_unavailable"));
       return;
     }
     setLocating(true);
@@ -167,19 +169,19 @@ function AccountPage() {
             if (cityName) {
               setForm((f) => ({ ...f, city: f.city?.trim() ? f.city : cityName }));
             }
-            toast.success("Position et localité détectées");
+            toast.success(t("common.location_detected"));
           } else {
-            toast.success("Position enregistrée");
+            toast.success(t("common.location_saved"));
           }
         } catch {
-          toast.success("Position enregistrée");
+          toast.success(t("common.location_saved"));
         } finally {
           setLocating(false);
         }
       },
       () => {
         setLocating(false);
-        toast.error("Impossible d'obtenir la position");
+        toast.error(t("common.location_failed"));
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
@@ -206,7 +208,7 @@ function AccountPage() {
       }
       setErrors(e);
       const first = Object.values(e)[0];
-      toast.error(first ?? "Veuillez corriger les champs");
+      toast.error(first ?? t("common.correct_fields"));
       return;
     }
     setErrors({});
@@ -232,22 +234,22 @@ function AccountPage() {
         const { error } = await (supabase as any).from("customer_addresses").insert(payload);
         if (error) throw error;
       }
-      toast.success("Adresse enregistrée");
+      toast.success(t("common.saved"));
       setOpen(false);
       await refresh();
     } catch (e: any) {
       console.error("Save address error", e);
-      toast.error(e?.message ?? "Erreur lors de l'enregistrement");
+      toast.error(e?.message ?? t("checkout.address_save_error"));
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (a: Address) => {
-    if (!confirm("Supprimer cette adresse ?")) return;
+    if (!confirm(t("account.delete_confirm"))) return;
     const { error } = await (supabase as any).from("customer_addresses").delete().eq("id", a.id);
-    if (error) return toast.error("Erreur");
-    toast.success("Supprimée");
+    if (error) return toast.error(t("common.error"));
+    toast.success(t("common.deleted"));
     await refresh();
   };
 
@@ -261,14 +263,14 @@ function AccountPage() {
       .from("customer_addresses")
       .update({ is_default: true })
       .eq("id", a.id);
-    toast.success("Adresse par défaut mise à jour");
+    toast.success(t("account.default_updated"));
     await refresh();
   };
 
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
@@ -290,9 +292,9 @@ function AccountPage() {
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Package className="h-4 w-4" />
               </span>
-              <span className="text-sm font-semibold">Mes commandes</span>
+              <span className="text-sm font-semibold">{t("nav.orders")}</span>
             </span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
           </Link>
           {(isVendor || isAdmin) && (
             <Link
@@ -303,35 +305,35 @@ function AccountPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Store className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-semibold">Espace vendeur</span>
+                <span className="text-sm font-semibold">{t("nav.vendor")}</span>
               </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Link>
           )}
         </div>
 
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h1 className="text-lg font-bold">Mes adresses</h1>
+            <h1 className="text-lg font-bold">{t("account.addresses")}</h1>
             <p className="text-xs text-muted-foreground">
-              Enregistrez vos adresses pour commander en un clic.
+              {t("account.description")}
             </p>
           </div>
           <Button onClick={openNew} size="sm" className="rounded-full">
-            <Plus className="h-4 w-4" /> Ajouter
+            <Plus className="h-4 w-4" /> {t("common.add")}
           </Button>
         </div>
 
         {loadingList ? (
-          <p className="text-sm text-muted-foreground">Chargement…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : addresses.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center">
             <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-2 text-sm text-muted-foreground">
-              Aucune adresse enregistrée pour le moment.
+              {t("account.no_addresses")}
             </p>
             <Button onClick={openNew} className="mt-4 rounded-full">
-              <Plus className="h-4 w-4" /> Ajouter ma première adresse
+              <Plus className="h-4 w-4" /> {t("account.add_first_address")}
             </Button>
           </div>
         ) : (
@@ -344,7 +346,7 @@ function AccountPage() {
                       <span className="text-sm font-semibold">{a.label}</span>
                       {a.is_default && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          <Star className="h-3 w-3" /> Par défaut
+                          <Star className="h-3 w-3" /> {t("common.default")}
                         </span>
                       )}
                     </div>
@@ -375,7 +377,7 @@ function AccountPage() {
                     className="mt-2 h-8 rounded-full text-xs"
                     onClick={() => setDefault(a)}
                   >
-                    <Star className="h-3 w-3" /> Définir comme adresse principale
+                    <Star className="h-3 w-3" /> {t("account.set_default_address")}
                   </Button>
                 )}
               </li>
@@ -387,57 +389,57 @@ function AccountPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editing ? "Modifier l'adresse" : "Nouvelle adresse"}</DialogTitle>
-            <DialogDescription>Saisissez vos informations de livraison.</DialogDescription>
+            <DialogTitle>{editing ? t("account.edit_address") : t("account.new_address")}</DialogTitle>
+            <DialogDescription>{t("account.delivery_info")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="a_label">Libellé *</Label>
-              <Input id="a_label" placeholder="Domicile, Bureau…" value={form.label}
+              <Label htmlFor="a_label">{t("checkout.label")} *</Label>
+              <Input id="a_label" placeholder={t("checkout.label_placeholder")} value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })} maxLength={50} />
               {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
             </div>
             <div>
-              <Label htmlFor="a_name">Nom complet *</Label>
+              <Label htmlFor="a_name">{t("account.full_name")} *</Label>
               <Input id="a_name" value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })} maxLength={100} />
               {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
             </div>
             <div>
-              <Label>Pays *</Label>
+              <Label>{t("account.country")} *</Label>
               <CountryPicker value={country} onChange={setCountry} />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                L'indicatif {country.dial} s'applique aux trois numéros.
+                {t("account.dial_applies").replace("{dial}", country.dial)}
               </p>
             </div>
             <div>
-              <Label htmlFor="a_phone">Téléphone principal *</Label>
+              <Label htmlFor="a_phone">{t("account.primary_phone")} *</Label>
               <PhoneDigitsInput id="a_phone" dial={country.dial} value={form.phone}
                 onChange={(v) => setForm({ ...form, phone: v })} />
-              <p className="mt-1 text-[11px] text-muted-foreground">WhatsApp si disponible</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("account.whatsapp_available")}</p>
               {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div>
-              <Label htmlFor="a_phone2">Téléphone secondaire (optionnel)</Label>
+              <Label htmlFor="a_phone2">{t("account.secondary_phone")}</Label>
               <PhoneDigitsInput id="a_phone2" dial={country.dial} value={form.phone_secondary}
                 onChange={(v) => setForm({ ...form, phone_secondary: v })} />
               {errors.phone_secondary && <p className="mt-1 text-xs text-destructive">{errors.phone_secondary}</p>}
             </div>
             <div>
-              <Label htmlFor="a_phone3">Téléphone alternatif (optionnel)</Label>
+              <Label htmlFor="a_phone3">{t("account.alt_phone")}</Label>
               <PhoneDigitsInput id="a_phone3" dial={country.dial} value={form.phone_alt}
                 onChange={(v) => setForm({ ...form, phone_alt: v })} />
-              <p className="mt-1 text-[11px] text-muted-foreground">Au cas où un numéro ne fonctionne pas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("account.alt_phone_hint")}</p>
               {errors.phone_alt && <p className="mt-1 text-xs text-destructive">{errors.phone_alt}</p>}
             </div>
             <div>
-              <Label htmlFor="a_addr">Adresse *</Label>
+              <Label htmlFor="a_addr">{t("checkout.address")} *</Label>
               <Input id="a_addr" value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })} maxLength={300} />
               {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
             </div>
             <div>
-              <Label htmlFor="a_city">Quartier / Ville *</Label>
+              <Label htmlFor="a_city">{t("checkout.city")} *</Label>
               <Input id="a_city" value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={100} />
               {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
@@ -445,16 +447,16 @@ function AccountPage() {
             <div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
                 <Crosshair className="h-4 w-4" />
-                {locating ? "Localisation…" : form.latitude ? "Position enregistrée — actualiser" : "Utiliser ma position"}
+                {locating ? t("common.loading") : form.latitude ? t("checkout.location_refresh") : t("checkout.use_location")}
               </Button>
             </div>
             <div>
-              <Label htmlFor="a_note">Note (optionnel)</Label>
+              <Label htmlFor="a_note">{t("checkout.note")}</Label>
               <Textarea id="a_note" rows={2} value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} maxLength={500} />
             </div>
             <Button onClick={save} disabled={saving} className="w-full">
-              {saving ? "Enregistrement…" : "Enregistrer l'adresse"}
+              {saving ? t("common.saving") : t("account.save_address")}
             </Button>
           </div>
         </DialogContent>
