@@ -268,14 +268,23 @@ function VendorSettings() {
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <Label className="text-base font-semibold">Contact</Label>
-        <div className="space-y-1.5">
-          <Label htmlFor="phone">Téléphone</Label>
-          <Input id="phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+225 ..." />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wa">Numéro WhatsApp (optionnel)</Label>
-          <Input id="wa" value={f.shop_whatsapp} onChange={(e) => setF({ ...f, shop_whatsapp: e.target.value })} placeholder="2250700000000" />
-        </div>
+        <PhoneField
+          id="phone"
+          label="Téléphone"
+          country={phoneCountry}
+          local={phoneLocal}
+          onCountryChange={setPhoneCountry}
+          onLocalChange={setPhoneLocal}
+        />
+        <PhoneField
+          id="wa"
+          label="Numéro WhatsApp (optionnel)"
+          country={waCountry}
+          local={waLocal}
+          onCountryChange={setWaCountry}
+          onLocalChange={setWaLocal}
+          showWaTest
+        />
         <div className="space-y-1.5">
           <Label htmlFor="addr">Adresse</Label>
           <Textarea id="addr" rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
