@@ -79,18 +79,14 @@ function CommissionsViewPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold">
-            <Eye className="h-5 w-5" /> Vue d'ensemble des commissions
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Comment sont gérées les commissions par pays, en lecture seule. Cliquez « Modifier » pour ouvrir l'éditeur.
-          </p>
-        </div>
-        <Link to="/admin/commissions">
-          <Button size="sm" variant="outline"><Pencil className="mr-1 h-4 w-4" /> Éditeur</Button>
-        </Link>
+      <BackButton fallbackTo="/admin" label="Retour" />
+      <div>
+        <h1 className="flex items-center gap-2 text-xl font-bold">
+          <Eye className="h-5 w-5" /> Vue d'ensemble des commissions
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          Lecture seule. Pour modifier, ouvrez une paire pays puis cliquez « Modifier cette paire ».
+        </p>
       </div>
 
       {!source && <SourceList onPick={setSource} />}
