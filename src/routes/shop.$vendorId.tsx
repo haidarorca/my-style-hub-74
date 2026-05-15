@@ -7,6 +7,7 @@ import { BackButton } from "@/components/layout/BackButton";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSchedule, summarizeSchedule, isOpenNow } from "@/lib/shop-hours";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
@@ -50,6 +51,9 @@ function ShopPage() {
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
   const whatsapp = (v.shop_whatsapp as string) || (v.phone as string) || "";
+  const schedule = normalizeSchedule(v.shop_hours_schedule);
+  const scheduleSummary = summarizeSchedule(schedule);
+  const openNow = isOpenNow(schedule);
   const verified = !!v.is_verified;
   const productCount = products?.length ?? 0;
 
@@ -94,7 +98,6 @@ function ShopPage() {
             {desc && <p className="mt-3 text-sm text-foreground/80">{desc}</p>}
 
             <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-              {hours && <div className="flex items-start gap-1.5"><Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{hours}</span></div>}
               {address && <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{address}</span></div>}
             </div>
 
@@ -124,6 +127,31 @@ function ShopPage() {
               Cette boutique n'a aucun produit pour l'instant.
             </p>
           )}
+        </section>
+
+        {/* Discreet schedule footer */}
+        <section className="mt-8 mb-6 rounded-xl border bg-muted/30 px-4 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground">Horaires d'ouverture</span>
+            <span
+              className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                openNow ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${openNow ? "bg-emerald-500" : "bg-muted-foreground/60"}`} />
+              {openNow ? "Ouvert" : "Fermé"}
+            </span>
+          </div>
+          <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+            {scheduleSummary.map((row, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span>{row.label}</span>
+                <span className={row.value === "Fermé" ? "text-muted-foreground/70" : "text-foreground/80"}>{row.value}</span>
+              </li>
+            ))}
+          </ul>
+          {hours && <p className="mt-2 text-[11px] italic text-muted-foreground">{hours}</p>}
         </section>
       </main>
       <QuickAddSheet

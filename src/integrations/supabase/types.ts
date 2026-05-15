@@ -587,6 +587,7 @@ export type Database = {
           shop_banner_url: string | null
           shop_description: string | null
           shop_hours: string | null
+          shop_hours_schedule: Json | null
           shop_logo_url: string | null
           shop_name: string | null
           shop_whatsapp: string | null
@@ -606,6 +607,7 @@ export type Database = {
           shop_banner_url?: string | null
           shop_description?: string | null
           shop_hours?: string | null
+          shop_hours_schedule?: Json | null
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
@@ -625,6 +627,7 @@ export type Database = {
           shop_banner_url?: string | null
           shop_description?: string | null
           shop_hours?: string | null
+          shop_hours_schedule?: Json | null
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
