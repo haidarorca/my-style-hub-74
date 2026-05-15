@@ -69,22 +69,20 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
   const pMap = new Map((products ?? []).map((p: any) => [p.id, p]));
   const vMap = new Map((variants ?? []).map((v: any) => [v.id, v]));
 
-  return lines
-    .map((l) => {
-      const p = pMap.get(l.product_id);
-      if (!p) return null;
-      return {
-        id: l.id,
-        product_id: l.product_id,
-        variant_id: l.variant_id,
-        quantity: l.quantity,
-        customization: l.customization,
-        created_at: l.created_at,
-        products: p,
-        product_variants: l.variant_id ? vMap.get(l.variant_id) ?? null : null,
-      };
-    })
-    .filter(Boolean);
+  return lines.flatMap((l) => {
+    const p = pMap.get(l.product_id);
+    if (!p) return [];
+    return [{
+      id: l.id,
+      product_id: l.product_id,
+      variant_id: l.variant_id,
+      quantity: l.quantity,
+      customization: l.customization,
+      created_at: l.created_at,
+      products: p,
+      product_variants: l.variant_id ? vMap.get(l.variant_id) ?? null : null,
+    }];
+  });
 }
 
 export function useCart() {
