@@ -227,10 +227,27 @@ function CartPage() {
 
   const submitOrder = async (openWhatsApp: boolean) => {
     if (items.length === 0) return;
+    if (!destinationCountryId) {
+      toast.error("Sélectionnez le pays de livraison.");
+      return;
+    }
     setSubmitting(true);
     try {
       const addr = await resolveAddress();
       if (!addr) { setSubmitting(false); return; }
+
+      // Block when the saved address country differs from the chosen delivery country.
+      if (
+        user && mode === "saved" &&
+        addr.destination_country_id &&
+        addr.destination_country_id !== destinationCountryId
+      ) {
+        setSubmitting(false);
+        toast.error(
+          "Le pays de livraison choisi ne correspond pas au pays enregistré dans cette adresse. Choisissez une adresse du même pays ou modifiez l'adresse.",
+        );
+        return;
+      }
 
       const orderId = crypto.randomUUID();
       const { error: oErr } = await supabase
