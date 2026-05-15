@@ -13,6 +13,9 @@ import {
   DAY_LABELS, DAY_ORDER, DEFAULT_SCHEDULE, normalizeSchedule,
   type DayKey, type ShopSchedule,
 } from "@/lib/shop-hours";
+import {
+  COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, splitPhone, joinPhone,
+} from "@/lib/phone-countries";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
