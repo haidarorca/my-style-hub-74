@@ -4,6 +4,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { BackButton } from "@/components/layout/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
