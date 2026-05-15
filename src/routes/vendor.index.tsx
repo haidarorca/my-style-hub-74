@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Package, Clock, CheckCircle2, XCircle, ShoppingBag, TrendingUp, ListOrdered } from "lucide-react";
+import {
+  Plus, Package, Clock, CheckCircle2, XCircle, ShoppingBag, TrendingUp,
+  Truck, Ban, MessageSquare, Settings, ListOrdered,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -19,14 +22,11 @@ function VendorHome() {
     queryFn: async () => {
       const vid = user!.id;
 
-      // Products counts
-      const [{ count: activeProducts }, { count: rejectedProducts }, { count: pendingProducts }] = await Promise.all([
+      const [{ count: activeProducts }, { count: rejectedProducts }] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "approved"),
         supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "rejected"),
-        supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "pending"),
       ]);
 
-      // Vendor's order items
       const { data: items } = await supabase
         .from("order_items")
         .select("order_id, unit_price, quantity, created_at")
@@ -41,9 +41,10 @@ function VendorHome() {
 
       const totalOrders = orders.length;
       const pendingOrders = orders.filter((o) => o.status === "new").length;
-      const confirmedOrders = orders.filter((o) => o.status === "confirmed" || o.status === "delivered").length;
+      const confirmedOrders = orders.filter((o) => o.status === "confirmed").length;
+      const deliveredOrders = orders.filter((o) => o.status === "delivered").length;
+      const cancelledOrders = orders.filter((o) => o.status === "cancelled").length;
 
-      // Sales (only counted when order is confirmed/delivered)
       const validOrderIds = new Set(
         orders.filter((o) => o.status === "confirmed" || o.status === "delivered").map((o) => o.id),
       );
@@ -62,14 +63,10 @@ function VendorHome() {
       }
 
       return {
-        totalOrders,
-        pendingOrders,
-        confirmedOrders,
+        totalOrders, pendingOrders, confirmedOrders, deliveredOrders, cancelledOrders,
         activeProducts: activeProducts ?? 0,
         rejectedProducts: rejectedProducts ?? 0,
-        pendingProducts: pendingProducts ?? 0,
-        salesDay,
-        salesWeek,
+        salesDay, salesWeek,
       };
     },
   });
@@ -80,10 +77,20 @@ function VendorHome() {
     { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
     { label: "En attente", value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
     { label: "Confirmées", value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: "Livrées", value: stats?.deliveredOrders ?? "—", icon: Truck, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: "Annulées", value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
     { label: "Produits actifs", value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
     { label: "Produits refusés", value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
     { label: "Ventes du jour", value: stats ? fmt(stats.salesDay) : "—", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10" },
     { label: "Ventes de la semaine", value: stats ? fmt(stats.salesWeek) : "—", icon: TrendingUp, color: "text-primary", bg: "bg-primary/10" },
+  ];
+
+  const actions = [
+    { to: "/vendor/orders", label: "Mes commandes", icon: ListOrdered, variant: "default" as const },
+    { to: "/vendor/products", label: "Mes produits", icon: Package, variant: "secondary" as const },
+    { to: "/vendor/products/new", label: "Ajouter un produit", icon: Plus, variant: "outline" as const },
+    { to: "/vendor/messages", label: "Messages clients", icon: MessageSquare, variant: "outline" as const },
+    { to: "/vendor/settings", label: "Paramètres boutique", icon: Settings, variant: "outline" as const },
   ];
 
   return (
@@ -109,22 +116,17 @@ function VendorHome() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Button asChild size="lg" className="h-16 justify-start text-base">
-          <Link to="/vendor/products/new">
-            <Plus className="mr-2 h-5 w-5" /> Ajouter un produit
-          </Link>
-        </Button>
-        <Button asChild size="lg" variant="secondary" className="h-16 justify-start text-base">
-          <Link to="/vendor/orders">
-            <ListOrdered className="mr-2 h-5 w-5" /> Voir les commandes
-          </Link>
-        </Button>
-        <Button asChild size="lg" variant="outline" className="h-16 justify-start text-base">
-          <Link to="/vendor/products">
-            <Package className="mr-2 h-5 w-5" /> Mes produits
-          </Link>
-        </Button>
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Actions rapides</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {actions.map((a) => (
+            <Button key={a.to} asChild size="lg" variant={a.variant} className="h-16 justify-start text-base">
+              <Link to={a.to}>
+                <a.icon className="mr-2 h-5 w-5" /> {a.label}
+              </Link>
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   );
