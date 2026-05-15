@@ -90,6 +90,34 @@ function useRules() {
   });
 }
 
+type SaveCommissionRuleInput = {
+  scope: Scope;
+  rate_percent: number;
+  is_enabled?: boolean;
+  vendor_id?: string | null;
+  category_id?: string | null;
+  product_id?: string | null;
+  source_country_id?: string | null;
+  destination_country_id?: string | null;
+  note?: string | null;
+};
+
+async function saveCommissionRule(input: SaveCommissionRuleInput) {
+  const { data, error } = await sb.rpc("upsert_commission_rule", {
+    _scope: input.scope,
+    _rate_percent: input.rate_percent,
+    _is_enabled: input.is_enabled ?? true,
+    _vendor_id: input.vendor_id ?? null,
+    _category_id: input.category_id ?? null,
+    _product_id: input.product_id ?? null,
+    _source_country_id: input.source_country_id ?? null,
+    _destination_country_id: input.destination_country_id ?? null,
+    _note: input.note ?? null,
+  });
+  if (error) throw error;
+  return data as Rule;
+}
+
 function useCategories() {
   return useQuery({
     queryKey: ["categories-flat"],
@@ -378,14 +406,14 @@ function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string
   async function save() {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide (0-100)");
-    const payload = {
-      scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
-      rate_percent: v, is_enabled: enabled,
-    };
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: enabled }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert(payload);
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: v, is_enabled: enabled,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Commission de la paire enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
@@ -483,15 +511,15 @@ function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: strin
 
   async function saveRate(categoryId: string, value: number) {
     if (Number.isNaN(value) || value < 0 || value > 100) return toast.error("Taux invalide");
-    const existing = ruleFor(categoryId);
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: value, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({
-          scope: "category", category_id: categoryId,
-          source_country_id: srcId, destination_country_id: dstId,
-          rate_percent: value, is_enabled: true,
-        });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "category", category_id: categoryId,
+        source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: value, is_enabled: true,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Règle catégorie enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
@@ -654,19 +682,15 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
   async function addRule(product_id: string) {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const existing = (rules ?? []).find((r) =>
-      r.scope === "product" && r.product_id === product_id
-      && (r.source_country_id ?? null) === srcId
-      && (r.destination_country_id ?? null) === dstId,
-    );
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({
-          scope: "product", product_id,
-          source_country_id: srcId, destination_country_id: dstId,
-          rate_percent: v, is_enabled: true,
-        });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "product", product_id,
+        source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: v, is_enabled: true,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Règle produit enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
@@ -769,10 +793,11 @@ function GlobalTab() {
   async function save() {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: enabled }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({ scope: "global", rate_percent: v, is_enabled: enabled });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({ scope: "global", rate_percent: v, is_enabled: enabled });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Commission globale enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }

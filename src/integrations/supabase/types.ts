@@ -1208,6 +1208,40 @@ export type Database = {
               rule_id: string
             }[]
           }
+      upsert_commission_rule: {
+        Args: {
+          _category_id?: string
+          _destination_country_id?: string
+          _is_enabled?: boolean
+          _note?: string
+          _product_id?: string
+          _rate_percent: number
+          _scope: string
+          _source_country_id?: string
+          _vendor_id?: string
+        }
+        Returns: {
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          destination_country_id: string | null
+          id: string
+          is_enabled: boolean
+          note: string | null
+          product_id: string | null
+          rate_percent: number
+          scope: string
+          source_country_id: string | null
+          updated_at: string
+          vendor_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_rules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       admin_permission:
