@@ -172,33 +172,72 @@ function VendorSettings() {
             Copier Lun→Sam
           </button>
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          Astuce : ajoutez un 2<sup>e</sup> créneau pour gérer une pause (ex : 9h–12h puis 14h–19h).
+        </p>
         <div className="space-y-2">
           {DAY_ORDER.map((day) => {
             const d = schedule[day];
+            const updateSlot = (i: number, patch: Partial<{ from: string; to: string }>) => {
+              const slots = d.slots.map((s, idx) => (idx === i ? { ...s, ...patch } : s));
+              updateDay(day, { slots });
+            };
+            const addSlot = () => {
+              const last = d.slots[d.slots.length - 1];
+              updateDay(day, { slots: [...d.slots, { from: last?.to ?? "14:00", to: "19:00" }] });
+            };
+            const removeSlot = (i: number) => {
+              const slots = d.slots.filter((_, idx) => idx !== i);
+              updateDay(day, { slots: slots.length > 0 ? slots : [{ from: "09:00", to: "19:00" }] });
+            };
             return (
-              <div key={day} className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
-                <div className="flex w-20 shrink-0 items-center gap-2">
-                  <Switch checked={d.open} onCheckedChange={(open) => updateDay(day, { open })} />
-                  <span className="text-sm font-medium">{DAY_LABELS[day].slice(0, 3)}</span>
-                </div>
-                {d.open ? (
-                  <div className="flex flex-1 items-center gap-1.5">
-                    <Input
-                      type="time"
-                      value={d.from}
-                      onChange={(e) => updateDay(day, { from: e.target.value })}
-                      className="h-9 flex-1 px-2 text-sm"
-                    />
-                    <span className="text-xs text-muted-foreground">à</span>
-                    <Input
-                      type="time"
-                      value={d.to}
-                      onChange={(e) => updateDay(day, { to: e.target.value })}
-                      className="h-9 flex-1 px-2 text-sm"
-                    />
+              <div key={day} className="rounded-lg border bg-background p-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex w-20 shrink-0 items-center gap-2">
+                    <Switch checked={d.open} onCheckedChange={(open) => updateDay(day, { open })} />
+                    <span className="text-sm font-medium">{DAY_LABELS[day].slice(0, 3)}</span>
                   </div>
-                ) : (
-                  <span className="flex-1 text-sm text-muted-foreground">Fermé</span>
+                  {!d.open && <span className="flex-1 text-sm text-muted-foreground">Fermé</span>}
+                  {d.open && (
+                    <button
+                      type="button"
+                      onClick={addSlot}
+                      className="ml-auto text-xs font-medium text-primary"
+                    >
+                      + Pause
+                    </button>
+                  )}
+                </div>
+                {d.open && (
+                  <div className="mt-2 space-y-1.5">
+                    {d.slots.map((s, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <Input
+                          type="time"
+                          value={s.from}
+                          onChange={(e) => updateSlot(i, { from: e.target.value })}
+                          className="h-9 flex-1 px-2 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground">à</span>
+                        <Input
+                          type="time"
+                          value={s.to}
+                          onChange={(e) => updateSlot(i, { to: e.target.value })}
+                          className="h-9 flex-1 px-2 text-sm"
+                        />
+                        {d.slots.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSlot(i)}
+                            className="px-2 text-xs font-medium text-destructive"
+                            aria-label="Supprimer ce créneau"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             );
