@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ProductCard } from "./ProductCard";
+import { ProductPricesProvider } from "./ProductPricesProvider";
 import { QuickAddSheet } from "./QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -34,11 +35,13 @@ export function SimilarProducts({
   return (
     <section>
       <h2 className="mb-2 text-sm font-bold">Vous aimerez aussi</h2>
-      <div className="grid-products">
-        {products.map((p) => (
-          <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
-        ))}
-      </div>
+      <ProductPricesProvider productIds={products.map((p) => p.id)}>
+        <div className="grid-products">
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
+          ))}
+        </div>
+      </ProductPricesProvider>
       <QuickAddSheet
         productId={quickAdd}
         open={!!quickAdd}

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ProductPricesProvider } from "@/components/product/ProductPricesProvider";
 import { ProductGridSkeleton } from "@/components/product/ProductCardSkeleton";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
@@ -283,11 +284,13 @@ function Home() {
           {productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
-            <div className="grid-products">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} onQuickAdd={setQuickAddProductId} />
-              ))}
-            </div>
+            <ProductPricesProvider productIds={products.map((p) => p.id)}>
+              <div className="grid-products">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} onQuickAdd={setQuickAddProductId} />
+                ))}
+              </div>
+            </ProductPricesProvider>
           ) : (
             <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t("home.empty_products")}
