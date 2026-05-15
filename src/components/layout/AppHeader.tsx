@@ -1,5 +1,5 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, X } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
@@ -22,7 +22,32 @@ export function AppHeader() {
   const router = useRouter();
   const hidden = useHideOnScroll();
   const settings = useSiteSettings();
-  const [query, setQuery] = useState("");
+
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const urlQ = useRouterState({
+    select: (s) => (s.location.pathname === "/search" ? ((s.location.search as { q?: string })?.q ?? "") : ""),
+  });
+  const [query, setQuery] = useState(urlQ);
+
+  // Keep input in sync when URL ?q= changes externally (recent searches, trending tags)
+  useEffect(() => {
+    if (pathname === "/search") setQuery(urlQ);
+  }, [urlQ, pathname]);
+
+  // Live-update URL while typing on /search so results refresh without a second bar
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (pathname !== "/search") return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const q = query.trim();
+      if (q === (urlQ ?? "")) return;
+      router.navigate({ to: "/search", search: q ? { q } : {}, replace: true });
+    }, 220);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, pathname, urlQ, router]);
 
   const handleSignOut = async () => {
     await signOut();
