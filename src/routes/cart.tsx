@@ -227,10 +227,27 @@ function CartPage() {
 
   const submitOrder = async (openWhatsApp: boolean) => {
     if (items.length === 0) return;
+    if (!destinationCountryId) {
+      toast.error("Sélectionnez le pays de livraison.");
+      return;
+    }
     setSubmitting(true);
     try {
       const addr = await resolveAddress();
       if (!addr) { setSubmitting(false); return; }
+
+      // Block when the saved address country differs from the chosen delivery country.
+      if (
+        user && mode === "saved" &&
+        addr.destination_country_id &&
+        addr.destination_country_id !== destinationCountryId
+      ) {
+        setSubmitting(false);
+        toast.error(
+          "Le pays de livraison choisi ne correspond pas au pays enregistré dans cette adresse. Choisissez une adresse du même pays ou modifiez l'adresse.",
+        );
+        return;
+      }
 
       const orderId = crypto.randomUUID();
       const { error: oErr } = await supabase
@@ -517,7 +534,7 @@ function CartPage() {
             </div>
           )}
 
-          <div className="mt-4 space-y-2 border-t border-border pt-3">
+          <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
               {submitting ? t("checkout.submitting") : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel={t("checkout.confirm_whatsapp")} defaultSize="md" />}
             </Button>

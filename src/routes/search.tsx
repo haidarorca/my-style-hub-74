@@ -12,6 +12,13 @@ import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
+
+function SearchPriceTag({ productId, fallback }: { productId: string; fallback: number }) {
+  const dp = useProductDisplayPrice(productId);
+  const value = dp ? dp.final_price : fallback;
+  return <>{value.toLocaleString("fr-FR")}</>;
+}
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
@@ -497,26 +504,30 @@ function SearchPage() {
                 </h2>
                 {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
                 {!pLoading && products && products.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                    {products.map((p) => (
-                      <Link
-                        key={p.id}
-                        to="/product/$productId"
-                        params={{ productId: p.id }}
-                        className="overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:bg-accent"
-                      >
-                        <div className="aspect-square overflow-hidden bg-muted">
-                          {p.product_images?.[0]?.url ? (
-                            <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
-                          ) : null}
-                        </div>
-                        <div className="p-2">
-                          <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
-                          <div className="mt-1 text-sm font-bold text-primary">{Number(p.price).toLocaleString("fr-FR")} {t("misc.currency")}</div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+                  <ProductPricesProvider productIds={products.map((p: any) => p.id)}>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {products.map((p) => (
+                        <Link
+                          key={p.id}
+                          to="/product/$productId"
+                          params={{ productId: p.id }}
+                          className="overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:bg-accent"
+                        >
+                          <div className="aspect-square overflow-hidden bg-muted">
+                            {p.product_images?.[0]?.url ? (
+                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
+                            ) : null}
+                          </div>
+                          <div className="p-2">
+                            <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
+                            <div className="mt-1 text-sm font-bold text-primary">
+                              <SearchPriceTag productId={p.id} fallback={Number(p.price)} /> {t("misc.currency")}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </ProductPricesProvider>
                 ) : (
                   !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
                 )}
