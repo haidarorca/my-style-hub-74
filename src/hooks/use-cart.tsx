@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useI18n } from "@/hooks/use-i18n";
 
 const GUEST_CART_KEY = "kawzone.guest_cart.v1";
 
@@ -55,7 +56,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     supabase
       .from("products")
       .select(
-        `id, name, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name)`,
+        `id, name, name_i18n, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name)`,
       )
       .in("id", productIds),
     variantIds.length
@@ -87,6 +88,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
 
 export function useCart() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const qc = useQueryClient();
 
   const queryKey = ["cart", user?.id ?? "guest"];
@@ -99,7 +101,7 @@ export function useCart() {
           .from("cart_items")
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
-             products!inner(id, name, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name)),
+             products!inner(id, name, name_i18n, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name)),
              product_variants(id, size, color, color_hex, price_override)`,
           )
           .order("created_at", { ascending: false });
@@ -151,7 +153,7 @@ export function useCart() {
         });
       }
       writeGuestCart(lines);
-      toast.success("Ajouté au panier");
+      toast.success(t("product.added_to_cart"));
       refresh();
       return true;
     }
@@ -189,7 +191,7 @@ export function useCart() {
         return false;
       }
     }
-    toast.success("Ajouté au panier");
+    toast.success(t("product.added_to_cart"));
     refresh();
     return true;
   };
