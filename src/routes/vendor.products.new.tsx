@@ -367,43 +367,91 @@ function NewProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div>
-            <Label>Rayon</Label>
-            <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-              <SelectContent>
-                {cats1?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {cat1 && cats2 && cats2.length > 0 && (
+          {/* Niveau 1 — Rayon */}
+          {proposeLevel === 1 ? (
+            <ProposeRow
+              label="Nouveau rayon"
+              value={proposeName}
+              onChange={setProposeName}
+              onCancel={cancelProposal}
+            />
+          ) : (
             <div>
-              <Label>Catégorie</Label>
-              <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
+              <div className="flex items-center justify-between">
+                <Label>Rayon</Label>
+                <button type="button" onClick={() => startProposal(1)} className="text-[11px] font-medium text-primary hover:underline">
+                  + Nouveau rayon
+                </button>
+              </div>
+              <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
-                  {cats2.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {cats1?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
-          {cat2 && cats3 && cats3.length > 0 && (
-            <div>
-              <Label>Sous-catégorie</Label>
-              <Select value={cat3} onValueChange={setCat3}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {cats3.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+          {/* Niveau 2 — Catégorie */}
+          {cat1 && proposeLevel !== 1 && (
+            proposeLevel === 2 ? (
+              <ProposeRow
+                label="Nouvelle catégorie"
+                value={proposeName}
+                onChange={setProposeName}
+                onCancel={cancelProposal}
+              />
+            ) : (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Catégorie</Label>
+                  <button type="button" onClick={() => startProposal(2)} className="text-[11px] font-medium text-primary hover:underline">
+                    + Nouvelle catégorie
+                  </button>
+                </div>
+                <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
+                  <SelectTrigger><SelectValue placeholder={cats2 && cats2.length > 0 ? "Choisir" : "Aucune — proposez-en une"} /></SelectTrigger>
+                  <SelectContent>
+                    {cats2?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          {/* Niveau 3 — Sous-catégorie */}
+          {cat2 && proposeLevel !== 1 && proposeLevel !== 2 && (
+            proposeLevel === 3 ? (
+              <ProposeRow
+                label="Nouvelle sous-catégorie"
+                value={proposeName}
+                onChange={setProposeName}
+                onCancel={cancelProposal}
+              />
+            ) : (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Sous-catégorie</Label>
+                  <button type="button" onClick={() => startProposal(3)} className="text-[11px] font-medium text-primary hover:underline">
+                    + Nouvelle sous-catégorie
+                  </button>
+                </div>
+                <Select value={cat3} onValueChange={setCat3}>
+                  <SelectTrigger><SelectValue placeholder={cats3 && cats3.length > 0 ? "Choisir" : "Aucune — proposez-en une"} /></SelectTrigger>
+                  <SelectContent>
+                    {cats3?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          {proposeLevel > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <Sparkles className="mr-1 inline h-3 w-3" />
+              Votre nouvelle catégorie sera envoyée à l'admin. Le produit reste en attente jusqu'à validation.
             </div>
           )}
-          <div className="pt-1">
-            <RequestCategoryDialog />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Vous ne trouvez pas la bonne catégorie ? Proposez-en une à l'admin.
-            </p>
-          </div>
         </CardContent>
       </Card>
 
