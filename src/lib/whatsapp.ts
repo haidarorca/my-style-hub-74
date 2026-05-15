@@ -1,3 +1,5 @@
+import { runtimeSettings } from "@/hooks/use-site-settings";
+
 export const WHATSAPP_NUMBER = "221776533606";
 
 export interface WhatsAppLine {
@@ -68,5 +70,6 @@ export function buildWhatsAppMessage(lines: WhatsAppLine[], customer?: WhatsAppC
 }
 
 export function whatsappUrl(message: string): string {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  const number = (runtimeSettings.whatsapp_number || WHATSAPP_NUMBER).replace(/\D/g, "");
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }

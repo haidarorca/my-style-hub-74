@@ -4,6 +4,7 @@ import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ export function AppHeader() {
   const { count } = useCart();
   const router = useRouter();
   const hidden = useHideOnScroll();
+  const settings = useSiteSettings();
 
   const handleSignOut = async () => {
     await signOut();
@@ -33,9 +35,13 @@ export function AppHeader() {
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
         <Link to="/" className="flex items-center gap-1.5 shrink-0">
-          <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
-            ORCA
-          </span>
+          {settings.logo_url ? (
+            <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[120px] object-contain" />
+          ) : (
+            <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
+              {settings.site_name}
+            </span>
+          )}
         </Link>
 
         <Link

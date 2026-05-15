@@ -11,6 +11,8 @@ import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
+import { SiteSettingsProvider } from "@/hooks/use-site-settings";
+import { PromoBar } from "@/components/layout/PromoBar";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -128,9 +130,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AuthInvalidator />
-        <Outlet />
-        <Toaster richColors position="top-center" />
+        <SiteSettingsProvider>
+          <AuthInvalidator />
+          <PromoBar />
+          <Outlet />
+          <Toaster richColors position="top-center" />
+        </SiteSettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
