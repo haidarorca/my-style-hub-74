@@ -91,7 +91,7 @@ export function useCart() {
 
   const queryKey = ["cart", user?.id ?? "guest"];
 
-  const { data: items } = useQuery({
+  const { data: items } = useQuery<any[]>({
     queryKey,
     queryFn: async () => {
       if (user) {
@@ -104,9 +104,9 @@ export function useCart() {
           )
           .order("created_at", { ascending: false });
         if (error) throw error;
-        return data ?? [];
+        return (data ?? []) as any[];
       }
-      return await hydrateGuestLines(readGuestCart());
+      return (await hydrateGuestLines(readGuestCart())) as any[];
     },
   });
 
