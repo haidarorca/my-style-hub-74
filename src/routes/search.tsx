@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
@@ -66,7 +67,7 @@ function useDebounced<T>(value: T, ms = 250) {
 function SearchPage() {
   const { q: initialQ } = Route.useSearch();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
@@ -93,7 +94,7 @@ function SearchPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name")
+        .select("id, name, name_i18n")
         .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(6);
@@ -110,7 +111,7 @@ function SearchPage() {
       const first = term.charAt(0);
       let q1 = supabase
         .from("products")
-        .select("id, name, price, designation, product_images(url), product_variants(size, color)")
+        .select("id, name, name_i18n, price, designation, designation_i18n, product_images(url), product_variants(size, color)")
         .eq("status", "approved")
         .or(
           `name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%,designation.ilike.${first}%`,
@@ -149,7 +150,7 @@ function SearchPage() {
       const first = term.charAt(0);
       const { data } = await supabase
         .from("categories")
-        .select("id, name, level, logo_url")
+        .select("id, name, name_i18n, level, logo_url")
         .or(`name.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
       const rows = data ?? [];
@@ -189,11 +190,11 @@ function SearchPage() {
   const suggestions = useMemo(() => {
     if (!debounced || debounced.length < 1) return [];
     const set = new Set<string>();
-    (products ?? []).slice(0, 5).forEach((p) => set.add(p.name));
-    (categories ?? []).slice(0, 3).forEach((c) => set.add(c.name));
+    (products ?? []).slice(0, 5).forEach((p) => set.add(pickI18n(p.name, p.name_i18n, lang)));
+    (categories ?? []).slice(0, 3).forEach((c) => set.add(pickI18n(c.name, c.name_i18n, lang)));
     (shops ?? []).slice(0, 3).forEach((s) => s.shop_name && set.add(s.shop_name));
     return Array.from(set).slice(0, 6);
-  }, [debounced, products, categories, shops]);
+  }, [debounced, products, categories, shops, lang]);
 
   const submitTerm = (t: string) => {
     pushRecent(t);
