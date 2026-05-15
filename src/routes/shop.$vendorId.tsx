@@ -95,7 +95,6 @@ function ShopPage() {
             {desc && <p className="mt-3 text-sm text-foreground/80">{desc}</p>}
 
             <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-              {hours && <div className="flex items-start gap-1.5"><Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{hours}</span></div>}
               {address && <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{address}</span></div>}
             </div>
 
