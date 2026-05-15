@@ -83,7 +83,7 @@ function ShopPage() {
       if (l2) { u2.add(l2); toL2.set(cid, l2); }
       if (l3) u3.add(l3);
     });
-    return { catMap: map, usedL1: u1, usedL2: u2, usedL3: u3, productCatToL1: toL1, productCatToL2: toL2 };
+    return { usedL1: u1, usedL2: u2, usedL3: u3, productCatToL1: toL1, productCatToL2: toL2 };
   }, [allCats, products]);
 
   const l1List = (allCats ?? []).filter((c) => c.level === 1 && usedL1.has(c.id));
