@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
