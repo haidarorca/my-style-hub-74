@@ -115,6 +115,7 @@ export type Database = {
           level: number
           name: string
           parent_id: string | null
+          parent_request_id: string | null
           resolved_category_id: string | null
           status: Database["public"]["Enums"]["category_request_status"]
           updated_at: string
@@ -127,6 +128,7 @@ export type Database = {
           level: number
           name: string
           parent_id?: string | null
+          parent_request_id?: string | null
           resolved_category_id?: string | null
           status?: Database["public"]["Enums"]["category_request_status"]
           updated_at?: string
@@ -139,6 +141,7 @@ export type Database = {
           level?: number
           name?: string
           parent_id?: string | null
+          parent_request_id?: string | null
           resolved_category_id?: string | null
           status?: Database["public"]["Enums"]["category_request_status"]
           updated_at?: string
@@ -150,6 +153,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_requests_parent_request_id_fkey"
+            columns: ["parent_request_id"]
+            isOneToOne: false
+            referencedRelation: "category_requests"
             referencedColumns: ["id"]
           },
           {
@@ -245,6 +255,36 @@ export type Database = {
           position?: number
           title?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string
+          title?: string
+          user_id?: string
         }
         Relationships: []
       }
