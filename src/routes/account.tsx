@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CountryPicker, PhoneDigitsInput, DEFAULT_COUNTRY, parsePhone, findCountryByCode, type Country } from "@/components/ui/phone-input";
+import { CountrySelect } from "@/components/CountrySelect";
+import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +52,7 @@ export interface Address {
   longitude: number | null;
   note: string | null;
   is_default: boolean;
+  destination_country_id: string | null;
 }
 
 const emptyForm = {
@@ -75,9 +78,12 @@ function AccountPage() {
   const [editing, setEditing] = useState<Address | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
+  const [destinationCountryId, setDestinationCountryId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const { data: countriesList } = useCountries({ onlyEnabled: true });
+  const labelOfCountry = useCountryLabel();
 
   useEffect(() => {
     if (!loading && !user) router.navigate({ to: "/login" });
@@ -107,6 +113,7 @@ function AccountPage() {
       full_name: profile?.full_name ?? "",
       phone: parsedProfile?.local ?? "",
     });
+    setDestinationCountryId(null);
     setErrors({});
     setOpen(true);
   };
@@ -129,6 +136,7 @@ function AccountPage() {
       latitude: a.latitude,
       longitude: a.longitude,
     });
+    setDestinationCountryId(a.destination_country_id ?? null);
     setErrors({});
     setOpen(true);
   };
@@ -211,6 +219,11 @@ function AccountPage() {
       toast.error(first ?? t("common.correct_fields"));
       return;
     }
+    if (!destinationCountryId) {
+      setErrors({ destination_country_id: "Pays de livraison requis" });
+      toast.error("Sélectionnez le pays de livraison.");
+      return;
+    }
     setErrors({});
     setSaving(true);
     try {
@@ -221,6 +234,7 @@ function AccountPage() {
         phone_alt: parsed.data.phone_alt || null,
         latitude: form.latitude,
         longitude: form.longitude,
+        destination_country_id: destinationCountryId,
         user_id: user.id,
         is_default: editing ? editing.is_default : addresses.length === 0,
       };
@@ -353,7 +367,13 @@ function AccountPage() {
                     <p className="mt-1 text-sm">{a.full_name}</p>
                     <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
                     <p className="mt-1 text-sm">{a.address}</p>
-                    <p className="text-xs text-muted-foreground">{a.city}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {a.city}
+                      {a.destination_country_id && (() => {
+                        const c = countriesList?.find((x) => x.id === a.destination_country_id);
+                        return c ? <> · <span className="font-medium">{c.flag_emoji} {labelOfCountry(c)}</span></> : null;
+                      })()}
+                    </p>
                     {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
                     {a.latitude != null && a.longitude != null && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
@@ -443,6 +463,21 @@ function AccountPage() {
               <Input id="a_city" value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={100} />
               {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
+            </div>
+            <div>
+              <Label>Pays de livraison *</Label>
+              <CountrySelect
+                value={destinationCountryId}
+                onChange={setDestinationCountryId}
+                onlyEnabled
+                placeholder="Choisir le pays de livraison"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Détermine la commission appliquée aux produits livrés à cette adresse.
+              </p>
+              {errors.destination_country_id && (
+                <p className="mt-1 text-xs text-destructive">{errors.destination_country_id}</p>
+              )}
             </div>
             <div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">

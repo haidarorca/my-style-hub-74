@@ -55,6 +55,7 @@ function VendorSettings() {
   const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [waLocal, setWaLocal] = useState("");
   const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
+  const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +87,7 @@ function VendorSettings() {
     setWaLocal(wa.local);
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
     setSourceCountryId((p.source_country_id as string | null) ?? null);
+    setVendorMode(((p.vendor_mode as "commission" | "no_commission" | undefined) ?? "no_commission"));
   }, [profile]);
 
   const updateDay = (day: DayKey, patch: Partial<ShopSchedule[DayKey]>) =>
@@ -122,10 +124,14 @@ function VendorSettings() {
 
   const save = async () => {
     if (!user) return;
+    if (!sourceCountryId) {
+      toast.error("Le pays d'origine de vos produits est obligatoire.");
+      return;
+    }
     setSaving(true);
     const phoneFull = joinPhone(phoneCountry, phoneLocal);
     const waFull = joinPhone(waCountry, waLocal);
-    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId };
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId, vendor_mode: vendorMode };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
@@ -197,18 +203,62 @@ function VendorSettings() {
       </div>
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
-        <Label className="text-base font-semibold">Pays d'origine des produits</Label>
+        <Label className="text-base font-semibold">Pays d'origine des produits *</Label>
         <p className="text-[11px] text-muted-foreground">
-          Utilisé pour calculer la commission en fonction du pays de livraison de l'acheteur.
+          Obligatoire. Utilisé pour calculer la commission selon le pays de livraison de l'acheteur.
         </p>
         <CountrySelect
           value={sourceCountryId}
           onChange={setSourceCountryId}
-          allowNull
-          nullLabel="— Non défini —"
           placeholder="Choisir votre pays"
           onlyEnabled
         />
+        {!sourceCountryId && (
+          <p className="text-[11px] font-medium text-destructive">Champ obligatoire.</p>
+        )}
+
+        <div className="pt-2 space-y-2">
+          <Label className="text-base font-semibold">Mode commission *</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Définit si vos prix incluent une commission de la plateforme.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Label
+              htmlFor="vmode-nc"
+              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
+            >
+              <input
+                id="vmode-nc"
+                type="radio"
+                name="vendor-mode"
+                className="mt-1"
+                checked={vendorMode === "no_commission"}
+                onChange={() => setVendorMode("no_commission")}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold">Sans commission</span>
+                <span className="text-[11px] text-muted-foreground">Vente directe, aucune commission appliquée.</span>
+              </span>
+            </Label>
+            <Label
+              htmlFor="vmode-c"
+              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
+            >
+              <input
+                id="vmode-c"
+                type="radio"
+                name="vendor-mode"
+                className="mt-1"
+                checked={vendorMode === "commission"}
+                onChange={() => setVendorMode("commission")}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold">Avec commission</span>
+                <span className="text-[11px] text-muted-foreground">Le prix affiché inclut la commission selon le pays de livraison.</span>
+              </span>
+            </Label>
+          </div>
+        </div>
       </div>
       {/* Schedule editor */}
       <div className="space-y-3 rounded-xl border bg-card p-4">
