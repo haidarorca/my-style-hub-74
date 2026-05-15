@@ -136,6 +136,7 @@ function AccountPage() {
       latitude: a.latitude,
       longitude: a.longitude,
     });
+    setDestinationCountryId(a.destination_country_id ?? null);
     setErrors({});
     setOpen(true);
   };
