@@ -24,6 +24,7 @@ import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/what
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { CountrySelect } from "@/components/CountrySelect";
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
