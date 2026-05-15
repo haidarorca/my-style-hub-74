@@ -1,12 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, LayoutGrid, Search, ShoppingBag, User } from "lucide-react";
+import { Home, LayoutGrid, ShoppingBag, User } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { to: "/", label: "Accueil", icon: Home, exact: true },
   { to: "/categories", label: "Catégories", icon: LayoutGrid },
-  { to: "/search", label: "Recherche", icon: Search },
   { to: "/cart", label: "Panier", icon: ShoppingBag, badgeKey: "cart" as const },
   { to: "/account", label: "Compte", icon: User },
 ];
