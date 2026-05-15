@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ProductPricesProvider } from "@/components/product/ProductPricesProvider";
 import { ProductGridSkeleton } from "@/components/product/ProductCardSkeleton";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -161,11 +162,13 @@ function CategoryPage() {
           {productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
-            <div className="grid-products">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
-              ))}
-            </div>
+            <ProductPricesProvider productIds={products.map((p) => p.id)}>
+              <div className="grid-products">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
+                ))}
+              </div>
+            </ProductPricesProvider>
           ) : (
             <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t("category.empty")}

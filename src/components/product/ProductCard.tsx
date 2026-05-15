@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { useProductDisplayPrice } from "./ProductPricesProvider";
 
 export interface ProductCardProduct {
   id: string;
@@ -21,6 +22,8 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const { lang, t } = useI18n();
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
+  const dp = useProductDisplayPrice(product.id);
+  const displayPrice = dp ? dp.final_price : product.price;
   return (
     <div className="group relative overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
       <Link
@@ -40,7 +43,6 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-muted to-accent/30" />
           )}
-          {/* Subtle gradient overlay for legibility */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
         <div className="p-[clamp(0.5rem,2vw,0.75rem)]">
@@ -48,7 +50,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
             {displayName}
           </p>
           <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-            {product.price.toLocaleString("fr-FR")} {t("misc.currency")}
+            {displayPrice.toLocaleString("fr-FR")} {t("misc.currency")}
           </p>
         </div>
       </Link>

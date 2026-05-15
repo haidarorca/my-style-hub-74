@@ -14,6 +14,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SiteSettingsProvider } from "@/hooks/use-site-settings";
 import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
 import { I18nProvider } from "@/hooks/use-i18n";
+import { DeliveryCountryProvider } from "@/hooks/use-delivery-country";
 import { PromoBar } from "@/components/layout/PromoBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { SwipeNavigator } from "@/components/layout/SwipeNavigator";
@@ -146,11 +147,13 @@ function RootComponent() {
         <I18nProvider>
           <SiteSettingsProvider>
             <UiOverridesProvider>
-              <AuthInvalidator />
-              <PromoBar />
-              <SwipeNavigator><Outlet /></SwipeNavigator>
-              <MobileBottomNav />
-              <Toaster richColors position="top-center" />
+              <DeliveryCountryProvider>
+                <AuthInvalidator />
+                <PromoBar />
+                <SwipeNavigator><Outlet /></SwipeNavigator>
+                <MobileBottomNav />
+                <Toaster richColors position="top-center" />
+              </DeliveryCountryProvider>
             </UiOverridesProvider>
           </SiteSettingsProvider>
         </I18nProvider>

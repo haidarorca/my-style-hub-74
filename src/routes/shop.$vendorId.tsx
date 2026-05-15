@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ProductPricesProvider } from "@/components/product/ProductPricesProvider";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSchedule, summarizeSchedule, isOpenNow, type ScheduleLabels } from "@/lib/shop-hours";
@@ -230,11 +231,13 @@ function ShopPage() {
             <span className="ml-2 text-xs font-normal text-muted-foreground">({filteredProducts.length})</span>
           </h2>
           {filteredProducts.length > 0 ? (
-            <div className="grid-products">
-              {filteredProducts.map((p) => (
-                <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
-              ))}
-            </div>
+            <ProductPricesProvider productIds={filteredProducts.map((p) => p.id)}>
+              <div className="grid-products">
+                {filteredProducts.map((p) => (
+                  <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
+                ))}
+              </div>
+            </ProductPricesProvider>
           ) : (
             <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {selL1 ? t("shop.empty_cat") : t("shop.empty_all")}
