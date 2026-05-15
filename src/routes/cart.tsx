@@ -352,7 +352,7 @@ function CartPage() {
       </main>
 
       {items.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur pb-safe">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
             <div className="flex-1">
                 <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
