@@ -7,11 +7,14 @@ import { BackButton } from "@/components/layout/BackButton";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeSchedule, summarizeSchedule, isOpenNow } from "@/lib/shop-hours";
+import { normalizeSchedule, summarizeSchedule, isOpenNow, type ScheduleLabels } from "@/lib/shop-hours";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
 });
+
 
 function ShopPage() {
   const { vendorId } = Route.useParams();
