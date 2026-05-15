@@ -214,7 +214,9 @@ function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
   const configuredSourceIds = useMemo(() => {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
+      if (!r.is_enabled) return;
       if (r.scope === "global" || r.scope === "vendor") return;
+      if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.source_country_id ?? null);
     });
     return set;
@@ -247,11 +249,13 @@ function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
         </Button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <CountryCard isAll onClick={() => onPick(ALL)} />
+        {(showAll || configuredSourceIds.has(null)) && (
+          <CountryCard isAll onClick={() => onPick(ALL)} />
+        )}
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} onClick={() => onPick(c.id)} />
         ))}
-        {!showAll && filtered.length === 0 && (
+        {!showAll && filtered.length === 0 && !configuredSourceIds.has(null) && (
           <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
             Aucun pays source configuré. Cliquez « Voir tous les pays » pour en ajouter un.
           </p>
