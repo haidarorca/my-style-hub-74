@@ -52,16 +52,33 @@ function VendorsPage() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
+  const [cSourceId, setCSourceId] = useState<string | null>(null);
+  const [cMode, setCMode] = useState<"commission" | "no_commission">("no_commission");
+  const [cIntl, setCIntl] = useState(false);
+  const [cAllowed, setCAllowed] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<VendorRow | null>(null);
 
   async function handleCreate() {
+    if (!cSourceId) { toast.error("Pays source obligatoire"); return; }
+    if (cIntl && cAllowed.length === 0) {
+      toast.error("Sélectionnez au moins un pays de livraison autorisé.");
+      return;
+    }
     setBusy(true);
     try {
-      await create({ data: { ...form, phone: form.phone || null } });
+      await create({ data: {
+        ...form,
+        phone: form.phone || null,
+        source_country_id: cSourceId,
+        vendor_mode: cMode,
+        ships_internationally: cIntl,
+        allowed_destination_country_ids: cAllowed,
+      } });
       toast.success("Vendeur créé");
       setOpen(false);
       setForm({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
+      setCSourceId(null); setCMode("no_commission"); setCIntl(false); setCAllowed([]);
       qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     } catch (e) {
       toast.error((e as Error).message);
