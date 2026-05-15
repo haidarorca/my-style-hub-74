@@ -51,77 +51,10 @@ function NewProductPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
 
-  // Category 3-level (existing) — or proposed new at one level
+  // Category 3-level
   const [cat1, setCat1] = useState<string>("");
   const [cat2, setCat2] = useState<string>("");
   const [cat3, setCat3] = useState<string>("");
-  // Proposal at a single level. When set, finalCategoryId becomes null
-  // and a category_request is created on submit, parent_id = selected parent.
-  const [proposeLevel, setProposeLevel] = useState<0 | 1 | 2 | 3>(0);
-  const [proposeName, setProposeName] = useState("");
-
-  // Images
-  const [images, setImages] = useState<File[]>([]);
-
-  // Variants
-  const [variants, setVariants] = useState<VariantInput[]>([]);
-
-  // Customizations
-  const [allowImage, setAllowImage] = useState(false);
-  const [imageMessage, setImageMessage] = useState("Téléchargez votre image en haute résolution.");
-  const [allowText, setAllowText] = useState(false);
-  const [allowAllFonts, setAllowAllFonts] = useState(false);
-  const [allowedFonts, setAllowedFonts] = useState<string[]>([]);
-  const [allowAllColors, setAllowAllColors] = useState(false);
-  const [allowedColors, setAllowedColors] = useState<string[]>([]);
-
-  const [submitting, setSubmitting] = useState(false);
-
-  const { data: cats1 } = useQuery({
-    queryKey: ["cat-l1"],
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("level", 1).order("position");
-      return data ?? [];
-    },
-  });
-  const { data: cats2 } = useQuery({
-    queryKey: ["cat-l2", cat1],
-    enabled: !!cat1,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat1).order("position");
-      return data ?? [];
-    },
-  });
-  const { data: cats3 } = useQuery({
-    queryKey: ["cat-l3", cat2],
-    enabled: !!cat2,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat2).order("position");
-      return data ?? [];
-    },
-  });
-
-  // If a proposal is active, do not assign an existing category; the product
-  // will be linked to the pending request instead.
-  const finalCategoryId = useMemo(
-    () => (proposeLevel > 0 ? null : (cat3 || cat2 || cat1 || null)),
-    [cat1, cat2, cat3, proposeLevel],
-  );
-
-  const proposalParentId = useMemo<string | null>(() => {
-    if (proposeLevel === 2) return cat1 || null;
-    if (proposeLevel === 3) return cat2 || null;
-    return null;
-  }, [proposeLevel, cat1, cat2]);
-
-  function startProposal(level: 1 | 2 | 3) {
-    setProposeLevel(level);
-    setProposeName("");
-    if (level === 1) { setCat1(""); setCat2(""); setCat3(""); }
-    if (level === 2) { setCat2(""); setCat3(""); }
-    if (level === 3) { setCat3(""); }
-  }
-  function cancelProposal() { setProposeLevel(0); setProposeName(""); }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
