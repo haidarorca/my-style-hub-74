@@ -100,21 +100,8 @@ function CartPage() {
     // eslint-disable-next-line
   }, [checkoutOpen]);
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background">
-        <AppHeader />
-        <main className="mx-auto max-w-md px-4 py-16 text-center">
-          <ShoppingBag className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h1 className="mt-3 text-lg font-bold">Connectez-vous</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pour voir votre panier.</p>
-          <Link to="/login">
-            <Button className="mt-4 rounded-full">Se connecter</Button>
-          </Link>
-        </main>
-      </div>
-    );
-  }
+  // Guests can browse the cart and check out as a guest.
+  // The dialog forces "new address" mode when there is no user.
 
   const groups = new Map<string, { shopName: string; vendorId: string; items: typeof items }>();
   for (const it of items) {
