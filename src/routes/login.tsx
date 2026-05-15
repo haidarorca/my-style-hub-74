@@ -39,7 +39,7 @@ function LoginPage() {
       toast.error(error.message);
       return;
     }
-    toast.success("Connecté !");
+    toast.success(t("auth.signed_in_toast"));
     navigate({ to: "/" });
   };
 
