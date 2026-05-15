@@ -77,6 +77,9 @@ export function AppHeader() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
+                <Link to="/orders"><Package className="mr-2 h-4 w-4" /> Mes commandes</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
               </DropdownMenuItem>
               {isAdmin && (
