@@ -408,8 +408,6 @@ function VendorsTab() {
                     <SelectContent>
                       <SelectItem value="no_commission">Sans commission</SelectItem>
                       <SelectItem value="commission">Avec commission</SelectItem>
-                      <SelectItem value="autonomous">Autonome</SelectItem>
-                      <SelectItem value="partially_managed">Partiellement géré</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">
