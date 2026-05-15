@@ -66,7 +66,7 @@ export function AppHeader() {
         hidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
+      <div className="mx-auto grid h-14 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-3">
         <Link
           to="/"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -74,9 +74,9 @@ export function AppHeader() {
           aria-label="Retour à l'accueil"
         >
           {settings.logo_url ? (
-            <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[120px] object-contain" />
+            <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[88px] object-contain sm:max-w-[120px]" />
           ) : (
-            <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
+            <span className="gradient-primary bg-clip-text text-lg font-extrabold tracking-tight text-transparent sm:text-xl">
               {settings.site_name}
             </span>
           )}
@@ -84,28 +84,34 @@ export function AppHeader() {
 
         <form
           onSubmit={submitSearch}
-          className="flex h-9 flex-1 items-center gap-2 rounded-full bg-muted px-3 transition-colors focus-within:bg-accent"
+          className="mx-auto flex h-10 w-full max-w-xl items-center gap-1.5 rounded-full border border-border bg-muted pl-3 pr-1 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background"
         >
-          <button type="submit" aria-label="Rechercher" className="text-muted-foreground">
-            <Search className="h-4 w-4" />
-          </button>
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un produit, boutique…"
+            placeholder="Rechercher…"
             inputMode="search"
             enterKeyHint="search"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Effacer"
-              className="text-muted-foreground hover:text-foreground"
+              className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
+            </button>
+          )}
+          {query.trim() && (
+            <button
+              type="submit"
+              className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform"
+            >
+              OK
             </button>
           )}
         </form>
