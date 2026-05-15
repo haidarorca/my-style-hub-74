@@ -89,22 +89,45 @@ function Dashboard() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
 
-      <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
-        <CardContent className="flex items-center gap-3 p-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <PackageCheck className="h-6 w-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold">Validation des produits</div>
-            <div className="text-xs text-muted-foreground">
-              {pending.data ?? 0} produit{(pending.data ?? 0) > 1 ? "s" : ""} en attente — approuver ou rejeter
+      <div className="space-y-1">
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
+
+        {/* Étape 1 — Catégories proposées */}
+        <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white">
+              <Inbox className="h-6 w-6" />
             </div>
-          </div>
-          <Button asChild size="sm">
-            <Link to="/admin/products">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
-          </Button>
-        </CardContent>
-      </Card>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">1. Catégories proposées par les vendeurs</div>
+              <div className="text-xs text-muted-foreground">
+                {pendingCats.data ?? 0} demande{(pendingCats.data ?? 0) > 1 ? "s" : ""} en attente — accepter, modifier, fusionner ou refuser
+              </div>
+            </div>
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/admin/category-requests">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Étape 2 — Produits */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <PackageCheck className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">2. Produits en attente de validation</div>
+              <div className="text-xs text-muted-foreground">
+                {pending.data ?? 0} produit{(pending.data ?? 0) > 1 ? "s" : ""} — validez d'abord les catégories liées
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link to="/admin/products">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (
