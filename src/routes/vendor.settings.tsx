@@ -41,6 +41,7 @@ function VendorSettings() {
     shop_logo_url: null,
     shop_banner_url: null,
   });
+  const [schedule, setSchedule] = useState<ShopSchedule>(DEFAULT_SCHEDULE);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "banner" | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
@@ -59,7 +60,23 @@ function VendorSettings() {
       shop_logo_url: (p.shop_logo_url as string) ?? null,
       shop_banner_url: (p.shop_banner_url as string) ?? null,
     });
+    setSchedule(normalizeSchedule(p.shop_hours_schedule));
   }, [profile]);
+
+  const updateDay = (day: DayKey, patch: Partial<ShopSchedule[DayKey]>) =>
+    setSchedule((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
+
+  const applyMonToSat = () => {
+    const ref = schedule.mon;
+    setSchedule((prev) => {
+      const next = { ...prev };
+      (["tue", "wed", "thu", "fri", "sat"] as DayKey[]).forEach((d) => {
+        next[d] = { ...ref };
+      });
+      return next;
+    });
+    toast.success("Horaires copiés du lundi au samedi");
+  };
 
   const upload = async (file: File, kind: "logo" | "banner") => {
     if (!user) return;
