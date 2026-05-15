@@ -406,14 +406,14 @@ function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string
   async function save() {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide (0-100)");
-    const payload = {
-      scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
-      rate_percent: v, is_enabled: enabled,
-    };
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: enabled }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert(payload);
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: v, is_enabled: enabled,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Commission de la paire enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
@@ -511,15 +511,15 @@ function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: strin
 
   async function saveRate(categoryId: string, value: number) {
     if (Number.isNaN(value) || value < 0 || value > 100) return toast.error("Taux invalide");
-    const existing = ruleFor(categoryId);
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: value, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({
-          scope: "category", category_id: categoryId,
-          source_country_id: srcId, destination_country_id: dstId,
-          rate_percent: value, is_enabled: true,
-        });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "category", category_id: categoryId,
+        source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: value, is_enabled: true,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Règle catégorie enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
