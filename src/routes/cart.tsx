@@ -75,6 +75,7 @@ function CartPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locating, setLocating] = useState(false);
+  const [destinationCountryId, setDestinationCountryId] = useState<string | null>(null);
 
   const loadAddresses = async () => {
     if (!user) {
