@@ -646,9 +646,9 @@ function AdminEditProductPage() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" onClick={() => router.navigate({ to: "/admin/products" })}>Annuler</Button>
-        <Button type="submit" disabled={submitting}>
+      <div className="sticky bottom-0 -mx-3 flex flex-col-reverse gap-2 border-t bg-background/95 p-3 backdrop-blur sm:flex-row sm:justify-end">
+        <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => router.navigate({ to: "/admin/products" })}>Annuler</Button>
+        <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
           {submitting ? "Enregistrement…" : sensitiveChanged ? "Enregistrer (mot de passe requis)" : "Enregistrer"}
         </Button>
       </div>
