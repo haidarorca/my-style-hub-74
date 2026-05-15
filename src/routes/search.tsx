@@ -243,17 +243,10 @@ function SearchPage() {
           <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
             <div
               className={cn(
-                "flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-[height] duration-200 focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
-                condensed ? "h-9" : "h-11",
+                "flex min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-muted pl-4 pr-1 shadow-sm transition-[height] duration-200 focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
+                condensed ? "h-9" : "h-10",
               )}
             >
-              <button
-                type="submit"
-                aria-label={t("common.search")}
-                className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary active:scale-95 transition-transform"
-              >
-                <SearchIcon className="h-4 w-4" />
-              </button>
               <input
                 autoFocus
                 type="search"
@@ -262,36 +255,36 @@ function SearchPage() {
                 placeholder={t("common.search_full_placeholder")}
                 inputMode="search"
                 enterKeyHint="search"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
               />
-              {q && (
+              {q ? (
                 <button
                   type="button"
                   onClick={() => setQ("")}
                   aria-label={t("search.clear")}
                   className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
-              )}
+              ) : null}
+              <button
+                type="submit"
+                aria-label={t("common.search")}
+                className={cn(
+                  "shrink-0 grid place-items-center rounded-full bg-primary text-primary-foreground shadow-pink active:scale-95 transition-transform",
+                  condensed ? "h-7 w-7" : "h-8 w-8",
+                )}
+              >
+                <SearchIcon className="h-4 w-4" />
+              </button>
             </div>
-            <Button
-              type="submit"
-              size="sm"
-              className={cn(
-                "shrink-0 rounded-full px-3 text-sm font-bold shadow-pink sm:px-4 transition-[height] duration-200",
-                condensed ? "h-9" : "h-11",
-              )}
-            >
-              {t("common.ok", "OK")}
-            </Button>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
                   size="icon"
-                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-11 w-11")}
+                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-10 w-10")}
                   aria-label={t("search.filters")}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
