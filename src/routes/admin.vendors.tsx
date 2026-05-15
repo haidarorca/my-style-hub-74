@@ -12,9 +12,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { createVendor, deleteVendor } from "@/lib/admin.functions";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 
 export const Route = createFileRoute("/admin/vendors")({
-  component: () => { const { PermissionGate } = require("@/components/admin/PermissionGate"); return <PermissionGate perm="vendors"><VendorsPage /></PermissionGate>; },
+  component: () => <PermissionGate perm="vendors"><VendorsPage /></PermissionGate>,
 });
 
 type VendorRow = {
