@@ -125,7 +125,7 @@ function VendorSettings() {
     setSaving(true);
     const phoneFull = joinPhone(phoneCountry, phoneLocal);
     const waFull = joinPhone(waCountry, waLocal);
-    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule };
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
