@@ -154,10 +154,10 @@ function Home() {
           <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
             <button
               onClick={() => onSelectSubCategory(null)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs ${
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
                 subCategoryId === null
-                  ? "bg-foreground text-background"
-                  : "bg-accent text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
               }`}
             >
               Tout
@@ -166,10 +166,10 @@ function Home() {
               <button
                 key={c.id}
                 onClick={() => onSelectSubCategory(c.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs ${
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
                   subCategoryId === c.id
-                    ? "bg-foreground text-background"
-                    : "bg-accent text-foreground"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
                 }`}
               >
                 {c.name}
