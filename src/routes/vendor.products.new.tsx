@@ -317,7 +317,7 @@ function NewProductPage() {
           </div>
           {cat1 && cats2 && cats2.length > 0 && (
             <div>
-              <Label>Sous-catégorie</Label>
+              <Label>Catégorie</Label>
               <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
