@@ -179,30 +179,54 @@ function CountryCard({ country, isAll, rateLabel, onClick }: {
 
 function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
   const { data: countries } = useCountries({ onlyEnabled: true });
+  const { data: rules } = useRules();
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const configuredSourceIds = useMemo(() => {
+    const set = new Set<string | null>();
+    (rules ?? []).forEach((r) => {
+      if (r.scope === "global" || r.scope === "vendor") return;
+      set.add(r.source_country_id ?? null);
+    });
+    return set;
+  }, [rules]);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) =>
-      !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s));
-  }, [countries, q]);
+    return (countries ?? []).filter((c) => {
+      if (!showAll && !configuredSourceIds.has(c.id)) return false;
+      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
+    });
+  }, [countries, q, showAll, configuredSourceIds]);
+
+  const configuredCount = (countries ?? []).filter((c) => configuredSourceIds.has(c.id)).length;
 
   return (
     <div className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold">1. Pays source (vendeur)</h2>
-        <p className="text-xs text-muted-foreground">Choisissez d'où viennent les produits.</p>
+        <p className="text-xs text-muted-foreground">Seuls les pays avec des règles existantes sont listés. Cliquez « Voir tous les pays » pour en ajouter un nouveau.</p>
       </div>
       <div className="relative">
         <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{showAll ? "Tous les pays affichés" : `${configuredCount} pays source configuré(s)`}</span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Voir uniquement configurés" : "Voir tous les pays"}
+        </Button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CountryCard isAll onClick={() => onPick(ALL)} />
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} onClick={() => onPick(c.id)} />
         ))}
-        {filtered.length === 0 && (
-          <p className="col-span-full text-center text-xs text-muted-foreground">Aucun pays.</p>
+        {!showAll && filtered.length === 0 && (
+          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+            Aucun pays source configuré. Cliquez « Voir tous les pays » pour en ajouter un.
+          </p>
         )}
       </div>
     </div>
@@ -218,16 +242,29 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
   const source = countries?.find((c) => c.id === sourceId) ?? null;
   const isSourceAll = sourceId === ALL;
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const srcMatch = isSourceAll ? null : sourceId;
+  const configuredDestIds = useMemo(() => {
+    const set = new Set<string | null>();
+    (rules ?? []).forEach((r) => {
+      if (r.scope === "global" || r.scope === "vendor") return;
+      if ((r.source_country_id ?? null) !== srcMatch) return;
+      set.add(r.destination_country_id ?? null);
+    });
+    return set;
+  }, [rules, srcMatch]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) =>
-      !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s));
-  }, [countries, q]);
+    return (countries ?? []).filter((c) => {
+      if (!showAll && !configuredDestIds.has(c.id)) return false;
+      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
+    });
+  }, [countries, q, showAll, configuredDestIds]);
 
   // Effective pair rate display
   const pairRate = (destId: string | null) => {
-    const srcMatch = isSourceAll ? null : sourceId;
     const r = rules?.find((x) =>
       x.scope === "country_pair" && x.is_enabled
       && (x.source_country_id ?? null) === srcMatch
@@ -252,11 +289,22 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
         <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input placeholder="Rechercher une destination…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
       </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{showAll ? "Tous les pays affichés" : `${configuredDestIds.size} destination(s) configurée(s)`}</span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Voir uniquement configurées" : "Voir tous les pays"}
+        </Button>
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} rateLabel={pairRate(c.id)} onClick={() => onPick(c.id)} />
         ))}
+        {!showAll && filtered.length === 0 && (
+          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+            Aucune destination configurée pour ce pays. Cliquez « Voir tous les pays » pour en ajouter une.
+          </p>
+        )}
       </div>
     </div>
   );
