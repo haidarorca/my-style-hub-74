@@ -467,6 +467,30 @@ const fr: Dict = {
   "vendor.list.status.rejected": "Rejeté",
   "vendor.list.status.pending": "En attente",
   "vendor.list.edit": "Modifier",
+
+  // Shop public page
+  "shop.fallback_name": "Boutique",
+  "shop.verified": "Vérifié",
+  "shop.products_one": "produit",
+  "shop.products_many": "produits",
+  "shop.contact_wa": "Contacter sur WhatsApp",
+  "shop.wa_message": "Bonjour, je vous contacte au sujet de votre boutique {name}.",
+  "shop.cat_all": "Tout",
+  "shop.products_title": "Produits",
+  "shop.all_products_title": "Tous les produits",
+  "shop.empty_cat": "Aucun produit dans cette catégorie.",
+  "shop.empty_all": "Cette boutique n'a aucun produit pour l'instant.",
+  "shop.hours_title": "Horaires d'ouverture",
+  "shop.open_now": "Ouvert",
+  "shop.closed_now": "Fermé",
+  "shop.closed_day": "Fermé",
+  "shop.day.mon": "Lun",
+  "shop.day.tue": "Mar",
+  "shop.day.wed": "Mer",
+  "shop.day.thu": "Jeu",
+  "shop.day.fri": "Ven",
+  "shop.day.sat": "Sam",
+  "shop.day.sun": "Dim",
 };
 
 const en: Dict = {
