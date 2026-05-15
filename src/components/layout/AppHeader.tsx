@@ -82,39 +82,49 @@ export function AppHeader() {
           )}
         </Link>
 
-        <form
-          onSubmit={submitSearch}
-          className="mx-auto flex h-10 w-full max-w-xl items-center gap-1.5 rounded-full border border-border bg-muted pl-3 pr-1 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background"
-        >
-          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher…"
-            inputMode="search"
-            enterKeyHint="search"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Effacer"
-              className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          {query.trim() && (
+        {pathname === "/search" ? (
+          <div aria-hidden className="h-10" />
+        ) : (
+          <form
+            onSubmit={submitSearch}
+            className="mx-auto flex h-10 w-full max-w-xl items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-1 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30"
+          >
             <button
               type="submit"
-              className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform"
+              aria-label="Lancer la recherche"
+              className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary"
             >
-              OK
+              <Search className="h-4 w-4" />
             </button>
-          )}
-        </form>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher…"
+              inputMode="search"
+              enterKeyHint="search"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Effacer"
+                className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {query.trim() && (
+              <button
+                type="submit"
+                className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform"
+              >
+                OK
+              </button>
+            )}
+          </form>
+        )}
 
         <div className="flex items-center gap-1">
           {/* Top-positioned actions so phone gesture bar doesn't interfere */}
