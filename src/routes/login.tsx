@@ -58,7 +58,7 @@ function LoginPage() {
             <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </div>
           <Button type="submit" disabled={loading} className="w-full" size="lg">
-            {loading ? "Connexion…" : "Se connecter"}
+            {loading ? "Connexion…" : <EditableLabel uiKey="login.submit" defaultLabel="Se connecter" defaultSize="md" />}
           </Button>
         </form>
 
