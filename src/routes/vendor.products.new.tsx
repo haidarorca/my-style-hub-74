@@ -157,7 +157,6 @@ function NewProductPage() {
           description: description.trim() || null,
           price: priceNum,
           category_id: finalCategoryId,
-          pending_category_request_id: pendingReqId,
           status: "pending",
         } as never)
         .select("id")
