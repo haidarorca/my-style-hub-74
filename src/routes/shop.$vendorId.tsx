@@ -109,7 +109,7 @@ function ShopPage() {
   });
 
   const v = vendor ?? {};
-  const shopName = (v.shop_name as string) || (v.full_name as string) || "Boutique";
+  const shopName = (v.shop_name as string) || (v.full_name as string) || t("shop.fallback_name");
   const desc = v.shop_description as string | undefined;
   const hours = v.shop_hours as string | undefined;
   const address = v.address as string | undefined;
@@ -118,13 +118,20 @@ function ShopPage() {
   const hideContact = !!v.hide_contact_publicly || v.vendor_mode === "commission";
   const whatsapp = hideContact ? "" : ((v.shop_whatsapp as string) || (v.phone as string) || "");
   const schedule = normalizeSchedule(v.shop_hours_schedule);
-  const scheduleSummary = summarizeSchedule(schedule);
+  const scheduleLabels: ScheduleLabels = {
+    closed: t("shop.closed_day"),
+    short: {
+      mon: t("shop.day.mon"), tue: t("shop.day.tue"), wed: t("shop.day.wed"),
+      thu: t("shop.day.thu"), fri: t("shop.day.fri"), sat: t("shop.day.sat"), sun: t("shop.day.sun"),
+    },
+  };
+  const scheduleSummary = summarizeSchedule(schedule, scheduleLabels);
   const openNow = isOpenNow(schedule);
   const verified = !!v.is_verified;
   const productCount = products?.length ?? 0;
 
   const waLink = whatsapp
-    ? `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour, je vous contacte au sujet de votre boutique ${shopName}.`)}`
+    ? `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(t("shop.wa_message").replace("{name}", shopName))}`
     : null;
 
   return (
