@@ -102,14 +102,34 @@ function CategoryRequestsPage() {
   async function linkProductsToCategory(reqId: string, categoryId: string) {
     const { error } = await supabase
       .from("products")
-      .update({ category_id: categoryId, pending_category_request_id: null } as never)
-      .eq("pending_category_request_id" as never, reqId);
+      .update({ category_id: categoryId, pending_category_request_id: null })
+      .eq("pending_category_request_id", reqId);
     if (error) throw error;
+  }
+
+  async function resolveChildRequests(reqId: string, newCategoryId: string) {
+    // Pending child requests had their parent set to this request — re-link to the freshly created category.
+    const { error } = await supabase
+      .from("category_requests")
+      .update({ parent_id: newCategoryId, parent_request_id: null })
+      .eq("parent_request_id", reqId)
+      .eq("status", "pending");
+    if (error) throw error;
+  }
+
+  async function notifyVendor(vendorId: string, title: string, message: string) {
+    await supabase.from("notifications").insert({
+      user_id: vendorId,
+      title,
+      message,
+      link: "/vendor/notifications",
+    });
   }
 
   async function approve(req: Req, finalName: string) {
     const trimmed = finalName.trim();
     if (trimmed.length < 2) return toast.error("Nom trop court.");
+    const renamed = trimmed !== req.name.trim();
     const { data: created, error: insErr } = await supabase
       .from("categories")
       .insert({
@@ -127,9 +147,19 @@ function CategoryRequestsPage() {
       .update({ status: "approved", resolved_category_id: created.id, admin_note: null })
       .eq("id", req.id);
     if (upErr) return toast.error(upErr.message);
-    try { await linkProductsToCategory(req.id, created.id); } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erreur liaison produits");
+    try {
+      await linkProductsToCategory(req.id, created.id);
+      await resolveChildRequests(req.id, created.id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur de propagation");
     }
+    await notifyVendor(
+      req.vendor_id,
+      renamed ? "Catégorie acceptée (renommée)" : "Catégorie acceptée",
+      renamed
+        ? `Votre proposition « ${req.name} » a été acceptée sous le nom « ${trimmed} ». Vos produits liés sont débloqués.`
+        : `Votre catégorie « ${trimmed} » a été acceptée. Vos produits liés sont débloqués.`,
+    );
     toast.success("Catégorie créée. Produits liés débloqués.");
     refresh();
     qc.invalidateQueries({ queryKey: ["admin", "categories"] });
@@ -137,24 +167,45 @@ function CategoryRequestsPage() {
 
   async function merge(req: Req, targetId: string) {
     if (!targetId) return toast.error("Choisissez une catégorie.");
+    const target = catMap.get(targetId);
     const { error } = await supabase
       .from("category_requests")
       .update({ status: "merged", resolved_category_id: targetId })
       .eq("id", req.id);
     if (error) return toast.error(error.message);
-    try { await linkProductsToCategory(req.id, targetId); } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erreur liaison produits");
+    try {
+      await linkProductsToCategory(req.id, targetId);
+      await resolveChildRequests(req.id, targetId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur de propagation");
     }
+    await notifyVendor(
+      req.vendor_id,
+      "Catégorie fusionnée",
+      `Votre proposition « ${req.name} » a été fusionnée avec « ${target?.name ?? "une catégorie existante"} ». Vos produits liés sont débloqués.`,
+    );
     toast.success("Demande fusionnée. Produits liés débloqués.");
     refresh();
   }
 
   async function reject(req: Req, note: string) {
+    const trimmedNote = note.trim();
     const { error } = await supabase
       .from("category_requests")
-      .update({ status: "rejected", admin_note: note.trim() || null })
+      .update({ status: "rejected", admin_note: trimmedNote || null })
       .eq("id", req.id);
     if (error) return toast.error(error.message);
+    // Cascade-reject child pending requests (their parent no longer exists)
+    await supabase
+      .from("category_requests")
+      .update({ status: "rejected", admin_note: "Refus en cascade : catégorie parente refusée." })
+      .eq("parent_request_id", req.id)
+      .eq("status", "pending");
+    await notifyVendor(
+      req.vendor_id,
+      "Catégorie refusée",
+      `Votre proposition « ${req.name} » a été refusée${trimmedNote ? ` : ${trimmedNote}` : "."} Modifiez vos produits pour choisir une autre catégorie.`,
+    );
     toast.success("Demande refusée.");
     refresh();
   }
