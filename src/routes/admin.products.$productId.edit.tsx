@@ -513,6 +513,7 @@ function AdminEditProductPage() {
               </SelectContent>
             </Select>
           </div>
+          </div>
         </CardContent>
       </Card>
 
