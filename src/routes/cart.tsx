@@ -203,9 +203,11 @@ function CartPage() {
       const addr = await resolveAddress();
       if (!addr) { setSubmitting(false); return; }
 
-      const { data: order, error: oErr } = await supabase
+      const orderId = crypto.randomUUID();
+      const { error: oErr } = await supabase
         .from("orders")
         .insert({
+          id: orderId,
           buyer_id: user?.id ?? null,
           total: grandTotal,
           status: "new",
@@ -214,10 +216,9 @@ function CartPage() {
           address: addr.address,
           city: addr.city,
           note: addr.note,
-        })
-        .select("id")
-        .single();
-      if (oErr || !order) throw oErr ?? new Error("order failed");
+        });
+      if (oErr) throw oErr;
+      const order = { id: orderId };
 
       const rows = items.map((it: any) => ({
         order_id: order.id,
