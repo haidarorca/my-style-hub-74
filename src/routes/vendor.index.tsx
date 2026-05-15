@@ -87,9 +87,15 @@ function VendorHome() {
     },
   });
 
-  const fmt = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+  const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
+  const locale = localeMap[lang] ?? "fr-FR";
+  const fmt = (n: number) => `${Math.round(n).toLocaleString(locale)} FCFA`;
   const statusLabel = (s: string) =>
-    s === "new" ? "En attente" : s === "confirmed" ? "Confirmée" : s === "delivered" ? "Livrée" : s === "cancelled" ? "Annulée" : s;
+    s === "new" ? t("vendor.dash.tile.pending")
+    : s === "confirmed" ? t("vendor.ord.status.confirmed")
+    : s === "delivered" ? t("vendor.ord.status.delivered")
+    : s === "cancelled" ? t("vendor.ord.status.cancelled")
+    : s;
   const statusColor = (s: string) =>
     s === "new" ? "bg-amber-500/10 text-amber-700"
     : s === "confirmed" ? "bg-emerald-500/10 text-emerald-700"
@@ -98,28 +104,28 @@ function VendorHome() {
     : "bg-muted text-foreground";
 
   const orderTiles = [
-    { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
-    { label: "En attente", value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
-    { label: "Confirmées", value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { label: "Livrées", value: stats?.deliveredOrders ?? "—", icon: Truck, color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Annulées", value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
-    { label: "Produits actifs", value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Produits refusés", value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: t("vendor.dash.tile.total_orders"), value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
+    { label: t("vendor.dash.tile.pending"), value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
+    { label: t("vendor.dash.tile.confirmed"), value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: t("vendor.dash.tile.delivered"), value: stats?.deliveredOrders ?? "—", icon: Truck, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.tile.cancelled"), value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: t("vendor.dash.tile.active_products"), value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.tile.rejected_products"), value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
   ];
 
   const salesTiles = [
-    { label: "Ventes aujourd'hui", value: stats ? fmt(stats.salesDay) : "—", color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { label: "Ventes cette semaine", value: stats ? fmt(stats.salesWeek) : "—", color: "text-primary", bg: "bg-primary/10" },
-    { label: "Ventes ce mois", value: stats ? fmt(stats.salesMonth) : "—", color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Ventes cette année", value: stats ? fmt(stats.salesYear) : "—", color: "text-amber-600", bg: "bg-amber-500/10" },
+    { label: t("vendor.dash.sales.today"), value: stats ? fmt(stats.salesDay) : "—", color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: t("vendor.dash.sales.week"), value: stats ? fmt(stats.salesWeek) : "—", color: "text-primary", bg: "bg-primary/10" },
+    { label: t("vendor.dash.sales.month"), value: stats ? fmt(stats.salesMonth) : "—", color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.sales.year"), value: stats ? fmt(stats.salesYear) : "—", color: "text-amber-600", bg: "bg-amber-500/10" },
   ];
 
   const actions = [
-    { to: "/vendor/orders", label: "Mes commandes", icon: ListOrdered, variant: "default" as const },
-    { to: "/vendor/products", label: "Mes produits", icon: Package, variant: "secondary" as const },
-    { to: "/vendor/products/new", label: "Ajouter un produit", icon: Plus, variant: "outline" as const },
-    { to: "/vendor/messages", label: "Messages clients", icon: MessageSquare, variant: "outline" as const },
-    { to: "/vendor/settings", label: "Paramètres boutique", icon: Settings, variant: "outline" as const },
+    { to: "/vendor/orders", label: t("vendor.dash.action.orders"), icon: ListOrdered, variant: "default" as const },
+    { to: "/vendor/products", label: t("vendor.dash.action.products"), icon: Package, variant: "secondary" as const },
+    { to: "/vendor/products/new", label: t("vendor.dash.action.new_product"), icon: Plus, variant: "outline" as const },
+    { to: "/vendor/messages", label: t("vendor.dash.action.messages"), icon: MessageSquare, variant: "outline" as const },
+    { to: "/vendor/settings", label: t("vendor.dash.action.settings"), icon: Settings, variant: "outline" as const },
   ];
 
   return (
