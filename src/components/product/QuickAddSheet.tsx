@@ -174,7 +174,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
               disabled={!canAdd || submitting}
               onClick={onConfirm}
             >
-              {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : "Ajouter au panier"}
+              {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : <EditableLabel uiKey="product.add_to_cart" defaultLabel="Ajouter au panier" defaultSize="md" />}
             </Button>
           </div>
         )}
