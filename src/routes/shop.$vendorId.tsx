@@ -263,3 +263,23 @@ function ShopPage() {
     </div>
   );
 }
+
+function CatChip({
+  children, active, onClick, small,
+}: { children: React.ReactNode; active?: boolean; onClick?: () => void; small?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 whitespace-nowrap rounded-full border transition active:scale-[0.98] ${
+        small ? "px-3 py-1 text-[11px]" : "px-3.5 py-1.5 text-xs"
+      } ${
+        active
+          ? "border-primary bg-primary text-primary-foreground font-semibold"
+          : "border-border bg-card text-foreground/80 hover:bg-accent"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
