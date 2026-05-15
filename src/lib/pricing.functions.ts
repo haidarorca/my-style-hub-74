@@ -22,10 +22,11 @@ export interface DisplayPrice {
 export const getDisplayPrices = createServerFn({ method: "POST" })
   .inputValidator((input) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<DisplayPrice[]> => {
-    const { data: rows, error } = await supabaseAdmin.rpc("get_display_prices", {
+    const args: { _product_ids: string[]; _destination_country_id?: string } = {
       _product_ids: data.productIds,
-      _destination_country_id: data.destinationCountryId ?? null,
-    });
+    };
+    if (data.destinationCountryId) args._destination_country_id = data.destinationCountryId;
+    const { data: rows, error } = await supabaseAdmin.rpc("get_display_prices", args);
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r: any) => ({
       product_id: r.product_id,
