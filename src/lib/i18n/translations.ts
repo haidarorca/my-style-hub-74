@@ -262,6 +262,16 @@ const fr: Dict = {
   "auth.forgot_password": "Mot de passe oublié ?",
   "auth.error_invalid": "Email ou mot de passe incorrect",
   "auth.signup_success": "Compte créé. Vérifiez votre email.",
+  "auth.login_title": "Connexion",
+  "auth.login_subtitle": "Connecte-toi pour acheter et personnaliser tes produits. Vous pouvez aussi commander sans compte.",
+  "auth.signup_title": "Créer un compte",
+  "auth.signup_subtitle": "Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.",
+  "auth.signin_loading": "Connexion…",
+  "auth.signup_loading": "Création…",
+  "auth.signed_in_toast": "Connecté !",
+  "auth.show_password": "Afficher le mot de passe",
+  "auth.hide_password": "Masquer le mot de passe",
+  "auth.create_account_cta": "Créer un compte",
 
   // Vendor
   "vendor.dashboard": "Tableau de bord",
