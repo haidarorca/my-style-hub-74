@@ -290,7 +290,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   );
 }
 
-function ProductsPage() {
+export function ProductsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Validation des produits</h1>
