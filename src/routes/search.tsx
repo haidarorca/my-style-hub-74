@@ -284,7 +284,7 @@ function SearchPage() {
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
                   size="icon"
-                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-11 w-11")}
+                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-10 w-10")}
                   aria-label={t("search.filters")}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
