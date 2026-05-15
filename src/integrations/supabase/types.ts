@@ -272,12 +272,14 @@ export type Database = {
           category_id: string | null
           created_at: string
           created_by: string | null
+          destination_country_id: string | null
           id: string
           is_enabled: boolean
           note: string | null
           product_id: string | null
           rate_percent: number
           scope: string
+          source_country_id: string | null
           updated_at: string
           vendor_id: string | null
         }
@@ -285,12 +287,14 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          destination_country_id?: string | null
           id?: string
           is_enabled?: boolean
           note?: string | null
           product_id?: string | null
           rate_percent?: number
           scope: string
+          source_country_id?: string | null
           updated_at?: string
           vendor_id?: string | null
         }
@@ -298,14 +302,67 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          destination_country_id?: string | null
           id?: string
           is_enabled?: boolean
           note?: string | null
           product_id?: string | null
           rate_percent?: number
           scope?: string
+          source_country_id?: string | null
           updated_at?: string
           vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_rules_destination_country_id_fkey"
+            columns: ["destination_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_rules_source_country_id_fkey"
+            columns: ["source_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      countries: {
+        Row: {
+          code: string
+          created_at: string
+          flag_emoji: string | null
+          id: string
+          is_enabled: boolean
+          name: string
+          name_i18n: Json
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          flag_emoji?: string | null
+          id?: string
+          is_enabled?: boolean
+          name: string
+          name_i18n?: Json
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          flag_emoji?: string | null
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          name_i18n?: Json
+          position?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -314,6 +371,7 @@ export type Database = {
           address: string
           city: string
           created_at: string
+          destination_country_id: string | null
           full_name: string
           id: string
           is_default: boolean
@@ -331,6 +389,7 @@ export type Database = {
           address: string
           city: string
           created_at?: string
+          destination_country_id?: string | null
           full_name: string
           id?: string
           is_default?: boolean
@@ -348,6 +407,7 @@ export type Database = {
           address?: string
           city?: string
           created_at?: string
+          destination_country_id?: string | null
           full_name?: string
           id?: string
           is_default?: boolean
@@ -361,7 +421,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customer_addresses_destination_country_id_fkey"
+            columns: ["destination_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       home_banners: {
         Row: {
@@ -508,6 +576,7 @@ export type Database = {
           created_at: string
           customer_name: string | null
           customer_phone: string | null
+          destination_country_id: string | null
           id: string
           note: string | null
           status: string
@@ -520,6 +589,7 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          destination_country_id?: string | null
           id?: string
           note?: string | null
           status?: string
@@ -532,12 +602,21 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          destination_country_id?: string | null
           id?: string
           note?: string | null
           status?: string
           total?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_destination_country_id_fkey"
+            columns: ["destination_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_customizations: {
         Row: {
@@ -857,6 +936,7 @@ export type Database = {
           shop_logo_url: string | null
           shop_name: string | null
           shop_whatsapp: string | null
+          source_country_id: string | null
           updated_at: string
           vendor_mode: Database["public"]["Enums"]["vendor_mode"]
         }
@@ -881,6 +961,7 @@ export type Database = {
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
+          source_country_id?: string | null
           updated_at?: string
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
         }
@@ -905,10 +986,19 @@ export type Database = {
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
+          source_country_id?: string | null
           updated_at?: string
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_source_country_id_fkey"
+            columns: ["source_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_settings: {
         Row: {
@@ -1076,13 +1166,21 @@ export type Database = {
         }
         Returns: string
       }
-      resolve_commission: {
-        Args: { _product_id: string }
-        Returns: {
-          rate: number
-          rule_id: string
-        }[]
-      }
+      resolve_commission:
+        | {
+            Args: { _product_id: string }
+            Returns: {
+              rate: number
+              rule_id: string
+            }[]
+          }
+        | {
+            Args: { _destination_country_id?: string; _product_id: string }
+            Returns: {
+              rate: number
+              rule_id: string
+            }[]
+          }
     }
     Enums: {
       admin_permission:
