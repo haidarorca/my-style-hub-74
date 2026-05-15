@@ -204,6 +204,9 @@ function ProductPage() {
     <div className="min-h-screen bg-background pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
+        <div className="px-3 pt-2">
+          <BackButton fallbackTo="/" />
+        </div>
         {/* Gallery — swipeable */}
         {(() => {
           const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
