@@ -276,8 +276,10 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
   const configuredDestIds = useMemo(() => {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
+      if (!r.is_enabled) return;
       if (r.scope === "global" || r.scope === "vendor") return;
       if ((r.source_country_id ?? null) !== srcMatch) return;
+      if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.destination_country_id ?? null);
     });
     return set;
@@ -324,11 +326,13 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
         </Button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
+        {(showAll || configuredDestIds.has(null)) && (
+          <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
+        )}
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} rateLabel={pairRate(c.id)} onClick={() => onPick(c.id)} />
         ))}
-        {!showAll && filtered.length === 0 && (
+        {!showAll && filtered.length === 0 && !configuredDestIds.has(null) && (
           <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
             Aucune destination configurée pour ce pays. Cliquez « Voir tous les pays » pour en ajouter une.
           </p>
