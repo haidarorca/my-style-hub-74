@@ -334,7 +334,12 @@ function AdminEditProductPage() {
       const finalCategoryId = cat3 || cat2 || cat1 || null;
 
       // Product update
-      const updatePayload: Record<string, unknown> = {
+      const updatePayload: {
+        name: string; code: string; designation: string | null; description: string | null;
+        price: number; category_id: string | null; vendor_id: string;
+        status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
+        is_edit?: boolean;
+      } = {
         name: name.trim(),
         code: code.trim(),
         designation: designation.trim() || null,
