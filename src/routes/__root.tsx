@@ -149,7 +149,7 @@ function RootComponent() {
             <UiOverridesProvider>
               <AuthInvalidator />
               <PromoBar />
-              <Outlet />
+              <SwipeNavigator><Outlet /></SwipeNavigator>
               <MobileNavFab />
               <MobileBottomNav />
               <Toaster richColors position="top-center" />
