@@ -57,8 +57,8 @@ export function RequestCategoryDialog() {
       parent_id = parent1;
     }
     if (lvl === 3) {
-      if (!parent1) return toast.error("Choisissez l'univers.");
-      if (!parent2) return toast.error("Choisissez la catégorie parente.");
+      if (!parent1) return toast.error("Choisissez la catégorie parente.");
+      if (!parent2) return toast.error("Choisissez la sous-catégorie parente.");
       parent_id = parent2;
     }
 
