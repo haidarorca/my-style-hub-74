@@ -237,11 +237,16 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
-      await supabase.from("cart_items").delete().eq("user_id", user.id);
+      if (user) {
+        await supabase.from("cart_items").delete().eq("user_id", user.id);
+      } else {
+        clearGuestCart();
+      }
       refresh();
       setCheckoutOpen(false);
       toast.success("Commande enregistrée — En attente de validation");
-      router.navigate({ to: "/orders" });
+      if (user) router.navigate({ to: "/orders" });
+      else router.navigate({ to: "/" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
