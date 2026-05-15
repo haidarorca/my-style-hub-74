@@ -1142,6 +1142,33 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      get_display_prices: {
+        Args: { _destination_country_id?: string; _product_ids: string[] }
+        Returns: {
+          base_price: number
+          commission_amount: number
+          commission_rate: number
+          commission_rule_id: string
+          final_price: number
+          product_id: string
+        }[]
+      }
+      get_product_display_price: {
+        Args: {
+          _destination_country_id?: string
+          _product_id: string
+          _variant_id?: string
+        }
+        Returns: {
+          base_price: number
+          commission_amount: number
+          commission_rate: number
+          commission_rule_id: string
+          final_price: number
+          product_id: string
+          variant_id: string
+        }[]
+      }
       has_admin_permission: {
         Args: {
           _perm: Database["public"]["Enums"]["admin_permission"]
