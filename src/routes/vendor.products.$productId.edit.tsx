@@ -254,6 +254,21 @@ function EditProductPage() {
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
       if (updErr) throw updErr;
 
+      // Re-translate when the FR text changed so EN/AR stay in sync.
+      const textChanged =
+        name.trim() !== (orig.name ?? "") ||
+        (designation.trim() || null) !== (orig.designation ?? null) ||
+        (description.trim() || null) !== (orig.description ?? null);
+      if (textChanged) {
+        const { autoTranslateProduct } = await import("@/lib/auto-translate");
+        void autoTranslateProduct({
+          productId,
+          name: name.trim(),
+          designation: designation.trim() || null,
+          description: description.trim() || null,
+        });
+      }
+
       if (sensitiveChanged && status === "approved") {
         toast.success("Modifications enregistrées. En attente de validation par l'admin.");
       } else {
