@@ -143,16 +143,18 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SiteSettingsProvider>
-          <UiOverridesProvider>
-            <AuthInvalidator />
-            <PromoBar />
-            <Outlet />
-            <MobileNavFab />
-            <MobileBottomNav />
-            <Toaster richColors position="top-center" />
-          </UiOverridesProvider>
-        </SiteSettingsProvider>
+        <I18nProvider>
+          <SiteSettingsProvider>
+            <UiOverridesProvider>
+              <AuthInvalidator />
+              <PromoBar />
+              <Outlet />
+              <MobileNavFab />
+              <MobileBottomNav />
+              <Toaster richColors position="top-center" />
+            </UiOverridesProvider>
+          </SiteSettingsProvider>
+        </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
