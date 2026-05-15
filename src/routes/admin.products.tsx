@@ -228,24 +228,31 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               {p.rejection_reason && <div className="mt-1 text-xs text-destructive">Motif : {p.rejection_reason}</div>}
             </div>
             {status === "pending" ? (
-              <div className="flex w-full items-center gap-2 md:w-auto">
-                <Input
-                  placeholder="Motif de rejet (optionnel)"
-                  value={reason[p.id] ?? ""}
-                  onChange={(e) => setReason({ ...reason, [p.id]: e.target.value })}
-                  className="h-8"
-                />
-                <Button size="sm" variant="outline" onClick={() => setStatus(p.id, "rejected")}>
-                  <X className="mr-1 h-4 w-4" /> Rejeter
+              <div className="flex w-full flex-col gap-2 md:w-auto">
+                <Button asChild size="sm" variant="secondary" className="w-full">
+                  <Link to="/admin/products/$productId/edit" params={{ productId: p.id }}>
+                    <Pencil className="mr-1 h-4 w-4" /> Modifier l'article
+                  </Link>
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setStatus(p.id, "approved")}
-                  disabled={blockedByCat}
-                  title={blockedByCat ? "Validez d'abord la catégorie proposée" : undefined}
-                >
-                  <Check className="mr-1 h-4 w-4" /> Approuver
-                </Button>
+                <div className="flex w-full items-center gap-2">
+                  <Input
+                    placeholder="Motif de rejet (optionnel)"
+                    value={reason[p.id] ?? ""}
+                    onChange={(e) => setReason({ ...reason, [p.id]: e.target.value })}
+                    className="h-8"
+                  />
+                  <Button size="sm" variant="outline" onClick={() => setStatus(p.id, "rejected")}>
+                    <X className="mr-1 h-4 w-4" /> Rejeter
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setStatus(p.id, "approved")}
+                    disabled={blockedByCat}
+                    title={blockedByCat ? "Validez d'abord la catégorie proposée" : undefined}
+                  >
+                    <Check className="mr-1 h-4 w-4" /> Approuver
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex gap-2">
