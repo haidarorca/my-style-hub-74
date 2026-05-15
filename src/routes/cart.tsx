@@ -221,7 +221,8 @@ function CartPage() {
           address: addr.address,
           city: addr.city,
           note: addr.note,
-        });
+          destination_country_id: destinationCountryId,
+        } as any);
       if (oErr) throw oErr;
       const order = { id: orderId };
 
