@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 
@@ -53,6 +55,7 @@ function ProductPage() {
   const { productId } = Route.useParams();
   const { user } = useAuth();
   const { addToCart } = useCart();
+  const { lang, t, dir } = useI18n();
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -73,7 +76,7 @@ function ProductPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          `id, name, code, designation, description, price, vendor_id, category_id,
+          `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
@@ -157,11 +160,11 @@ function ProductPage() {
 
   const onReport = async () => {
     if (!user) {
-      toast.error("Connectez-vous pour signaler");
+      toast.error(t("product.report_login"));
       return;
     }
     if (reportReason.trim().length < 5) {
-      toast.error("Précisez la raison du signalement");
+      toast.error(t("product.report_reason_required"));
       return;
     }
     const { error } = await supabase.from("product_reports").insert({
@@ -171,7 +174,7 @@ function ProductPage() {
     });
     if (error) toast.error(error.message);
     else {
-      toast.success("Signalement envoyé");
+      toast.success(t("product.report_sent"));
       setReportOpen(false);
       setReportReason("");
     }
@@ -181,7 +184,7 @@ function ProductPage() {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
-        <p className="p-6 text-center text-sm text-muted-foreground">Chargement…</p>
+        <p className="p-6 text-center text-sm text-muted-foreground">{t("common.loading")}</p>
       </div>
     );
   }
@@ -190,13 +193,16 @@ function ProductPage() {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
-        <p className="p-6 text-center text-sm">Produit introuvable.</p>
+        <p className="p-6 text-center text-sm">{t("product.not_found")}</p>
       </div>
     );
   }
 
   const profile = (data as any).profiles;
   const shopName = profile?.shop_name || profile?.full_name || "Boutique";
+  const productName = pickI18n(data.name, (data as any).name_i18n, lang);
+  const productDesignation = pickI18n(data.designation, (data as any).designation_i18n, lang);
+  const productDescription = pickI18n(data.description, (data as any).description_i18n, lang);
 
   return (
     <div className="min-h-screen bg-background pb-28">
@@ -215,7 +221,7 @@ function ProductPage() {
           return (
             <ProductGallery
               urls={galleryUrls}
-              alt={data.name}
+              alt={productName}
               activeIndex={imgIdx}
               onIndexChange={setImgIdx}
             />
@@ -227,16 +233,16 @@ function ProductPage() {
             <p className="text-xl font-extrabold text-primary">
               {Number(price).toLocaleString("fr-FR")} FCFA
             </p>
-            <h1 className="mt-1 text-base font-semibold">{data.name}</h1>
-            <p className="text-xs text-muted-foreground">Code : {data.code}</p>
-            {data.designation && (
-              <p className="mt-1 text-xs text-muted-foreground">{data.designation}</p>
+            <h1 className="mt-1 text-base font-semibold">{productName}</h1>
+            <p className="text-xs text-muted-foreground">{t("product.code")} : {data.code}</p>
+            {productDesignation && (
+              <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
           </div>
 
           {sizes.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold">Taille</p>
+              <p className="mb-1.5 text-xs font-semibold">{t("product.size")}</p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((s) => (
                   <button
@@ -255,7 +261,7 @@ function ProductPage() {
 
           {colors.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold">Couleur / Modèle</p>
+              <p className="mb-1.5 text-xs font-semibold">{t("product.color_model")}</p>
               <div className="flex flex-wrap gap-2">
                 {colors.map(([c, hex]) => {
                   const vImg = variants.find((v) => v.color === c && v.image_url)?.image_url;
@@ -284,7 +290,7 @@ function ProductPage() {
 
           {(imageCustom || textCustom) && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-primary">Personnalisation</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">{t("product.personalization")}</p>
 
               {imageCustom && (
                 <div>
