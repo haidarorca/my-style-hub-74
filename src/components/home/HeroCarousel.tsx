@@ -18,7 +18,9 @@ export function HeroCarousel() {
     <img
       src={current.image_url}
       alt={current.title ?? "Bannière"}
-      className="h-44 w-full object-cover md:h-64"
+      loading="eager"
+      decoding="async"
+      className="w-full object-cover aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9]"
     />
   );
 

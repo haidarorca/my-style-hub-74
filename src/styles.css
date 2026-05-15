@@ -95,6 +95,13 @@
   /* Safe-area aware spacing for mobile bottom nav (avoid Samsung gesture bar) */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Fluid responsive tokens — adapt to all phone widths (320px → 430px+) */
+  --page-px: clamp(0.75rem, 3.5vw, 1.25rem);
+  --section-gap: clamp(1rem, 4vw, 1.5rem);
+  --card-radius: clamp(0.875rem, 2.5vw, 1.25rem);
+  --bottom-nav-h: 3.5rem; /* 56px — Apple/Google min tappable area */
+  --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 }
 
 .dark {
@@ -140,14 +147,35 @@
   .gradient-flash { background-image: var(--gradient-flash); }
   .shadow-pink { box-shadow: var(--shadow-pink); }
   .shadow-card { box-shadow: var(--shadow-card); }
-  /* Padding that respects Samsung/iOS gesture areas + mobile bottom nav (~56px) */
-  .pb-safe { padding-bottom: calc(5rem + var(--safe-bottom)); }
+  /* Padding that respects Samsung/iOS gesture areas + mobile bottom nav */
+  .pb-safe { padding-bottom: calc(var(--bottom-nav-total) + 1rem); }
   @media (min-width: 768px) {
     .pb-safe { padding-bottom: calc(1rem + var(--safe-bottom)); }
   }
   .pt-safe { padding-top: calc(0.5rem + var(--safe-top)); }
   /* Bottom nav with extra clearance so phone gesture buttons don't conflict */
   .bottom-safe { bottom: calc(1rem + var(--safe-bottom)); }
+
+  /* Unified page container — consistent paddings on every page */
+  .page-container {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 80rem;
+    padding-inline: var(--page-px);
+  }
+
+  /* Fluid product grid: auto-fits 2 cols on 320-430px phones, more on tablet+ */
+  .grid-products {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(8.5rem, 42vw, 11rem), 1fr));
+    gap: clamp(0.5rem, 2vw, 0.875rem);
+  }
+  @media (min-width: 768px) {
+    .grid-products {
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+      gap: 1rem;
+    }
+  }
 }
 
 @layer utilities {

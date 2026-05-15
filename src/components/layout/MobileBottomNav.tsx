@@ -29,7 +29,7 @@ export function MobileBottomNav() {
       className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden"
       style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
     >
-      <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
+      <ul className="mx-auto flex max-w-md items-stretch justify-between px-1" style={{ minHeight: "var(--bottom-nav-h)" }}>
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/");
@@ -39,19 +39,19 @@ export function MobileBottomNav() {
               <Link
                 to={item.to}
                 className={cn(
-                  "relative flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                  "relative mx-auto flex h-full min-h-[44px] w-full max-w-[88px] flex-col items-center justify-center gap-0.5 text-[clamp(9px,2.6vw,11px)] font-medium transition-colors",
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <span className="relative">
-                  <Icon className={cn("h-5 w-5 transition-transform", active && "scale-110")} />
+                  <Icon className={cn("h-[clamp(18px,5.2vw,22px)] w-[clamp(18px,5.2vw,22px)] transition-transform", active && "scale-110")} />
                   {showCart && (
                     <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
                       {count}
                     </span>
                   )}
                 </span>
-                <span className="leading-none">{item.label}</span>
+                <span className="leading-none truncate max-w-full px-1">{item.label}</span>
                 {active && (
                   <span className="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-primary" />
                 )}
