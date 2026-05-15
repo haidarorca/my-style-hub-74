@@ -58,36 +58,36 @@ function LoginPage() {
             <span>{t("nav.home")}</span>
           </Link>
         </div>
-        <h1 className="mt-4 text-2xl font-bold">Connexion</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Connecte-toi pour acheter et personnaliser tes produits. Vous pouvez aussi commander sans compte.</p>
+        <h1 className="mt-4 text-2xl font-bold">{t("auth.login_title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("auth.login_subtitle")}</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.email")}</Label>
             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password">Mot de passe</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <div className="relative">
               <Input id="password" type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="pr-10" />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-label={showPassword ? t("auth.hide_password") : t("auth.show_password")}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-full" size="lg">
-            {loading ? "Connexion…" : <EditableLabel uiKey="login.submit" defaultLabel="Se connecter" defaultSize="md" />}
+            {loading ? t("auth.signin_loading") : <EditableLabel uiKey="login.submit" defaultLabel={t("auth.signin")} defaultSize="md" />}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Pas encore de compte ?{" "}
-          <Link to="/signup" className="font-semibold text-primary">Créer un compte</Link>
+          {t("auth.no_account")}{" "}
+          <Link to="/signup" className="font-semibold text-primary">{t("auth.create_account_cta")}</Link>
         </p>
       </div>
     </div>
