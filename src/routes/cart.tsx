@@ -463,7 +463,7 @@ function CartPage() {
 
           <div className="mt-4 space-y-2 border-t border-border pt-3">
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-              {submitting ? "Envoi…" : "Valider et envoyer sur WhatsApp"}
+              {submitting ? "Envoi…" : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel="Valider et envoyer sur WhatsApp" defaultSize="md" />}
             </Button>
           </div>
         </DialogContent>
