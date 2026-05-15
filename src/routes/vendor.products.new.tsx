@@ -307,7 +307,7 @@ function NewProductPage() {
         <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Catégorie</Label>
+            <Label>Rayon</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
               <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
               <SelectContent>
@@ -317,7 +317,7 @@ function NewProductPage() {
           </div>
           {cat1 && cats2 && cats2.length > 0 && (
             <div>
-              <Label>Sous-catégorie</Label>
+              <Label>Catégorie</Label>
               <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
@@ -328,7 +328,7 @@ function NewProductPage() {
           )}
           {cat2 && cats3 && cats3.length > 0 && (
             <div>
-              <Label>Sous-sous-catégorie</Label>
+              <Label>Sous-catégorie</Label>
               <Select value={cat3} onValueChange={setCat3}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
