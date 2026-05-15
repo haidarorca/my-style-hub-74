@@ -116,59 +116,61 @@ export function AppHeader() {
           )}
         </form>
 
-        {/* Top-positioned actions so phone gesture bar doesn't interfere */}
-        <Link to="/cart" className="relative">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ShoppingBag className="h-5 w-5" />
-          </Button>
-          {count > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-              {count}
-            </span>
-          )}
-        </Link>
-
-        {user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="truncate">
-                {profile?.full_name || profile?.email || "Mon compte"}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/orders"><Package className="mr-2 h-4 w-4" /> Mes commandes</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
-              </DropdownMenuItem>
-              {isAdmin && (
-                <DropdownMenuItem asChild>
-                  <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> Espace admin</Link>
-                </DropdownMenuItem>
-              )}
-              {(isVendor || isAdmin) && (
-                <DropdownMenuItem asChild>
-                  <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> Espace vendeur</Link>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" /> Se déconnecter
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Link to="/login">
-            <Button size="sm" className="rounded-full">
-              Connexion
+        <div className="flex items-center gap-1">
+          {/* Top-positioned actions so phone gesture bar doesn't interfere */}
+          <Link to="/cart" className="relative">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ShoppingBag className="h-5 w-5" />
             </Button>
+            {count > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {count}
+              </span>
+            )}
           </Link>
-        )}
+
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="truncate">
+                  {profile?.full_name || profile?.email || "Mon compte"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/orders"><Package className="mr-2 h-4 w-4" /> Mes commandes</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> Espace admin</Link>
+                  </DropdownMenuItem>
+                )}
+                {(isVendor || isAdmin) && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> Espace vendeur</Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" /> Se déconnecter
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link to="/login">
+              <Button size="sm" className="rounded-full">
+                Connexion
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
