@@ -58,7 +58,7 @@ function VendorLayout() {
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur pt-safe">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3">
           <BackButton fallbackTo="/vendor" />
-          <div className="ml-1 truncate text-base font-bold">Espace Vendeur</div>
+          <div className="ml-1 truncate text-lg font-extrabold tracking-tight text-foreground">Espace Vendeur</div>
           <Link
             to="/"
             className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm hover:bg-accent"
