@@ -184,12 +184,26 @@ function DestinationList({ sourceId, onPick, onBack }: {
   const srcDbId = isSourceAll ? null : sourceId;
   const source = countries?.find((c) => c.id === sourceId) ?? null;
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  // Only destinations that have at least one rule for this source
+  const configuredDestIds = useMemo(() => {
+    const set = new Set<string | null>();
+    (rules ?? []).forEach((r) => {
+      if (r.scope === "global" || r.scope === "vendor") return;
+      if ((r.source_country_id ?? null) !== srcDbId) return;
+      set.add(r.destination_country_id ?? null);
+    });
+    return set;
+  }, [rules, srcDbId]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) =>
-      !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s));
-  }, [countries, q]);
+    return (countries ?? []).filter((c) => {
+      if (!showAll && !configuredDestIds.has(c.id)) return false;
+      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
+    });
+  }, [countries, q, showAll, configuredDestIds]);
 
   const pairRate = (destId: string | null) => {
     return (rules ?? []).find((x) =>
@@ -221,6 +235,16 @@ function DestinationList({ sourceId, onPick, onBack }: {
         <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input placeholder="Rechercher destination…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
       </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {showAll
+            ? "Tous les pays affichés"
+            : `${configuredDestIds.size} destination(s) configurée(s)`}
+        </span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Voir uniquement configurées" : "Voir tous les pays"}
+        </Button>
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <DestCard isAll rule={pairRate(null)} rulesCount={rulesCountFor(null)} onClick={() => onPick(ALL)} />
         {filtered.map((c) => (
@@ -230,6 +254,11 @@ function DestinationList({ sourceId, onPick, onBack }: {
             onClick={() => onPick(c.id)}
           />
         ))}
+        {!showAll && filtered.length === 0 && (
+          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+            Aucune destination configurée pour ce pays source. Cliquez « Voir tous les pays » pour en ajouter.
+          </p>
+        )}
       </div>
     </div>
   );
