@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X } from "lucide-react";
+import { Plus, Trash2, Upload, X, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { RequestCategoryDialog } from "@/components/vendor/RequestCategoryDialog";
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
