@@ -307,7 +307,7 @@ function NewProductPage() {
         <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Univers</Label>
+            <Label>Catégorie</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
               <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
               <SelectContent>
