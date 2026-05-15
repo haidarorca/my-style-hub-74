@@ -21,6 +21,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/commissions")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    source: typeof s.source === "string" ? s.source : undefined,
+    destination: typeof s.destination === "string" ? s.destination : undefined,
+  }),
   component: () => <PermissionGate superOnly><CommissionsPage /></PermissionGate>,
 });
 
@@ -117,8 +121,14 @@ function useProductCounts() {
    MATRIX TAB — 3-level navigation (source → dest → pair detail)
 ============================================================ */
 function MatrixTab() {
-  const [source, setSource] = useState<string | null>(null); // country id or ALL or null (= picker)
-  const [destination, setDestination] = useState<string | null>(null);
+  const search = Route.useSearch();
+  const [source, setSource] = useState<string | null>(search.source ?? null);
+  const [destination, setDestination] = useState<string | null>(search.destination ?? null);
+
+  React.useEffect(() => {
+    if (search.source) setSource(search.source);
+    if (search.destination) setDestination(search.destination);
+  }, [search.source, search.destination]);
 
   if (!source) return <SourcePicker onPick={setSource} />;
   if (!destination) {
