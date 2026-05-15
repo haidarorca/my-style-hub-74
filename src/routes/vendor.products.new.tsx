@@ -622,7 +622,7 @@ function NewProductPage() {
 
 function CategoryLevel({
   label, placeholder, options, value, onChange,
-  isCreating, onStartNew, newName, setNewName, onConfirmNew, onCancelNew, creating, disabled,
+  isCreating, onStartNew, newName, setNewName, onConfirmNew, onCancelNew, creating, disabled, t,
 }: {
   label: string;
   placeholder: string;
@@ -637,6 +637,7 @@ function CategoryLevel({
   onCancelNew: () => void;
   creating: boolean;
   disabled: boolean;
+  t: (key: string, fallback?: string) => string;
 }) {
   return (
     <div>
@@ -648,7 +649,7 @@ function CategoryLevel({
             onClick={onStartNew}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
           >
-            <Plus className="h-3 w-3" /> Nouvelle
+            <Plus className="h-3 w-3" /> {t("vendor.new.cat_new")}
           </button>
         )}
       </div>
@@ -660,14 +661,14 @@ function CategoryLevel({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             maxLength={80}
-            placeholder={`Nom de la nouvelle ${label.toLowerCase()}`}
+            placeholder={t("vendor.new.cat_new_placeholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); onConfirmNew(); }
               if (e.key === "Escape") { e.preventDefault(); onCancelNew(); }
             }}
           />
           <Button type="button" size="sm" onClick={onConfirmNew} disabled={creating}>
-            {creating ? "…" : "Créer"}
+            {creating ? "…" : t("vendor.new.cat_create")}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onCancelNew} disabled={creating}>
             <X className="h-4 w-4" />
@@ -681,7 +682,7 @@ function CategoryLevel({
           <SelectContent>
             {options.length === 0 && (
               <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-                Aucune option — créez-en une.
+                {t("vendor.new.cat_empty")}
               </div>
             )}
             {options.map((o) => (
@@ -690,7 +691,7 @@ function CategoryLevel({
                   {o.label}
                   {o.pending && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-                      <Clock className="h-2.5 w-2.5" /> En attente
+                      <Clock className="h-2.5 w-2.5" /> {t("vendor.new.cat_pending_badge")}
                     </span>
                   )}
                 </span>
