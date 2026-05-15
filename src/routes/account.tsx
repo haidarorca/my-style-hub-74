@@ -350,7 +350,7 @@ function AccountPage() {
             placeholder="Choisir le pays de livraison"
           />
         </div>
-
+        <div className="mb-4 flex items-end justify-between">
           <div>
             <h1 className="text-lg font-bold">{t("account.addresses")}</h1>
             <p className="text-xs text-muted-foreground">
