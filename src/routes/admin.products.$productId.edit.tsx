@@ -461,7 +461,9 @@ function AdminEditProductPage() {
       toast.success("Produit mis à jour.");
       router.navigate({ to: "/admin/products" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      console.error("[admin-edit-product] save failed:", err);
+      const msg = err instanceof Error && err.message ? err.message : (typeof err === "object" ? JSON.stringify(err) : "Erreur inconnue");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -529,6 +531,29 @@ function AdminEditProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorisation</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          {(() => {
+            const chain = [cat1, cat2, cat3].filter(Boolean) as string[];
+            if (chain.length === 0) {
+              return (
+                <div className="rounded-lg border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground">
+                  Aucune catégorie sélectionnée.
+                </div>
+              );
+            }
+            return (
+              <div className="rounded-lg border bg-muted/30 p-2 text-xs">
+                <span className="font-semibold text-muted-foreground">Catégorie actuelle :</span>{" "}
+                <span className="font-medium">
+                  {chain.map((v, i) => (
+                    <span key={v}>
+                      {i > 0 && <span className="mx-1 text-muted-foreground">›</span>}
+                      {categoryLabelByValue.get(v) ?? "?"}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            );
+          })()}
           {(() => {
             const pending = data.pendingCategoryRequest as { id: string; name: string; level: number; status: string; parent_id: string | null } | null;
             if (!pending) return null;
