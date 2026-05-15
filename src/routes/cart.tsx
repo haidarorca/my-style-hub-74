@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCart } from "@/hooks/use-cart";
+import { useCart, clearGuestCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
@@ -73,7 +73,11 @@ function CartPage() {
   const [locating, setLocating] = useState(false);
 
   const loadAddresses = async () => {
-    if (!user) return;
+    if (!user) {
+      setAddresses([]);
+      setMode("new");
+      return;
+    }
     const { data } = await (supabase as any)
       .from("customer_addresses")
       .select("*")
@@ -100,21 +104,8 @@ function CartPage() {
     // eslint-disable-next-line
   }, [checkoutOpen]);
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background">
-        <AppHeader />
-        <main className="mx-auto max-w-md px-4 py-16 text-center">
-          <ShoppingBag className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h1 className="mt-3 text-lg font-bold">Connectez-vous</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pour voir votre panier.</p>
-          <Link to="/login">
-            <Button className="mt-4 rounded-full">Se connecter</Button>
-          </Link>
-        </main>
-      </div>
-    );
-  }
+  // Guests can browse the cart and check out as a guest.
+  // The dialog forces "new address" mode when there is no user.
 
   const groups = new Map<string, { shopName: string; vendorId: string; items: typeof items }>();
   for (const it of items) {
@@ -154,7 +145,7 @@ function CartPage() {
   };
 
   const resolveAddress = async (): Promise<Address | null> => {
-    if (mode === "saved") {
+    if (user && mode === "saved") {
       return addresses.find((a) => a.id === selectedId) ?? null;
     }
     const parsed = newAddressSchema.safeParse(newForm);
@@ -168,6 +159,23 @@ function CartPage() {
       return null;
     }
     setErrors({});
+
+    // Guest: don't persist an address row, just return form data
+    if (!user) {
+      return {
+        id: "guest",
+        label: parsed.data.label,
+        full_name: parsed.data.full_name,
+        phone: parsed.data.phone,
+        address: parsed.data.address,
+        city: parsed.data.city,
+        latitude: newForm.latitude,
+        longitude: newForm.longitude,
+        note: parsed.data.note || null,
+        is_default: false,
+      };
+    }
+
     const payload = {
       ...parsed.data,
       note: parsed.data.note || null,
@@ -198,7 +206,7 @@ function CartPage() {
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
-          buyer_id: user.id,
+          buyer_id: user?.id ?? null,
           total: grandTotal,
           status: "new",
           customer_name: addr.full_name,
@@ -216,7 +224,7 @@ function CartPage() {
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
-        buyer_id: user.id,
+        buyer_id: user?.id ?? null,
         product_name: it.products.name,
         product_code: it.products.code,
         product_image_url: it.products.product_images?.[0]?.url ?? null,
@@ -229,11 +237,16 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
-      await supabase.from("cart_items").delete().eq("user_id", user.id);
+      if (user) {
+        await supabase.from("cart_items").delete().eq("user_id", user.id);
+      } else {
+        clearGuestCart();
+      }
       refresh();
       setCheckoutOpen(false);
       toast.success("Commande enregistrée — En attente de validation");
-      router.navigate({ to: "/orders" });
+      if (user) router.navigate({ to: "/orders" });
+      else router.navigate({ to: "/" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
@@ -415,12 +428,14 @@ function CartPage() {
             </ul>
           ) : (
             <div className="space-y-3">
-              <div>
-                <Label htmlFor="n_label">Libellé *</Label>
-                <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
-                  onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
-                {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
-              </div>
+              {user && (
+                <div>
+                  <Label htmlFor="n_label">Libellé *</Label>
+                  <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
+                    onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
+                  {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
+                </div>
+              )}
               <div>
                 <Label htmlFor="n_name">Nom complet *</Label>
                 <Input id="n_name" value={newForm.full_name}

@@ -196,7 +196,7 @@ export type Database = {
       }
       order_items: {
         Row: {
-          buyer_id: string
+          buyer_id: string | null
           color: string | null
           created_at: string
           customization: Json | null
@@ -213,7 +213,7 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
-          buyer_id: string
+          buyer_id?: string | null
           color?: string | null
           created_at?: string
           customization?: Json | null
@@ -230,7 +230,7 @@ export type Database = {
           vendor_id: string
         }
         Update: {
-          buyer_id?: string
+          buyer_id?: string | null
           color?: string | null
           created_at?: string
           customization?: Json | null
@@ -259,7 +259,7 @@ export type Database = {
       orders: {
         Row: {
           address: string | null
-          buyer_id: string
+          buyer_id: string | null
           city: string | null
           created_at: string
           customer_name: string | null
@@ -271,7 +271,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          buyer_id: string
+          buyer_id?: string | null
           city?: string | null
           created_at?: string
           customer_name?: string | null
@@ -283,7 +283,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          buyer_id?: string
+          buyer_id?: string | null
           city?: string | null
           created_at?: string
           customer_name?: string | null
