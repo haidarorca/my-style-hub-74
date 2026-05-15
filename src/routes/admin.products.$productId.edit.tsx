@@ -118,6 +118,7 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
+      if (cats.error) throw cats.error;
       let pendingReq: ReqRow | null = null;
       let categoryRequests: ReqRow[] = [];
       if (prod.data?.pending_category_request_id) {
@@ -126,14 +127,15 @@ function AdminEditProductPage() {
           .select("id, name, level, status, parent_id, parent_request_id")
           .eq("id", prod.data.pending_category_request_id)
           .maybeSingle();
-        pendingReq = pr as typeof pendingReq;
+        pendingReq = (pr ?? null) as ReqRow | null;
       }
       if (prod.data?.vendor_id) {
-        const { data: reqRows } = await supabase
+        const { data: reqRows, error: reqErr } = await supabase
           .from("category_requests")
           .select("id, name, level, status, parent_id, parent_request_id")
           .eq("vendor_id", prod.data.vendor_id)
           .order("level");
+        if (reqErr) throw reqErr;
         categoryRequests = (reqRows ?? []) as ReqRow[];
       }
       return {
@@ -243,6 +245,17 @@ function AdminEditProductPage() {
     };
     return { level1, level2: childrenOf(2, cat1), level3: childrenOf(3, cat2) };
   }, [data?.categories, data?.categoryRequests, cat1, cat2]);
+
+  const categoryLabelByValue = useMemo(() => {
+    const labels = new Map<string, string>();
+    (data?.categories ?? []).forEach(c => labels.set(catValue(c.id), c.name));
+    (data?.categoryRequests ?? []).forEach(r => labels.set(reqValue(r.id), `${r.name} (en attente)`));
+    const pending = data?.pendingCategoryRequest as ReqRow | null | undefined;
+    if (pending) {
+      labels.set(reqValue(pending.id), `${pending.name} (en attente)`);
+    }
+    return labels;
+  }, [data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
 
   const orig = data?.product;
   const sensitiveChanged = useMemo(() => {
@@ -522,7 +535,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Catégorie</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat1 ? categoryLabelByValue.get(cat1) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level1.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
@@ -531,7 +544,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Sous-catégorie</Label>
             <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat2 ? categoryLabelByValue.get(cat2) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level2.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
@@ -540,7 +553,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Sous-sous-catégorie</Label>
             <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat3 ? categoryLabelByValue.get(cat3) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level3.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
