@@ -224,9 +224,7 @@ function EditVendorDialog({
     } finally { setSaving(false); }
   }
 
-  const sourceCountry = countries?.find((c) => c.id === sourceId);
-  const toggleAllowed = (id: string) =>
-    setAllowed((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  void countries; void labelOf;
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
