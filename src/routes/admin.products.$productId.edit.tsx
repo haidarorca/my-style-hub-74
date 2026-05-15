@@ -111,6 +111,15 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
+      let pendingReq: { id: string; name: string; level: number; status: string; parent_id: string | null } | null = null;
+      if (prod.data?.pending_category_request_id) {
+        const { data: pr } = await supabase
+          .from("category_requests")
+          .select("id, name, level, status, parent_id")
+          .eq("id", prod.data.pending_category_request_id)
+          .maybeSingle();
+        pendingReq = pr as typeof pendingReq;
+      }
       return {
         product: prod.data,
         images: (imgs.data ?? []) as ExistingImage[],
@@ -125,6 +134,7 @@ function AdminEditProductPage() {
         vendors: ((vendors.data ?? []) as Array<{ user_id: string; profiles: { id: string; full_name: string | null; shop_name: string | null; email: string | null } }>)
           .map(r => r.profiles)
           .filter(Boolean),
+        pendingCategoryRequest: pendingReq,
       };
     },
   });
@@ -448,7 +458,34 @@ function AdminEditProductPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorisation</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
+        <CardContent className="space-y-3">
+          {(() => {
+            const byId = new Map((data.categories ?? []).map(c => [c.id, c]));
+            const chain: string[] = [];
+            let cur = data.product.category_id ? byId.get(data.product.category_id) : undefined;
+            while (cur) { chain.unshift(cur.name); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+            const currentLabel = chain.length ? chain.join(" › ") : null;
+            const pending = data.pendingCategoryRequest as { id: string; name: string; level: number; status: string; parent_id: string | null } | null;
+            if (!currentLabel && !pending) return null;
+            return (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1">
+                {currentLabel && (
+                  <div>
+                    <span className="text-xs font-semibold text-muted-foreground">Choisi par le vendeur :</span>{" "}
+                    <span className="font-medium">{currentLabel}</span>
+                  </div>
+                )}
+                {pending && (
+                  <div>
+                    <span className="text-xs font-semibold text-amber-700">Demande de nouvelle catégorie (niveau {pending.level}) :</span>{" "}
+                    <span className="font-medium">« {pending.name} »</span>{" "}
+                    <span className="text-xs text-muted-foreground">— statut : {pending.status}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <div className="grid gap-3 md:grid-cols-3">
           <div>
             <Label>Catégorie</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
@@ -475,6 +512,7 @@ function AdminEditProductPage() {
                 {cats3.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
           </div>
         </CardContent>
       </Card>
