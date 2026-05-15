@@ -215,7 +215,7 @@ function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
       if (!r.is_enabled) return;
-      if (r.scope === "global" || r.scope === "vendor") return;
+      if (r.scope !== "country_pair") return;
       if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.source_country_id ?? null);
     });
