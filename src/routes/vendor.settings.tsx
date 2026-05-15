@@ -98,7 +98,8 @@ function VendorSettings() {
   const save = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update(f as never).eq("id", user.id);
+    const payload = { ...f, shop_hours_schedule: schedule };
+    const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
       toast.error("Erreur : " + error.message);
