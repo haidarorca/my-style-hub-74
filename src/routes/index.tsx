@@ -19,6 +19,7 @@ function Home() {
   const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
   const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);
   const [quickAddProductId, setQuickAddProductId] = useState<string | null>(null);
+  const hideTabs = useHideOnScroll();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
