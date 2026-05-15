@@ -465,6 +465,21 @@ function AccountPage() {
               {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
             </div>
             <div>
+              <Label>Pays de livraison *</Label>
+              <CountrySelect
+                value={destinationCountryId}
+                onChange={setDestinationCountryId}
+                onlyEnabled
+                placeholder="Choisir le pays de livraison"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Détermine la commission appliquée aux produits livrés à cette adresse.
+              </p>
+              {errors.destination_country_id && (
+                <p className="mt-1 text-xs text-destructive">{errors.destination_country_id}</p>
+              )}
+            </div>
+            <div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
                 <Crosshair className="h-4 w-4" />
                 {locating ? t("common.loading") : form.latitude ? t("checkout.location_refresh") : t("checkout.use_location")}
