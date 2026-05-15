@@ -204,36 +204,23 @@ function SearchPage() {
       <div className="mx-auto max-w-7xl px-3 pt-2">
         <BackButton fallbackTo="/" />
 
-        {/* Search bar */}
-        <form onSubmit={onSubmit} className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
-          <div className="flex items-center gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-muted px-3 py-2 shadow-sm">
-              <SearchIcon className="h-4 w-4 text-muted-foreground" />
-              <input
-                autoFocus
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Produit, catégorie, boutique…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                inputMode="search"
-                enterKeyHint="search"
-              />
-              {q && (
-                <button type="button" onClick={() => setQ("")} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+        {/* Filters + tabs (no duplicate input — uses the header search bar) */}
+        <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-xs text-muted-foreground">
+              {q.trim() ? <>Résultats pour <span className="font-semibold text-foreground">« {q.trim()} »</span></> : "Tapez dans la barre en haut"}
+            </p>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
-                  size="icon"
+                  size="sm"
                   className="rounded-full"
                   aria-label="Filtres"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
+                  Filtres
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="rounded-t-2xl">
@@ -313,7 +300,7 @@ function SearchPage() {
               ))}
             </div>
           )}
-        </form>
+        </div>
 
         {/* No query: recent + trending */}
         {!showResults && (
