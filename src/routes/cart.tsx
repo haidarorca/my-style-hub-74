@@ -224,7 +224,7 @@ function CartPage() {
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
-        buyer_id: user.id,
+        buyer_id: user?.id ?? null,
         product_name: it.products.name,
         product_code: it.products.code,
         product_image_url: it.products.product_images?.[0]?.url ?? null,
