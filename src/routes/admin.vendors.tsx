@@ -229,7 +229,7 @@ function EditVendorDialog({
     setAllowed((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(o) => { if (!o) { (window as unknown as { __evd?: string }).__evd = ""; onClose(); }}}>
+    <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Modifier le vendeur</DialogTitle></DialogHeader>
         <div className="space-y-3">
