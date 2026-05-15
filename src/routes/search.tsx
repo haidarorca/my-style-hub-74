@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search as SearchIcon, X, Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
+import { Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,13 +63,11 @@ function useDebounced<T>(value: T, ms = 250) {
 
 function SearchPage() {
   const { q: initialQ } = Route.useSearch();
+  const navigate = useNavigate();
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
-    if (initialQ) {
-      setQ(initialQ);
-      pushRecent(initialQ);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setQ(initialQ ?? "");
+    if (initialQ) pushRecent(initialQ);
   }, [initialQ]);
   const [tab, setTab] = useState<Tab>("all");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -169,22 +167,14 @@ function SearchPage() {
   }, [debounced, products, categories, shops]);
 
   const submitTerm = (t: string) => {
-    setQ(t);
     pushRecent(t);
     setRecent(loadRecent());
+    navigate({ to: "/search", search: { q: t } });
   };
 
   const clearRecent = () => {
     if (typeof window !== "undefined") window.localStorage.removeItem(RECENT_KEY);
     setRecent([]);
-  };
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (q.trim()) {
-      pushRecent(q.trim());
-      setRecent(loadRecent());
-    }
   };
 
   const counts = {
@@ -204,36 +194,23 @@ function SearchPage() {
       <div className="mx-auto max-w-7xl px-3 pt-2">
         <BackButton fallbackTo="/" />
 
-        {/* Search bar */}
-        <form onSubmit={onSubmit} className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
-          <div className="flex items-center gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-muted px-3 py-2 shadow-sm">
-              <SearchIcon className="h-4 w-4 text-muted-foreground" />
-              <input
-                autoFocus
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Produit, catégorie, boutique…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                inputMode="search"
-                enterKeyHint="search"
-              />
-              {q && (
-                <button type="button" onClick={() => setQ("")} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+        {/* Filters + tabs (no duplicate input — uses the header search bar) */}
+        <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-xs text-muted-foreground">
+              {q.trim() ? <>Résultats pour <span className="font-semibold text-foreground">« {q.trim()} »</span></> : "Tapez dans la barre en haut"}
+            </p>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
-                  size="icon"
+                  size="sm"
                   className="rounded-full"
                   aria-label="Filtres"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
+                  Filtres
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="rounded-t-2xl">
@@ -313,7 +290,7 @@ function SearchPage() {
               ))}
             </div>
           )}
-        </form>
+        </div>
 
         {/* No query: recent + trending */}
         {!showResults && (
