@@ -153,20 +153,6 @@ function AdminEditProductPage() {
     setExistingImages(data.images);
     setVariants(data.variants.map(fromExisting));
 
-    // Determine cat1/cat2/cat3 from product.category_id by walking up parents
-    if (p.category_id && data.categories.length) {
-      const byId = new Map(data.categories.map(c => [c.id, c]));
-      const chain: CatRow[] = [];
-      let cur: CatRow | undefined = byId.get(p.category_id);
-      while (cur) {
-        chain.unshift(cur);
-        cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
-      }
-      setCat1(chain[0]?.id ?? "");
-      setCat2(chain[1]?.id ?? "");
-      setCat3(chain[2]?.id ?? "");
-    }
-
     // Customizations
     const imgC = data.customizations.find(c => c.type === "image");
     const txtC = data.customizations.find(c => c.type === "name");
@@ -179,6 +165,25 @@ function AdminEditProductPage() {
       setAllowedColors(txtC.allowed_colors ?? []);
     }
   }, [data]);
+
+  // Dedicated effect to pre-fill the category chain as soon as both the
+  // product and the categories list are loaded — runs independently so it
+  // can't be skipped by stale closures.
+  useEffect(() => {
+    const p = data?.product;
+    const cats = data?.categories;
+    if (!p?.category_id || !cats?.length) return;
+    const byId = new Map(cats.map(c => [c.id, c]));
+    const chain: CatRow[] = [];
+    let cur: CatRow | undefined = byId.get(p.category_id);
+    while (cur) {
+      chain.unshift(cur);
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    setCat1(chain.find(c => c.level === 1)?.id ?? "");
+    setCat2(chain.find(c => c.level === 2)?.id ?? "");
+    setCat3(chain.find(c => c.level === 3)?.id ?? "");
+  }, [data?.product?.id, data?.product?.category_id, data?.categories]);
 
   const cats1 = useMemo(() => (data?.categories ?? []).filter(c => c.level === 1), [data]);
   const cats2 = useMemo(() => (data?.categories ?? []).filter(c => c.level === 2 && c.parent_id === cat1), [data, cat1]);
