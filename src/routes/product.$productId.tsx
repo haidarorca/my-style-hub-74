@@ -224,6 +224,7 @@ function ProductPage() {
               alt={productName}
               activeIndex={imgIdx}
               onIndexChange={setImgIdx}
+              dir={dir}
             />
           );
         })()}
@@ -488,9 +489,10 @@ interface ProductGalleryProps {
   alt: string;
   activeIndex: number;
   onIndexChange: (i: number) => void;
+  dir: "ltr" | "rtl";
 }
 
-function ProductGallery({ urls, alt, activeIndex, onIndexChange }: ProductGalleryProps) {
+function ProductGallery({ urls, alt, activeIndex, onIndexChange, dir }: ProductGalleryProps) {
   const [api, setApi] = useState<CarouselApi | null>(null);
 
   useEffect(() => {
@@ -514,9 +516,9 @@ function ProductGallery({ urls, alt, activeIndex, onIndexChange }: ProductGaller
       <div className="relative aspect-square w-full overflow-hidden bg-muted">
         <Link
           to="/"
-          className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
+          className={`absolute top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur ${dir === "rtl" ? "right-3" : "left-3"}`}
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className={`h-5 w-5 ${dir === "rtl" ? "rotate-180" : ""}`} />
         </Link>
       </div>
     );
@@ -542,9 +544,9 @@ function ProductGallery({ urls, alt, activeIndex, onIndexChange }: ProductGaller
       </Carousel>
       <Link
         to="/"
-        className="absolute left-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur"
+        className={`absolute top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur ${dir === "rtl" ? "right-3" : "left-3"}`}
       >
-        <ChevronLeft className="h-5 w-5" />
+        <ChevronLeft className={`h-5 w-5 ${dir === "rtl" ? "rotate-180" : ""}`} />
       </Link>
       {urls.length > 1 && (
         <>
