@@ -222,19 +222,25 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     <ul className="space-y-3">
       {items.map((p) => {
         const img = p.product_images?.[0]?.url;
+        const blockedByCat = !!p.pending_category_request_id && p.pending_category_request?.status === "pending";
         return (
           <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3">
             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
               {img && <img src={img} alt={p.name} className="h-full w-full object-cover" />}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="truncate text-sm font-semibold">{p.name}</div>
                 {p.is_edit && status === "pending" && (
                   <Badge variant="outline" className="border-amber-500 text-amber-600">Modification</Badge>
                 )}
                 {!p.is_edit && status === "pending" && (
                   <Badge variant="secondary">Nouveau</Badge>
+                )}
+                {blockedByCat && (
+                  <Badge variant="outline" className="border-amber-600 text-amber-700">
+                    Catégorie en attente : « {p.pending_category_request?.name} »
+                  </Badge>
                 )}
               </div>
               <div className="text-xs text-muted-foreground">Code {p.code} • {p.price} FCFA</div>
@@ -251,7 +257,12 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
                 <Button size="sm" variant="outline" onClick={() => setStatus(p.id, "rejected")}>
                   <X className="mr-1 h-4 w-4" /> Rejeter
                 </Button>
-                <Button size="sm" onClick={() => setStatus(p.id, "approved")}>
+                <Button
+                  size="sm"
+                  onClick={() => setStatus(p.id, "approved")}
+                  disabled={blockedByCat}
+                  title={blockedByCat ? "Validez d'abord la catégorie proposée" : undefined}
+                >
                   <Check className="mr-1 h-4 w-4" /> Approuver
                 </Button>
               </div>
