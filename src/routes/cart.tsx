@@ -266,8 +266,9 @@ function CartPage() {
   return (
     <div className="min-h-screen bg-background pb-32">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-3 py-4">
-        <h1 className="mb-3 text-lg font-bold">Mon panier</h1>
+      <main className="mx-auto max-w-3xl px-3 py-3">
+        <BackButton fallbackTo="/" />
+        <h1 className="mb-3 mt-2 text-lg font-bold">Mon panier</h1>
 
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
