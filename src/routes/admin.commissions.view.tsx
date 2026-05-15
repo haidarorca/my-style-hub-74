@@ -79,7 +79,7 @@ function CommissionsViewPage() {
 
   return (
     <div className="space-y-4">
-      <BackButton fallbackTo="/admin" label="Retour" />
+      <BackButton fallbackTo="/admin" label="Retour admin" className="border bg-background shadow-sm" />
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold">
           <Eye className="h-5 w-5" /> Vue d'ensemble des commissions
