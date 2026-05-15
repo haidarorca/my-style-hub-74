@@ -12,6 +12,13 @@ import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
+
+function SearchPriceTag({ productId, fallback }: { productId: string; fallback: number }) {
+  const dp = useProductDisplayPrice(productId);
+  const value = dp ? dp.final_price : fallback;
+  return <>{value.toLocaleString("fr-FR")}</>;
+}
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
