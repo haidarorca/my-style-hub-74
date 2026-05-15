@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/search")({
+  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : "" }),
   head: () => ({
     meta: [
       { title: "Recherche — Kawzone" },
@@ -61,7 +62,15 @@ function useDebounced<T>(value: T, ms = 250) {
 }
 
 function SearchPage() {
-  const [q, setQ] = useState("");
+  const { q: initialQ } = Route.useSearch();
+  const [q, setQ] = useState(initialQ ?? "");
+  useEffect(() => {
+    if (initialQ) {
+      setQ(initialQ);
+      pushRecent(initialQ);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQ]);
   const [tab, setTab] = useState<Tab>("all");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [recent, setRecent] = useState<string[]>([]);

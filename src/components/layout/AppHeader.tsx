@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package } from "lucide-react";
+import { useState } from "react";
+import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, X } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -21,10 +22,17 @@ export function AppHeader() {
   const router = useRouter();
   const hidden = useHideOnScroll();
   const settings = useSiteSettings();
+  const [query, setQuery] = useState("");
 
   const handleSignOut = async () => {
     await signOut();
     router.navigate({ to: "/" });
+  };
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    router.navigate({ to: "/search", search: q ? { q } : {} });
   };
 
   return (
@@ -49,13 +57,33 @@ export function AppHeader() {
           )}
         </Link>
 
-        <Link
-          to="/search"
-          className="flex h-9 flex-1 items-center gap-2 rounded-full bg-muted px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
+        <form
+          onSubmit={submitSearch}
+          className="flex h-9 flex-1 items-center gap-2 rounded-full bg-muted px-3 transition-colors focus-within:bg-accent"
         >
-          <Search className="h-4 w-4" />
-          <span>Rechercher un produit, boutique…</span>
-        </Link>
+          <button type="submit" aria-label="Rechercher" className="text-muted-foreground">
+            <Search className="h-4 w-4" />
+          </button>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un produit, boutique…"
+            inputMode="search"
+            enterKeyHint="search"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Effacer"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </form>
 
         {/* Top-positioned actions so phone gesture bar doesn't interfere */}
         <Link to="/cart" className="relative">
