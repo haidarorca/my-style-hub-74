@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ProductGridSkeleton } from "@/components/product/ProductCardSkeleton";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,7 +94,7 @@ function Home() {
     },
   });
 
-  const { data: products } = useQuery({
+  const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ["products", "approved", universeId, subCategoryId, subSubCategoryId, descendantIds],
     queryFn: async () => {
       let q = supabase
@@ -279,14 +280,16 @@ function Home() {
             <Flame className="h-4 w-4 text-primary" />
             <h2 className="text-base font-bold">{t("home.section.trending")}</h2>
           </div>
-          {products && products.length > 0 ? (
+          {productsLoading ? (
+            <ProductGridSkeleton count={8} />
+          ) : products && products.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
               {products.map((p) => (
                 <ProductCard key={p.id} product={p} onQuickAdd={setQuickAddProductId} />
               ))}
             </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t("home.empty_products")}
             </p>
           )}
