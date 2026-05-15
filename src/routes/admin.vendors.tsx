@@ -14,7 +14,7 @@ import {
 import { createVendor, deleteVendor } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admin/vendors")({
-  component: VendorsPage,
+  component: () => { const { PermissionGate } = require("@/components/admin/PermissionGate"); return <PermissionGate perm="vendors"><VendorsPage /></PermissionGate>; },
 });
 
 type VendorRow = {
