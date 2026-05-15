@@ -95,6 +95,13 @@
   /* Safe-area aware spacing for mobile bottom nav (avoid Samsung gesture bar) */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Fluid responsive tokens — adapt to all phone widths (320px → 430px+) */
+  --page-px: clamp(0.75rem, 3.5vw, 1.25rem);
+  --section-gap: clamp(1rem, 4vw, 1.5rem);
+  --card-radius: clamp(0.875rem, 2.5vw, 1.25rem);
+  --bottom-nav-h: 3.5rem; /* 56px — Apple/Google min tappable area */
+  --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 }
 
 .dark {
