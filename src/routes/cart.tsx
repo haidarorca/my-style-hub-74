@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { BackButton } from "@/components/layout/BackButton";
@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
+import { useDeliveryCountry } from "@/hooks/use-delivery-country";
+import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
@@ -42,6 +44,7 @@ interface Address {
   phone: string;
   address: string;
   city: string;
+  destination_country_id: string | null;
   latitude: number | null;
   longitude: number | null;
   note: string | null;
@@ -56,6 +59,7 @@ function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
+  const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -75,7 +79,13 @@ function CartPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locating, setLocating] = useState(false);
-  const [destinationCountryId, setDestinationCountryId] = useState<string | null>(null);
+  const priceLines = useMemo(
+    () => items
+      .map((it: any) => ({ productId: it.products?.id ?? it.product_id, variantId: it.variant_id ?? null }))
+      .filter((line) => !!line.productId),
+    [items],
+  );
+  const displayPriceLines = useDisplayPriceLines(priceLines);
 
   const loadAddresses = async () => {
     if (!user) {
@@ -94,6 +104,7 @@ function CartPage() {
     if (list.length > 0) {
       setMode("saved");
       setSelectedId(list[0].id);
+      if (list[0].destination_country_id) setDestinationCountryId(list[0].destination_country_id);
     } else {
       setMode("new");
       setNewForm((f) => ({
@@ -109,6 +120,12 @@ function CartPage() {
     // eslint-disable-next-line
   }, [checkoutOpen]);
 
+  useEffect(() => {
+    if (!selectedId || mode !== "saved") return;
+    const selected = addresses.find((a) => a.id === selectedId);
+    if (selected?.destination_country_id) setDestinationCountryId(selected.destination_country_id);
+  }, [addresses, mode, selectedId, setDestinationCountryId]);
+
   // Guests can browse the cart and check out as a guest.
   // The dialog forces "new address" mode when there is no user.
 
@@ -123,7 +140,12 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
-  const unitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
+  const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
+  const unitPrice = (it: any) => {
+    const productId = it.products?.id ?? it.product_id;
+    const key = `${productId}:${it.variant_id ?? ""}`;
+    return displayPriceLines.get(key)?.final_price ?? fallbackUnitPrice(it);
+  };
   const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
   const customizationSummary = (c: any): string | null => {
@@ -174,6 +196,7 @@ function CartPage() {
         phone: parsed.data.phone,
         address: parsed.data.address,
         city: parsed.data.city,
+        destination_country_id: destinationCountryId,
         latitude: newForm.latitude,
         longitude: newForm.longitude,
         note: parsed.data.note || null,
@@ -188,6 +211,7 @@ function CartPage() {
       longitude: newForm.longitude,
       user_id: user.id,
       is_default: addresses.length === 0,
+      destination_country_id: destinationCountryId,
     };
     const { data, error } = await (supabase as any)
       .from("customer_addresses")
@@ -378,6 +402,16 @@ function CartPage() {
               {t("checkout.address_choice_desc")}
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label>Pays de livraison *</Label>
+            <CountrySelect
+              value={destinationCountryId}
+              onChange={setDestinationCountryId}
+              onlyEnabled
+              placeholder="Choisir le pays de livraison"
+            />
+          </div>
 
           {addresses.length > 0 && (
             <div className="mb-2 flex gap-2 rounded-full bg-muted p-1">

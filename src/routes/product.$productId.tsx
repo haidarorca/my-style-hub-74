@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { useI18n } from "@/hooks/use-i18n";
+import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
@@ -113,7 +114,13 @@ function ProductPage() {
     );
   }, [variants, size, color, sizes.length, colors.length]);
 
-  const price = matchedVariant?.price_override ?? data?.price ?? 0;
+  const priceLines = useMemo(
+    () => data ? [{ productId: data.id, variantId: matchedVariant?.id ?? null }] : [],
+    [data, matchedVariant?.id],
+  );
+  const displayPriceLines = useDisplayPriceLines(priceLines);
+  const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
+  const price = displayPriceLines.get(priceKey)?.final_price ?? matchedVariant?.price_override ?? data?.price ?? 0;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;

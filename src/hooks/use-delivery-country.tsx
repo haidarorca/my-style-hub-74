@@ -67,7 +67,7 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     }
-    qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes("display-prices") });
+    qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && (q.queryKey.includes("display-prices") || q.queryKey.includes("display-price-lines")) });
   }, [qc]);
 
   const value = useMemo(() => ({ countryId, setCountryId, ready }), [countryId, setCountryId, ready]);

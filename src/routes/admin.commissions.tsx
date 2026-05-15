@@ -436,7 +436,7 @@ function PairDeleteAllButton({ srcId, dstId, onDeleted }: {
         }
       }
       toast.success(`${ids.length} règle(s) supprimée(s)`);
-      qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+      qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
       setOpen(false);
       setPassword("");
       onDeleted();
@@ -526,7 +526,7 @@ function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string
       return toast.error(error.message);
     }
     toast.success("Commission de la paire enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
   async function remove() {
     if (!existing) return;
@@ -534,7 +534,7 @@ function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string
     const { error } = await sb.from("commission_rules").delete().eq("id", existing.id);
     if (error) return toast.error(error.message);
     toast.success("Supprimée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
 
   if (!loaded) return null;
@@ -632,7 +632,7 @@ function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: strin
       return toast.error(error.message);
     }
     toast.success("Règle catégorie enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
   async function removeRule(categoryId: string) {
     const existing = ruleFor(categoryId);
@@ -640,7 +640,7 @@ function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: strin
     if (!confirm("Supprimer cette règle ?")) return;
     const { error } = await sb.from("commission_rules").delete().eq("id", existing.id);
     if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
 
   // Build filtered visible set (expand path of matches)
@@ -803,18 +803,18 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
       return toast.error(error.message);
     }
     toast.success("Règle produit enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
   async function updateRate(id: string, v: number) {
     const { error } = await sb.from("commission_rules").update({ rate_percent: v }).eq("id", id);
     if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
   async function remove(id: string) {
     if (!confirm("Supprimer cette règle ?")) return;
     const { error } = await sb.from("commission_rules").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
 
   return (
@@ -910,7 +910,7 @@ function GlobalTab() {
       return toast.error(error.message);
     }
     toast.success("Commission globale enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
   }
 
   return (
