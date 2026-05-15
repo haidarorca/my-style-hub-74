@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
