@@ -111,16 +111,28 @@ function GlobalRuleCard({ rule, onChange }: { rule: Rule | undefined; onChange: 
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Commission globale</CardTitle></CardHeader>
-      <CardContent className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs">Taux (%)</label>
-          <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs">Taux (%)</label>
+            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <span className="text-sm">Activée</span>
+          </div>
+          <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-          <span className="text-sm">Activée</span>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-xs text-muted-foreground mr-1">Préréglages :</span>
+          {[0, 2, 5, 10, 15, 20, 25, 30].map((p) => (
+            <Button key={p} size="sm" variant="outline" className="h-7 px-2 text-xs"
+              onClick={() => setRate(String(p))}>{p}%</Button>
+          ))}
         </div>
-        <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
+        <p className="text-xs text-muted-foreground">
+          S'applique à toute commande d'un vendeur en mode « Avec commission », sauf si une règle plus précise existe.
+        </p>
       </CardContent>
     </Card>
   );
