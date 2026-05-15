@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { RequestCategoryDialog } from "@/components/vendor/RequestCategoryDialog";
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
@@ -336,6 +337,12 @@ function NewProductPage() {
               </Select>
             </div>
           )}
+          <div className="pt-1">
+            <RequestCategoryDialog />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Vous ne trouvez pas la bonne catégorie ? Proposez-en une à l'admin.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

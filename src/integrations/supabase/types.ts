@@ -107,6 +107,60 @@ export type Database = {
           },
         ]
       }
+      category_requests: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          id: string
+          level: number
+          name: string
+          parent_id: string | null
+          resolved_category_id: string | null
+          status: Database["public"]["Enums"]["category_request_status"]
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          level: number
+          name: string
+          parent_id?: string | null
+          resolved_category_id?: string | null
+          status?: Database["public"]["Enums"]["category_request_status"]
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          name?: string
+          parent_id?: string | null
+          resolved_category_id?: string | null
+          status?: Database["public"]["Enums"]["category_request_status"]
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_requests_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_requests_resolved_category_id_fkey"
+            columns: ["resolved_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_addresses: {
         Row: {
           address: string
@@ -768,6 +822,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "vendeur" | "acheteur"
+      category_request_status: "pending" | "approved" | "rejected" | "merged"
       customization_type: "name" | "image"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
@@ -900,6 +955,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "vendeur", "acheteur"],
+      category_request_status: ["pending", "approved", "rejected", "merged"],
       customization_type: ["name", "image"],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],

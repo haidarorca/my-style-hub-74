@@ -31,6 +31,7 @@ import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminCategoryRequestsRouteImport } from './routes/admin.category-requests'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as VendorProductsIndexRouteImport } from './routes/vendor.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
@@ -146,6 +147,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCategoryRequestsRoute = AdminCategoryRequestsRouteImport.update({
+  id: '/category-requests',
+  path: '/category-requests',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -204,6 +211,7 @@ export interface FileRoutesByTo {
   '/orders': typeof OrdersRoute
   '/signup': typeof SignupRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/vendor'
     | '/admin/categories'
+    | '/admin/category-requests'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/signup'
     | '/admin/categories'
+    | '/admin/category-requests'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/vendor'
     | '/admin/categories'
+    | '/admin/category-requests'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -506,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/category-requests': {
+      id: '/admin/category-requests'
+      path: '/category-requests'
+      fullPath: '/admin/category-requests'
+      preLoaderRoute: typeof AdminCategoryRequestsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/categories': {
       id: '/admin/categories'
       path: '/categories'
@@ -539,6 +558,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminCategoryRequestsRoute: typeof AdminCategoryRequestsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRoute
   AdminReportsRoute: typeof AdminReportsRoute
@@ -550,6 +570,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminCategoryRequestsRoute: AdminCategoryRequestsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRoute,
   AdminReportsRoute: AdminReportsRoute,
