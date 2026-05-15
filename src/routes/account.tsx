@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft } from "lucide-react";
+import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -65,7 +65,7 @@ const emptyForm = {
 };
 
 function AccountPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isAdmin, isVendor } = useAuth();
   const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -280,6 +280,36 @@ function AccountPage() {
         <div className="mb-3">
           <BackButton fallbackTo="/" />
         </div>
+
+        <div className="mb-4 space-y-2">
+          <Link
+            to="/orders"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Package className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-semibold">Mes commandes</span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
+          {(isVendor || isAdmin) && (
+            <Link
+              to="/vendor"
+              className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Store className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-semibold">Espace vendeur</span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </Link>
+          )}
+        </div>
+
         <div className="mb-4 flex items-end justify-between">
           <div>
             <h1 className="text-lg font-bold">Mes adresses</h1>
