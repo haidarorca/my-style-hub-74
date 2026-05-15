@@ -128,6 +128,31 @@ function ShopPage() {
             </p>
           )}
         </section>
+
+        {/* Discreet schedule footer */}
+        <section className="mt-8 mb-6 rounded-xl border bg-muted/30 px-4 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground">Horaires d'ouverture</span>
+            <span
+              className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                openNow ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${openNow ? "bg-emerald-500" : "bg-muted-foreground/60"}`} />
+              {openNow ? "Ouvert" : "Fermé"}
+            </span>
+          </div>
+          <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+            {scheduleSummary.map((row, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span>{row.label}</span>
+                <span className={row.value === "Fermé" ? "text-muted-foreground/70" : "text-foreground/80"}>{row.value}</span>
+              </li>
+            ))}
+          </ul>
+          {hours && <p className="mt-2 text-[11px] italic text-muted-foreground">{hours}</p>}
+        </section>
       </main>
       <QuickAddSheet
         productId={quickAdd}
