@@ -233,20 +233,10 @@ function SearchPage() {
       <div className="mx-auto max-w-3xl px-3 pt-2">
         <BackButton fallbackTo="/" />
 
-        {/* Compact, auto-collapsing search header — layout stays stable */}
-        <div
-          className={cn(
-            "sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding] duration-200",
-            condensed ? "pb-1 pt-1" : "pb-2 pt-2",
-          )}
-        >
+        {/* Stable, non-collapsing search header — fixed height to prevent scroll jitter */}
+        <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background/95 px-3 pb-2 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
-            <div
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-muted pl-4 pr-1 shadow-sm transition-[height] duration-200 focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
-                condensed ? "h-9" : "h-10",
-              )}
-            >
+            <div className="flex h-10 min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-muted pl-4 pr-1 shadow-sm focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30">
               <input
                 autoFocus
                 type="search"
@@ -270,10 +260,7 @@ function SearchPage() {
               <button
                 type="submit"
                 aria-label={t("common.search")}
-                className={cn(
-                  "shrink-0 grid place-items-center rounded-full bg-primary text-primary-foreground shadow-pink active:scale-95 transition-transform",
-                  condensed ? "h-7 w-7" : "h-8 w-8",
-                )}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-pink active:scale-95 transition-transform"
               >
                 <SearchIcon className="h-4 w-4" />
               </button>
@@ -284,7 +271,7 @@ function SearchPage() {
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
                   size="icon"
-                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-10 w-10")}
+                  className="h-10 w-10 shrink-0 rounded-full"
                   aria-label={t("search.filters")}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
