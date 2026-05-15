@@ -16,6 +16,9 @@ export const Route = createFileRoute("/shop/$vendorId")({
 function ShopPage() {
   const { vendorId } = Route.useParams();
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
+  const [selL1, setSelL1] = useState<string | null>(null);
+  const [selL2, setSelL2] = useState<string | null>(null);
+  const [selL3, setSelL3] = useState<string | null>(null);
 
   const { data: vendor } = useQuery({
     queryKey: ["vendor", vendorId],
@@ -34,13 +37,70 @@ function ShopPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, code, product_images(url)")
+        .select("id, name, price, code, category_id, product_images(url)")
         .eq("vendor_id", vendorId)
         .eq("status", "approved")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
+  });
+
+  const { data: allCats } = useQuery({
+    queryKey: ["all-categories"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("id, name, level, parent_id, position")
+        .order("position");
+      return (data ?? []) as Array<{ id: string; name: string; level: number; parent_id: string | null; position: number | null }>;
+    },
+  });
+
+  // Build map + used-category sets including ancestors
+  const { catMap, usedL1, usedL2, usedL3, productCatToL1, productCatToL2 } = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; level: number; parent_id: string | null }>();
+    (allCats ?? []).forEach((c) => map.set(c.id, c));
+    const u1 = new Set<string>();
+    const u2 = new Set<string>();
+    const u3 = new Set<string>();
+    const toL1 = new Map<string, string>(); // any cat id -> its L1 ancestor
+    const toL2 = new Map<string, string>(); // any cat id -> its L2 ancestor (if any)
+    (products ?? []).forEach((p) => {
+      const cid = (p as { category_id: string | null }).category_id;
+      if (!cid) return;
+      let cur = map.get(cid);
+      let l1: string | null = null;
+      let l2: string | null = null;
+      let l3: string | null = null;
+      while (cur) {
+        if (cur.level === 1) l1 = cur.id;
+        if (cur.level === 2) l2 = cur.id;
+        if (cur.level === 3) l3 = cur.id;
+        cur = cur.parent_id ? map.get(cur.parent_id) : undefined;
+      }
+      if (l1) { u1.add(l1); toL1.set(cid, l1); }
+      if (l2) { u2.add(l2); toL2.set(cid, l2); }
+      if (l3) u3.add(l3);
+    });
+    return { catMap: map, usedL1: u1, usedL2: u2, usedL3: u3, productCatToL1: toL1, productCatToL2: toL2 };
+  }, [allCats, products]);
+
+  const l1List = (allCats ?? []).filter((c) => c.level === 1 && usedL1.has(c.id));
+  const l2List = selL1
+    ? (allCats ?? []).filter((c) => c.level === 2 && c.parent_id === selL1 && usedL2.has(c.id))
+    : [];
+  const l3List = selL2
+    ? (allCats ?? []).filter((c) => c.level === 3 && c.parent_id === selL2 && usedL3.has(c.id))
+    : [];
+
+  const filteredProducts = (products ?? []).filter((p) => {
+    const cid = (p as { category_id: string | null }).category_id;
+    if (!selL1) return true;
+    if (!cid) return false;
+    if (selL3) return cid === selL3;
+    if (selL2) return productCatToL2.get(cid) === selL2 || cid === selL2;
+    return productCatToL1.get(cid) === selL1 || cid === selL1;
   });
 
   const v = vendor ?? {};
