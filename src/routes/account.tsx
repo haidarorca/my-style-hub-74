@@ -52,6 +52,7 @@ export interface Address {
   longitude: number | null;
   note: string | null;
   is_default: boolean;
+  destination_country_id: string | null;
 }
 
 const emptyForm = {
