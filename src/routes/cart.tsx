@@ -51,6 +51,7 @@ export const Route = createFileRoute("/cart")({
 function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
+  const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
