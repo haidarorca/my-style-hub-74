@@ -204,6 +204,8 @@ function AccountPage() {
         if (!e[k]) e[k] = i.message;
       }
       setErrors(e);
+      const first = Object.values(e)[0];
+      toast.error(first ?? "Veuillez corriger les champs");
       return;
     }
     setErrors({});
@@ -232,9 +234,9 @@ function AccountPage() {
       toast.success("Adresse enregistrée");
       setOpen(false);
       await refresh();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erreur lors de l'enregistrement");
+    } catch (e: any) {
+      console.error("Save address error", e);
+      toast.error(e?.message ?? "Erreur lors de l'enregistrement");
     } finally {
       setSaving(false);
     }
