@@ -611,7 +611,7 @@ function NewProductPage() {
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 pb-safe backdrop-blur">
+      <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
         <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
           {submitting ? t("vendor.new.submitting") : t("vendor.new.submit")}
         </Button>
