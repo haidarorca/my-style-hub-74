@@ -55,6 +55,7 @@ function VendorSettings() {
   const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [waLocal, setWaLocal] = useState("");
   const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
+  const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
