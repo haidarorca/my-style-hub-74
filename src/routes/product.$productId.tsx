@@ -294,7 +294,7 @@ function ProductPage() {
 
               {imageCustom && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold">Votre image</p>
+                    <p className="mb-1 text-xs font-semibold">{t("product.your_image")}</p>
                   {imageCustom.image_size_message && (
                     <p className="mb-2 text-[11px] text-muted-foreground">{imageCustom.image_size_message}</p>
                   )}
@@ -312,7 +312,7 @@ function ProductPage() {
                   ) : (
                     <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
                       <Upload className="h-5 w-5" />
-                      Choisir
+                      {t("product.choose")}
                       <input
                         type="file"
                         accept="image/*"
@@ -327,18 +327,18 @@ function ProductPage() {
               {textCustom && (
                 <div className="space-y-2">
                   <div>
-                    <p className="mb-1 text-xs font-semibold">Votre texte</p>
+                    <p className="mb-1 text-xs font-semibold">{t("product.your_text")}</p>
                     <Input
                       value={customText}
                       onChange={(e) => setCustomText(e.target.value)}
-                      placeholder="Saisissez le texte à imprimer"
+                      placeholder={t("product.text_placeholder")}
                       maxLength={60}
                     />
                   </div>
 
                   {(textCustom.allow_all_fonts || (textCustom.allowed_fonts && textCustom.allowed_fonts.length > 0)) && (
                     <div>
-                      <p className="mb-1 text-xs font-semibold">Police</p>
+                      <p className="mb-1 text-xs font-semibold">{t("product.font")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(textCustom.allow_all_fonts ? DEFAULT_FONTS : textCustom.allowed_fonts ?? []).map((f) => (
                           <button
@@ -359,7 +359,7 @@ function ProductPage() {
 
                   {(textCustom.allow_all_colors || (textCustom.allowed_colors && textCustom.allowed_colors.length > 0)) && (
                     <div>
-                      <p className="mb-1 text-xs font-semibold">Couleur du texte</p>
+                      <p className="mb-1 text-xs font-semibold">{t("product.text_color")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(textCustom.allow_all_colors ? DEFAULT_COLORS : textCustom.allowed_colors ?? []).map((c) => (
                           <button
@@ -393,7 +393,7 @@ function ProductPage() {
           )}
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold">Quantité</p>
+            <p className="mb-1.5 text-xs font-semibold">{t("product.quantity")}</p>
             <div className="inline-flex items-center rounded-md border border-border">
               <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(Math.max(1, qty - 1))}>
                 <Minus className="h-4 w-4" />
@@ -405,10 +405,10 @@ function ProductPage() {
             </div>
           </div>
 
-          {data.description && (
+          {productDescription && (
             <div>
-              <p className="mb-1 text-xs font-semibold">Description</p>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{data.description}</p>
+              <p className="mb-1 text-xs font-semibold">{t("product.description")}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{productDescription}</p>
             </div>
           )}
 
@@ -419,7 +419,7 @@ function ProductPage() {
             className="block rounded-xl border border-border bg-card p-3 hover:bg-accent"
           >
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Boutique
+              {t("product.shop")}
             </p>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent">
@@ -427,7 +427,7 @@ function ProductPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{shopName}</p>
-                <p className="text-xs text-muted-foreground">Voir tous ses produits →</p>
+                <p className="text-xs text-muted-foreground">{t("product.see_vendor_products")} {dir === "rtl" ? "←" : "→"}</p>
               </div>
             </div>
           </Link>
@@ -441,21 +441,21 @@ function ProductPage() {
           <Dialog open={reportOpen} onOpenChange={setReportOpen}>
             <DialogTrigger asChild>
               <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive">
-                <Flag className="h-3.5 w-3.5" /> Signaler ce produit
+                <Flag className="h-3.5 w-3.5" /> {t("product.report_product")}
               </button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Signaler ce produit</DialogTitle>
+                <DialogTitle>{t("product.report_product")}</DialogTitle>
               </DialogHeader>
               <Textarea
-                placeholder="Précisez la raison…"
+                placeholder={t("product.report_reason_placeholder")}
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
                 rows={4}
               />
               <Button onClick={onReport} className="rounded-full">
-                Envoyer le signalement
+                {t("product.report_send")}
               </Button>
             </DialogContent>
           </Dialog>
@@ -467,7 +467,7 @@ function ProductPage() {
         <div className="mx-auto flex max-w-3xl gap-2 px-3 py-3">
           <Link to="/cart" className="shrink-0">
             <Button variant="outline" className="h-12 rounded-full">
-              Panier
+              {t("nav.cart")}
             </Button>
           </Link>
           <Button
@@ -475,7 +475,7 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : <EditableLabel uiKey="product.add_to_cart" defaultLabel="Ajouter au panier" defaultSize="md" />}
+            {needsSize ? t("product.choose_size") : needsColor ? t("product.choose_color") : needsCustomImage ? t("product.add_image") : needsCustomText ? t("product.enter_text") : <EditableLabel uiKey="product.add_to_cart" defaultLabel={t("product.add_to_cart")} defaultSize="md" />}
           </Button>
         </div>
       </div>
