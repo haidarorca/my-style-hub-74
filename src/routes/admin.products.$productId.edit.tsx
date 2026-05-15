@@ -521,7 +521,7 @@ function AdminEditProductPage() {
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats1.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level1.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -530,7 +530,7 @@ function AdminEditProductPage() {
             <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats2.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level2.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -539,7 +539,7 @@ function AdminEditProductPage() {
             <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats3.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level3.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
