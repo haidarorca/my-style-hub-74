@@ -17,6 +17,7 @@ import {
 import {
   COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, splitPhone, joinPhone,
 } from "@/lib/phone-countries";
+import { CountrySelect } from "@/components/CountrySelect";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
