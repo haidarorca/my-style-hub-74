@@ -11,7 +11,7 @@ interface BackButtonProps {
 
 export function BackButton({ label, fallbackTo = "/", className }: BackButtonProps) {
   const router = useRouter();
-  const { t, dir } = useI18n();
+  const { t } = useI18n();
   const finalLabel = label ?? t("common.back");
 
   const handleClick = () => {
@@ -27,9 +27,10 @@ export function BackButton({ label, fallbackTo = "/", className }: BackButtonPro
       variant="ghost"
       size="sm"
       onClick={handleClick}
-      className={`-ml-2 h-9 gap-1 rounded-full px-2 text-sm font-medium ${className ?? ""}`}
+      className={`-ms-2 h-9 gap-1 rounded-full px-2 text-sm font-medium ${className ?? ""}`}
     >
-      <ArrowLeft className={`h-4 w-4 ${dir === "rtl" ? "rotate-180" : ""}`} />
+      {/* Arrow auto-flips in RTL via global CSS rule on .lucide-arrow-left */}
+      <ArrowLeft className="h-4 w-4" />
       {finalLabel}
     </Button>
   );

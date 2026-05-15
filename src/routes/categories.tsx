@@ -18,7 +18,7 @@ export const Route = createFileRoute("/categories")({
 });
 
 function CategoriesPage() {
-  const { lang, t, dir } = useI18n();
+  const { lang, t } = useI18n();
   const { data: categories, isLoading } = useQuery({
     queryKey: ["categories", "all-tree", lang],
     queryFn: async () => {
@@ -43,7 +43,17 @@ function CategoriesPage() {
         <p className="text-xs text-muted-foreground">{t("categories.subtitle")}</p>
 
         {isLoading ? (
-          <div className="mt-6 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
+          <ul className="mt-4 space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                <div className="h-12 w-12 animate-pulse rounded-xl bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                  <div className="h-2 w-1/4 animate-pulse rounded bg-muted" />
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : (
           <ul className="mt-4 space-y-2">
             {level1.map((cat) => {
@@ -69,7 +79,7 @@ function CategoriesPage() {
                         {subs.length} {t(subs.length > 1 ? "categories.subcategories_plural" : "categories.subcategories")}
                       </div>
                     </div>
-                    <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </Link>
                   {subs.length > 0 && (
                     <div className="no-scrollbar flex gap-1.5 overflow-x-auto border-t border-border px-3 py-2">
