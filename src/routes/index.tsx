@@ -211,7 +211,7 @@ function Home() {
         )}
       </div>
 
-      <main className="mx-auto max-w-7xl px-3 pb-safe">
+      <main className="page-container pb-safe">
         {/* Hero: carousel if banners exist, else gradient */}
         {banners && banners.length > 0 ? (
           <HeroCarousel />
