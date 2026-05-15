@@ -149,32 +149,32 @@ function VendorHome() {
               <h1 className="truncate text-base font-bold">{shopName}</h1>
               {verified && (
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  <BadgeCheck className="h-3 w-3" /> Vérifié
+                  <BadgeCheck className="h-3 w-3" /> {t("vendor.dash.verified")}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {stats?.activeProducts ?? 0} produit{(stats?.activeProducts ?? 0) > 1 ? "s" : ""} · {stats?.totalOrders ?? 0} commande{(stats?.totalOrders ?? 0) > 1 ? "s" : ""}
+              {stats?.activeProducts ?? 0} {(stats?.activeProducts ?? 0) > 1 ? t("vendor.dash.products_many") : t("vendor.dash.products_one")} · {stats?.totalOrders ?? 0} {(stats?.totalOrders ?? 0) > 1 ? t("vendor.dash.orders_many") : t("vendor.dash.orders_one")}
             </p>
           </div>
           <Button asChild size="sm" className="shrink-0">
-            <Link to="/vendor/products/new">+ Nouveau produit</Link>
+            <Link to="/vendor/products/new">{t("vendor.dash.new_product")}</Link>
           </Button>
         </div>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Commandes & produits</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_orders_products")}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {orderTiles.map((t) => (
-            <Card key={t.label}>
+          {orderTiles.map((tile) => (
+            <Card key={tile.label}>
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                  <t.icon className={`h-5 w-5 ${t.color}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tile.bg}`}>
+                  <tile.icon className={`h-5 w-5 ${tile.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-xs text-muted-foreground">{t.label}</div>
-                  <div className="truncate text-lg font-bold">{t.value}</div>
+                  <div className="truncate text-xs text-muted-foreground">{tile.label}</div>
+                  <div className="truncate text-lg font-bold">{tile.value}</div>
                 </div>
               </CardContent>
             </Card>
@@ -183,17 +183,17 @@ function VendorHome() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Mes ventes</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_sales")}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {salesTiles.map((t) => (
-            <Card key={t.label}>
+          {salesTiles.map((tile) => (
+            <Card key={tile.label}>
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                  <TrendingUp className={`h-5 w-5 ${t.color}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tile.bg}`}>
+                  <TrendingUp className={`h-5 w-5 ${tile.color}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs text-muted-foreground">{t.label}</div>
-                  <div className="text-lg font-bold">{t.value}</div>
+                  <div className="text-xs text-muted-foreground">{tile.label}</div>
+                  <div className="text-lg font-bold">{tile.value}</div>
                 </div>
               </CardContent>
             </Card>
@@ -204,8 +204,8 @@ function VendorHome() {
       {/* Recent orders */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">Dernières commandes</h2>
-          <Link to="/vendor/orders" className="text-xs font-medium text-primary">Tout voir</Link>
+          <h2 className="text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_recent")}</h2>
+          <Link to="/vendor/orders" className="text-xs font-medium text-primary">{t("vendor.dash.see_all")}</Link>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -215,9 +215,9 @@ function VendorHome() {
                   <li key={o.id}>
                     <Link to="/vendor/orders" className="flex items-center gap-3 p-3 hover:bg-accent/50">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{o.customer_name ?? "Client"}</div>
+                        <div className="truncate text-sm font-medium">{o.customer_name ?? t("vendor.dash.client_fallback")}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {new Date(o.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(o.created_at).toLocaleDateString(locale, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(o.status)}`}>
@@ -229,14 +229,14 @@ function VendorHome() {
                 ))}
               </ul>
             ) : (
-              <p className="p-6 text-center text-sm text-muted-foreground">Aucune commande pour l'instant.</p>
+              <p className="p-6 text-center text-sm text-muted-foreground">{t("vendor.dash.no_orders")}</p>
             )}
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Actions rapides</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_quick")}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {actions.map((a) => (
             <Button key={a.to} asChild size="lg" variant={a.variant} className="h-16 justify-start text-base">
