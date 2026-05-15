@@ -65,6 +65,11 @@ export function findCountryByCode(code: string | undefined): Country {
   return COUNTRIES.find((c) => c.code === code) ?? DEFAULT_COUNTRY;
 }
 
+export function findCountryByDial(dial: string | undefined): Country | undefined {
+  if (!dial) return undefined;
+  return COUNTRIES.find((c) => c.dial === dial);
+}
+
 /** Country selector with search. Single-pick, controlled. */
 export function CountryPicker({
   value,
