@@ -27,6 +27,7 @@ function Dashboard() {
   const pending = useCount("products", { col: "status", val: "pending" });
   const categories = useCount("categories");
   const reports = useCount("product_reports", { col: "status", val: "open" });
+  const pendingCats = useCount("category_requests", { col: "status", val: "pending" });
   const vendors = useQuery({
     queryKey: ["count-vendors"],
     queryFn: async () => {
