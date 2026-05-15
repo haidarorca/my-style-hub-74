@@ -231,16 +231,36 @@ function SearchPage() {
     <div className="min-h-screen bg-background pb-24">
       <AppHeader />
       <div className="mx-auto max-w-3xl px-3 pt-2">
-        <BackButton fallbackTo="/" />
+        {!condensed && <BackButton fallbackTo="/" />}
 
-        {/* Dedicated search header — input + "Rechercher" button + filters */}
-        <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
+        {/* Compact, auto-collapsing search header */}
+        <div
+          className={cn(
+            "sticky top-14 z-30 -mx-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-200",
+            condensed ? "pb-1 pt-1" : "pb-2 pt-2 mt-1",
+          )}
+        >
           <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
-            <div className="flex h-11 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30">
+            {condensed && (
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/" })}
+                aria-label={t("common.back")}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4 rotate-45" />
+              </button>
+            )}
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-all focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
+                condensed ? "h-9" : "h-11",
+              )}
+            >
               <button
                 type="submit"
-                aria-label="Lancer la recherche"
-                className="shrink-0 rounded-full p-2 text-muted-foreground hover:text-primary active:scale-95 transition-transform"
+                aria-label={t("common.search")}
+                className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary active:scale-95 transition-transform"
               >
                 <SearchIcon className="h-4 w-4" />
               </button>
@@ -249,7 +269,7 @@ function SearchPage() {
                 type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Rechercher produits, boutiques, catégories…"
+                placeholder={t("common.search_full_placeholder")}
                 inputMode="search"
                 enterKeyHint="search"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -258,47 +278,32 @@ function SearchPage() {
                 <button
                   type="button"
                   onClick={() => setQ("")}
-                  aria-label="Effacer"
+                  aria-label={t("search.clear")}
                   className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
-            <Button
-              type="submit"
-              size="sm"
-              className="h-11 shrink-0 rounded-full px-3 text-sm font-bold shadow-pink sm:px-4"
-            >
-              OK
-            </Button>
-          </form>
-
-          {/* Filters row */}
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="truncate text-xs text-muted-foreground">
-              {q.trim() ? <>Résultats pour <span className="font-semibold text-foreground">« {q.trim()} »</span></> : "Tapez puis appuyez sur Rechercher"}
-            </p>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-full"
-                  aria-label="Filtres"
+                  size="icon"
+                  className={cn("shrink-0 rounded-full", condensed ? "h-9 w-9" : "h-11 w-11")}
+                  aria-label={t("search.filters")}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  Filtres
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="rounded-t-2xl">
                 <SheetHeader>
-                  <SheetTitle>Filtres</SheetTitle>
+                  <SheetTitle>{t("search.filters")}</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <label className="space-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground">Prix min</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{t("search.price_min")}</span>
                     <Input
                       type="number"
                       inputMode="numeric"
@@ -308,7 +313,7 @@ function SearchPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground">Prix max</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{t("search.price_max")}</span>
                     <Input
                       type="number"
                       inputMode="numeric"
@@ -318,7 +323,7 @@ function SearchPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground">Taille</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{t("search.size")}</span>
                     <Input
                       value={filters.size}
                       onChange={(e) => setFilters((f) => ({ ...f, size: e.target.value }))}
@@ -326,45 +331,52 @@ function SearchPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground">Couleur</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{t("search.color")}</span>
                     <Input
                       value={filters.color}
                       onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-                      placeholder="rouge, noir…"
+                      placeholder="…"
                     />
                   </label>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => setFilters(EMPTY_FILTERS)}>
-                    Réinitialiser
+                    {t("common.reset")}
                   </Button>
                   <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
-                    Appliquer
+                    {t("common.apply")}
                   </Button>
                 </div>
               </SheetContent>
             </Sheet>
-          </div>
+          </form>
 
-          {/* Tabs */}
-          {showResults && (
+          {/* Results meta — hidden once user scrolls to free up space */}
+          {!condensed && (
+            <p className="mt-2 truncate text-xs text-muted-foreground">
+              {q.trim() ? <>{t("search.results_for")} <span className="font-semibold text-foreground">« {q.trim()} »</span></> : t("search.type_to_search")}
+            </p>
+          )}
+
+          {/* Tabs — hidden on scroll */}
+          {showResults && !condensed && (
             <div className="no-scrollbar mt-2 flex gap-1 overflow-x-auto">
               {([
-                { id: "all", label: "Tout" },
-                { id: "products", label: `Produits (${counts.products})` },
-                { id: "categories", label: `Catégories (${counts.categories})` },
-                { id: "shops", label: `Boutiques (${counts.shops})` },
-              ] as const).map((t) => (
+                { id: "all", label: t("search.tab_all") },
+                { id: "products", label: `${t("search.tab_products")} (${counts.products})` },
+                { id: "categories", label: `${t("search.tab_categories")} (${counts.categories})` },
+                { id: "shops", label: `${t("search.tab_shops")} (${counts.shops})` },
+              ] as const).map((tt) => (
                 <button
-                  key={t.id}
+                  key={tt.id}
                   type="button"
-                  onClick={() => setTab(t.id as Tab)}
+                  onClick={() => setTab(tt.id as Tab)}
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                    tab === t.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+                    tab === tt.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
                   )}
                 >
-                  {t.label}
+                  {tt.label}
                 </button>
               ))}
             </div>
