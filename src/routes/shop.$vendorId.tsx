@@ -41,7 +41,7 @@ function ShopPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, code, category_id, product_images(url)")
+        .select("id, name, name_i18n, price, code, category_id, product_images(url)")
         .eq("vendor_id", vendorId)
         .eq("status", "approved")
         .order("created_at", { ascending: false });
@@ -55,11 +55,12 @@ function ShopPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("categories")
-        .select("id, name, level, parent_id, position")
+        .select("id, name, name_i18n, level, parent_id, position")
         .order("position");
-      return (data ?? []) as Array<{ id: string; name: string; level: number; parent_id: string | null; position: number | null }>;
+      return (data ?? []) as Array<{ id: string; name: string; name_i18n: any; level: number; parent_id: string | null; position: number | null }>;
     },
   });
+
 
   // Build map + used-category sets including ancestors
   const { usedL1, usedL2, usedL3, productCatToL1, productCatToL2 } = useMemo(() => {
