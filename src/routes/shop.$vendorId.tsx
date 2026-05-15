@@ -110,7 +110,8 @@ function ShopPage() {
   const address = v.address as string | undefined;
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
-  const whatsapp = (v.shop_whatsapp as string) || (v.phone as string) || "";
+  const hideContact = !!v.hide_contact_publicly || v.vendor_mode === "commission";
+  const whatsapp = hideContact ? "" : ((v.shop_whatsapp as string) || (v.phone as string) || "");
   const schedule = normalizeSchedule(v.shop_hours_schedule);
   const scheduleSummary = summarizeSchedule(schedule);
   const openNow = isOpenNow(schedule);
