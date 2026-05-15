@@ -40,6 +40,7 @@ import { Route as AdminCategoryRequestsRouteImport } from './routes/admin.catego
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as VendorProductsIndexRouteImport } from './routes/vendor.products.index'
+import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
@@ -201,6 +202,11 @@ const VendorProductsIndexRoute = VendorProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => VendorRoute,
 } as any)
+const AdminProductsIndexRoute = AdminProductsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminProductsRoute,
+} as any)
 const VendorProductsNewRoute = VendorProductsNewRouteImport.update({
   id: '/products/new',
   path: '/products/new',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
+  '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
@@ -282,7 +289,6 @@ export interface FileRoutesByTo {
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/orders': typeof AdminOrdersRoute
-  '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -299,6 +305,7 @@ export interface FileRoutesByTo {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
+  '/admin/products': typeof AdminProductsIndexRoute
   '/vendor/products': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
@@ -338,6 +345,7 @@ export interface FileRoutesById {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
+  '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
@@ -378,6 +386,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/vendor/products/new'
+    | '/admin/products/'
     | '/vendor/products/'
     | '/admin/products/$productId/edit'
     | '/vendor/products/$productId/edit'
@@ -397,7 +406,6 @@ export interface FileRouteTypes {
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/orders'
-    | '/admin/products'
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/settings'
@@ -414,6 +422,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/vendor/products/new'
+    | '/admin/products'
     | '/vendor/products'
     | '/admin/products/$productId/edit'
     | '/vendor/products/$productId/edit'
@@ -452,6 +461,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/vendor/products/new'
+    | '/admin/products/'
     | '/vendor/products/'
     | '/admin/products/$productId/edit'
     | '/vendor/products/$productId/edit'
@@ -692,6 +702,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorProductsIndexRouteImport
       parentRoute: typeof VendorRoute
     }
+    '/admin/products/': {
+      id: '/admin/products/'
+      path: '/'
+      fullPath: '/admin/products/'
+      preLoaderRoute: typeof AdminProductsIndexRouteImport
+      parentRoute: typeof AdminProductsRoute
+    }
     '/vendor/products/new': {
       id: '/vendor/products/new'
       path: '/products/new'
@@ -744,10 +761,12 @@ const AdminCommissionsRouteWithChildren =
   AdminCommissionsRoute._addFileChildren(AdminCommissionsRouteChildren)
 
 interface AdminProductsRouteChildren {
+  AdminProductsIndexRoute: typeof AdminProductsIndexRoute
   AdminProductsProductIdEditRoute: typeof AdminProductsProductIdEditRoute
 }
 
 const AdminProductsRouteChildren: AdminProductsRouteChildren = {
+  AdminProductsIndexRoute: AdminProductsIndexRoute,
   AdminProductsProductIdEditRoute: AdminProductsProductIdEditRoute,
 }
 

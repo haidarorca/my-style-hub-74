@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -18,8 +18,10 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 
+
+
 export const Route = createFileRoute("/admin/products")({
-  component: () => <PermissionGate perm="product_validation"><ProductsPage /></PermissionGate>,
+  component: () => <Outlet />,
 });
 
 type ProductRow = {
@@ -288,7 +290,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   );
 }
 
-function ProductsPage() {
+export function ProductsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Validation des produits</h1>
