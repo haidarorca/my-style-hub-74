@@ -328,7 +328,29 @@ function AccountPage() {
           )}
         </div>
 
-        <div className="mb-4 flex items-end justify-between">
+        <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft">
+          <div className="mb-2 flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <MapPin className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Pays de livraison</p>
+              <p className="text-xs text-muted-foreground">
+                Les prix affichés et la commission s'adaptent au pays choisi.
+              </p>
+            </div>
+          </div>
+          <CountrySelect
+            value={deliveryCountryId}
+            onChange={(id) => {
+              setDeliveryCountryId(id);
+              if (id) toast.success("Pays de livraison mis à jour");
+            }}
+            onlyEnabled
+            placeholder="Choisir le pays de livraison"
+          />
+        </div>
+
           <div>
             <h1 className="text-lg font-bold">{t("account.addresses")}</h1>
             <p className="text-xs text-muted-foreground">
