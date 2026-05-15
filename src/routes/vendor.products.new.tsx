@@ -138,44 +138,13 @@ function NewProductPage() {
       return;
     }
 
-    // Validate category — must have either an existing pick or a valid proposal
-    let pendingReqId: string | null = null;
-    if (proposeLevel > 0) {
-      const trimmed = proposeName.trim();
-      if (trimmed.length < 2) {
-        toast.error("Nom de la nouvelle catégorie trop court.");
-        return;
-      }
-      if (proposeLevel === 2 && !cat1) {
-        toast.error("Choisissez d'abord le rayon parent.");
-        return;
-      }
-      if (proposeLevel === 3 && !cat2) {
-        toast.error("Choisissez d'abord la catégorie parente.");
-        return;
-      }
-    } else if (!finalCategoryId) {
-      toast.error("Choisissez une catégorie ou proposez-en une nouvelle.");
+    if (!finalCategoryId) {
+      toast.error("Choisissez une catégorie.");
       return;
     }
 
     setSubmitting(true);
     try {
-      // 0. If proposing a new category, create the request first
-      if (proposeLevel > 0) {
-        const { data: req, error: reqErr } = await supabase
-          .from("category_requests")
-          .insert({
-            vendor_id: user.id,
-            level: proposeLevel,
-            name: proposeName.trim(),
-            parent_id: proposalParentId,
-          })
-          .select("id")
-          .single();
-        if (reqErr) throw reqErr;
-        pendingReqId = req.id as string;
-      }
 
       // 1. Insert product
       const { data: prod, error: prodErr } = await supabase
