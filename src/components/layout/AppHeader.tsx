@@ -102,13 +102,6 @@ export function AppHeader() {
             onSubmit={submitSearch}
             className="mx-auto flex h-9 w-full max-w-[220px] items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30 sm:max-w-md"
           >
-            <button
-              type="submit"
-              aria-label={t("common.search")}
-              className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary"
-            >
-              <Search className="h-4 w-4" />
-            </button>
             <input
               type="search"
               value={query}
