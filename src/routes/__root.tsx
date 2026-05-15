@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SiteSettingsProvider } from "@/hooks/use-site-settings";
 import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
+import { I18nProvider } from "@/hooks/use-i18n";
 import { PromoBar } from "@/components/layout/PromoBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { MobileNavFab } from "@/components/layout/MobileNavFab";
