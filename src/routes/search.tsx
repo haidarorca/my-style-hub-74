@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
+import { Search as SearchIcon, X, Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
 import { supabase } from "@/integrations/supabase/client";
@@ -213,17 +213,61 @@ function SearchPage() {
   const showCategories = tab === "all" || tab === "categories";
   const showShops = tab === "all" || tab === "shops";
 
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = q.trim();
+    if (t) {
+      pushRecent(t);
+      setRecent(loadRecent());
+      navigate({ to: "/search", search: { q: t } });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <AppHeader />
-      <div className="mx-auto max-w-7xl px-3 pt-2">
+      <div className="mx-auto max-w-3xl px-3 pt-2">
         <BackButton fallbackTo="/" />
 
-        {/* Filters + tabs (no duplicate input — uses the header search bar) */}
+        {/* Dedicated search header — input + "Rechercher" button + filters */}
         <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
-          <div className="flex items-center justify-between gap-2">
+          <form onSubmit={onSubmit} className="flex items-center gap-2">
+            <div className="flex h-11 flex-1 items-center gap-2 rounded-full border border-border bg-muted px-3 shadow-sm focus-within:border-primary focus-within:bg-background">
+              <SearchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input
+                autoFocus
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Rechercher produits, boutiques, catégories…"
+                inputMode="search"
+                enterKeyHint="search"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ("")}
+                  aria-label="Effacer"
+                  className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              className="h-11 shrink-0 rounded-full px-4 text-sm font-bold shadow-pink"
+            >
+              Rechercher
+            </Button>
+          </form>
+
+          {/* Filters row */}
+          <div className="mt-2 flex items-center justify-between gap-2">
             <p className="truncate text-xs text-muted-foreground">
-              {q.trim() ? <>Résultats pour <span className="font-semibold text-foreground">« {q.trim()} »</span></> : "Tapez dans la barre en haut"}
+              {q.trim() ? <>Résultats pour <span className="font-semibold text-foreground">« {q.trim()} »</span></> : "Tapez puis appuyez sur Rechercher"}
             </p>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
