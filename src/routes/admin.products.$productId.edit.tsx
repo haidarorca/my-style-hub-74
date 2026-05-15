@@ -400,13 +400,15 @@ function AdminEditProductPage() {
         if (error) throw error;
       }
 
-      // Resolve final category id (deepest selected)
-      const finalCategoryId = cat3 || cat2 || cat1 || null;
+      // Resolve final category pick (deepest selected), preserving pending category requests.
+      const finalCategoryPick = cat3 || cat2 || cat1 || "";
+      const finalCategoryId = finalCategoryPick && !isReq(finalCategoryPick) ? idOf(finalCategoryPick) : null;
+      const finalPendingCategoryRequestId = finalCategoryPick && isReq(finalCategoryPick) ? idOf(finalCategoryPick) : null;
 
       // Product update
       const updatePayload: {
         name: string; code: string; designation: string | null; description: string | null;
-        price: number; category_id: string | null; vendor_id: string;
+        price: number; category_id: string | null; pending_category_request_id: string | null; vendor_id: string;
         status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
         is_edit?: boolean;
       } = {
@@ -416,6 +418,7 @@ function AdminEditProductPage() {
         description: description.trim() || null,
         price: Number(price) || 0,
         category_id: finalCategoryId,
+        pending_category_request_id: finalPendingCategoryRequestId,
         vendor_id: vendorId,
         status,
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
