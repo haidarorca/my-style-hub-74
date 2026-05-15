@@ -729,6 +729,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_insert_order_item: {
+        Args: { _buyer_id: string; _order_id: string }
+        Returns: boolean
+      }
       current_user_has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
