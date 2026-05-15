@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Store } from "lucide-react";
+import { Store, BadgeCheck, Clock, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { BackButton } from "@/components/layout/BackButton";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,10 +21,10 @@ function ShopPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, shop_name, address")
+        .select("*")
         .eq("id", vendorId)
         .maybeSingle();
-      return data;
+      return data as Record<string, unknown> | null;
     },
   });
 
@@ -41,25 +42,72 @@ function ShopPage() {
     },
   });
 
-  const shopName = vendor?.shop_name || vendor?.full_name || "Boutique";
+  const v = vendor ?? {};
+  const shopName = (v.shop_name as string) || (v.full_name as string) || "Boutique";
+  const desc = v.shop_description as string | undefined;
+  const hours = v.shop_hours as string | undefined;
+  const address = v.address as string | undefined;
+  const logo = v.shop_logo_url as string | undefined;
+  const banner = v.shop_banner_url as string | undefined;
+  const whatsapp = (v.shop_whatsapp as string) || (v.phone as string) || "";
+  const verified = !!v.is_verified;
+  const productCount = products?.length ?? 0;
+
+  const waLink = whatsapp
+    ? `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour, je vous contacte au sujet de votre boutique ${shopName}.`)}`
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="mx-auto max-w-7xl px-3 pb-safe">
-        <Link to="/" className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <ChevronLeft className="h-3 w-3" /> Accueil
-        </Link>
+        <div className="mt-2"><BackButton fallbackTo="/" /></div>
 
-        <section className="mt-3 flex items-center gap-3 rounded-2xl gradient-flash p-4 text-primary-foreground shadow-pink">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
-            <Store className="h-7 w-7" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-extrabold">{shopName}</h1>
-            <p className="text-xs opacity-90">
-              {products?.length ?? 0} produit{(products?.length ?? 0) > 1 ? "s" : ""}
-            </p>
+        {/* Banner + logo */}
+        <section className="mt-2 overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div
+            className="relative h-32 w-full bg-gradient-to-br from-primary/60 to-accent/60 sm:h-40"
+            style={banner ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+          />
+          <div className="px-4 pb-4">
+            <div className="-mt-10 flex items-end gap-3">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted shadow">
+                {logo ? (
+                  <img src={logo} alt={shopName} className="h-full w-full object-cover" />
+                ) : (
+                  <Store className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 pb-1">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="truncate text-lg font-extrabold">{shopName}</h1>
+                  {verified && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <BadgeCheck className="h-3 w-3" /> Vérifié
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{productCount} produit{productCount > 1 ? "s" : ""}</p>
+              </div>
+            </div>
+
+            {desc && <p className="mt-3 text-sm text-foreground/80">{desc}</p>}
+
+            <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+              {hours && <div className="flex items-start gap-1.5"><Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{hours}</span></div>}
+              {address && <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{address}</span></div>}
+            </div>
+
+            {waLink && (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-sm font-semibold text-white shadow active:scale-[0.99]"
+              >
+                <Phone className="h-4 w-4" /> Contacter sur WhatsApp
+              </a>
+            )}
           </div>
         </section>
 

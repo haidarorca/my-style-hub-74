@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { ArrowLeft, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings } from "lucide-react";
+import { LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { BackButton } from "@/components/layout/BackButton";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/vendor")({
@@ -39,11 +40,16 @@ function VendorLayout() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur pt-safe">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
-          <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Site
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3">
+          <BackButton fallbackTo="/vendor" />
+          <div className="ml-1 truncate text-base font-bold">Espace Vendeur</div>
+          <Link
+            to="/shop/$vendorId"
+            params={{ vendorId: user.id }}
+            className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow"
+          >
+            <Store className="h-3.5 w-3.5" /> Voir ma boutique
           </Link>
-          <div className="ml-2 text-base font-bold">Espace Vendeur</div>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
           {NAV.map((item) => {
