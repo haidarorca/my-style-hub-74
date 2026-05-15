@@ -16,6 +16,7 @@ const ALL = "__all__";
 function Home() {
   const [universeId, setUniverseId] = useState<string>(ALL);
   const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
+  const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);
   const [quickAddProductId, setQuickAddProductId] = useState<string | null>(null);
 
   const { data: universes } = useQuery({
