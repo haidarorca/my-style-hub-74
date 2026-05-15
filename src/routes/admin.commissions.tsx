@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/commissions")({
@@ -387,7 +388,108 @@ function PairEditor({ sourceId, destinationId, onBack, onChangeSource }: {
       <PairGeneralRule srcId={srcDbId} dstId={dstDbId} />
       <PairCategoryTree srcId={srcDbId} dstId={dstDbId} />
       <PairProductRules srcId={srcDbId} dstId={dstDbId} />
+
+      <PairDeleteAllButton srcId={srcDbId} dstId={dstDbId} onDeleted={onBack} />
     </div>
+  );
+}
+
+/* ---------- Delete all rules for a pair (password protected) ---------- */
+function PairDeleteAllButton({ srcId, dstId, onDeleted }: {
+  srcId: string | null; dstId: string | null; onDeleted: () => void;
+}) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: rules } = useRules();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const pairRules = useMemo(() => (rules ?? []).filter((r) =>
+    (r.source_country_id ?? null) === srcId
+    && (r.destination_country_id ?? null) === dstId
+    && r.scope !== "global",
+  ), [rules, srcId, dstId]);
+
+  const count = pairRules.length;
+
+  async function confirmDelete() {
+    if (!user?.email) return toast.error("Session invalide");
+    if (!password) return toast.error("Mot de passe requis");
+    setBusy(true);
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password,
+      });
+      if (authError) {
+        toast.error("Mot de passe incorrect");
+        return;
+      }
+      const ids = pairRules.map((r) => r.id);
+      if (ids.length > 0) {
+        const { error } = await sb.from("commission_rules").delete().in("id", ids);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+      }
+      toast.success(`${ids.length} règle(s) supprimée(s)`);
+      qc.invalidateQueries({ queryKey: ["commission_rules"] });
+      setOpen(false);
+      setPassword("");
+      onDeleted();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Card className="border-destructive/40">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-xs text-muted-foreground">
+            Supprimer toutes les règles (paire, catégories, produits) de cette combinaison source → destination.
+          </div>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={count === 0}
+            onClick={() => setOpen(true)}
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> Tout supprimer ({count})
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setPassword(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer la suppression</DialogTitle>
+            <DialogDescription>
+              Vous allez supprimer <strong>{count}</strong> règle(s) de commission pour cette paire. Cette action est irréversible.
+              Saisissez votre mot de passe admin pour confirmer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs">Mot de passe admin</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") void confirmDelete(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Annuler</Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={busy || !password}>
+              {busy ? "Suppression…" : "Supprimer définitivement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
