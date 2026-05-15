@@ -66,6 +66,8 @@ function useDebounced<T>(value: T, ms = 250) {
 function SearchPage() {
   const { q: initialQ } = Route.useSearch();
   const navigate = useNavigate();
+  const { t } = useI18n();
+  const condensed = useHideOnScroll(60);
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
     setQ(initialQ ?? "");
