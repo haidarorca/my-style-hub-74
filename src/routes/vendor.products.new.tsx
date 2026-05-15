@@ -352,10 +352,10 @@ function NewProductPage() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h1 className="text-xl font-bold">Nouveau produit</h1>
+      <h1 className="text-xl font-bold">{t("vendor.products.new_title")}</h1>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Photos</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
@@ -368,7 +368,7 @@ function NewProductPage() {
             ))}
             <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
               <Upload className="h-5 w-5" />
-              Ajouter
+              {t("vendor.new.add")}
               <input type="file" accept="image/*" multiple onChange={onPickImages} className="hidden" />
             </label>
           </div>
@@ -376,42 +376,40 @@ function NewProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Informations</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.info")}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Code-barres *</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ex. ABC123" />
-            <p className="mt-1 text-xs text-muted-foreground">Doit être unique dans votre boutique.</p>
+            <Label>{t("vendor.new.code_label")}</Label>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("vendor.new.code_placeholder")} />
+            <p className="mt-1 text-xs text-muted-foreground">{t("vendor.new.code_help")}</p>
           </div>
           <div>
-            <Label>Nom *</Label>
+            <Label>{t("vendor.new.name_label")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Label>Désignation</Label>
-            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Ex. Robe été manches courtes" />
+            <Label>{t("vendor.new.designation_label")}</Label>
+            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder={t("vendor.new.designation_placeholder")} />
           </div>
           <div>
-            <Label>Description</Label>
+            <Label>{t("vendor.new.description_label")}</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
           <div>
-            <Label>Prix de base (FCFA) *</Label>
+            <Label>{t("vendor.new.price_label")}</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.cat_card")}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-[11px] text-muted-foreground">
-            Choisissez dans l'ordre : rayon → catégorie → sous-catégorie. Si elle n'existe pas, créez-la, elle sera utilisable immédiatement (en attente d'admin).
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("vendor.new.cat_help")}</p>
 
           <CategoryLevel
-            label="Rayon"
-            placeholder="Choisir un rayon"
+            label={t("vendor.new.cat_section")}
+            placeholder={t("vendor.new.cat_section_pick")}
             options={opts1}
             value={pick1}
             onChange={(v) => { setPick1(v); setPick2(""); setPick3(""); setNewOpen(0); }}
@@ -423,11 +421,12 @@ function NewProductPage() {
             onCancelNew={() => setNewOpen(0)}
             creating={creatingNew}
             disabled={false}
+            t={t}
           />
 
           <CategoryLevel
-            label="Catégorie"
-            placeholder={pick1 ? "Choisir une catégorie" : "Choisissez d'abord le rayon"}
+            label={t("vendor.new.cat_cat")}
+            placeholder={pick1 ? t("vendor.new.cat_cat_pick") : t("vendor.new.cat_cat_first")}
             options={opts2}
             value={pick2}
             onChange={(v) => { setPick2(v); setPick3(""); setNewOpen(0); }}
@@ -439,11 +438,12 @@ function NewProductPage() {
             onCancelNew={() => setNewOpen(0)}
             creating={creatingNew}
             disabled={!pick1}
+            t={t}
           />
 
           <CategoryLevel
-            label="Sous-catégorie"
-            placeholder={pick2 ? "Choisir une sous-catégorie" : "Choisissez d'abord la catégorie"}
+            label={t("vendor.new.cat_sub")}
+            placeholder={pick2 ? t("vendor.new.cat_sub_pick") : t("vendor.new.cat_sub_first")}
             options={opts3}
             value={pick3}
             onChange={(v) => { setPick3(v); setNewOpen(0); }}
@@ -455,12 +455,13 @@ function NewProductPage() {
             onCancelNew={() => setNewOpen(0)}
             creating={creatingNew}
             disabled={!pick2}
+            t={t}
           />
 
           {deepestPick && isReq(deepestPick) && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>Cette catégorie attend la validation de l'admin. Le produit restera en attente jusque-là.</span>
+              <span>{t("vendor.new.cat_pending")}</span>
             </div>
           )}
         </CardContent>
@@ -468,33 +469,31 @@ function NewProductPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Variantes (taille / couleur ou modèle)</CardTitle>
+          <CardTitle className="text-base">{t("vendor.new.variants")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Une ligne par combinaison. Pour un <b>modèle</b> (Modèle A, B…), saisissez son nom dans « Couleur / Modèle » et laissez la pastille Hex vide. Ajoutez une image par variante : elle s'affichera quand le client la sélectionne.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
               <div className="grid grid-cols-12 items-end gap-2">
                 <div className="col-span-2">
-                  <Label className="text-[10px]">Taille</Label>
+                  <Label className="text-[10px]">{t("vendor.new.v_size")}</Label>
                   <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
                 </div>
                 <div className="col-span-3">
-                  <Label className="text-[10px]">Couleur / Modèle</Label>
-                  <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder="Rouge ou Modèle A" />
+                  <Label className="text-[10px]">{t("vendor.new.v_color")}</Label>
+                  <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder={t("vendor.new.v_color_placeholder")} />
                 </div>
                 <div className="col-span-1">
-                  <Label className="text-[10px]">Hex</Label>
+                  <Label className="text-[10px]">{t("vendor.new.v_hex")}</Label>
                   <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
                 </div>
                 <div className="col-span-2">
-                  <Label className="text-[10px]">Stock</Label>
+                  <Label className="text-[10px]">{t("vendor.new.v_stock")}</Label>
                   <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
                 </div>
                 <div className="col-span-3">
-                  <Label className="text-[10px]">Prix (opt.)</Label>
+                  <Label className="text-[10px]">{t("vendor.new.v_price")}</Label>
                   <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
                 </div>
                 <div className="col-span-1">
@@ -519,34 +518,34 @@ function NewProductPage() {
                       onChange={(e) => updateVariant(i, { image_file: e.target.files?.[0] ?? null })} />
                   </label>
                 )}
-                <p className="text-[11px] text-muted-foreground">Image affichée quand cette variante est choisie (optionnel).</p>
+                <p className="text-[11px] text-muted-foreground">{t("vendor.new.v_image_help")}</p>
               </div>
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={addVariant}>
-            <Plus className="mr-1 h-4 w-4" /> Ajouter une variante
+            <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Personnalisation</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.custom")}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <Label>Image personnalisée</Label>
-              <p className="text-xs text-muted-foreground">Le client peut envoyer une image (ex. coque téléphone).</p>
+              <Label>{t("vendor.new.custom_image")}</Label>
+              <p className="text-xs text-muted-foreground">{t("vendor.new.custom_image_help")}</p>
             </div>
             <Switch checked={allowImage} onCheckedChange={setAllowImage} />
           </div>
           {allowImage && (
             <div>
-              <Label>Message à afficher au client</Label>
+              <Label>{t("vendor.new.custom_image_msg")}</Label>
               <Textarea
                 value={imageMessage}
                 onChange={(e) => setImageMessage(e.target.value)}
                 rows={2}
-                placeholder="Ex. Image au format carré, 1500x1500 px minimum"
+                placeholder={t("vendor.new.custom_image_msg_placeholder")}
               />
             </div>
           )}
@@ -555,8 +554,8 @@ function NewProductPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <Label>Texte / logo personnalisé</Label>
-              <p className="text-xs text-muted-foreground">Le client écrit un texte avec police et couleur.</p>
+              <Label>{t("vendor.new.custom_text")}</Label>
+              <p className="text-xs text-muted-foreground">{t("vendor.new.custom_text_help")}</p>
             </div>
             <Switch checked={allowText} onCheckedChange={setAllowText} />
           </div>
@@ -565,10 +564,10 @@ function NewProductPage() {
             <div className="space-y-3">
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <Label>Polices autorisées</Label>
+                  <Label>{t("vendor.new.custom_fonts")}</Label>
                   <label className="flex items-center gap-2 text-xs">
                     <Checkbox checked={allowAllFonts} onCheckedChange={(v) => setAllowAllFonts(!!v)} />
-                    Toutes
+                    {t("vendor.new.custom_all")}
                   </label>
                 </div>
                 {!allowAllFonts && (
@@ -584,10 +583,10 @@ function NewProductPage() {
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <Label>Couleurs autorisées</Label>
+                  <Label>{t("vendor.new.custom_colors")}</Label>
                   <label className="flex items-center gap-2 text-xs">
                     <Checkbox checked={allowAllColors} onCheckedChange={(v) => setAllowAllColors(!!v)} />
-                    Toutes
+                    {t("vendor.new.custom_all")}
                   </label>
                 </div>
                 {!allowAllColors && (
@@ -614,7 +613,7 @@ function NewProductPage() {
 
       <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 pb-safe backdrop-blur">
         <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
-          {submitting ? "Création…" : "Soumettre pour validation"}
+          {submitting ? t("vendor.new.submitting") : t("vendor.new.submit")}
         </Button>
       </div>
     </form>
