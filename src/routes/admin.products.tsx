@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, X, Pencil, Trash2, Eye } from "lucide-react";
@@ -161,9 +161,7 @@ function ProductDetailDialog({ product, onClose }: { product: ProductRow | null;
 function ProductList({ status }: { status: "pending" | "approved" | "rejected" }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<ProductRow | null>(null);
   const [viewing, setViewing] = useState<ProductRow | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", price: "", description: "" });
 
   const { data: items } = useQuery({
     queryKey: ["admin", "products", status],
@@ -197,23 +195,6 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     qc.invalidateQueries({ queryKey: ["admin", "products"] });
   }
 
-  function openEdit(p: ProductRow) {
-    setEditing(p);
-    setEditForm({ name: p.name, price: String(p.price), description: p.description ?? "" });
-  }
-
-  async function saveEdit() {
-    if (!editing) return;
-    const { error } = await supabase.from("products").update({
-      name: editForm.name.trim(),
-      price: Number(editForm.price) || 0,
-      description: editForm.description.trim() || null,
-    }).eq("id", editing.id);
-    if (error) return toast.error(error.message);
-    toast.success("Produit mis à jour");
-    setEditing(null);
-    qc.invalidateQueries({ queryKey: ["admin", "products"] });
-  }
 
   if (!items) return <p className="text-sm text-muted-foreground">Chargement…</p>;
   if (items.length === 0) return <p className="text-sm text-muted-foreground">Aucun produit.</p>;
@@ -281,8 +262,10 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setViewing(p)} title="Voir détails">
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(p)} title="Modifier">
-                <Pencil className="h-4 w-4" />
+              <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Édition complète">
+                <Link to="/admin/products/$productId/edit" params={{ productId: p.id }}>
+                  <Pencil className="h-4 w-4" />
+                </Link>
               </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteProduct(p.id)} title="Supprimer">
                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -292,20 +275,6 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
         );
       })}
 
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Modifier le produit</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Nom</Label><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
-            <div><Label>Prix (FCFA)</Label><Input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea rows={4} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Annuler</Button>
-            <Button onClick={saveEdit}>Enregistrer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <ProductDetailDialog product={viewing} onClose={() => setViewing(null)} />
     </ul>
   );
