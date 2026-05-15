@@ -64,7 +64,7 @@ function ShopPage() {
 
   // Build map + used-category sets including ancestors
   const { usedL1, usedL2, usedL3, productCatToL1, productCatToL2 } = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; level: number; parent_id: string | null }>();
+    const map = new Map<string, { id: string; name: string; name_i18n?: any; level: number; parent_id: string | null }>();
     (allCats ?? []).forEach((c) => map.set(c.id, c));
     const u1 = new Set<string>();
     const u2 = new Set<string>();
