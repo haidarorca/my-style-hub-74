@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VendorRouteImport } from './routes/vendor'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -40,6 +41,11 @@ const VendorRoute = VendorRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersRoute = OrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/cart': typeof CartRoute
   '/login': typeof LoginRoute
+  '/orders': typeof OrdersRoute
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/cart': typeof CartRoute
   '/login': typeof LoginRoute
+  '/orders': typeof OrdersRoute
   '/signup': typeof SignupRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/cart': typeof CartRoute
   '/login': typeof LoginRoute
+  '/orders': typeof OrdersRoute
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/login'
+    | '/orders'
     | '/signup'
     | '/vendor'
     | '/admin/categories'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/cart'
     | '/login'
+    | '/orders'
     | '/signup'
     | '/admin/categories'
     | '/admin/orders'
@@ -269,6 +280,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/login'
+    | '/orders'
     | '/signup'
     | '/vendor'
     | '/admin/categories'
@@ -294,6 +306,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   CartRoute: typeof CartRoute
   LoginRoute: typeof LoginRoute
+  OrdersRoute: typeof OrdersRoute
   SignupRoute: typeof SignupRoute
   VendorRoute: typeof VendorRouteWithChildren
   CCategoryIdRoute: typeof CCategoryIdRoute
@@ -315,6 +328,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -507,6 +527,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   CartRoute: CartRoute,
   LoginRoute: LoginRoute,
+  OrdersRoute: OrdersRoute,
   SignupRoute: SignupRoute,
   VendorRoute: VendorRouteWithChildren,
   CCategoryIdRoute: CCategoryIdRoute,
@@ -516,3 +537,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
