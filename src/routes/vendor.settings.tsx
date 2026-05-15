@@ -54,6 +54,7 @@ function VendorSettings() {
   const [phoneLocal, setPhoneLocal] = useState("");
   const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [waLocal, setWaLocal] = useState("");
+  const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
