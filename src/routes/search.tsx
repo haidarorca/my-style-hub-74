@@ -231,9 +231,15 @@ function SearchPage() {
 
         {/* Dedicated search header — input + "Rechercher" button + filters */}
         <div className="sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background px-3 pb-2 pt-2">
-          <form onSubmit={onSubmit} className="flex items-center gap-2">
-            <div className="flex h-11 flex-1 items-center gap-2 rounded-full border border-border bg-muted px-3 shadow-sm focus-within:border-primary focus-within:bg-background">
-              <SearchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
+            <div className="flex h-11 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30">
+              <button
+                type="submit"
+                aria-label="Lancer la recherche"
+                className="shrink-0 rounded-full p-2 text-muted-foreground hover:text-primary active:scale-95 transition-transform"
+              >
+                <SearchIcon className="h-4 w-4" />
+              </button>
               <input
                 autoFocus
                 type="search"
@@ -258,9 +264,9 @@ function SearchPage() {
             <Button
               type="submit"
               size="sm"
-              className="h-11 shrink-0 rounded-full px-4 text-sm font-bold shadow-pink"
+              className="h-11 shrink-0 rounded-full px-3 text-sm font-bold shadow-pink sm:px-4"
             >
-              Rechercher
+              OK
             </Button>
           </form>
 
