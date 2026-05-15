@@ -4,13 +4,14 @@ import { toast } from "sonner";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  DAY_LABELS, DAY_ORDER, DEFAULT_SCHEDULE, normalizeSchedule,
+  DAY_ORDER, DEFAULT_SCHEDULE, normalizeSchedule,
   type DayKey, type ShopSchedule,
 } from "@/lib/shop-hours";
 import {
@@ -34,6 +35,7 @@ type ShopFields = {
 
 function VendorSettings() {
   const { user, profile, refreshProfile } = useAuth();
+  const { t } = useI18n();
   const [f, setF] = useState<ShopFields>({
     shop_name: "",
     phone: "",
@@ -53,6 +55,11 @@ function VendorSettings() {
   const [waLocal, setWaLocal] = useState("");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+
+  const DAY_T: Record<DayKey, string> = {
+    mon: t("vset.day.mon"), tue: t("vset.day.tue"), wed: t("vset.day.wed"),
+    thu: t("vset.day.thu"), fri: t("vset.day.fri"), sat: t("vset.day.sat"), sun: t("vset.day.sun"),
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -90,7 +97,7 @@ function VendorSettings() {
       });
       return next;
     });
-    toast.success("Horaires copiés du lundi au samedi");
+    toast.success(t("vset.copied_toast"));
   };
 
   const upload = async (file: File, kind: "logo" | "banner") => {
@@ -100,14 +107,14 @@ function VendorSettings() {
     const path = `vendors/${user.id}/${kind}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("site-assets").upload(path, file, { upsert: true });
     if (error) {
-      toast.error("Échec du téléversement : " + error.message);
+      toast.error(t("vset.upload_err") + error.message);
       setUploading(null);
       return;
     }
     const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
     setF((prev) => ({ ...prev, [kind === "logo" ? "shop_logo_url" : "shop_banner_url"]: data.publicUrl }));
     setUploading(null);
-    toast.success(kind === "logo" ? "Logo prêt" : "Bannière prête");
+    toast.success(kind === "logo" ? t("vset.logo_ready") : t("vset.banner_ready"));
   };
 
   const save = async () => {
@@ -119,16 +126,16 @@ function VendorSettings() {
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
-      toast.error("Erreur : " + error.message);
+      toast.error(t("vset.err_prefix") + error.message);
       return;
     }
     await refreshProfile();
-    toast.success("Boutique enregistrée");
+    toast.success(t("vset.saved_toast"));
   };
 
   return (
     <div className="mx-auto max-w-xl space-y-5">
-      <h1 className="text-xl font-bold">Paramètres boutique</h1>
+      <h1 className="text-xl font-bold">{t("vset.title")}</h1>
 
       {/* Banner + logo preview */}
       <div className="overflow-hidden rounded-2xl border bg-card">
@@ -142,7 +149,7 @@ function VendorSettings() {
             className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white"
           >
             {uploading === "banner" ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
-            Bannière
+            {t("vset.banner")}
           </button>
           <input ref={bannerRef} type="file" accept="image/*" hidden
             onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "banner")} />
@@ -154,7 +161,7 @@ function VendorSettings() {
             className="relative -mt-10 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted"
           >
             {f.shop_logo_url ? (
-              <img src={f.shop_logo_url} alt="logo" className="h-full w-full object-cover" />
+              <img src={f.shop_logo_url} alt={t("vset.logo_alt")} className="h-full w-full object-cover" />
             ) : uploading === "logo" ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
@@ -164,9 +171,9 @@ function VendorSettings() {
           <input ref={logoRef} type="file" accept="image/*" hidden
             onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "logo")} />
           <div className="space-y-0.5">
-            <p className="text-xs text-muted-foreground">Touchez le logo ou la bannière pour changer l'image.</p>
+            <p className="text-xs text-muted-foreground">{t("vset.touch_hint")}</p>
             <p className="text-[11px] text-muted-foreground">
-              <span className="font-medium text-foreground">Bannière :</span> 1600 × 500 px (16:5) · <span className="font-medium text-foreground">Logo :</span> 400 × 400 px (carré)
+              <span className="font-medium text-foreground">{t("vset.dims_banner")}</span> {t("vset.dims_banner_val")} · <span className="font-medium text-foreground">{t("vset.dims_logo")}</span> {t("vset.dims_logo_val")}
             </p>
           </div>
         </div>
@@ -174,29 +181,27 @@ function VendorSettings() {
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <div className="space-y-1.5">
-          <Label htmlFor="shop">Nom de la boutique</Label>
-          <Input id="shop" value={f.shop_name} onChange={(e) => setF({ ...f, shop_name: e.target.value })} placeholder="Ma boutique" />
+          <Label htmlFor="shop">{t("vset.shop_name")}</Label>
+          <Input id="shop" value={f.shop_name} onChange={(e) => setF({ ...f, shop_name: e.target.value })} placeholder={t("vset.shop_name_ph")} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="desc">Description courte</Label>
+          <Label htmlFor="desc">{t("vset.desc")}</Label>
           <Textarea id="desc" rows={3} maxLength={200}
             value={f.shop_description}
             onChange={(e) => setF({ ...f, shop_description: e.target.value })}
-            placeholder="Une phrase qui présente votre boutique" />
+            placeholder={t("vset.desc_ph")} />
         </div>
       </div>
 
       {/* Schedule editor */}
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <div className="flex items-center justify-between">
-          <Label className="text-base font-semibold">Horaires d'ouverture</Label>
+          <Label className="text-base font-semibold">{t("vset.hours_title")}</Label>
           <button type="button" onClick={applyMonToSat} className="text-xs font-medium text-primary">
-            Copier Lun→Sam
+            {t("vset.copy_mon_sat")}
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Astuce : ajoutez un 2<sup>e</sup> créneau pour gérer une pause (ex : 9h–12h puis 14h–19h).
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t("vset.slot_hint")}</p>
         <div className="space-y-2">
           {DAY_ORDER.map((day) => {
             const d = schedule[day];
@@ -217,16 +222,16 @@ function VendorSettings() {
                 <div className="flex items-center gap-2">
                   <div className="flex w-20 shrink-0 items-center gap-2">
                     <Switch checked={d.open} onCheckedChange={(open) => updateDay(day, { open })} />
-                    <span className="text-sm font-medium">{DAY_LABELS[day].slice(0, 3)}</span>
+                    <span className="text-sm font-medium">{DAY_T[day]}</span>
                   </div>
-                  {!d.open && <span className="flex-1 text-sm text-muted-foreground">Fermé</span>}
+                  {!d.open && <span className="flex-1 text-sm text-muted-foreground">{t("vset.closed")}</span>}
                   {d.open && (
                     <button
                       type="button"
                       onClick={addSlot}
                       className="ml-auto text-xs font-medium text-primary"
                     >
-                      + Pause
+                      {t("vset.add_slot")}
                     </button>
                   )}
                 </div>
@@ -240,7 +245,7 @@ function VendorSettings() {
                           onChange={(e) => updateSlot(i, { from: e.target.value })}
                           className="h-9 flex-1 px-2 text-sm"
                         />
-                        <span className="text-xs text-muted-foreground">à</span>
+                        <span className="text-xs text-muted-foreground">{t("vset.to")}</span>
                         <Input
                           type="time"
                           value={s.to}
@@ -252,7 +257,7 @@ function VendorSettings() {
                             type="button"
                             onClick={() => removeSlot(i)}
                             className="px-2 text-xs font-medium text-destructive"
-                            aria-label="Supprimer ce créneau"
+                            aria-label={t("vset.remove_slot")}
                           >
                             ×
                           </button>
@@ -266,41 +271,47 @@ function VendorSettings() {
           })}
         </div>
         <div className="space-y-1.5 pt-2">
-          <Label htmlFor="hours">Note de livraison (optionnel)</Label>
-          <Input id="hours" value={f.shop_hours} onChange={(e) => setF({ ...f, shop_hours: e.target.value })} placeholder="Ex : Livraison sous 24h" />
+          <Label htmlFor="hours">{t("vset.delivery_note")}</Label>
+          <Input id="hours" value={f.shop_hours} onChange={(e) => setF({ ...f, shop_hours: e.target.value })} placeholder={t("vset.delivery_note_ph")} />
         </div>
       </div>
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
-        <Label className="text-base font-semibold">Contact</Label>
+        <Label className="text-base font-semibold">{t("vset.contact")}</Label>
         <PhoneField
           id="phone"
-          label="Téléphone"
+          label={t("vset.phone")}
           country={phoneCountry}
           local={phoneLocal}
           onCountryChange={setPhoneCountry}
           onLocalChange={setPhoneLocal}
+          dialAria={t("vset.dial_aria")}
+          willSave={t("vset.will_save")}
+          testWa={t("vset.test_wa")}
         />
         <PhoneField
           id="wa"
-          label="Numéro WhatsApp (optionnel)"
+          label={t("vset.wa")}
           country={waCountry}
           local={waLocal}
           onCountryChange={setWaCountry}
           onLocalChange={setWaLocal}
           showWaTest
+          dialAria={t("vset.dial_aria")}
+          willSave={t("vset.will_save")}
+          testWa={t("vset.test_wa")}
         />
         <div className="space-y-1.5">
-          <Label htmlFor="addr">Adresse</Label>
+          <Label htmlFor="addr">{t("vset.address")}</Label>
           <Textarea id="addr" rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
         </div>
         <Button onClick={save} disabled={saving} size="lg" className="w-full">
-          {saving ? "Enregistrement…" : "Enregistrer"}
+          {saving ? t("vset.saving") : t("vset.save")}
         </Button>
       </div>
 
       <Link to="/account" className="block text-center text-sm text-muted-foreground underline">
-        Modifier mon compte
+        {t("vset.edit_account")}
       </Link>
     </div>
   );
@@ -308,6 +319,7 @@ function VendorSettings() {
 
 function PhoneField({
   id, label, country, local, onCountryChange, onLocalChange, showWaTest,
+  dialAria, willSave, testWa,
 }: {
   id: string;
   label: string;
@@ -316,6 +328,9 @@ function PhoneField({
   onCountryChange: (code: string) => void;
   onLocalChange: (v: string) => void;
   showWaTest?: boolean;
+  dialAria: string;
+  willSave: string;
+  testWa: string;
 }) {
   const c = getCountryByCode(country);
   const fullDigits = c ? c.dial + local.replace(/\D/g, "") : local.replace(/\D/g, "");
@@ -325,7 +340,7 @@ function PhoneField({
       <Label htmlFor={id}>{label}</Label>
       <div className="flex gap-2">
         <select
-          aria-label="Indicatif pays"
+          aria-label={dialAria}
           value={country}
           onChange={(e) => onCountryChange(e.target.value)}
           className="h-10 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
@@ -347,7 +362,7 @@ function PhoneField({
       </div>
       {fullDigits && (
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Sera enregistré : <span className="font-mono">+{fullDigits}</span></span>
+          <span>{willSave} <span className="font-mono">+{fullDigits}</span></span>
           {showWaTest && (
             <a
               href={waLink}
@@ -355,7 +370,7 @@ function PhoneField({
               rel="noopener noreferrer"
               className="font-medium text-primary"
             >
-              Tester sur WhatsApp
+              {testWa}
             </a>
           )}
         </div>
