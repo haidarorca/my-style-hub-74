@@ -24,6 +24,7 @@ export function AppHeader() {
   const router = useRouter();
   const hidden = useHideOnScroll();
   const settings = useSiteSettings();
+  const { t } = useI18n();
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const urlQ = useRouterState({
