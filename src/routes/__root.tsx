@@ -132,10 +132,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SiteSettingsProvider>
-          <AuthInvalidator />
-          <PromoBar />
-          <Outlet />
-          <Toaster richColors position="top-center" />
+          <UiOverridesProvider>
+            <AuthInvalidator />
+            <PromoBar />
+            <Outlet />
+            <Toaster richColors position="top-center" />
+          </UiOverridesProvider>
         </SiteSettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
