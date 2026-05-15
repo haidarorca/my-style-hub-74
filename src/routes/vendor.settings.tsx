@@ -85,6 +85,7 @@ function VendorSettings() {
     setWaCountry(wa.code);
     setWaLocal(wa.local);
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
+    setSourceCountryId((p.source_country_id as string | null) ?? null);
   }, [profile]);
 
   const updateDay = (day: DayKey, patch: Partial<ShopSchedule[DayKey]>) =>
