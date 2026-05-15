@@ -236,8 +236,8 @@ function SearchPage() {
         {/* Compact, auto-collapsing search header */}
         <div
           className={cn(
-            "sticky top-14 z-30 -mx-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-200",
-            condensed ? "pb-1 pt-1" : "pb-2 pt-2 mt-1",
+            "sticky z-30 -mx-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-200",
+            condensed ? "top-0 pb-1 pt-1" : "top-14 pb-2 pt-2 mt-1",
           )}
         >
           <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
