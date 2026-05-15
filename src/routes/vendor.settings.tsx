@@ -47,6 +47,10 @@ function VendorSettings() {
   const [schedule, setSchedule] = useState<ShopSchedule>(DEFAULT_SCHEDULE);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "banner" | null>(null);
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [phoneLocal, setPhoneLocal] = useState("");
+  const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [waLocal, setWaLocal] = useState("");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
