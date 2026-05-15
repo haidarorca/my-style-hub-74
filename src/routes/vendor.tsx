@@ -6,25 +6,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { BackButton } from "@/components/layout/BackButton";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 
 export const Route = createFileRoute("/vendor")({
   component: VendorLayout,
 });
 
-const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
-  { to: "/vendor", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
-  { to: "/vendor/orders", label: "Commandes", icon: ShoppingBag },
-  { to: "/vendor/products", label: "Mes produits", icon: Package, exact: true },
-  { to: "/vendor/products/new", label: "Nouveau produit", icon: Plus },
-  { to: "/vendor/notifications", label: "Notifications", icon: Bell },
-  { to: "/vendor/messages", label: "Messages", icon: MessageSquare },
-  { to: "/vendor/settings", label: "Paramètres", icon: Settings },
+const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
+  { to: "/vendor", labelKey: "vendor.dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
+  { to: "/vendor/products", labelKey: "vendor.products", icon: Package, exact: true },
+  { to: "/vendor/products/new", labelKey: "vendor.products.new_title", icon: Plus },
+  { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },
+  { to: "/vendor/messages", labelKey: "vendor.messages", icon: MessageSquare },
+  { to: "/vendor/settings", labelKey: "vendor.settings", icon: Settings },
 ];
 
 function VendorLayout() {
   const { loading, user, isVendor, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { t } = useI18n();
 
   const { data: unread } = useQuery({
     queryKey: ["vendor", "notif-unread", user?.id],
@@ -48,7 +50,7 @@ function VendorLayout() {
   if (loading || !user || (!isVendor && !isAdmin)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
@@ -59,24 +61,24 @@ function VendorLayout() {
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-1.5 px-3">
           <BackButton fallbackTo="/vendor" />
           <div className="min-w-0 flex-1 truncate text-lg font-extrabold tracking-tight text-foreground">
-            Espace Vendeur
+            {t("vendor.space")}
           </div>
           <Link
             to="/"
-            aria-label="Accueil"
+            aria-label={t("nav.home")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground shadow-sm hover:bg-accent sm:h-auto sm:w-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
             <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">Accueil</span>
+            <span className="hidden sm:inline">{t("nav.home")}</span>
           </Link>
           <Link
             to="/shop/$vendorId"
             params={{ vendorId: user.id }}
-            aria-label="Ma boutique"
+            aria-label={t("vendor.shop")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow sm:h-auto sm:w-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
             <Store className="h-4 w-4" />
-            <span className="hidden sm:inline">Ma boutique</span>
+            <span className="hidden sm:inline">{t("vendor.shop")}</span>
           </Link>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
@@ -92,7 +94,7 @@ function VendorLayout() {
                   active ? "bg-primary text-primary-foreground" : "bg-card text-foreground hover:bg-accent",
                 )}
               >
-                <Icon className="h-3.5 w-3.5" /> {item.label}
+                <Icon className="h-3.5 w-3.5" /> {t(item.labelKey)}
                 {item.to === "/vendor/notifications" && unread && unread > 0 ? (
                   <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{unread}</span>
                 ) : null}
