@@ -741,6 +741,7 @@ export type Database = {
           comment: string | null
           created_at: string
           id: string
+          order_id: string | null
           product_id: string
           rating: number
           updated_at: string
@@ -750,6 +751,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           id?: string
+          order_id?: string | null
           product_id: string
           rating: number
           updated_at?: string
@@ -759,6 +761,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           id?: string
+          order_id?: string | null
           product_id?: string
           rating?: number
           updated_at?: string

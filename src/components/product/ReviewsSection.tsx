@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Star, Trash2, Pencil } from "lucide-react";
+import { Star, Trash2, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,7 @@ interface Review {
   comment: string | null;
   created_at: string;
   user_id: string;
+  order_id: string | null;
   profiles?: { full_name: string | null; email: string | null } | null;
 }
 
@@ -52,13 +53,13 @@ export function ReviewsSection({ productId }: { productId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("product_reviews")
-        .select("id, rating, comment, created_at, user_id")
+        .select("id, rating, comment, created_at, user_id, order_id")
         .eq("product_id", productId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       const rows = data ?? [];
       const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-      let profilesMap = new Map<string, { full_name: string | null; email: string | null }>();
+      const profilesMap = new Map<string, { full_name: string | null; email: string | null }>();
       if (userIds.length > 0) {
         const { data: profs } = await supabase
           .from("profiles")
@@ -70,15 +71,50 @@ export function ReviewsSection({ productId }: { productId: string }) {
     },
   });
 
+  // Commandes livrées de l'utilisateur pour ce produit, qui n'ont pas encore d'avis
+  const { data: eligibleOrderIds } = useQuery({
+    queryKey: ["reviews-eligibility", productId, user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      if (!user) return [] as string[];
+      const { data: items, error } = await supabase
+        .from("order_items")
+        .select("order_id, orders!inner(status, buyer_id)")
+        .eq("product_id", productId)
+        .eq("buyer_id", user.id)
+        .eq("orders.status", "delivered");
+      if (error) throw error;
+      const orderIds = Array.from(new Set((items ?? []).map((i) => i.order_id)));
+      if (orderIds.length === 0) return [];
+      const { data: existing } = await supabase
+        .from("product_reviews")
+        .select("order_id")
+        .eq("product_id", productId)
+        .eq("user_id", user.id)
+        .in("order_id", orderIds);
+      const used = new Set((existing ?? []).map((r) => r.order_id));
+      return orderIds.filter((id) => !used.has(id));
+    },
+  });
+
+  const canReview = !!user && (eligibleOrderIds?.length ?? 0) > 0;
+
   const avg = reviews && reviews.length > 0
     ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
     : 0;
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["reviews", productId] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["reviews", productId] });
+    qc.invalidateQueries({ queryKey: ["reviews-eligibility", productId, user?.id] });
+  };
 
   const submit = async () => {
     if (!user) {
       toast.error("Connectez-vous pour laisser un avis");
+      return;
+    }
+    if (!canReview || !eligibleOrderIds || eligibleOrderIds.length === 0) {
+      toast.error("Seuls les acheteurs ayant reçu ce produit peuvent laisser un avis");
       return;
     }
     if (comment.trim().length < 3) {
@@ -89,6 +125,7 @@ export function ReviewsSection({ productId }: { productId: string }) {
     const { error } = await supabase.from("product_reviews").insert({
       product_id: productId,
       user_id: user.id,
+      order_id: eligibleOrderIds[0],
       rating,
       comment: comment.trim(),
     });
@@ -144,8 +181,8 @@ export function ReviewsSection({ productId }: { productId: string }) {
         )}
       </div>
 
-      {/* New review form */}
-      {user && (
+      {/* New review form — only for verified buyers */}
+      {canReview && (
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <p className="text-xs font-semibold">Votre note</p>
           <StarRow value={rating} onChange={setRating} size={20} />
@@ -168,6 +205,7 @@ export function ReviewsSection({ productId }: { productId: string }) {
             const name = r.profiles?.full_name || r.profiles?.email || "Client";
             const isOwn = user?.id === r.user_id;
             const canEdit = isOwn || isAdmin;
+            const verified = !!r.order_id;
             return (
               <div key={r.id} className="rounded-xl border border-border bg-card p-3">
                 {editingId === r.id ? (
@@ -182,15 +220,25 @@ export function ReviewsSection({ productId }: { productId: string }) {
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-semibold">{name}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-semibold">{name}</p>
+                          {verified && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+                              <ShieldCheck className="h-3 w-3" />
+                              Achat vérifié
+                            </span>
+                          )}
+                        </div>
                         <StarRow value={r.rating} size={12} />
                       </div>
                       {canEdit && (
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(r)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          {isOwn && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(r)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => remove(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -207,10 +255,16 @@ export function ReviewsSection({ productId }: { productId: string }) {
           })
         ) : (
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            Aucun avis pour l'instant. Soyez le premier !
+            Aucun avis pour l'instant.
           </p>
         )}
       </div>
+
+      {user && !canReview && (
+        <p className="text-[11px] text-muted-foreground text-center">
+          Seuls les clients ayant reçu ce produit peuvent laisser un avis.
+        </p>
+      )}
     </section>
   );
 }
