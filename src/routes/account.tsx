@@ -292,9 +292,9 @@ function AccountPage() {
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Package className="h-4 w-4" />
               </span>
-              <span className="text-sm font-semibold">Mes commandes</span>
+              <span className="text-sm font-semibold">{t("nav.orders")}</span>
             </span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
           </Link>
           {(isVendor || isAdmin) && (
             <Link
@@ -305,35 +305,35 @@ function AccountPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Store className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-semibold">Espace vendeur</span>
+                <span className="text-sm font-semibold">{t("nav.vendor")}</span>
               </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Link>
           )}
         </div>
 
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h1 className="text-lg font-bold">Mes adresses</h1>
+            <h1 className="text-lg font-bold">{t("account.addresses")}</h1>
             <p className="text-xs text-muted-foreground">
-              Enregistrez vos adresses pour commander en un clic.
+              {t("account.description")}
             </p>
           </div>
           <Button onClick={openNew} size="sm" className="rounded-full">
-            <Plus className="h-4 w-4" /> Ajouter
+            <Plus className="h-4 w-4" /> {t("common.add")}
           </Button>
         </div>
 
         {loadingList ? (
-          <p className="text-sm text-muted-foreground">Chargement…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : addresses.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center">
             <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-2 text-sm text-muted-foreground">
-              Aucune adresse enregistrée pour le moment.
+              {t("account.no_addresses")}
             </p>
             <Button onClick={openNew} className="mt-4 rounded-full">
-              <Plus className="h-4 w-4" /> Ajouter ma première adresse
+              <Plus className="h-4 w-4" /> {t("account.add_first_address")}
             </Button>
           </div>
         ) : (
@@ -346,7 +346,7 @@ function AccountPage() {
                       <span className="text-sm font-semibold">{a.label}</span>
                       {a.is_default && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          <Star className="h-3 w-3" /> Par défaut
+                          <Star className="h-3 w-3" /> {t("common.default")}
                         </span>
                       )}
                     </div>
@@ -377,7 +377,7 @@ function AccountPage() {
                     className="mt-2 h-8 rounded-full text-xs"
                     onClick={() => setDefault(a)}
                   >
-                    <Star className="h-3 w-3" /> Définir comme adresse principale
+                    <Star className="h-3 w-3" /> {t("account.set_default_address")}
                   </Button>
                 )}
               </li>
