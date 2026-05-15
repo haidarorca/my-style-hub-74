@@ -206,7 +206,7 @@ function CartPage() {
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
-          buyer_id: user.id,
+          buyer_id: user?.id ?? null,
           total: grandTotal,
           status: "new",
           customer_name: addr.full_name,
