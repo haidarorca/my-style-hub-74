@@ -148,11 +148,9 @@ function VendorHome() {
               {stats?.activeProducts ?? 0} produit{(stats?.activeProducts ?? 0) > 1 ? "s" : ""} · {stats?.totalOrders ?? 0} commande{(stats?.totalOrders ?? 0) > 1 ? "s" : ""}
             </p>
           </div>
-          {user && (
-            <Button asChild size="sm" variant="outline" className="shrink-0">
-              <Link to="/shop/$vendorId" params={{ vendorId: user.id }}>Voir</Link>
-            </Button>
-          )}
+          <Button asChild size="sm" className="shrink-0">
+            <Link to="/vendor/products/new">+ Nouveau produit</Link>
+          </Button>
         </div>
       </div>
 
