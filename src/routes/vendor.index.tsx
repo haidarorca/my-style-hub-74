@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Package, Clock, CheckCircle2, XCircle, ShoppingBag, TrendingUp, ListOrdered } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const Route = createFileRoute("/vendor/")({
   component: VendorHome,
@@ -12,70 +12,120 @@ export const Route = createFileRoute("/vendor/")({
 
 function VendorHome() {
   const { user } = useAuth();
-  const { data: products } = useQuery({
-    queryKey: ["vendor-products", user?.id],
+
+  const { data: stats } = useQuery({
+    queryKey: ["vendor-dashboard", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, code, price, status, rejection_reason, product_images(url)")
-        .eq("vendor_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const vid = user!.id;
+
+      // Products counts
+      const [{ count: activeProducts }, { count: rejectedProducts }, { count: pendingProducts }] = await Promise.all([
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "approved"),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "rejected"),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("vendor_id", vid).eq("status", "pending"),
+      ]);
+
+      // Vendor's order items
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("order_id, unit_price, quantity, created_at")
+        .eq("vendor_id", vid);
+
+      const orderIds = Array.from(new Set((items ?? []).map((i) => i.order_id)));
+      let orders: { id: string; status: string }[] = [];
+      if (orderIds.length > 0) {
+        const { data } = await supabase.from("orders").select("id, status").in("id", orderIds);
+        orders = (data ?? []) as { id: string; status: string }[];
+      }
+
+      const totalOrders = orders.length;
+      const pendingOrders = orders.filter((o) => o.status === "new").length;
+      const confirmedOrders = orders.filter((o) => o.status === "confirmed" || o.status === "delivered").length;
+
+      // Sales (only counted when order is confirmed/delivered)
+      const validOrderIds = new Set(
+        orders.filter((o) => o.status === "confirmed" || o.status === "delivered").map((o) => o.id),
+      );
+      const now = new Date();
+      const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const startWeek = startDay - 6 * 24 * 60 * 60 * 1000;
+
+      let salesDay = 0;
+      let salesWeek = 0;
+      for (const it of items ?? []) {
+        if (!validOrderIds.has(it.order_id)) continue;
+        const t = new Date(it.created_at).getTime();
+        const amount = Number(it.unit_price) * Number(it.quantity);
+        if (t >= startDay) salesDay += amount;
+        if (t >= startWeek) salesWeek += amount;
+      }
+
+      return {
+        totalOrders,
+        pendingOrders,
+        confirmedOrders,
+        activeProducts: activeProducts ?? 0,
+        rejectedProducts: rejectedProducts ?? 0,
+        pendingProducts: pendingProducts ?? 0,
+        salesDay,
+        salesWeek,
+      };
     },
   });
 
+  const fmt = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+
+  const tiles = [
+    { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
+    { label: "En attente", value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
+    { label: "Confirmées", value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: "Produits actifs", value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: "Produits refusés", value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: "Ventes du jour", value: stats ? fmt(stats.salesDay) : "—", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: "Ventes de la semaine", value: stats ? fmt(stats.salesWeek) : "—", icon: TrendingUp, color: "text-primary", bg: "bg-primary/10" },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Mes produits</h1>
-        <Link to="/vendor/products/new">
-          <Button size="sm" className="rounded-full">
-            <Plus className="mr-1 h-4 w-4" /> Ajouter
-          </Button>
-        </Link>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <p className="text-xs text-muted-foreground">Aperçu de votre boutique</p>
       </div>
 
-      {!products || products.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          Aucun produit pour le moment. Cliquez sur « Ajouter » pour créer votre premier produit.
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {products.map((p) => {
-            const img = (p.product_images as { url: string }[] | null)?.[0]?.url;
-            return (
-              <li key={p.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-                  {img && <img src={img} alt={p.name} className="h-full w-full object-cover" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Code {p.code} • {Number(p.price).toLocaleString("fr-FR")} FCFA
-                  </div>
-                  {p.rejection_reason && (
-                    <div className="mt-1 text-xs text-destructive">Motif : {p.rejection_reason}</div>
-                  )}
-                </div>
-                <Badge
-                  variant={
-                    p.status === "approved" ? "default" : p.status === "rejected" ? "destructive" : "secondary"
-                  }
-                >
-                  {p.status === "approved" ? "Publié" : p.status === "rejected" ? "Rejeté" : "En attente"}
-                </Badge>
-                <Link to="/vendor/products/$productId/edit" params={{ productId: p.id }}>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" title="Modifier">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <Card key={t.label}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
+                <t.icon className={`h-5 w-5 ${t.color}`} />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-xs text-muted-foreground">{t.label}</div>
+                <div className="truncate text-lg font-bold">{t.value}</div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Button asChild size="lg" className="h-16 justify-start text-base">
+          <Link to="/vendor/products/new">
+            <Plus className="mr-2 h-5 w-5" /> Ajouter un produit
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="secondary" className="h-16 justify-start text-base">
+          <Link to="/vendor/orders">
+            <ListOrdered className="mr-2 h-5 w-5" /> Voir les commandes
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="outline" className="h-16 justify-start text-base">
+          <Link to="/vendor/products">
+            <Package className="mr-2 h-5 w-5" /> Mes produits
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
