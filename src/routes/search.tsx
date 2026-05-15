@@ -331,15 +331,13 @@ function SearchPage() {
             </Sheet>
           </form>
 
-          {/* Results meta — hidden once user scrolls to free up space */}
-          {!condensed && (
-            <p className="mt-2 truncate text-xs text-muted-foreground">
-              {q.trim() ? <>{t("search.results_for")} <span className="font-semibold text-foreground">« {q.trim()} »</span></> : t("search.type_to_search")}
-            </p>
-          )}
+          {/* Results meta */}
+          <p className="mt-2 truncate text-xs text-muted-foreground">
+            {q.trim() ? <>{t("search.results_for")} <span className="font-semibold text-foreground">« {q.trim()} »</span></> : t("search.type_to_search")}
+          </p>
 
-          {/* Tabs — hidden on scroll */}
-          {showResults && !condensed && (
+          {/* Tabs */}
+          {showResults && (
             <div className="no-scrollbar mt-2 flex gap-1 overflow-x-auto">
               {([
                 { id: "all", label: t("search.tab_all") },
