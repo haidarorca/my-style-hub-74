@@ -18,6 +18,7 @@ export function AppHeader() {
   const { user, profile, isAdmin, isVendor, signOut } = useAuth();
   const { count } = useCart();
   const router = useRouter();
+  const hidden = useHideOnScroll();
 
   const handleSignOut = async () => {
     await signOut();
