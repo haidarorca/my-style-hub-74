@@ -51,29 +51,32 @@ function VendorHome() {
       const now = new Date();
       const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const startWeek = startDay - 6 * 24 * 60 * 60 * 1000;
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const startYear = new Date(now.getFullYear(), 0, 1).getTime();
 
-      let salesDay = 0;
-      let salesWeek = 0;
+      let salesDay = 0, salesWeek = 0, salesMonth = 0, salesYear = 0;
       for (const it of items ?? []) {
         if (!validOrderIds.has(it.order_id)) continue;
         const t = new Date(it.created_at).getTime();
         const amount = Number(it.unit_price) * Number(it.quantity);
         if (t >= startDay) salesDay += amount;
         if (t >= startWeek) salesWeek += amount;
+        if (t >= startMonth) salesMonth += amount;
+        if (t >= startYear) salesYear += amount;
       }
 
       return {
         totalOrders, pendingOrders, confirmedOrders, deliveredOrders, cancelledOrders,
         activeProducts: activeProducts ?? 0,
         rejectedProducts: rejectedProducts ?? 0,
-        salesDay, salesWeek,
+        salesDay, salesWeek, salesMonth, salesYear,
       };
     },
   });
 
   const fmt = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 
-  const tiles = [
+  const orderTiles = [
     { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
     { label: "En attente", value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
     { label: "Confirmées", value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
@@ -81,8 +84,13 @@ function VendorHome() {
     { label: "Annulées", value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
     { label: "Produits actifs", value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
     { label: "Produits refusés", value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
-    { label: "Ventes du jour", value: stats ? fmt(stats.salesDay) : "—", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { label: "Ventes de la semaine", value: stats ? fmt(stats.salesWeek) : "—", icon: TrendingUp, color: "text-primary", bg: "bg-primary/10" },
+  ];
+
+  const salesTiles = [
+    { label: "Ventes aujourd'hui", value: stats ? fmt(stats.salesDay) : "—", color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: "Ventes cette semaine", value: stats ? fmt(stats.salesWeek) : "—", color: "text-primary", bg: "bg-primary/10" },
+    { label: "Ventes ce mois", value: stats ? fmt(stats.salesMonth) : "—", color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: "Ventes cette année", value: stats ? fmt(stats.salesYear) : "—", color: "text-amber-600", bg: "bg-amber-500/10" },
   ];
 
   const actions = [
@@ -100,20 +108,42 @@ function VendorHome() {
         <p className="text-xs text-muted-foreground">Aperçu de votre boutique</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                <t.icon className={`h-5 w-5 ${t.color}`} />
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-xs text-muted-foreground">{t.label}</div>
-                <div className="truncate text-lg font-bold">{t.value}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Commandes & produits</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {orderTiles.map((t) => (
+            <Card key={t.label}>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
+                  <t.icon className={`h-5 w-5 ${t.color}`} />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs text-muted-foreground">{t.label}</div>
+                  <div className="truncate text-lg font-bold">{t.value}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Mes ventes</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {salesTiles.map((t) => (
+            <Card key={t.label}>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
+                  <TrendingUp className={`h-5 w-5 ${t.color}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-muted-foreground">{t.label}</div>
+                  <div className="text-lg font-bold">{t.value}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       <div>
