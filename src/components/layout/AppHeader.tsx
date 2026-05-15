@@ -176,7 +176,7 @@ export function AppHeader() {
             </DropdownMenu>
           ) : (
             <Link to="/login" className="shrink-0">
-              <Button className="h-9 rounded-full px-4 text-[13px] font-semibold shadow-sm whitespace-nowrap transition-all hover:shadow-md active:scale-[0.97] sm:h-10 sm:px-5 sm:text-sm">
+              <Button className="h-9 rounded-full px-3 text-[12px] font-semibold shadow-sm whitespace-nowrap transition-all hover:shadow-md active:scale-[0.97] sm:h-10 sm:px-5 sm:text-sm">
                 {t("common.login")}
               </Button>
             </Link>
