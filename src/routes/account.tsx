@@ -389,57 +389,57 @@ function AccountPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editing ? "Modifier l'adresse" : "Nouvelle adresse"}</DialogTitle>
-            <DialogDescription>Saisissez vos informations de livraison.</DialogDescription>
+            <DialogTitle>{editing ? t("account.edit_address") : t("account.new_address")}</DialogTitle>
+            <DialogDescription>{t("account.delivery_info")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="a_label">Libellé *</Label>
-              <Input id="a_label" placeholder="Domicile, Bureau…" value={form.label}
+              <Label htmlFor="a_label">{t("checkout.label")} *</Label>
+              <Input id="a_label" placeholder={t("checkout.label_placeholder")} value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })} maxLength={50} />
               {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
             </div>
             <div>
-              <Label htmlFor="a_name">Nom complet *</Label>
+              <Label htmlFor="a_name">{t("account.full_name")} *</Label>
               <Input id="a_name" value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })} maxLength={100} />
               {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
             </div>
             <div>
-              <Label>Pays *</Label>
+              <Label>{t("account.country")} *</Label>
               <CountryPicker value={country} onChange={setCountry} />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                L'indicatif {country.dial} s'applique aux trois numéros.
+                {t("account.dial_applies").replace("{dial}", country.dial)}
               </p>
             </div>
             <div>
-              <Label htmlFor="a_phone">Téléphone principal *</Label>
+              <Label htmlFor="a_phone">{t("account.primary_phone")} *</Label>
               <PhoneDigitsInput id="a_phone" dial={country.dial} value={form.phone}
                 onChange={(v) => setForm({ ...form, phone: v })} />
-              <p className="mt-1 text-[11px] text-muted-foreground">WhatsApp si disponible</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("account.whatsapp_available")}</p>
               {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div>
-              <Label htmlFor="a_phone2">Téléphone secondaire (optionnel)</Label>
+              <Label htmlFor="a_phone2">{t("account.secondary_phone")}</Label>
               <PhoneDigitsInput id="a_phone2" dial={country.dial} value={form.phone_secondary}
                 onChange={(v) => setForm({ ...form, phone_secondary: v })} />
               {errors.phone_secondary && <p className="mt-1 text-xs text-destructive">{errors.phone_secondary}</p>}
             </div>
             <div>
-              <Label htmlFor="a_phone3">Téléphone alternatif (optionnel)</Label>
+              <Label htmlFor="a_phone3">{t("account.alt_phone")}</Label>
               <PhoneDigitsInput id="a_phone3" dial={country.dial} value={form.phone_alt}
                 onChange={(v) => setForm({ ...form, phone_alt: v })} />
-              <p className="mt-1 text-[11px] text-muted-foreground">Au cas où un numéro ne fonctionne pas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("account.alt_phone_hint")}</p>
               {errors.phone_alt && <p className="mt-1 text-xs text-destructive">{errors.phone_alt}</p>}
             </div>
             <div>
-              <Label htmlFor="a_addr">Adresse *</Label>
+              <Label htmlFor="a_addr">{t("checkout.address")} *</Label>
               <Input id="a_addr" value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })} maxLength={300} />
               {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
             </div>
             <div>
-              <Label htmlFor="a_city">Quartier / Ville *</Label>
+              <Label htmlFor="a_city">{t("checkout.city")} *</Label>
               <Input id="a_city" value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={100} />
               {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
@@ -447,16 +447,16 @@ function AccountPage() {
             <div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
                 <Crosshair className="h-4 w-4" />
-                {locating ? "Localisation…" : form.latitude ? "Position enregistrée — actualiser" : "Utiliser ma position"}
+                {locating ? t("common.loading") : form.latitude ? t("checkout.location_refresh") : t("checkout.use_location")}
               </Button>
             </div>
             <div>
-              <Label htmlFor="a_note">Note (optionnel)</Label>
+              <Label htmlFor="a_note">{t("checkout.note")}</Label>
               <Textarea id="a_note" rows={2} value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} maxLength={500} />
             </div>
             <Button onClick={save} disabled={saving} className="w-full">
-              {saving ? "Enregistrement…" : "Enregistrer l'adresse"}
+              {saving ? t("common.saving") : t("account.save_address")}
             </Button>
           </div>
         </DialogContent>
