@@ -13,6 +13,9 @@ import {
   DAY_LABELS, DAY_ORDER, DEFAULT_SCHEDULE, normalizeSchedule,
   type DayKey, type ShopSchedule,
 } from "@/lib/shop-hours";
+import {
+  COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, splitPhone, joinPhone,
+} from "@/lib/phone-countries";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
@@ -44,22 +47,34 @@ function VendorSettings() {
   const [schedule, setSchedule] = useState<ShopSchedule>(DEFAULT_SCHEDULE);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "banner" | null>(null);
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [phoneLocal, setPhoneLocal] = useState("");
+  const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [waLocal, setWaLocal] = useState("");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!profile) return;
     const p = profile as unknown as Record<string, unknown>;
+    const phoneRaw = (p.phone as string) ?? "";
+    const waRaw = (p.shop_whatsapp as string) ?? "";
     setF({
       shop_name: (p.shop_name as string) ?? "",
-      phone: (p.phone as string) ?? "",
+      phone: phoneRaw,
       address: (p.address as string) ?? "",
       shop_description: (p.shop_description as string) ?? "",
       shop_hours: (p.shop_hours as string) ?? "",
-      shop_whatsapp: (p.shop_whatsapp as string) ?? "",
+      shop_whatsapp: waRaw,
       shop_logo_url: (p.shop_logo_url as string) ?? null,
       shop_banner_url: (p.shop_banner_url as string) ?? null,
     });
+    const ph = splitPhone(phoneRaw);
+    setPhoneCountry(ph.code);
+    setPhoneLocal(ph.local);
+    const wa = splitPhone(waRaw);
+    setWaCountry(wa.code);
+    setWaLocal(wa.local);
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
   }, [profile]);
 
@@ -98,7 +113,9 @@ function VendorSettings() {
   const save = async () => {
     if (!user) return;
     setSaving(true);
-    const payload = { ...f, shop_hours_schedule: schedule };
+    const phoneFull = joinPhone(phoneCountry, phoneLocal);
+    const waFull = joinPhone(waCountry, waLocal);
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
@@ -251,14 +268,23 @@ function VendorSettings() {
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
         <Label className="text-base font-semibold">Contact</Label>
-        <div className="space-y-1.5">
-          <Label htmlFor="phone">Téléphone</Label>
-          <Input id="phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+225 ..." />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wa">Numéro WhatsApp (optionnel)</Label>
-          <Input id="wa" value={f.shop_whatsapp} onChange={(e) => setF({ ...f, shop_whatsapp: e.target.value })} placeholder="2250700000000" />
-        </div>
+        <PhoneField
+          id="phone"
+          label="Téléphone"
+          country={phoneCountry}
+          local={phoneLocal}
+          onCountryChange={setPhoneCountry}
+          onLocalChange={setPhoneLocal}
+        />
+        <PhoneField
+          id="wa"
+          label="Numéro WhatsApp (optionnel)"
+          country={waCountry}
+          local={waLocal}
+          onCountryChange={setWaCountry}
+          onLocalChange={setWaLocal}
+          showWaTest
+        />
         <div className="space-y-1.5">
           <Label htmlFor="addr">Adresse</Label>
           <Textarea id="addr" rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
@@ -271,6 +297,64 @@ function VendorSettings() {
       <Link to="/account" className="block text-center text-sm text-muted-foreground underline">
         Modifier mon compte
       </Link>
+    </div>
+  );
+}
+
+function PhoneField({
+  id, label, country, local, onCountryChange, onLocalChange, showWaTest,
+}: {
+  id: string;
+  label: string;
+  country: string;
+  local: string;
+  onCountryChange: (code: string) => void;
+  onLocalChange: (v: string) => void;
+  showWaTest?: boolean;
+}) {
+  const c = getCountryByCode(country);
+  const fullDigits = c ? c.dial + local.replace(/\D/g, "") : local.replace(/\D/g, "");
+  const waLink = fullDigits ? `https://wa.me/${fullDigits}` : "";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <select
+          aria-label="Indicatif pays"
+          value={country}
+          onChange={(e) => onCountryChange(e.target.value)}
+          className="h-10 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {COUNTRIES.map((co) => (
+            <option key={co.code} value={co.code}>
+              {co.flag} +{co.dial}
+            </option>
+          ))}
+        </select>
+        <Input
+          id={id}
+          inputMode="tel"
+          value={local}
+          onChange={(e) => onLocalChange(e.target.value.replace(/[^\d\s]/g, ""))}
+          placeholder={c?.example ?? ""}
+          className="flex-1"
+        />
+      </div>
+      {fullDigits && (
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Sera enregistré : <span className="font-mono">+{fullDigits}</span></span>
+          {showWaTest && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary"
+            >
+              Tester sur WhatsApp
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
