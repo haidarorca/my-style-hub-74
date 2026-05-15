@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -18,6 +19,7 @@ function Home() {
   const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
   const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);
   const [quickAddProductId, setQuickAddProductId] = useState<string | null>(null);
+  const hideTabs = useHideOnScroll();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
@@ -123,7 +125,11 @@ function Home() {
       <AppHeader />
 
       {/* Universe tabs (horizontal swipe) */}
-      <div className="sticky top-14 z-30 border-b border-border bg-background">
+      <div
+        className={`sticky top-14 z-30 border-b border-border bg-background transition-transform duration-300 ${
+          hideTabs ? "-translate-y-[calc(100%+3.5rem)]" : "translate-y-0"
+        }`}
+      >
         <div className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-2">
           {universeTabs.map((u) => (
             <button
