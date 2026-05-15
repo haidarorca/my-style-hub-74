@@ -260,3 +260,86 @@ function EditVendorDialog({
     </Dialog>
   );
 }
+
+function VendorScopeFields({
+  sourceId, setSourceId, mode, setMode, intl, setIntl, allowed, setAllowed, radioName,
+}: {
+  sourceId: string | null;
+  setSourceId: (id: string | null) => void;
+  mode: "commission" | "no_commission";
+  setMode: (m: "commission" | "no_commission") => void;
+  intl: boolean;
+  setIntl: (v: boolean) => void;
+  allowed: string[];
+  setAllowed: (updater: (cur: string[]) => string[]) => void;
+  radioName: string;
+}) {
+  const { data: countries } = useCountries({ onlyEnabled: true });
+  const labelOf = useCountryLabel();
+  const sourceCountry = countries?.find((c) => c.id === sourceId);
+  const toggle = (id: string) =>
+    setAllowed((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Pays source des produits *</Label>
+        <CountrySelect value={sourceId} onChange={setSourceId} onlyEnabled placeholder="Choisir le pays source" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Mode commission *</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
+            <input type="radio" name={radioName} checked={mode === "no_commission"} onChange={() => setMode("no_commission")} />
+            <span className="text-xs font-medium">Sans commission</span>
+          </Label>
+          <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
+            <input type="radio" name={radioName} checked={mode === "commission"} onChange={() => setMode("commission")} />
+            <span className="text-xs font-medium">Avec commission</span>
+          </Label>
+        </div>
+      </div>
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm font-semibold">Vente internationale</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Désactivé = livraison uniquement dans {sourceCountry ? labelOf(sourceCountry) : "le pays source"}.
+            </p>
+          </div>
+          <Switch checked={intl} onCheckedChange={setIntl} />
+        </div>
+        {intl && (
+          <div className="space-y-1.5 pt-2 border-t">
+            <Label className="text-xs">Pays de livraison autorisés *</Label>
+            <p className="text-[11px] text-muted-foreground">Cochez chaque pays vers lequel le vendeur peut livrer.</p>
+            <div className="max-h-48 overflow-auto rounded-md border divide-y">
+              {(countries ?? []).map((c) => (
+                <label key={c.id} className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent">
+                  <input type="checkbox" checked={allowed.includes(c.id)} onChange={() => toggle(c.id)} />
+                  <span className="text-base">{c.flag_emoji ?? "🏳️"}</span>
+                  <span className="flex-1 truncate">{labelOf(c)}</span>
+                </label>
+              ))}
+            </div>
+            {allowed.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {allowed.map((id) => {
+                  const c = countries?.find((x) => x.id === id);
+                  if (!c) return null;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px]">
+                      {c.flag_emoji} {c.name}
+                      <button type="button" onClick={() => toggle(id)} aria-label="Retirer">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
