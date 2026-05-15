@@ -279,10 +279,11 @@ function ProductRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => 
     if (!selectedId) return toast.error("Choisissez un produit");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = await sb.from("commission_rules").upsert(
-      { scope: "product", product_id: selectedId, rate_percent: v, is_enabled: true },
-      { onConflict: "product_id" },
-    );
+    const { data: existing } = await sb.from("commission_rules")
+      .select("id").eq("scope", "product").eq("product_id", selectedId).maybeSingle();
+    const { error } = existing
+      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+      : await sb.from("commission_rules").insert({ scope: "product", product_id: selectedId, rate_percent: v, is_enabled: true });
     if (error) return toast.error(error.message);
     toast.success("Règle produit enregistrée"); setRate(""); onChange();
   }
