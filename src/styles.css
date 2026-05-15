@@ -172,6 +172,17 @@ body {
   overflow-y: auto;
 }
 /* Avoid accidental horizontal overflow that breaks vertical scroll on mobile */
-#root, main { max-width: 100%; }
+#root, main { max-width: 100%; overflow-x: clip; }
+
+/* Very small phones (older Android < 360px): trim paddings so content fits */
+@media (max-width: 359px) {
+  .px-3 { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .gap-3 { gap: 0.5rem; }
+}
+
+/* PWA standalone: looks more like a native app */
+@media (display-mode: standalone) {
+  body { user-select: none; -webkit-user-select: none; }
+}
 
 
