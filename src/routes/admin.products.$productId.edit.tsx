@@ -509,31 +509,32 @@ function AdminEditProductPage() {
             const previewUrl = v.image_file ? URL.createObjectURL(v.image_file) : v.remove_image ? null : v.image_url;
             return (
               <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
-                <div className="grid grid-cols-12 items-end gap-2">
-                  <div className="col-span-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-xs font-semibold text-muted-foreground">Variante {i + 1}</div>
+                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 -mt-1 -mr-1" onClick={() => removeVariant(i)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  <div>
                     <Label className="text-[10px]">Taille</Label>
-                    <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} />
+                    <Input className="h-9" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} />
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-1 sm:col-span-2">
                     <Label className="text-[10px]">Couleur / Modèle</Label>
-                    <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} />
+                    <Input className="h-9" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} />
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <Label className="text-[10px]">Hex</Label>
-                    <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
+                    <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-9 w-full rounded border" />
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <Label className="text-[10px]">Stock</Label>
-                    <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
+                    <Input className="h-9" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
                   </div>
-                  <div className="col-span-3">
+                  <div>
                     <Label className="text-[10px]">Prix (opt.)</Label>
-                    <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
-                  </div>
-                  <div className="col-span-1">
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Input className="h-9" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -645,9 +646,9 @@ function AdminEditProductPage() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" onClick={() => router.navigate({ to: "/admin/products" })}>Annuler</Button>
-        <Button type="submit" disabled={submitting}>
+      <div className="sticky bottom-0 -mx-3 flex flex-col-reverse gap-2 border-t bg-background/95 p-3 backdrop-blur sm:flex-row sm:justify-end">
+        <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => router.navigate({ to: "/admin/products" })}>Annuler</Button>
+        <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
           {submitting ? "Enregistrement…" : sensitiveChanged ? "Enregistrer (mot de passe requis)" : "Enregistrer"}
         </Button>
       </div>
