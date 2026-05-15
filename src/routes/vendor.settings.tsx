@@ -203,18 +203,62 @@ function VendorSettings() {
       </div>
 
       <div className="space-y-3 rounded-xl border bg-card p-4">
-        <Label className="text-base font-semibold">Pays d'origine des produits</Label>
+        <Label className="text-base font-semibold">Pays d'origine des produits *</Label>
         <p className="text-[11px] text-muted-foreground">
-          Utilisé pour calculer la commission en fonction du pays de livraison de l'acheteur.
+          Obligatoire. Utilisé pour calculer la commission selon le pays de livraison de l'acheteur.
         </p>
         <CountrySelect
           value={sourceCountryId}
           onChange={setSourceCountryId}
-          allowNull
-          nullLabel="— Non défini —"
           placeholder="Choisir votre pays"
           onlyEnabled
         />
+        {!sourceCountryId && (
+          <p className="text-[11px] font-medium text-destructive">Champ obligatoire.</p>
+        )}
+
+        <div className="pt-2 space-y-2">
+          <Label className="text-base font-semibold">Mode commission *</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Définit si vos prix incluent une commission de la plateforme.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Label
+              htmlFor="vmode-nc"
+              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
+            >
+              <input
+                id="vmode-nc"
+                type="radio"
+                name="vendor-mode"
+                className="mt-1"
+                checked={vendorMode === "no_commission"}
+                onChange={() => setVendorMode("no_commission")}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold">Sans commission</span>
+                <span className="text-[11px] text-muted-foreground">Vente directe, aucune commission appliquée.</span>
+              </span>
+            </Label>
+            <Label
+              htmlFor="vmode-c"
+              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
+            >
+              <input
+                id="vmode-c"
+                type="radio"
+                name="vendor-mode"
+                className="mt-1"
+                checked={vendorMode === "commission"}
+                onChange={() => setVendorMode("commission")}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold">Avec commission</span>
+                <span className="text-[11px] text-muted-foreground">Le prix affiché inclut la commission selon le pays de livraison.</span>
+              </span>
+            </Label>
+          </div>
+        </div>
       </div>
       {/* Schedule editor */}
       <div className="space-y-3 rounded-xl border bg-card p-4">
