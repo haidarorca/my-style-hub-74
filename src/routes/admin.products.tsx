@@ -170,11 +170,11 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, code, price, description, designation, status, rejection_reason, is_edit, vendor_id, product_images(url)")
+        .select("id, name, code, price, description, designation, status, rejection_reason, is_edit, vendor_id, pending_category_request_id, product_images(url), pending_category_request:category_requests!products_pending_category_request_id_fkey(id, level, name, status)")
         .eq("status", status)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as ProductRow[];
+      return (data ?? []) as unknown as ProductRow[];
     },
   });
 
