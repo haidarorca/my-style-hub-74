@@ -231,7 +231,7 @@ function SearchPage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <AppHeader />
-      <div className="mx-auto max-w-3xl px-3 pt-2">
+      <div className="mx-auto max-w-3xl px-[var(--page-px)] pt-2">
         <BackButton fallbackTo="/" />
 
         {/* Stable, non-collapsing search header — fixed height to prevent scroll jitter */}

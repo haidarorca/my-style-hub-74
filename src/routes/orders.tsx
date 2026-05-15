@@ -67,7 +67,7 @@ function OrdersPage() {
   return (
     <div className="min-h-screen bg-background pb-safe">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-3 py-3">
+      <main className="mx-auto max-w-3xl px-[var(--page-px)] py-3">
         <BackButton fallbackTo="/" />
         <h1 className="mb-3 mt-2 text-lg font-bold">Mes commandes</h1>
 

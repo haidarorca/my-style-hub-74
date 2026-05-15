@@ -278,7 +278,7 @@ function AccountPage() {
   return (
     <div className="min-h-screen bg-background pb-safe">
       <AppHeader />
-      <main className="mx-auto max-w-2xl px-3 py-4">
+      <main className="mx-auto max-w-2xl px-[var(--page-px)] py-4">
         <div className="mb-3">
           <BackButton fallbackTo="/" />
         </div>
