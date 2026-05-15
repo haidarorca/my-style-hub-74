@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
+  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag, Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/orders", label: "Commandes", icon: ShoppingBag },
   { to: "/admin/reports", label: "Signalements", icon: Flag },
   { to: "/admin/reviews", label: "Avis", icon: MessageSquare },
+  { to: "/admin/settings", label: "Paramètres du site", icon: Settings },
 ];
 
 function AdminLayout() {
