@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X } from "lucide-react";
-import { RequestCategoryDialog } from "@/components/vendor/RequestCategoryDialog";
+import { Plus, Trash2, Upload, X, Sparkles, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -36,33 +35,43 @@ interface VariantInput {
   color: string;
   color_hex: string;
   stock: number;
-  price_override: string; // string for input, parsed on submit
+  price_override: string;
   image_file: File | null;
 }
+
+// Encoded selector value: "cat:UUID" (approved) or "req:UUID" (pending request).
+type Pick = string;
+const isReq = (v: Pick) => v.startsWith("req:");
+const idOf = (v: Pick) => v.slice(4);
+
+type CatRow = { id: string; name: string; level: number; parent_id: string | null };
+type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
 
 function NewProductPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const qc = useQueryClient();
 
-  // Basic fields
+  // Basic
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
 
-  // Category 3-level
-  const [cat1, setCat1] = useState<string>("");
-  const [cat2, setCat2] = useState<string>("");
-  const [cat3, setCat3] = useState<string>("");
+  // Category picks (3 levels, each "cat:UUID" or "req:UUID")
+  const [pick1, setPick1] = useState<Pick>("");
+  const [pick2, setPick2] = useState<Pick>("");
+  const [pick3, setPick3] = useState<Pick>("");
 
-  // Images
+  // Inline creation state per level
+  const [newOpen, setNewOpen] = useState<0 | 1 | 2 | 3>(0);
+  const [newName, setNewName] = useState("");
+  const [creatingNew, setCreatingNew] = useState(false);
+
+  // Images / variants / customizations
   const [images, setImages] = useState<File[]>([]);
-
-  // Variants
   const [variants, setVariants] = useState<VariantInput[]>([]);
-
-  // Customizations
   const [allowImage, setAllowImage] = useState(false);
   const [imageMessage, setImageMessage] = useState("Téléchargez votre image en haute résolution.");
   const [allowText, setAllowText] = useState(false);
@@ -70,52 +79,133 @@ function NewProductPage() {
   const [allowedFonts, setAllowedFonts] = useState<string[]>([]);
   const [allowAllColors, setAllowAllColors] = useState(false);
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
-
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: cats1 } = useQuery({
-    queryKey: ["cat-l1"],
+  // Approved categories (all levels)
+  const { data: cats } = useQuery({
+    queryKey: ["vendor-new", "cats"],
     queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("level", 1).order("position");
-      return data ?? [];
-    },
-  });
-  const { data: cats2 } = useQuery({
-    queryKey: ["cat-l2", cat1],
-    enabled: !!cat1,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat1).order("position");
-      return data ?? [];
-    },
-  });
-  const { data: cats3 } = useQuery({
-    queryKey: ["cat-l3", cat2],
-    enabled: !!cat2,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat2).order("position");
-      return data ?? [];
+      const { data } = await supabase
+        .from("categories")
+        .select("id, name, level, parent_id")
+        .order("position");
+      return (data ?? []) as CatRow[];
     },
   });
 
-  const finalCategoryId = useMemo(
-    () => cat3 || cat2 || cat1 || null,
-    [cat1, cat2, cat3],
-  );
+  // Vendor's pending requests (so they can reuse them across products)
+  const { data: reqs } = useQuery({
+    queryKey: ["vendor-new", "my-pending-requests", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("category_requests")
+        .select("id, name, level, parent_id, parent_request_id, status")
+        .eq("vendor_id", user!.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      return (data ?? []) as ReqRow[];
+    },
+  });
+
+  // Build option lists per level
+  function optionsFor(level: 1 | 2 | 3): { value: Pick; label: string; pending: boolean }[] {
+    const approved = (cats ?? []).filter((c) => c.level === level);
+    const pending = (reqs ?? []).filter((r) => r.level === level);
+    if (level === 1) {
+      return [
+        ...approved.map((c) => ({ value: `cat:${c.id}`, label: c.name, pending: false })),
+        ...pending
+          .filter((r) => r.parent_id === null && r.parent_request_id === null)
+          .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
+      ];
+    }
+    const parent = level === 2 ? pick1 : pick2;
+    if (!parent) return [];
+    if (isReq(parent)) {
+      // Parent is itself pending → only pending children belong here
+      return pending
+        .filter((r) => r.parent_request_id === idOf(parent))
+        .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true }));
+    }
+    const parentId = idOf(parent);
+    return [
+      ...approved.filter((c) => c.parent_id === parentId).map((c) => ({ value: `cat:${c.id}`, label: c.name, pending: false })),
+      ...pending.filter((r) => r.parent_id === parentId).map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
+    ];
+  }
+
+  const opts1 = useMemo(() => optionsFor(1), [cats, reqs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opts2 = useMemo(() => optionsFor(2), [cats, reqs, pick1]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opts3 = useMemo(() => optionsFor(3), [cats, reqs, pick2]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The "deepest" pick determines what goes onto the product
+  const deepestPick = pick3 || pick2 || pick1 || "";
+
+  function startNew(level: 1 | 2 | 3) {
+    if (level === 2 && !pick1) return toast.error("Choisissez d'abord le rayon.");
+    if (level === 3 && !pick2) return toast.error("Choisissez d'abord la catégorie.");
+    setNewOpen(level);
+    setNewName("");
+  }
+
+  async function confirmNew() {
+    if (!user || !newOpen) return;
+    const trimmed = newName.trim();
+    if (trimmed.length < 2 || trimmed.length > 80) {
+      toast.error("Le nom doit faire entre 2 et 80 caractères.");
+      return;
+    }
+    const level = newOpen;
+    let parent_id: string | null = null;
+    let parent_request_id: string | null = null;
+    if (level >= 2) {
+      const parentPick = level === 2 ? pick1 : pick2;
+      if (!parentPick) return;
+      if (isReq(parentPick)) parent_request_id = idOf(parentPick);
+      else parent_id = idOf(parentPick);
+    }
+    setCreatingNew(true);
+    try {
+      const { data, error } = await supabase
+        .from("category_requests")
+        .insert({
+          vendor_id: user.id,
+          level,
+          name: trimmed,
+          parent_id,
+          parent_request_id,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const newPick: Pick = `req:${data.id}`;
+      // Auto-select at the right level
+      if (level === 1) { setPick1(newPick); setPick2(""); setPick3(""); }
+      else if (level === 2) { setPick2(newPick); setPick3(""); }
+      else { setPick3(newPick); }
+      setNewOpen(0);
+      setNewName("");
+      await qc.invalidateQueries({ queryKey: ["vendor-new", "my-pending-requests"] });
+      toast.success(`« ${trimmed} » envoyé pour validation. Vous pouvez l'utiliser tout de suite.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la création.");
+    } finally {
+      setCreatingNew(false);
+    }
+  }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     setImages((prev) => [...prev, ...files].slice(0, 8));
     e.target.value = "";
   };
-
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
-
   const addVariant = () =>
     setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
-
   const toggleFont = (f: string, checked: boolean) =>
     setAllowedFonts((prev) => (checked ? [...prev, f] : prev.filter((x) => x !== f)));
   const toggleColor = (c: string) =>
@@ -137,16 +227,16 @@ function NewProductPage() {
       toast.error("Prix invalide.");
       return;
     }
-
-    if (!finalCategoryId) {
+    if (!deepestPick) {
       toast.error("Choisissez une catégorie.");
       return;
     }
 
+    const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
+    const pending_category_request_id = isReq(deepestPick) ? idOf(deepestPick) : null;
+
     setSubmitting(true);
     try {
-
-      // 1. Insert product
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -156,9 +246,10 @@ function NewProductPage() {
           designation: designation.trim() || null,
           description: description.trim() || null,
           price: priceNum,
-          category_id: finalCategoryId,
+          category_id,
+          pending_category_request_id,
           status: "pending",
-        } as never)
+        })
         .select("id")
         .single();
       if (prodErr) {
@@ -169,7 +260,6 @@ function NewProductPage() {
       }
       const productId = prod.id as string;
 
-      // 2. Upload images
       const imageRows: { product_id: string; url: string; position: number }[] = [];
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
@@ -183,7 +273,6 @@ function NewProductPage() {
       const { error: imgErr } = await supabase.from("product_images").insert(imageRows);
       if (imgErr) throw imgErr;
 
-      // 3. Insert variants (with optional per-variant image)
       if (variants.length > 0) {
         const variantRows: Array<{
           product_id: string; size: string | null; color: string | null;
@@ -214,7 +303,6 @@ function NewProductPage() {
         if (varErr) throw varErr;
       }
 
-      // 4. Insert customizations
       const customRows: {
         product_id: string;
         type: "image" | "name";
@@ -225,11 +313,7 @@ function NewProductPage() {
         allow_all_colors?: boolean;
       }[] = [];
       if (allowImage) {
-        customRows.push({
-          product_id: productId,
-          type: "image",
-          image_size_message: imageMessage.trim() || null,
-        });
+        customRows.push({ product_id: productId, type: "image", image_size_message: imageMessage.trim() || null });
       }
       if (allowText) {
         customRows.push({
@@ -249,8 +333,7 @@ function NewProductPage() {
       toast.success("Produit créé. En attente de validation par l'admin.");
       router.navigate({ to: "/vendor" });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erreur inconnue";
-      toast.error(msg);
+      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setSubmitting(false);
     }
@@ -267,11 +350,7 @@ function NewProductPage() {
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
                 <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5"
-                >
+                <button type="button" onClick={() => removeImage(i)} className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5">
                   <X className="h-3 w-3" />
                 </button>
               </div>
@@ -315,43 +394,64 @@ function NewProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Catégorie</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div>
-            <Label>Rayon</Label>
-            <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-              <SelectContent>
-                {cats1?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {cat1 && (
-            <div>
-              <Label>Catégorie</Label>
-              <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {cats2?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Choisissez dans l'ordre : rayon → catégorie → sous-catégorie. Si elle n'existe pas, créez-la, elle sera utilisable immédiatement (en attente d'admin).
+          </p>
+
+          <CategoryLevel
+            label="Rayon"
+            placeholder="Choisir un rayon"
+            options={opts1}
+            value={pick1}
+            onChange={(v) => { setPick1(v); setPick2(""); setPick3(""); setNewOpen(0); }}
+            isCreating={newOpen === 1}
+            onStartNew={() => startNew(1)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={false}
+          />
+
+          <CategoryLevel
+            label="Catégorie"
+            placeholder={pick1 ? "Choisir une catégorie" : "Choisissez d'abord le rayon"}
+            options={opts2}
+            value={pick2}
+            onChange={(v) => { setPick2(v); setPick3(""); setNewOpen(0); }}
+            isCreating={newOpen === 2}
+            onStartNew={() => startNew(2)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={!pick1}
+          />
+
+          <CategoryLevel
+            label="Sous-catégorie"
+            placeholder={pick2 ? "Choisir une sous-catégorie" : "Choisissez d'abord la catégorie"}
+            options={opts3}
+            value={pick3}
+            onChange={(v) => { setPick3(v); setNewOpen(0); }}
+            isCreating={newOpen === 3}
+            onStartNew={() => startNew(3)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={!pick2}
+          />
+
+          {deepestPick && isReq(deepestPick) && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Cette catégorie attend la validation de l'admin. Le produit restera en attente jusque-là.</span>
             </div>
           )}
-          {cat2 && (
-            <div>
-              <Label>Sous-catégorie</Label>
-              <Select value={cat3} onValueChange={setCat3}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {cats3?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="pt-1">
-            <RequestCategoryDialog />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Vous ne trouvez pas la bonne catégorie ? Proposez-en une à l'admin.
-            </p>
-          </div>
         </CardContent>
       </Card>
 
@@ -464,10 +564,7 @@ function NewProductPage() {
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {FONT_OPTIONS.map((f) => (
                       <label key={f} className="flex items-center gap-2 rounded border bg-background p-2 text-xs">
-                        <Checkbox
-                          checked={allowedFonts.includes(f)}
-                          onCheckedChange={(v) => toggleFont(f, !!v)}
-                        />
+                        <Checkbox checked={allowedFonts.includes(f)} onCheckedChange={(v) => toggleFont(f, !!v)} />
                         <span style={{ fontFamily: f }}>{f}</span>
                       </label>
                     ))}
@@ -510,5 +607,88 @@ function NewProductPage() {
         </Button>
       </div>
     </form>
+  );
+}
+
+function CategoryLevel({
+  label, placeholder, options, value, onChange,
+  isCreating, onStartNew, newName, setNewName, onConfirmNew, onCancelNew, creating, disabled,
+}: {
+  label: string;
+  placeholder: string;
+  options: { value: Pick; label: string; pending: boolean }[];
+  value: Pick;
+  onChange: (v: Pick) => void;
+  isCreating: boolean;
+  onStartNew: () => void;
+  newName: string;
+  setNewName: (v: string) => void;
+  onConfirmNew: () => void;
+  onCancelNew: () => void;
+  creating: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label className={disabled ? "text-muted-foreground" : ""}>{label}</Label>
+        {!isCreating && !disabled && (
+          <button
+            type="button"
+            onClick={onStartNew}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+          >
+            <Plus className="h-3 w-3" /> Nouvelle
+          </button>
+        )}
+      </div>
+
+      {isCreating ? (
+        <div className="flex gap-2">
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            maxLength={80}
+            placeholder={`Nom de la nouvelle ${label.toLowerCase()}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); onConfirmNew(); }
+              if (e.key === "Escape") { e.preventDefault(); onCancelNew(); }
+            }}
+          />
+          <Button type="button" size="sm" onClick={onConfirmNew} disabled={creating}>
+            {creating ? "…" : "Créer"}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onCancelNew} disabled={creating}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <Select value={value} onValueChange={onChange} disabled={disabled}>
+          <SelectTrigger>
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.length === 0 && (
+              <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                Aucune option — créez-en une.
+              </div>
+            )}
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                <span className="inline-flex items-center gap-2">
+                  {o.label}
+                  {o.pending && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                      <Clock className="h-2.5 w-2.5" /> En attente
+                    </span>
+                  )}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
   );
 }
