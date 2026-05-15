@@ -370,9 +370,9 @@ function CartPage() {
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adresse de livraison</DialogTitle>
+            <DialogTitle>{t("checkout.delivery_address")}</DialogTitle>
             <DialogDescription>
-              Choisissez une adresse enregistrée ou ajoutez-en une nouvelle.
+              {t("checkout.address_choice_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -383,14 +383,14 @@ function CartPage() {
                   mode === "saved" ? "bg-background shadow-sm" : "text-muted-foreground")}
                 onClick={() => setMode("saved")}
               >
-                Mes adresses ({addresses.length})
+                {t("checkout.saved_addresses")} ({addresses.length})
               </button>
               <button
                 className={cn("flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors",
                   mode === "new" ? "bg-background shadow-sm" : "text-muted-foreground")}
                 onClick={() => setMode("new")}
               >
-                + Nouvelle
+                + {t("checkout.new_address")}
               </button>
             </div>
           )}
@@ -413,7 +413,7 @@ function CartPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">
                             {a.label}
-                            {a.is_default && <span className="ml-2 text-[10px] font-normal text-primary">★ par défaut</span>}
+                            {a.is_default && <span className="ms-2 text-[10px] font-normal text-primary">★ {t("common.default")}</span>}
                           </p>
                           <p className="text-sm">{a.full_name} · {a.phone}</p>
                           <p className="text-xs text-muted-foreground">{a.address} — {a.city}</p>
@@ -426,7 +426,7 @@ function CartPage() {
               })}
               <li>
                 <Link to="/account" className="block text-center text-xs text-primary hover:underline">
-                  Gérer mes adresses
+                  {t("checkout.manage_addresses")}
                 </Link>
               </li>
             </ul>
@@ -434,55 +434,55 @@ function CartPage() {
             <div className="space-y-3">
               {user && (
                 <div>
-                  <Label htmlFor="n_label">Libellé *</Label>
-                  <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
+                  <Label htmlFor="n_label">{t("checkout.label")} *</Label>
+                  <Input id="n_label" placeholder={t("checkout.label_placeholder")} value={newForm.label}
                     onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
                   {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
                 </div>
               )}
               <div>
-                <Label htmlFor="n_name">Nom complet *</Label>
+                <Label htmlFor="n_name">{t("checkout.full_name")} *</Label>
                 <Input id="n_name" value={newForm.full_name}
                   onChange={(e) => setNewForm({ ...newForm, full_name: e.target.value })} maxLength={100} />
                 {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
               </div>
               <div>
-                <Label htmlFor="n_phone">Téléphone WhatsApp *</Label>
+                <Label htmlFor="n_phone">{t("checkout.whatsapp_phone")} *</Label>
                 <Input id="n_phone" type="tel" placeholder="+221 77 000 00 00" value={newForm.phone}
                   onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })} maxLength={20} />
                 {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
               </div>
               <div>
-                <Label htmlFor="n_addr">Adresse *</Label>
+                <Label htmlFor="n_addr">{t("checkout.address")} *</Label>
                 <Input id="n_addr" value={newForm.address}
                   onChange={(e) => setNewForm({ ...newForm, address: e.target.value })} maxLength={300} />
                 {errors.address && <p className="mt-1 text-xs text-destructive">{errors.address}</p>}
               </div>
               <div>
-                <Label htmlFor="n_city">Quartier / Ville *</Label>
+                <Label htmlFor="n_city">{t("checkout.city")} *</Label>
                 <Input id="n_city" value={newForm.city}
                   onChange={(e) => setNewForm({ ...newForm, city: e.target.value })} maxLength={100} />
                 {errors.city && <p className="mt-1 text-xs text-destructive">{errors.city}</p>}
               </div>
               <Button type="button" variant="outline" size="sm" onClick={useGeolocation} disabled={locating} className="w-full">
                 <Crosshair className="h-4 w-4" />
-                {locating ? "Localisation…" : newForm.latitude ? "Position enregistrée — actualiser" : "Utiliser ma position"}
+                {locating ? t("common.loading") : newForm.latitude ? t("checkout.location_refresh") : t("checkout.use_location")}
               </Button>
               <div>
-                <Label htmlFor="n_note">Note (optionnel)</Label>
+                <Label htmlFor="n_note">{t("checkout.note")}</Label>
                 <Textarea id="n_note" rows={2} value={newForm.note}
                   onChange={(e) => setNewForm({ ...newForm, note: e.target.value })} maxLength={500} />
               </div>
               <p className="text-[11px] text-muted-foreground">
                 <MapPin className="mr-1 inline h-3 w-3" />
-                Cette adresse sera enregistrée dans votre carnet pour vos prochaines commandes.
+                {t("checkout.address_saved_next")}
               </p>
             </div>
           )}
 
           <div className="mt-4 space-y-2 border-t border-border pt-3">
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-              {submitting ? "Envoi…" : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel="Valider et envoyer sur WhatsApp" defaultSize="md" />}
+              {submitting ? t("checkout.submitting") : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel={t("checkout.confirm_whatsapp")} defaultSize="md" />}
             </Button>
           </div>
         </DialogContent>
