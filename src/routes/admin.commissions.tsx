@@ -90,6 +90,34 @@ function useRules() {
   });
 }
 
+type SaveCommissionRuleInput = {
+  scope: Scope;
+  rate_percent: number;
+  is_enabled?: boolean;
+  vendor_id?: string | null;
+  category_id?: string | null;
+  product_id?: string | null;
+  source_country_id?: string | null;
+  destination_country_id?: string | null;
+  note?: string | null;
+};
+
+async function saveCommissionRule(input: SaveCommissionRuleInput) {
+  const { data, error } = await sb.rpc("upsert_commission_rule", {
+    _scope: input.scope,
+    _rate_percent: input.rate_percent,
+    _is_enabled: input.is_enabled ?? true,
+    _vendor_id: input.vendor_id ?? null,
+    _category_id: input.category_id ?? null,
+    _product_id: input.product_id ?? null,
+    _source_country_id: input.source_country_id ?? null,
+    _destination_country_id: input.destination_country_id ?? null,
+    _note: input.note ?? null,
+  });
+  if (error) throw error;
+  return data as Rule;
+}
+
 function useCategories() {
   return useQuery({
     queryKey: ["categories-flat"],
