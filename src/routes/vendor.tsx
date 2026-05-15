@@ -26,6 +26,19 @@ function VendorLayout() {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
+  const { data: unread } = useQuery({
+    queryKey: ["vendor", "notif-unread", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("is_read", false);
+      return count ?? 0;
+    },
+  });
+
   useEffect(() => {
     if (loading) return;
     if (!user) router.navigate({ to: "/login" });
