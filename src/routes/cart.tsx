@@ -428,12 +428,14 @@ function CartPage() {
             </ul>
           ) : (
             <div className="space-y-3">
-              <div>
-                <Label htmlFor="n_label">Libellé *</Label>
-                <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
-                  onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
-                {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
-              </div>
+              {user && (
+                <div>
+                  <Label htmlFor="n_label">Libellé *</Label>
+                  <Input id="n_label" placeholder="Domicile, Bureau…" value={newForm.label}
+                    onChange={(e) => setNewForm({ ...newForm, label: e.target.value })} maxLength={50} />
+                  {errors.label && <p className="mt-1 text-xs text-destructive">{errors.label}</p>}
+                </div>
+              )}
               <div>
                 <Label htmlFor="n_name">Nom complet *</Label>
                 <Input id="n_name" value={newForm.full_name}
