@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PhoneInput } from "@/components/ui/phone-input";
+import { CountryPicker, PhoneDigitsInput, DEFAULT_COUNTRY, parsePhone, type Country } from "@/components/ui/phone-input";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +71,7 @@ function AccountPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Address | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -96,10 +97,12 @@ function AccountPage() {
 
   const openNew = () => {
     setEditing(null);
+    const parsedProfile = profile?.phone ? parsePhone(profile.phone) : null;
+    setCountry(parsedProfile?.country ?? DEFAULT_COUNTRY);
     setForm({
       ...emptyForm,
       full_name: profile?.full_name ?? "",
-      phone: profile?.phone ?? "",
+      phone: parsedProfile?.local ?? "",
     });
     setErrors({});
     setOpen(true);
@@ -107,12 +110,16 @@ function AccountPage() {
 
   const openEdit = (a: Address) => {
     setEditing(a);
+    const p1 = parsePhone(a.phone);
+    const p2 = a.phone_secondary ? parsePhone(a.phone_secondary) : null;
+    const p3 = a.phone_alt ? parsePhone(a.phone_alt) : null;
+    setCountry(p1.country);
     setForm({
       label: a.label,
       full_name: a.full_name,
-      phone: a.phone,
-      phone_secondary: a.phone_secondary ?? "",
-      phone_alt: a.phone_alt ?? "",
+      phone: p1.local,
+      phone_secondary: p2?.local ?? "",
+      phone_alt: p3?.local ?? "",
       address: a.address,
       city: a.city,
       note: a.note ?? "",
@@ -145,7 +152,17 @@ function AccountPage() {
 
   const save = async () => {
     if (!user) return;
-    const parsed = addressSchema.safeParse(form);
+    const combine = (digits: string) => {
+      const d = (digits ?? "").trim();
+      return d ? `${country.dial} ${d}` : "";
+    };
+    const toValidate = {
+      ...form,
+      phone: combine(form.phone),
+      phone_secondary: combine(form.phone_secondary),
+      phone_alt: combine(form.phone_alt),
+    };
+    const parsed = addressSchema.safeParse(toValidate);
     if (!parsed.success) {
       const e: Record<string, string> = {};
       for (const i of parsed.error.issues) {
@@ -322,21 +339,28 @@ function AccountPage() {
               {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
             </div>
             <div>
+              <Label>Pays *</Label>
+              <CountryPicker value={country} onChange={setCountry} />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                L'indicatif {country.dial} s'applique aux trois numéros.
+              </p>
+            </div>
+            <div>
               <Label htmlFor="a_phone">Téléphone principal *</Label>
-              <PhoneInput id="a_phone" value={form.phone}
+              <PhoneDigitsInput id="a_phone" dial={country.dial} value={form.phone}
                 onChange={(v) => setForm({ ...form, phone: v })} />
               <p className="mt-1 text-[11px] text-muted-foreground">WhatsApp si disponible</p>
               {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div>
               <Label htmlFor="a_phone2">Téléphone secondaire (optionnel)</Label>
-              <PhoneInput id="a_phone2" value={form.phone_secondary}
+              <PhoneDigitsInput id="a_phone2" dial={country.dial} value={form.phone_secondary}
                 onChange={(v) => setForm({ ...form, phone_secondary: v })} />
               {errors.phone_secondary && <p className="mt-1 text-xs text-destructive">{errors.phone_secondary}</p>}
             </div>
             <div>
               <Label htmlFor="a_phone3">Téléphone alternatif (optionnel)</Label>
-              <PhoneInput id="a_phone3" value={form.phone_alt}
+              <PhoneDigitsInput id="a_phone3" dial={country.dial} value={form.phone_alt}
                 onChange={(v) => setForm({ ...form, phone_alt: v })} />
               <p className="mt-1 text-[11px] text-muted-foreground">Au cas où un numéro ne fonctionne pas</p>
               {errors.phone_alt && <p className="mt-1 text-xs text-destructive">{errors.phone_alt}</p>}
