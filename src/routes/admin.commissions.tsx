@@ -155,60 +155,133 @@ function useVendors() {
   });
 }
 
+/* ---------- Reusable searchable multi-select list ---------- */
+function CheckList<T extends { id: string }>({
+  items, selected, onToggle, render, empty = "Aucun résultat.",
+}: {
+  items: T[]; selected: Set<string>; onToggle: (id: string) => void;
+  render: (item: T) => React.ReactNode; empty?: string;
+}) {
+  if (items.length === 0) return <p className="px-2 py-3 text-xs text-muted-foreground">{empty}</p>;
+  return (
+    <ul className="max-h-56 overflow-auto rounded-md border bg-background">
+      {items.map((it) => {
+        const checked = selected.has(it.id);
+        return (
+          <li key={it.id}>
+            <label className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent">
+              <input type="checkbox" checked={checked} onChange={() => onToggle(it.id)} className="h-4 w-4" />
+              <span className="min-w-0 flex-1 truncate">{render(it)}</span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function VendorPicker({ value, onChange: setValue }: { value: string; onChange: (id: string) => void }) {
+  const { data: vendors } = useVendors();
+  return (
+    <Select value={value || "__all__"} onValueChange={(v) => setValue(v === "__all__" ? "" : v)}>
+      <SelectTrigger><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all__">Tous les vendeurs (règle générale)</SelectItem>
+        {(vendors ?? []).map((v) => (
+          <SelectItem key={v.user_id} value={v.user_id}>
+            {v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function RatePresets({ onPick }: { onPick: (n: number) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="mr-1 text-xs text-muted-foreground">Préréglages :</span>
+      {[0, 2, 5, 10, 15, 20, 25, 30].map((p) => (
+        <Button key={p} type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
+          onClick={() => onPick(p)}>{p}%</Button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- Vendors ---------- */
 function VendorRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => void }) {
   const { data: vendors } = useVendors();
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [rate, setRate] = useState("");
 
   const filtered = (vendors ?? []).filter((v) => {
     const t = (v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email || "").toLowerCase();
     return !search || t.includes(search.toLowerCase());
-  });
+  }).map((v) => ({ id: v.user_id, ...v }));
 
-  async function add() {
-    if (!selectedId) return toast.error("Choisissez un vendeur");
+  function toggle(id: string) {
+    setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+
+  async function apply() {
+    if (picked.size === 0) return toast.error("Sélectionnez au moins un vendeur");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { data: existing } = await sb.from("commission_rules")
-      .select("id").eq("scope", "vendor").eq("vendor_id", selectedId)
-      .is("category_id", null).is("product_id", null).maybeSingle();
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({ scope: "vendor", vendor_id: selectedId, rate_percent: v, is_enabled: true });
-    if (error) return toast.error(error.message);
-    toast.success("Règle vendeur enregistrée"); setRate(""); onChange();
+    let ok = 0, fail = 0;
+    for (const vendor_id of picked) {
+      const { data: existing } = await sb.from("commission_rules")
+        .select("id").eq("scope", "vendor").eq("vendor_id", vendor_id)
+        .is("category_id", null).is("product_id", null).maybeSingle();
+      const { error } = existing
+        ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+        : await sb.from("commission_rules").insert({ scope: "vendor", vendor_id, rate_percent: v, is_enabled: true });
+      if (error) fail++; else ok++;
+    }
+    toast.success(`${ok} règle(s) enregistrée(s)${fail ? `, ${fail} échec(s)` : ""}`);
+    setPicked(new Set()); setRate(""); onChange();
   }
 
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Par vendeur</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-          <div>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Rechercher un vendeur" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-7" />
-            </div>
-            <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger className="mt-2"><SelectValue placeholder="Choisir un vendeur" /></SelectTrigger>
-              <SelectContent>
-                {filtered.map((v) => (
-                  <SelectItem key={v.user_id} value={v.user_id}>
-                    {v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input type="number" step="0.01" placeholder="%" value={rate} onChange={(e) => setRate(e.target.value)} className="w-24" />
-          <Button onClick={add}><Plus className="mr-1 h-4 w-4" /> Ajouter</Button>
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Rechercher un vendeur (nom, boutique, email)" value={search}
+            onChange={(e) => setSearch(e.target.value)} className="pl-7" />
         </div>
-
-        <RuleList rules={rules} onChange={onChange} labelOf={(r) => {
-          const v = vendors?.find((x) => x.user_id === r.vendor_id);
-          return v?.profiles?.shop_name || v?.profiles?.full_name || v?.profiles?.email || r.vendor_id || "—";
-        }} />
+        <CheckList
+          items={filtered}
+          selected={picked}
+          onToggle={toggle}
+          render={(v: any) => (
+            <span className="flex items-center justify-between gap-2">
+              <span className="truncate">{v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{v.profiles?.email}</span>
+            </span>
+          )}
+          empty="Aucun vendeur trouvé."
+        />
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-xs">Taux (%)</label>
+            <Input type="number" step="0.01" placeholder="%" value={rate}
+              onChange={(e) => setRate(e.target.value)} className="w-28" />
+          </div>
+          <Button onClick={apply}>
+            <Plus className="mr-1 h-4 w-4" /> Appliquer à {picked.size || "—"} vendeur(s)
+          </Button>
+        </div>
+        <RatePresets onPick={(n) => setRate(String(n))} />
+        <div className="border-t pt-2">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Règles existantes</p>
+          <RuleList rules={rules} onChange={onChange} labelOf={(r) => {
+            const v = vendors?.find((x) => x.user_id === r.vendor_id);
+            return v?.profiles?.shop_name || v?.profiles?.full_name || v?.profiles?.email || r.vendor_id || "—";
+          }} />
+        </div>
       </CardContent>
     </Card>
   );
@@ -228,45 +301,91 @@ function useCategories() {
 
 function CategoryRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => void }) {
   const { data: cats } = useCategories();
-  const [selectedId, setSelectedId] = useState("");
+  const { data: vendors } = useVendors();
+  const [vendorId, setVendorId] = useState("");
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [rate, setRate] = useState("");
 
   const labelById = useMemo(() => {
     const m = new Map<string, string>();
-    (cats ?? []).forEach((c) => m.set(c.id, `${"— ".repeat(c.level - 1)}${c.name}`));
+    (cats ?? []).forEach((c) => m.set(c.id, `${"— ".repeat(Math.max(0, c.level - 1))}${c.name}`));
     return m;
   }, [cats]);
 
-  async function add() {
-    if (!selectedId) return toast.error("Choisissez une catégorie");
+  const filtered = (cats ?? []).filter((c) =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  function toggle(id: string) {
+    setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+
+  async function apply() {
+    if (picked.size === 0) return toast.error("Sélectionnez au moins une catégorie");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { data: existing } = await sb.from("commission_rules")
-      .select("id").eq("scope", "category").eq("category_id", selectedId).is("vendor_id", null).maybeSingle();
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({ scope: "category", category_id: selectedId, rate_percent: v, is_enabled: true });
-    if (error) return toast.error(error.message);
-    toast.success("Règle catégorie enregistrée"); setRate(""); onChange();
+    let ok = 0, fail = 0;
+    for (const category_id of picked) {
+      const baseQ = sb.from("commission_rules").select("id")
+        .eq("scope", "category").eq("category_id", category_id);
+      const { data: existing } = await (vendorId ? baseQ.eq("vendor_id", vendorId) : baseQ.is("vendor_id", null)).maybeSingle();
+      const { error } = existing
+        ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+        : await sb.from("commission_rules").insert({
+            scope: "category", category_id, vendor_id: vendorId || null, rate_percent: v, is_enabled: true,
+          });
+      if (error) fail++; else ok++;
+    }
+    toast.success(`${ok} règle(s) enregistrée(s)${fail ? `, ${fail} échec(s)` : ""}`);
+    setPicked(new Set()); setRate(""); onChange();
   }
 
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Par catégorie</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-          <Select value={selectedId} onValueChange={setSelectedId}>
-            <SelectTrigger><SelectValue placeholder="Choisir une catégorie" /></SelectTrigger>
-            <SelectContent>
-              {(cats ?? []).map((c) => (
-                <SelectItem key={c.id} value={c.id}>{labelById.get(c.id)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input type="number" step="0.01" placeholder="%" value={rate} onChange={(e) => setRate(e.target.value)} className="w-24" />
-          <Button onClick={add}><Plus className="mr-1 h-4 w-4" /> Ajouter</Button>
+        <div>
+          <label className="text-xs">Exception pour un vendeur (optionnel)</label>
+          <VendorPicker value={vendorId} onChange={setVendorId} />
         </div>
-        <RuleList rules={rules} onChange={onChange} labelOf={(r) => labelById.get(r.category_id ?? "") ?? r.category_id ?? "—"} />
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Rechercher une catégorie / sous-catégorie" value={search}
+            onChange={(e) => setSearch(e.target.value)} className="pl-7" />
+        </div>
+        <CheckList
+          items={filtered}
+          selected={picked}
+          onToggle={toggle}
+          render={(c: any) => (
+            <span className="flex items-center justify-between gap-2">
+              <span className="truncate">{labelById.get(c.id)}</span>
+              <Badge variant="outline" className="shrink-0">N{c.level}</Badge>
+            </span>
+          )}
+          empty="Aucune catégorie trouvée."
+        />
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-xs">Taux (%)</label>
+            <Input type="number" step="0.01" placeholder="%" value={rate}
+              onChange={(e) => setRate(e.target.value)} className="w-28" />
+          </div>
+          <Button onClick={apply}>
+            <Plus className="mr-1 h-4 w-4" /> Appliquer à {picked.size || "—"} catégorie(s)
+          </Button>
+        </div>
+        <RatePresets onPick={(n) => setRate(String(n))} />
+        <div className="border-t pt-2">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Règles existantes</p>
+          <RuleList rules={rules} onChange={onChange} labelOf={(r) => {
+            const cat = labelById.get(r.category_id ?? "") ?? r.category_id ?? "—";
+            const v = vendors?.find((x) => x.user_id === r.vendor_id);
+            const vName = v ? (v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email) : null;
+            return vName ? `${cat} — ${vName}` : `${cat} (général)`;
+          }} />
+        </div>
       </CardContent>
     </Card>
   );
@@ -274,33 +393,24 @@ function CategoryRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () =>
 
 /* ---------- Products ---------- */
 function ProductRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => void }) {
+  const { data: vendors } = useVendors();
+  const [vendorId, setVendorId] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [rate, setRate] = useState("");
 
   const { data: products } = useQuery({
-    queryKey: ["products-search", search],
-    enabled: search.length > 1,
+    queryKey: ["products-search", search, vendorId],
+    enabled: search.length >= 1,
     queryFn: async () => {
-      const { data } = await supabase.from("products").select("id, name, code").ilike("name", `%${search}%`).limit(20);
+      let q = supabase.from("products").select("id, name, code")
+        .or(`name.ilike.%${search}%,code.ilike.%${search}%`).limit(50);
+      if (vendorId) q = q.eq("vendor_id", vendorId);
+      const { data } = await q;
       return (data ?? []) as { id: string; name: string; code: string }[];
     },
   });
 
-  async function add() {
-    if (!selectedId) return toast.error("Choisissez un produit");
-    const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { data: existing } = await sb.from("commission_rules")
-      .select("id").eq("scope", "product").eq("product_id", selectedId).maybeSingle();
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({ scope: "product", product_id: selectedId, rate_percent: v, is_enabled: true });
-    if (error) return toast.error(error.message);
-    toast.success("Règle produit enregistrée"); setRate(""); onChange();
-  }
-
-  // map product_id → name for display
   const ids = rules.map((r) => r.product_id).filter(Boolean) as string[];
   const { data: namedProducts } = useQuery({
     queryKey: ["product-names", ids.sort().join(",")],
@@ -311,29 +421,80 @@ function ProductRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => 
     },
   });
 
+  function toggle(id: string) {
+    setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+
+  async function apply() {
+    if (picked.size === 0) return toast.error("Sélectionnez au moins un produit");
+    const v = Number(rate);
+    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
+    let ok = 0, fail = 0;
+    for (const product_id of picked) {
+      const baseQ = sb.from("commission_rules").select("id")
+        .eq("scope", "product").eq("product_id", product_id);
+      const { data: existing } = await (vendorId ? baseQ.eq("vendor_id", vendorId) : baseQ.is("vendor_id", null)).maybeSingle();
+      const { error } = existing
+        ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+        : await sb.from("commission_rules").insert({
+            scope: "product", product_id, vendor_id: vendorId || null, rate_percent: v, is_enabled: true,
+          });
+      if (error) fail++; else ok++;
+    }
+    toast.success(`${ok} règle(s) enregistrée(s)${fail ? `, ${fail} échec(s)` : ""}`);
+    setPicked(new Set()); setRate(""); onChange();
+  }
+
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Par produit</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-          <div>
-            <Input placeholder="Rechercher un produit (nom)" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger className="mt-2"><SelectValue placeholder="Choisir un produit" /></SelectTrigger>
-              <SelectContent>
-                {(products ?? []).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input type="number" step="0.01" placeholder="%" value={rate} onChange={(e) => setRate(e.target.value)} className="w-24" />
-          <Button onClick={add}><Plus className="mr-1 h-4 w-4" /> Ajouter</Button>
+        <div>
+          <label className="text-xs">Exception pour un vendeur (optionnel)</label>
+          <VendorPicker value={vendorId} onChange={setVendorId} />
         </div>
-        <RuleList rules={rules} onChange={onChange} labelOf={(r) => {
-          const p = namedProducts?.find((x) => x.id === r.product_id);
-          return p ? `${p.name} (${p.code})` : r.product_id ?? "—";
-        }} />
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Rechercher un produit (nom ou code)" value={search}
+            onChange={(e) => setSearch(e.target.value)} className="pl-7" />
+        </div>
+        {search.length < 1 ? (
+          <p className="px-2 py-3 text-xs text-muted-foreground">Tapez pour rechercher des produits.</p>
+        ) : (
+          <CheckList
+            items={products ?? []}
+            selected={picked}
+            onToggle={toggle}
+            render={(p: any) => (
+              <span className="flex items-center justify-between gap-2">
+                <span className="truncate">{p.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{p.code}</span>
+              </span>
+            )}
+            empty="Aucun produit."
+          />
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-xs">Taux (%)</label>
+            <Input type="number" step="0.01" placeholder="%" value={rate}
+              onChange={(e) => setRate(e.target.value)} className="w-28" />
+          </div>
+          <Button onClick={apply}>
+            <Plus className="mr-1 h-4 w-4" /> Appliquer à {picked.size || "—"} produit(s)
+          </Button>
+        </div>
+        <RatePresets onPick={(n) => setRate(String(n))} />
+        <div className="border-t pt-2">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Règles existantes</p>
+          <RuleList rules={rules} onChange={onChange} labelOf={(r) => {
+            const p = namedProducts?.find((x) => x.id === r.product_id);
+            const prod = p ? `${p.name} (${p.code})` : r.product_id ?? "—";
+            const v = vendors?.find((x) => x.user_id === r.vendor_id);
+            const vName = v ? (v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email) : null;
+            return vName ? `${prod} — ${vName}` : `${prod} (général)`;
+          }} />
+        </div>
       </CardContent>
     </Card>
   );
