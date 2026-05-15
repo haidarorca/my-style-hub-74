@@ -94,24 +94,33 @@ const fmtTime = (t: string) => {
   return m === "00" ? `${parseInt(h, 10)}h` : `${parseInt(h, 10)}h${m}`;
 };
 
-export function formatDayValue(d: DaySchedule): string {
-  if (!d.open || d.slots.length === 0) return "Fermé";
+export interface ScheduleLabels {
+  short?: Partial<Record<DayKey, string>>;
+  closed?: string;
+}
+
+export function formatDayValue(d: DaySchedule, labels?: ScheduleLabels): string {
+  if (!d.open || d.slots.length === 0) return labels?.closed ?? "Fermé";
   return d.slots.map((s) => `${fmtTime(s.from)} – ${fmtTime(s.to)}`).join(", ");
 }
 
 /** Group consecutive days with same hours, e.g. "Lun – Sam : 9h–12h, 14h–19h". */
-export function summarizeSchedule(schedule: ShopSchedule): { label: string; value: string }[] {
+export function summarizeSchedule(
+  schedule: ShopSchedule,
+  labels?: ScheduleLabels,
+): { label: string; value: string }[] {
+  const short = (k: DayKey) => labels?.short?.[k] ?? DAY_SHORT[k];
   const groups: { days: DayKey[]; value: string }[] = [];
   for (const day of DAY_ORDER) {
-    const value = formatDayValue(schedule[day]);
+    const value = formatDayValue(schedule[day], labels);
     const last = groups[groups.length - 1];
     if (last && last.value === value) last.days.push(day);
     else groups.push({ days: [day], value });
   }
   return groups.map((g) => ({
     label: g.days.length === 1
-      ? DAY_SHORT[g.days[0]]
-      : `${DAY_SHORT[g.days[0]]} – ${DAY_SHORT[g.days[g.days.length - 1]]}`,
+      ? short(g.days[0])
+      : `${short(g.days[0])} – ${short(g.days[g.days.length - 1])}`,
     value: g.value,
   }));
 }
