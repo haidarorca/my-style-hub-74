@@ -56,6 +56,52 @@ function NewProductPage() {
   const [cat2, setCat2] = useState<string>("");
   const [cat3, setCat3] = useState<string>("");
 
+  // Images
+  const [images, setImages] = useState<File[]>([]);
+
+  // Variants
+  const [variants, setVariants] = useState<VariantInput[]>([]);
+
+  // Customizations
+  const [allowImage, setAllowImage] = useState(false);
+  const [imageMessage, setImageMessage] = useState("Téléchargez votre image en haute résolution.");
+  const [allowText, setAllowText] = useState(false);
+  const [allowAllFonts, setAllowAllFonts] = useState(false);
+  const [allowedFonts, setAllowedFonts] = useState<string[]>([]);
+  const [allowAllColors, setAllowAllColors] = useState(false);
+  const [allowedColors, setAllowedColors] = useState<string[]>([]);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: cats1 } = useQuery({
+    queryKey: ["cat-l1"],
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("id, name").eq("level", 1).order("position");
+      return data ?? [];
+    },
+  });
+  const { data: cats2 } = useQuery({
+    queryKey: ["cat-l2", cat1],
+    enabled: !!cat1,
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat1).order("position");
+      return data ?? [];
+    },
+  });
+  const { data: cats3 } = useQuery({
+    queryKey: ["cat-l3", cat2],
+    enabled: !!cat2,
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("id, name").eq("parent_id", cat2).order("position");
+      return data ?? [];
+    },
+  });
+
+  const finalCategoryId = useMemo(
+    () => cat3 || cat2 || cat1 || null,
+    [cat1, cat2, cat3],
+  );
+
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     setImages((prev) => [...prev, ...files].slice(0, 8));
