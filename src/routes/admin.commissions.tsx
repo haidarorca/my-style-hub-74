@@ -242,16 +242,29 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
   const source = countries?.find((c) => c.id === sourceId) ?? null;
   const isSourceAll = sourceId === ALL;
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const srcMatch = isSourceAll ? null : sourceId;
+  const configuredDestIds = useMemo(() => {
+    const set = new Set<string | null>();
+    (rules ?? []).forEach((r) => {
+      if (r.scope === "global" || r.scope === "vendor") return;
+      if ((r.source_country_id ?? null) !== srcMatch) return;
+      set.add(r.destination_country_id ?? null);
+    });
+    return set;
+  }, [rules, srcMatch]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) =>
-      !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s));
-  }, [countries, q]);
+    return (countries ?? []).filter((c) => {
+      if (!showAll && !configuredDestIds.has(c.id)) return false;
+      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
+    });
+  }, [countries, q, showAll, configuredDestIds]);
 
   // Effective pair rate display
   const pairRate = (destId: string | null) => {
-    const srcMatch = isSourceAll ? null : sourceId;
     const r = rules?.find((x) =>
       x.scope === "country_pair" && x.is_enabled
       && (x.source_country_id ?? null) === srcMatch
