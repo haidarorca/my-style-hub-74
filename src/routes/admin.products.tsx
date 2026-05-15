@@ -18,8 +18,10 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { Outlet } from "@tanstack/react-router";
+
 export const Route = createFileRoute("/admin/products")({
-  component: () => <PermissionGate perm="product_validation"><ProductsPage /></PermissionGate>,
+  component: () => <Outlet />,
 });
 
 type ProductRow = {
