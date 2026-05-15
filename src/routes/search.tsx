@@ -167,22 +167,14 @@ function SearchPage() {
   }, [debounced, products, categories, shops]);
 
   const submitTerm = (t: string) => {
-    setQ(t);
     pushRecent(t);
     setRecent(loadRecent());
+    navigate({ to: "/search", search: { q: t } });
   };
 
   const clearRecent = () => {
     if (typeof window !== "undefined") window.localStorage.removeItem(RECENT_KEY);
     setRecent([]);
-  };
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (q.trim()) {
-      pushRecent(q.trim());
-      setRecent(loadRecent());
-    }
   };
 
   const counts = {
