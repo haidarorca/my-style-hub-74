@@ -283,7 +283,7 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
       if (!r.is_enabled) return;
-      if (r.scope !== "country_pair") return;
+      if (r.scope === "global") return;
       if ((r.source_country_id ?? null) !== srcMatch) return;
       if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.destination_country_id ?? null);
