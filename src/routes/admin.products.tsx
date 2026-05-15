@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
