@@ -145,7 +145,7 @@ function CartPage() {
   };
 
   const resolveAddress = async (): Promise<Address | null> => {
-    if (mode === "saved") {
+    if (user && mode === "saved") {
       return addresses.find((a) => a.id === selectedId) ?? null;
     }
     const parsed = newAddressSchema.safeParse(newForm);
@@ -159,6 +159,23 @@ function CartPage() {
       return null;
     }
     setErrors({});
+
+    // Guest: don't persist an address row, just return form data
+    if (!user) {
+      return {
+        id: "guest",
+        label: parsed.data.label,
+        full_name: parsed.data.full_name,
+        phone: parsed.data.phone,
+        address: parsed.data.address,
+        city: parsed.data.city,
+        latitude: newForm.latitude,
+        longitude: newForm.longitude,
+        note: parsed.data.note || null,
+        is_default: false,
+      };
+    }
+
     const payload = {
       ...parsed.data,
       note: parsed.data.note || null,
