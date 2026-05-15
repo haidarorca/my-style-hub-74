@@ -57,16 +57,24 @@ function VendorSettings() {
   useEffect(() => {
     if (!profile) return;
     const p = profile as unknown as Record<string, unknown>;
+    const phoneRaw = (p.phone as string) ?? "";
+    const waRaw = (p.shop_whatsapp as string) ?? "";
     setF({
       shop_name: (p.shop_name as string) ?? "",
-      phone: (p.phone as string) ?? "",
+      phone: phoneRaw,
       address: (p.address as string) ?? "",
       shop_description: (p.shop_description as string) ?? "",
       shop_hours: (p.shop_hours as string) ?? "",
-      shop_whatsapp: (p.shop_whatsapp as string) ?? "",
+      shop_whatsapp: waRaw,
       shop_logo_url: (p.shop_logo_url as string) ?? null,
       shop_banner_url: (p.shop_banner_url as string) ?? null,
     });
+    const ph = splitPhone(phoneRaw);
+    setPhoneCountry(ph.code);
+    setPhoneLocal(ph.local);
+    const wa = splitPhone(waRaw);
+    setWaCountry(wa.code);
+    setWaLocal(wa.local);
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
   }, [profile]);
 
