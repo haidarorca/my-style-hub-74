@@ -682,19 +682,15 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
   async function addRule(product_id: string) {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const existing = (rules ?? []).find((r) =>
-      r.scope === "product" && r.product_id === product_id
-      && (r.source_country_id ?? null) === srcId
-      && (r.destination_country_id ?? null) === dstId,
-    );
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({
-          scope: "product", product_id,
-          source_country_id: srcId, destination_country_id: dstId,
-          rate_percent: v, is_enabled: true,
-        });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({
+        scope: "product", product_id,
+        source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: v, is_enabled: true,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Règle produit enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
@@ -797,10 +793,11 @@ function GlobalTab() {
   async function save() {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = existing
-      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: enabled }).eq("id", existing.id)
-      : await sb.from("commission_rules").insert({ scope: "global", rate_percent: v, is_enabled: enabled });
-    if (error) return toast.error(error.message);
+    try {
+      await saveCommissionRule({ scope: "global", rate_percent: v, is_enabled: enabled });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
     toast.success("Commission globale enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
   }
