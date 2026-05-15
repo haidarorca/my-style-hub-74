@@ -34,7 +34,12 @@ export function AppHeader() {
       }`}
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
-        <Link to="/" className="flex items-center gap-1.5 shrink-0">
+        <Link
+          to="/"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="flex items-center gap-1.5 shrink-0"
+          aria-label="Retour à l'accueil"
+        >
           {settings.logo_url ? (
             <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[120px] object-contain" />
           ) : (
