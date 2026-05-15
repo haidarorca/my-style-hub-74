@@ -139,11 +139,11 @@ function Home() {
             </button>
           ))}
         </div>
-        {/* Sub-categories */}
+        {/* Sub-categories (level 2) */}
         {universeId !== ALL && subCategories && subCategories.length > 0 && (
           <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
             <button
-              onClick={() => setSubCategoryId(null)}
+              onClick={() => onSelectSubCategory(null)}
               className={`shrink-0 rounded-full px-3 py-1 text-xs ${
                 subCategoryId === null
                   ? "bg-foreground text-background"
@@ -155,11 +155,39 @@ function Home() {
             {subCategories.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSubCategoryId(c.id)}
+                onClick={() => onSelectSubCategory(c.id)}
                 className={`shrink-0 rounded-full px-3 py-1 text-xs ${
                   subCategoryId === c.id
                     ? "bg-foreground text-background"
                     : "bg-accent text-foreground"
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Sub-sub-categories (level 3) */}
+        {subCategoryId && subSubCategories && subSubCategories.length > 0 && (
+          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
+            <button
+              onClick={() => setSubSubCategoryId(null)}
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+                subSubCategoryId === null
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
+              }`}
+            >
+              Tout
+            </button>
+            {subSubCategories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setSubSubCategoryId(c.id)}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+                  subSubCategoryId === c.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
                 }`}
               >
                 {c.name}
