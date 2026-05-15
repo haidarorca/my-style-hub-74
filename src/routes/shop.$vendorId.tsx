@@ -7,6 +7,7 @@ import { BackButton } from "@/components/layout/BackButton";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSchedule, summarizeSchedule, isOpenNow } from "@/lib/shop-hours";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
