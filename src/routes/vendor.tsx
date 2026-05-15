@@ -56,21 +56,27 @@ function VendorLayout() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur pt-safe">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3">
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-1.5 px-3">
           <BackButton fallbackTo="/vendor" />
-          <div className="ml-1 truncate text-lg font-extrabold tracking-tight text-foreground">Espace Vendeur</div>
+          <div className="min-w-0 flex-1 truncate text-lg font-extrabold tracking-tight text-foreground">
+            Espace Vendeur
+          </div>
           <Link
             to="/"
-            className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm hover:bg-accent"
+            aria-label="Accueil"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground shadow-sm hover:bg-accent sm:h-auto sm:w-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
-            <Home className="h-3.5 w-3.5" /> Accueil
+            <Home className="h-4 w-4" />
+            <span className="hidden sm:inline">Accueil</span>
           </Link>
           <Link
             to="/shop/$vendorId"
             params={{ vendorId: user.id }}
-            className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow"
+            aria-label="Ma boutique"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow sm:h-auto sm:w-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
-            <Store className="h-3.5 w-3.5" /> Ma boutique
+            <Store className="h-4 w-4" />
+            <span className="hidden sm:inline">Ma boutique</span>
           </Link>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
