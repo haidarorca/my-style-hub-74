@@ -367,7 +367,13 @@ function AccountPage() {
                     <p className="mt-1 text-sm">{a.full_name}</p>
                     <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
                     <p className="mt-1 text-sm">{a.address}</p>
-                    <p className="text-xs text-muted-foreground">{a.city}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {a.city}
+                      {a.destination_country_id && (() => {
+                        const c = countriesList?.find((x) => x.id === a.destination_country_id);
+                        return c ? <> · <span className="font-medium">{c.flag_emoji} {labelOfCountry(c)}</span></> : null;
+                      })()}
+                    </p>
                     {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
                     {a.latitude != null && a.longitude != null && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
