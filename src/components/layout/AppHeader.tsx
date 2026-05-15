@@ -82,7 +82,7 @@ export function AppHeader() {
           )}
         </Link>
 
-        {pathname === "/search" ? (
+        {pathname === "/search" || pathname === "/account" || pathname === "/cart" ? (
           <div aria-hidden className="h-10" />
         ) : (
           <form
