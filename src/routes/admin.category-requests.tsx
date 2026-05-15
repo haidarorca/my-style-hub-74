@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, X, GitMerge, Pencil, Inbox } from "lucide-react";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/category-requests")({
-  component: CategoryRequestsPage,
+  component: () => <PermissionGate perm="categories"><CategoryRequestsPage /></PermissionGate>,
 });
 
 type Cat = { id: string; name: string; level: number; parent_id: string | null };

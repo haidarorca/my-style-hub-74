@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ArrowUp, ArrowDown } from "lucide-react";
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SiteSettings, HomeBanner } from "@/hooks/use-site-settings";
 
 export const Route = createFileRoute("/admin/settings")({
-  component: SettingsPage,
+  component: () => <PermissionGate superOnly><SettingsPage /></PermissionGate>,
 });
 
 function SettingsPage() {

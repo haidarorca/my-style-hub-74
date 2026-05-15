@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2, Image as ImageIcon } from "lucide-react";
@@ -12,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/admin/categories")({
-  component: CategoriesPage,
+  component: () => <PermissionGate perm="categories"><CategoriesPage /></PermissionGate>,
 });
 
 type Cat = {
