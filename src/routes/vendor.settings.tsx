@@ -163,7 +163,12 @@ function VendorSettings() {
           </button>
           <input ref={logoRef} type="file" accept="image/*" hidden
             onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "logo")} />
-          <p className="text-xs text-muted-foreground">Touchez le logo ou la bannière pour changer l'image.</p>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Touchez le logo ou la bannière pour changer l'image.</p>
+            <p className="text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">Bannière :</span> 1600 × 500 px (16:5) · <span className="font-medium text-foreground">Logo :</span> 400 × 400 px (carré)
+            </p>
+          </div>
         </div>
       </div>
 
