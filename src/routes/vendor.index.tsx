@@ -6,8 +6,10 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+
 
 export const Route = createFileRoute("/vendor/")({
   component: VendorHome,
@@ -15,8 +17,9 @@ export const Route = createFileRoute("/vendor/")({
 
 function VendorHome() {
   const { user, profile } = useAuth();
+  const { t, lang } = useI18n();
   const p = (profile ?? {}) as Record<string, unknown>;
-  const shopName = (p.shop_name as string) || (p.full_name as string) || "Ma boutique";
+  const shopName = (p.shop_name as string) || (p.full_name as string) || t("vendor.dash.my_shop_default");
   const logo = p.shop_logo_url as string | undefined;
   const banner = p.shop_banner_url as string | undefined;
   const verified = !!p.is_verified;
@@ -84,9 +87,15 @@ function VendorHome() {
     },
   });
 
-  const fmt = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+  const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
+  const locale = localeMap[lang] ?? "fr-FR";
+  const fmt = (n: number) => `${Math.round(n).toLocaleString(locale)} FCFA`;
   const statusLabel = (s: string) =>
-    s === "new" ? "En attente" : s === "confirmed" ? "Confirmée" : s === "delivered" ? "Livrée" : s === "cancelled" ? "Annulée" : s;
+    s === "new" ? t("vendor.dash.tile.pending")
+    : s === "confirmed" ? t("vendor.ord.status.confirmed")
+    : s === "delivered" ? t("vendor.ord.status.delivered")
+    : s === "cancelled" ? t("vendor.ord.status.cancelled")
+    : s;
   const statusColor = (s: string) =>
     s === "new" ? "bg-amber-500/10 text-amber-700"
     : s === "confirmed" ? "bg-emerald-500/10 text-emerald-700"
@@ -95,28 +104,28 @@ function VendorHome() {
     : "bg-muted text-foreground";
 
   const orderTiles = [
-    { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
-    { label: "En attente", value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
-    { label: "Confirmées", value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { label: "Livrées", value: stats?.deliveredOrders ?? "—", icon: Truck, color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Annulées", value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
-    { label: "Produits actifs", value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Produits refusés", value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: t("vendor.dash.tile.total_orders"), value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
+    { label: t("vendor.dash.tile.pending"), value: stats?.pendingOrders ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-500/10" },
+    { label: t("vendor.dash.tile.confirmed"), value: stats?.confirmedOrders ?? "—", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: t("vendor.dash.tile.delivered"), value: stats?.deliveredOrders ?? "—", icon: Truck, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.tile.cancelled"), value: stats?.cancelledOrders ?? "—", icon: Ban, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: t("vendor.dash.tile.active_products"), value: stats?.activeProducts ?? "—", icon: Package, color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.tile.rejected_products"), value: stats?.rejectedProducts ?? "—", icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
   ];
 
   const salesTiles = [
-    { label: "Ventes aujourd'hui", value: stats ? fmt(stats.salesDay) : "—", color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { label: "Ventes cette semaine", value: stats ? fmt(stats.salesWeek) : "—", color: "text-primary", bg: "bg-primary/10" },
-    { label: "Ventes ce mois", value: stats ? fmt(stats.salesMonth) : "—", color: "text-blue-600", bg: "bg-blue-500/10" },
-    { label: "Ventes cette année", value: stats ? fmt(stats.salesYear) : "—", color: "text-amber-600", bg: "bg-amber-500/10" },
+    { label: t("vendor.dash.sales.today"), value: stats ? fmt(stats.salesDay) : "—", color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: t("vendor.dash.sales.week"), value: stats ? fmt(stats.salesWeek) : "—", color: "text-primary", bg: "bg-primary/10" },
+    { label: t("vendor.dash.sales.month"), value: stats ? fmt(stats.salesMonth) : "—", color: "text-blue-600", bg: "bg-blue-500/10" },
+    { label: t("vendor.dash.sales.year"), value: stats ? fmt(stats.salesYear) : "—", color: "text-amber-600", bg: "bg-amber-500/10" },
   ];
 
   const actions = [
-    { to: "/vendor/orders", label: "Mes commandes", icon: ListOrdered, variant: "default" as const },
-    { to: "/vendor/products", label: "Mes produits", icon: Package, variant: "secondary" as const },
-    { to: "/vendor/products/new", label: "Ajouter un produit", icon: Plus, variant: "outline" as const },
-    { to: "/vendor/messages", label: "Messages clients", icon: MessageSquare, variant: "outline" as const },
-    { to: "/vendor/settings", label: "Paramètres boutique", icon: Settings, variant: "outline" as const },
+    { to: "/vendor/orders", label: t("vendor.dash.action.orders"), icon: ListOrdered, variant: "default" as const },
+    { to: "/vendor/products", label: t("vendor.dash.action.products"), icon: Package, variant: "secondary" as const },
+    { to: "/vendor/products/new", label: t("vendor.dash.action.new_product"), icon: Plus, variant: "outline" as const },
+    { to: "/vendor/messages", label: t("vendor.dash.action.messages"), icon: MessageSquare, variant: "outline" as const },
+    { to: "/vendor/settings", label: t("vendor.dash.action.settings"), icon: Settings, variant: "outline" as const },
   ];
 
   return (
@@ -140,32 +149,32 @@ function VendorHome() {
               <h1 className="truncate text-base font-bold">{shopName}</h1>
               {verified && (
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  <BadgeCheck className="h-3 w-3" /> Vérifié
+                  <BadgeCheck className="h-3 w-3" /> {t("vendor.dash.verified")}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {stats?.activeProducts ?? 0} produit{(stats?.activeProducts ?? 0) > 1 ? "s" : ""} · {stats?.totalOrders ?? 0} commande{(stats?.totalOrders ?? 0) > 1 ? "s" : ""}
+              {stats?.activeProducts ?? 0} {(stats?.activeProducts ?? 0) > 1 ? t("vendor.dash.products_many") : t("vendor.dash.products_one")} · {stats?.totalOrders ?? 0} {(stats?.totalOrders ?? 0) > 1 ? t("vendor.dash.orders_many") : t("vendor.dash.orders_one")}
             </p>
           </div>
           <Button asChild size="sm" className="shrink-0">
-            <Link to="/vendor/products/new">+ Nouveau produit</Link>
+            <Link to="/vendor/products/new">{t("vendor.dash.new_product")}</Link>
           </Button>
         </div>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Commandes & produits</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_orders_products")}</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {orderTiles.map((t) => (
-            <Card key={t.label}>
+          {orderTiles.map((tile) => (
+            <Card key={tile.label}>
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                  <t.icon className={`h-5 w-5 ${t.color}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tile.bg}`}>
+                  <tile.icon className={`h-5 w-5 ${tile.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-xs text-muted-foreground">{t.label}</div>
-                  <div className="truncate text-lg font-bold">{t.value}</div>
+                  <div className="truncate text-xs text-muted-foreground">{tile.label}</div>
+                  <div className="truncate text-lg font-bold">{tile.value}</div>
                 </div>
               </CardContent>
             </Card>
@@ -174,17 +183,17 @@ function VendorHome() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Mes ventes</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_sales")}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {salesTiles.map((t) => (
-            <Card key={t.label}>
+          {salesTiles.map((tile) => (
+            <Card key={tile.label}>
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                  <TrendingUp className={`h-5 w-5 ${t.color}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tile.bg}`}>
+                  <TrendingUp className={`h-5 w-5 ${tile.color}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs text-muted-foreground">{t.label}</div>
-                  <div className="text-lg font-bold">{t.value}</div>
+                  <div className="text-xs text-muted-foreground">{tile.label}</div>
+                  <div className="text-lg font-bold">{tile.value}</div>
                 </div>
               </CardContent>
             </Card>
@@ -195,8 +204,8 @@ function VendorHome() {
       {/* Recent orders */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">Dernières commandes</h2>
-          <Link to="/vendor/orders" className="text-xs font-medium text-primary">Tout voir</Link>
+          <h2 className="text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_recent")}</h2>
+          <Link to="/vendor/orders" className="text-xs font-medium text-primary">{t("vendor.dash.see_all")}</Link>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -206,9 +215,9 @@ function VendorHome() {
                   <li key={o.id}>
                     <Link to="/vendor/orders" className="flex items-center gap-3 p-3 hover:bg-accent/50">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{o.customer_name ?? "Client"}</div>
+                        <div className="truncate text-sm font-medium">{o.customer_name ?? t("vendor.dash.client_fallback")}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {new Date(o.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(o.created_at).toLocaleDateString(locale, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(o.status)}`}>
@@ -220,14 +229,14 @@ function VendorHome() {
                 ))}
               </ul>
             ) : (
-              <p className="p-6 text-center text-sm text-muted-foreground">Aucune commande pour l'instant.</p>
+              <p className="p-6 text-center text-sm text-muted-foreground">{t("vendor.dash.no_orders")}</p>
             )}
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Actions rapides</h2>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{t("vendor.dash.section_quick")}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {actions.map((a) => (
             <Button key={a.to} asChild size="lg" variant={a.variant} className="h-16 justify-start text-base">
