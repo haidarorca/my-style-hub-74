@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { RequestCategoryDialog } from "@/components/vendor/RequestCategoryDialog";
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
