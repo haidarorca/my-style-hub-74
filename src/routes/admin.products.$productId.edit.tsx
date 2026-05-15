@@ -45,6 +45,13 @@ type VariantDraft = {
   image_url: string | null; image_file: File | null; remove_image: boolean;
 };
 type CatRow = { id: string; name: string; level: number; parent_id: string | null };
+type ReqRow = { id: string; name: string; level: number; status: string; parent_id: string | null; parent_request_id: string | null };
+type CatPick = string;
+
+const catValue = (id: string) => `cat:${id}`;
+const reqValue = (id: string) => `req:${id}`;
+const isReq = (value: CatPick) => value.startsWith("req:");
+const idOf = (value: CatPick) => value.slice(4);
 
 function fromExisting(v: ExistingVariant): VariantDraft {
   return {
@@ -74,9 +81,9 @@ function AdminEditProductPage() {
   const [vendorId, setVendorId] = useState<string>("");
 
   // Category 3 levels (approved only)
-  const [cat1, setCat1] = useState<string>("");
-  const [cat2, setCat2] = useState<string>("");
-  const [cat3, setCat3] = useState<string>("");
+  const [cat1, setCat1] = useState<CatPick>("");
+  const [cat2, setCat2] = useState<CatPick>("");
+  const [cat3, setCat3] = useState<CatPick>("");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
@@ -111,14 +118,23 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
-      let pendingReq: { id: string; name: string; level: number; status: string; parent_id: string | null } | null = null;
+      let pendingReq: ReqRow | null = null;
+      let categoryRequests: ReqRow[] = [];
       if (prod.data?.pending_category_request_id) {
         const { data: pr } = await supabase
           .from("category_requests")
-          .select("id, name, level, status, parent_id")
+          .select("id, name, level, status, parent_id, parent_request_id")
           .eq("id", prod.data.pending_category_request_id)
           .maybeSingle();
         pendingReq = pr as typeof pendingReq;
+      }
+      if (prod.data?.vendor_id) {
+        const { data: reqRows } = await supabase
+          .from("category_requests")
+          .select("id, name, level, status, parent_id, parent_request_id")
+          .eq("vendor_id", prod.data.vendor_id)
+          .order("level");
+        categoryRequests = (reqRows ?? []) as ReqRow[];
       }
       return {
         product: prod.data,
@@ -135,6 +151,7 @@ function AdminEditProductPage() {
           .map(r => r.profiles)
           .filter(Boolean),
         pendingCategoryRequest: pendingReq,
+        categoryRequests,
       };
     },
   });
@@ -166,28 +183,66 @@ function AdminEditProductPage() {
     }
   }, [data]);
 
-  // Dedicated effect to pre-fill the category chain as soon as both the
-  // product and the categories list are loaded — runs independently so it
-  // can't be skipped by stale closures.
+  // Pre-fill the exact category chain selected by the vendor, including pending requests.
   useEffect(() => {
     const p = data?.product;
     const cats = data?.categories;
-    if (!p?.category_id || !cats?.length) return;
+    const reqs = data?.categoryRequests ?? [];
+    if (!p || !cats?.length) return;
     const byId = new Map(cats.map(c => [c.id, c]));
-    const chain: CatRow[] = [];
-    let cur: CatRow | undefined = byId.get(p.category_id);
-    while (cur) {
-      chain.unshift(cur);
-      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
-    }
-    setCat1(chain.find(c => c.level === 1)?.id ?? "");
-    setCat2(chain.find(c => c.level === 2)?.id ?? "");
-    setCat3(chain.find(c => c.level === 3)?.id ?? "");
-  }, [data?.product?.id, data?.product?.category_id, data?.categories]);
+    const reqById = new Map(reqs.map(r => [r.id, r]));
+    const chain: CatPick[] = [];
 
-  const cats1 = useMemo(() => (data?.categories ?? []).filter(c => c.level === 1), [data]);
-  const cats2 = useMemo(() => (data?.categories ?? []).filter(c => c.level === 2 && c.parent_id === cat1), [data, cat1]);
-  const cats3 = useMemo(() => (data?.categories ?? []).filter(c => c.level === 3 && c.parent_id === cat2), [data, cat2]);
+    if (p.pending_category_request_id) {
+      let curReq = reqById.get(p.pending_category_request_id) ?? data?.pendingCategoryRequest ?? undefined;
+      while (curReq) {
+        chain.unshift(reqValue(curReq.id));
+        if (curReq.parent_request_id) {
+          curReq = reqById.get(curReq.parent_request_id);
+        } else if (curReq.parent_id) {
+          let curCat: CatRow | undefined = byId.get(curReq.parent_id);
+          while (curCat) {
+            chain.unshift(catValue(curCat.id));
+            curCat = curCat.parent_id ? byId.get(curCat.parent_id) : undefined;
+          }
+          curReq = undefined;
+        } else {
+          curReq = undefined;
+        }
+      }
+    } else if (p.category_id) {
+      let curCat: CatRow | undefined = byId.get(p.category_id);
+      while (curCat) {
+        chain.unshift(catValue(curCat.id));
+        curCat = curCat.parent_id ? byId.get(curCat.parent_id) : undefined;
+      }
+    }
+
+    setCat1(chain[0] ?? "");
+    setCat2(chain[1] ?? "");
+    setCat3(chain[2] ?? "");
+  }, [data?.product?.id, data?.product?.category_id, data?.product?.pending_category_request_id, data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
+
+  const categoryOptions = useMemo(() => {
+    const cats = data?.categories ?? [];
+    const reqs = data?.categoryRequests ?? [];
+    const level1 = [
+      ...cats.filter(c => c.level === 1).map(c => ({ value: catValue(c.id), label: c.name, pending: false })),
+      ...reqs.filter(r => r.level === 1 && !r.parent_id && !r.parent_request_id).map(r => ({ value: reqValue(r.id), label: `${r.name} (en attente)`, pending: true })),
+    ];
+    const childrenOf = (level: 2 | 3, parent: CatPick) => {
+      if (!parent) return [];
+      if (isReq(parent)) {
+        return reqs.filter(r => r.level === level && r.parent_request_id === idOf(parent)).map(r => ({ value: reqValue(r.id), label: `${r.name} (en attente)`, pending: true }));
+      }
+      const parentId = idOf(parent);
+      return [
+        ...cats.filter(c => c.level === level && c.parent_id === parentId).map(c => ({ value: catValue(c.id), label: c.name, pending: false })),
+        ...reqs.filter(r => r.level === level && r.parent_id === parentId).map(r => ({ value: reqValue(r.id), label: `${r.name} (en attente)`, pending: true })),
+      ];
+    };
+    return { level1, level2: childrenOf(2, cat1), level3: childrenOf(3, cat2) };
+  }, [data?.categories, data?.categoryRequests, cat1, cat2]);
 
   const orig = data?.product;
   const sensitiveChanged = useMemo(() => {
@@ -345,13 +400,15 @@ function AdminEditProductPage() {
         if (error) throw error;
       }
 
-      // Resolve final category id (deepest selected)
-      const finalCategoryId = cat3 || cat2 || cat1 || null;
+      // Resolve final category pick (deepest selected), preserving pending category requests.
+      const finalCategoryPick = cat3 || cat2 || cat1 || "";
+      const finalCategoryId = finalCategoryPick && !isReq(finalCategoryPick) ? idOf(finalCategoryPick) : null;
+      const finalPendingCategoryRequestId = finalCategoryPick && isReq(finalCategoryPick) ? idOf(finalCategoryPick) : null;
 
       // Product update
       const updatePayload: {
         name: string; code: string; designation: string | null; description: string | null;
-        price: number; category_id: string | null; vendor_id: string;
+        price: number; category_id: string | null; pending_category_request_id: string | null; vendor_id: string;
         status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
         is_edit?: boolean;
       } = {
@@ -361,6 +418,7 @@ function AdminEditProductPage() {
         description: description.trim() || null,
         price: Number(price) || 0,
         category_id: finalCategoryId,
+        pending_category_request_id: finalPendingCategoryRequestId,
         vendor_id: vendorId,
         status,
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
@@ -466,7 +524,7 @@ function AdminEditProductPage() {
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats1.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level1.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -475,7 +533,7 @@ function AdminEditProductPage() {
             <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats2.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level2.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -484,7 +542,7 @@ function AdminEditProductPage() {
             <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {cats3.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {categoryOptions.level3.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
