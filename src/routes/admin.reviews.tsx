@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Star, Trash2, Pencil, Plus } from "lucide-react";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/reviews")({
-  component: AdminReviewsPage,
+  component: () => <PermissionGate perm="support"><AdminReviewsPage /></PermissionGate>,
 });
 
 function StarPick({ value, onChange }: { value: number; onChange: (n: number) => void }) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, X, Pencil, Trash2, Eye } from "lucide-react";
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/admin/products")({
-  component: ProductsPage,
+  component: () => <PermissionGate perm="product_validation"><ProductsPage /></PermissionGate>,
 });
 
 type ProductRow = {

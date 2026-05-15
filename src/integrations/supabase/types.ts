@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
+      admin_permissions: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          permission: Database["public"]["Enums"]["admin_permission"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          permission: Database["public"]["Enums"]["admin_permission"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          permission?: Database["public"]["Enums"]["admin_permission"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -824,18 +881,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_suspended: boolean
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_suspended?: boolean
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_suspended?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
@@ -858,8 +918,19 @@ export type Database = {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
       }
+      current_user_has_permission: {
+        Args: { _perm: Database["public"]["Enums"]["admin_permission"] }
+        Returns: boolean
+      }
       current_user_has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
+      has_admin_permission: {
+        Args: {
+          _perm: Database["public"]["Enums"]["admin_permission"]
+          _user_id: string
+        }
         Returns: boolean
       }
       has_role: {
@@ -869,9 +940,28 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      log_admin_action: {
+        Args: {
+          _action: string
+          _details?: Json
+          _target_id?: string
+          _target_type?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
-      app_role: "admin" | "vendeur" | "acheteur"
+      admin_permission:
+        | "orders"
+        | "products"
+        | "product_validation"
+        | "categories"
+        | "vendors"
+        | "customers"
+        | "support"
+        | "settings"
+      app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
       customization_type: "name" | "image"
       product_status: "pending" | "approved" | "rejected"
@@ -1004,7 +1094,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "vendeur", "acheteur"],
+      admin_permission: [
+        "orders",
+        "products",
+        "product_validation",
+        "categories",
+        "vendors",
+        "customers",
+        "support",
+        "settings",
+      ],
+      app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
       customization_type: ["name", "image"],
       product_status: ["pending", "approved", "rejected"],

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Package, ImageIcon, Phone, MapPin } from "lucide-react";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/orders")({
-  component: AdminOrders,
+  component: () => <PermissionGate perm="orders"><AdminOrders /></PermissionGate>,
 });
 
 const STATUSES = [
