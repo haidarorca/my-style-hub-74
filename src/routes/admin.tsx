@@ -13,6 +13,7 @@ export const Route = createFileRoute("/admin")({
 const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
   { to: "/admin/categories", label: "Catégories", icon: FolderTree },
+  { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox },
   { to: "/admin/vendors", label: "Vendeurs", icon: Store },
   { to: "/admin/products", label: "Validation produits", icon: PackageCheck },
   { to: "/admin/orders", label: "Commandes", icon: ShoppingBag },
