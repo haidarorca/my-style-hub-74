@@ -594,10 +594,11 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
   async function addRule(product_id: string) {
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const baseQ = sb.from("commission_rules").select("id").eq("scope", "product").eq("product_id", product_id);
-    const condSrc = srcId ? baseQ.eq("source_country_id", srcId) : baseQ.is("source_country_id", null);
-    const condDst = dstId ? condSrc.eq("destination_country_id", dstId) : condSrc.is("destination_country_id", null);
-    const { data: existing } = await condDst.maybeSingle();
+    const existing = (rules ?? []).find((r) =>
+      r.scope === "product" && r.product_id === product_id
+      && (r.source_country_id ?? null) === srcId
+      && (r.destination_country_id ?? null) === dstId,
+    );
     const { error } = existing
       ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
       : await sb.from("commission_rules").insert({
