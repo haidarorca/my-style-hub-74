@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell } from "lucide-react";
+import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,11 +60,17 @@ function VendorLayout() {
           <BackButton fallbackTo="/vendor" />
           <div className="ml-1 truncate text-base font-bold">Espace Vendeur</div>
           <Link
+            to="/"
+            className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm hover:bg-accent"
+          >
+            <Home className="h-3.5 w-3.5" /> Accueil
+          </Link>
+          <Link
             to="/shop/$vendorId"
             params={{ vendorId: user.id }}
-            className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow"
+            className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow"
           >
-            <Store className="h-3.5 w-3.5" /> Voir ma boutique
+            <Store className="h-3.5 w-3.5" /> Ma boutique
           </Link>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
