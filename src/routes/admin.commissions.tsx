@@ -21,6 +21,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/commissions")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    source: typeof s.source === "string" ? s.source : undefined,
+    destination: typeof s.destination === "string" ? s.destination : undefined,
+  }),
   component: () => <PermissionGate superOnly><CommissionsPage /></PermissionGate>,
 });
 
