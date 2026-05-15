@@ -26,7 +26,11 @@ export function AppHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe">
+    <header
+      className={`sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe transition-transform duration-300 ${
+        hidden ? "-translate-y-full" : "translate-y-0"
+      }`}
+    >
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3">
         <Link to="/" className="flex items-center gap-1.5 shrink-0">
           <span className="gradient-primary bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
