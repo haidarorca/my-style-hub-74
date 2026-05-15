@@ -74,9 +74,9 @@ export function AppHeader() {
           aria-label="Retour à l'accueil"
         >
           {settings.logo_url ? (
-            <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[88px] object-contain sm:max-w-[120px]" />
+            <img src={settings.logo_url} alt={settings.site_name} className="h-7 w-auto max-w-[56px] object-contain sm:h-8 sm:max-w-[120px]" />
           ) : (
-            <span className="gradient-primary bg-clip-text text-lg font-extrabold tracking-tight text-transparent sm:text-xl">
+            <span className="gradient-primary bg-clip-text text-sm font-extrabold tracking-tight text-transparent sm:text-xl">
               {settings.site_name}
             </span>
           )}
