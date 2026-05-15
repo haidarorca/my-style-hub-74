@@ -472,7 +472,7 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : "Ajouter au panier"}
+            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : <EditableLabel uiKey="product.add_to_cart" defaultLabel="Ajouter au panier" defaultSize="md" />}
           </Button>
         </div>
       </div>
