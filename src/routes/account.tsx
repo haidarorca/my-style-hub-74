@@ -241,37 +241,6 @@ function AccountPage() {
       setSaving(false);
     }
   };
-    try {
-      const payload = {
-        ...parsed.data,
-        note: parsed.data.note || null,
-        phone_secondary: parsed.data.phone_secondary || null,
-        phone_alt: parsed.data.phone_alt || null,
-        latitude: form.latitude,
-        longitude: form.longitude,
-        user_id: user.id,
-        is_default: editing ? editing.is_default : addresses.length === 0,
-      };
-      if (editing) {
-        const { error } = await (supabase as any)
-          .from("customer_addresses")
-          .update(payload)
-          .eq("id", editing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await (supabase as any).from("customer_addresses").insert(payload);
-        if (error) throw error;
-      }
-      toast.success("Adresse enregistrée");
-      setOpen(false);
-      await refresh();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erreur lors de l'enregistrement");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const remove = async (a: Address) => {
     if (!confirm("Supprimer cette adresse ?")) return;
