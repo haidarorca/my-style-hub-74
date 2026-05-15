@@ -541,33 +541,41 @@ function AdminEditProductPage() {
             );
           })()}
           <div className="grid gap-3 md:grid-cols-3">
-          <div>
-            <Label>Catégorie</Label>
-            <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="—">{cat1 ? categoryLabelByValue.get(cat1) : undefined}</SelectValue></SelectTrigger>
-              <SelectContent>
-                {withSelectedCategory(categoryOptions.level1, cat1).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Sous-catégorie</Label>
-            <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
-              <SelectTrigger><SelectValue placeholder="—">{cat2 ? categoryLabelByValue.get(cat2) : undefined}</SelectValue></SelectTrigger>
-              <SelectContent>
-                {withSelectedCategory(categoryOptions.level2, cat2).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Sous-sous-catégorie</Label>
-            <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
-              <SelectTrigger><SelectValue placeholder="—">{cat3 ? categoryLabelByValue.get(cat3) : undefined}</SelectValue></SelectTrigger>
-              <SelectContent>
-                {withSelectedCategory(categoryOptions.level3, cat3).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+            <div>
+              <Label>Catégorie</Label>
+              <select
+                value={cat1}
+                onChange={(e) => { setCat1(e.target.value); setCat2(""); setCat3(""); }}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">—</option>
+                {withSelectedCategory(categoryOptions.level1, cat1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Sous-catégorie</Label>
+              <select
+                value={cat2}
+                onChange={(e) => { setCat2(e.target.value); setCat3(""); }}
+                disabled={!cat1}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">—</option>
+                {withSelectedCategory(categoryOptions.level2, cat2).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Sous-sous-catégorie</Label>
+              <select
+                value={cat3}
+                onChange={(e) => setCat3(e.target.value)}
+                disabled={!cat2}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">—</option>
+                {withSelectedCategory(categoryOptions.level3, cat3).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
