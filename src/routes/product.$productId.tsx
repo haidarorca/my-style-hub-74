@@ -121,16 +121,13 @@ function ProductPage() {
 
   const onAdd = async () => {
     if (!data) return;
-    if (!user) {
-      toast.error("Connectez-vous pour ajouter au panier");
-      return;
-    }
     setSubmitting(true);
     try {
       const customization: Record<string, unknown> = {};
       if (imageCustom && customImageFile) {
         const ext = customImageFile.name.split(".").pop() || "jpg";
-        const path = `${user.id}/${data.id}/${Date.now()}.${ext}`;
+        const folder = user?.id ?? "guest";
+        const path = `${folder}/${data.id}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("customization-uploads")
           .upload(path, customImageFile);
