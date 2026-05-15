@@ -17,7 +17,6 @@ import { I18nProvider } from "@/hooks/use-i18n";
 import { PromoBar } from "@/components/layout/PromoBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { SwipeNavigator } from "@/components/layout/SwipeNavigator";
-import { MobileNavFab } from "@/components/layout/MobileNavFab";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -150,7 +149,6 @@ function RootComponent() {
               <AuthInvalidator />
               <PromoBar />
               <SwipeNavigator><Outlet /></SwipeNavigator>
-              <MobileNavFab />
               <MobileBottomNav />
               <Toaster richColors position="top-center" />
             </UiOverridesProvider>

@@ -160,6 +160,9 @@ html, body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: auto;
   touch-action: manipulation;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 html {
   scroll-behavior: smooth;
@@ -174,12 +177,51 @@ body {
 /* Avoid accidental horizontal overflow that breaks vertical scroll on mobile */
 #root, main { max-width: 100%; overflow-x: clip; }
 
+/* Smoother page transitions */
+.animate-fade-in {
+  animation: page-fade-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduce motion preference: kill non-essential animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Arabic / RTL: use logical layout defaults so mobile UI feels native */
 html[dir="rtl"] body { text-align: right; }
 html[dir="rtl"] input,
 html[dir="rtl"] textarea { text-align: right; }
 html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 html[dir="rtl"] .mobile-bottom-nav ul { flex-direction: row-reverse; }
+/* Auto-flip chevrons, arrows, and back icons in RTL */
+html[dir="rtl"] .lucide-chevron-left,
+html[dir="rtl"] .lucide-chevron-right,
+html[dir="rtl"] .lucide-arrow-left,
+html[dir="rtl"] .lucide-arrow-right,
+html[dir="rtl"] .lucide-arrow-up-right,
+html[dir="rtl"] .lucide-arrow-down-left,
+html[dir="rtl"] .lucide-chevrons-left,
+html[dir="rtl"] .lucide-chevrons-right {
+  transform: scaleX(-1);
+}
+/* Keep search/cart/user/store icons in their natural orientation in RTL */
+html[dir="rtl"] .lucide-search,
+html[dir="rtl"] .lucide-shopping-bag,
+html[dir="rtl"] .lucide-user,
+html[dir="rtl"] .lucide-store,
+html[dir="rtl"] .lucide-home {
+  transform: none;
+}
 
 /* Very small phones (older Android < 360px): trim paddings so content fits */
 @media (max-width: 359px) {
