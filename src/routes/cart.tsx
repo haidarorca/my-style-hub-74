@@ -104,6 +104,7 @@ function CartPage() {
     if (list.length > 0) {
       setMode("saved");
       setSelectedId(list[0].id);
+      if (list[0].destination_country_id) setDestinationCountryId(list[0].destination_country_id);
     } else {
       setMode("new");
       setNewForm((f) => ({
@@ -118,6 +119,12 @@ function CartPage() {
     if (checkoutOpen) void loadAddresses();
     // eslint-disable-next-line
   }, [checkoutOpen]);
+
+  useEffect(() => {
+    if (!selectedId || mode !== "saved") return;
+    const selected = addresses.find((a) => a.id === selectedId);
+    if (selected?.destination_country_id) setDestinationCountryId(selected.destination_country_id);
+  }, [addresses, mode, selectedId, setDestinationCountryId]);
 
   // Guests can browse the cart and check out as a guest.
   // The dialog forces "new address" mode when there is no user.
@@ -395,6 +402,16 @@ function CartPage() {
               {t("checkout.address_choice_desc")}
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label>Pays de livraison *</Label>
+            <CountrySelect
+              value={destinationCountryId}
+              onChange={setDestinationCountryId}
+              onlyEnabled
+              placeholder="Choisir le pays de livraison"
+            />
+          </div>
 
           {addresses.length > 0 && (
             <div className="mb-2 flex gap-2 rounded-full bg-muted p-1">
