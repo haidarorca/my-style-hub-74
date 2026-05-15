@@ -1,0 +1,11 @@
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS name_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS name_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS designation_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS description_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS hero_title_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS hero_subtitle_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS footer_text_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promo_bar_text_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.home_banners ADD COLUMN IF NOT EXISTS title_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS shop_description_i18n jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS shop_hours_i18n jsonb DEFAULT '{}'::jsonb;

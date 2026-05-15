@@ -1,34 +1,36 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Home, LayoutGrid, Search, ShoppingBag, User } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
+import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
-
-const ITEMS = [
-  { to: "/", label: "Accueil", icon: Home, exact: true },
-  { to: "/categories", label: "Catégories", icon: LayoutGrid },
-  { to: "/search", label: "Recherche", icon: Search },
-  { to: "/cart", label: "Panier", icon: ShoppingBag, badgeKey: "cart" as const },
-  { to: "/account", label: "Compte", icon: User },
-];
 
 const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/product"];
 
 export function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { count } = useCart();
+  const { t } = useI18n();
 
   if (HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return null;
   }
 
+  const items = [
+    { to: "/", label: t("nav.home"), icon: Home, exact: true, badgeKey: undefined as "cart" | undefined },
+    { to: "/categories", label: t("nav.categories"), icon: LayoutGrid, exact: false, badgeKey: undefined },
+    { to: "/search", label: t("nav.search"), icon: Search, exact: false, badgeKey: undefined },
+    { to: "/cart", label: t("nav.cart"), icon: ShoppingBag, exact: false, badgeKey: "cart" as const },
+    { to: "/account", label: t("nav.account"), icon: User, exact: false, badgeKey: undefined },
+  ];
+
   return (
     <nav
-      aria-label="Navigation principale"
+      aria-label="Navigation"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden"
       style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
     >
       <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
-        {ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active = item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/");
           const showCart = item.badgeKey === "cart" && count > 0;

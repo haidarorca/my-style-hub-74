@@ -130,6 +130,7 @@ export type Database = {
           level: number
           logo_url: string | null
           name: string
+          name_i18n: Json | null
           parent_id: string | null
           position: number | null
           slug: string
@@ -140,6 +141,7 @@ export type Database = {
           level: number
           logo_url?: string | null
           name: string
+          name_i18n?: Json | null
           parent_id?: string | null
           position?: number | null
           slug: string
@@ -150,6 +152,7 @@ export type Database = {
           level?: number
           logo_url?: string | null
           name?: string
+          name_i18n?: Json | null
           parent_id?: string | null
           position?: number | null
           slug?: string
@@ -369,6 +372,7 @@ export type Database = {
           link_url: string | null
           position: number
           title: string | null
+          title_i18n: Json | null
           updated_at: string
         }
         Insert: {
@@ -379,6 +383,7 @@ export type Database = {
           link_url?: string | null
           position?: number
           title?: string | null
+          title_i18n?: Json | null
           updated_at?: string
         }
         Update: {
@@ -389,6 +394,7 @@ export type Database = {
           link_url?: string | null
           position?: number
           title?: string | null
+          title_i18n?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -746,10 +752,13 @@ export type Database = {
           code: string
           created_at: string
           description: string | null
+          description_i18n: Json | null
           designation: string | null
+          designation_i18n: Json | null
           id: string
           is_edit: boolean
           name: string
+          name_i18n: Json | null
           pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
@@ -762,10 +771,13 @@ export type Database = {
           code: string
           created_at?: string
           description?: string | null
+          description_i18n?: Json | null
           designation?: string | null
+          designation_i18n?: Json | null
           id?: string
           is_edit?: boolean
           name: string
+          name_i18n?: Json | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -778,10 +790,13 @@ export type Database = {
           code?: string
           created_at?: string
           description?: string | null
+          description_i18n?: Json | null
           designation?: string | null
+          designation_i18n?: Json | null
           id?: string
           is_edit?: boolean
           name?: string
+          name_i18n?: Json | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -835,7 +850,9 @@ export type Database = {
           sex: Database["public"]["Enums"]["user_sex"] | null
           shop_banner_url: string | null
           shop_description: string | null
+          shop_description_i18n: Json | null
           shop_hours: string | null
+          shop_hours_i18n: Json | null
           shop_hours_schedule: Json | null
           shop_logo_url: string | null
           shop_name: string | null
@@ -857,7 +874,9 @@ export type Database = {
           sex?: Database["public"]["Enums"]["user_sex"] | null
           shop_banner_url?: string | null
           shop_description?: string | null
+          shop_description_i18n?: Json | null
           shop_hours?: string | null
+          shop_hours_i18n?: Json | null
           shop_hours_schedule?: Json | null
           shop_logo_url?: string | null
           shop_name?: string | null
@@ -879,7 +898,9 @@ export type Database = {
           sex?: Database["public"]["Enums"]["user_sex"] | null
           shop_banner_url?: string | null
           shop_description?: string | null
+          shop_description_i18n?: Json | null
           shop_hours?: string | null
+          shop_hours_i18n?: Json | null
           shop_hours_schedule?: Json | null
           shop_logo_url?: string | null
           shop_name?: string | null
@@ -894,8 +915,11 @@ export type Database = {
           accent_color: string
           created_at: string
           footer_text: string | null
+          footer_text_i18n: Json | null
           hero_subtitle: string | null
+          hero_subtitle_i18n: Json | null
           hero_title: string | null
+          hero_title_i18n: Json | null
           id: string
           logo_url: string | null
           primary_color: string
@@ -903,6 +927,7 @@ export type Database = {
           promo_bar_enabled: boolean
           promo_bar_text: string | null
           promo_bar_text_color: string
+          promo_bar_text_i18n: Json | null
           site_name: string
           updated_at: string
           whatsapp_default_message: string | null
@@ -912,8 +937,11 @@ export type Database = {
           accent_color?: string
           created_at?: string
           footer_text?: string | null
+          footer_text_i18n?: Json | null
           hero_subtitle?: string | null
+          hero_subtitle_i18n?: Json | null
           hero_title?: string | null
+          hero_title_i18n?: Json | null
           id?: string
           logo_url?: string | null
           primary_color?: string
@@ -921,6 +949,7 @@ export type Database = {
           promo_bar_enabled?: boolean
           promo_bar_text?: string | null
           promo_bar_text_color?: string
+          promo_bar_text_i18n?: Json | null
           site_name?: string
           updated_at?: string
           whatsapp_default_message?: string | null
@@ -930,8 +959,11 @@ export type Database = {
           accent_color?: string
           created_at?: string
           footer_text?: string | null
+          footer_text_i18n?: Json | null
           hero_subtitle?: string | null
+          hero_subtitle_i18n?: Json | null
           hero_title?: string | null
+          hero_title_i18n?: Json | null
           id?: string
           logo_url?: string | null
           primary_color?: string
@@ -939,6 +971,7 @@ export type Database = {
           promo_bar_enabled?: boolean
           promo_bar_text?: string | null
           promo_bar_text_color?: string
+          promo_bar_text_i18n?: Json | null
           site_name?: string
           updated_at?: string
           whatsapp_default_message?: string | null

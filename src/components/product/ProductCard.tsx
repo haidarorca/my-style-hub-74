@@ -1,12 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 export interface ProductCardProduct {
   id: string;
   name: string;
   price: number;
   code: string;
+  name_i18n?: unknown;
   product_images: { url: string }[] | null;
 }
 
@@ -16,7 +19,9 @@ interface Props {
 }
 
 export function ProductCard({ product, onQuickAdd }: Props) {
+  const { lang, t } = useI18n();
   const img = product.product_images?.[0]?.url;
+  const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   return (
     <div className="group relative overflow-hidden rounded-xl bg-card shadow-soft transition-shadow hover:shadow-card">
       <Link
@@ -28,16 +33,16 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           {img ? (
             <img
               src={img}
-              alt={product.name}
+              alt={displayName}
               loading="lazy"
               className="h-full w-full object-cover transition-transform group-hover:scale-105"
             />
           ) : null}
         </div>
         <div className="p-2">
-          <p className="line-clamp-2 text-xs">{product.name}</p>
+          <p className="line-clamp-2 text-xs">{displayName}</p>
           <p className="mt-1 text-sm font-bold text-primary">
-            {product.price.toLocaleString("fr-FR")} FCFA
+            {product.price.toLocaleString("fr-FR")} {t("misc.currency")}
           </p>
         </div>
       </Link>
@@ -50,7 +55,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           e.stopPropagation();
           onQuickAdd(product.id);
         }}
-        aria-label="Ajout rapide au panier"
+        aria-label={t("product.quick_add_aria")}
       >
         <ShoppingBag className="h-4 w-4" />
       </Button>
