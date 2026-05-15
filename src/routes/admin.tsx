@@ -1,45 +1,52 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag, Settings, Inbox,
+  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag, Settings, Inbox, ShieldCheck,
 } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
 });
 
-const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
+const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; perm?: AdminPermission; superOnly?: boolean }[] = [
   { to: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
-  { to: "/admin/categories", label: "Catégories", icon: FolderTree },
-  { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox },
-  { to: "/admin/vendors", label: "Vendeurs", icon: Store },
-  { to: "/admin/products", label: "Validation produits", icon: PackageCheck },
-  { to: "/admin/orders", label: "Commandes", icon: ShoppingBag },
-  { to: "/admin/reports", label: "Signalements", icon: Flag },
-  { to: "/admin/reviews", label: "Avis", icon: MessageSquare },
-  { to: "/admin/settings", label: "Paramètres du site", icon: Settings },
+  { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
+  { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
+  { to: "/admin/vendors", label: "Vendeurs", icon: Store, perm: "vendors" },
+  { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
+  { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
+  { to: "/admin/reports", label: "Signalements", icon: Flag, perm: "support" },
+  { to: "/admin/reviews", label: "Avis", icon: MessageSquare, perm: "support" },
+  { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
+  { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
 ];
 
 function AdminLayout() {
-  const { loading, user, isAdmin } = useAuth();
+  const { loading, user, isAdmin, isSuperAdmin, isSuspended, can } = useAuth();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     if (loading) return;
     if (!user) router.navigate({ to: "/login" });
-    else if (!isAdmin) router.navigate({ to: "/" });
-  }, [loading, user, isAdmin, router]);
+    else if (!isAdmin || isSuspended) router.navigate({ to: "/" });
+  }, [loading, user, isAdmin, isSuspended, router]);
 
-  if (loading || !user || !isAdmin) {
+  if (loading || !user || !isAdmin || isSuspended) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Chargement…
       </div>
     );
   }
+
+  const visibleNav = NAV.filter((item) => {
+    if (item.superOnly) return isSuperAdmin;
+    if (item.perm) return can(item.perm);
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -48,10 +55,10 @@ function AdminLayout() {
           <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Site
           </Link>
-          <div className="ml-2 text-base font-bold">Espace Admin</div>
+          <div className="ml-2 text-base font-bold">Espace Admin{isSuperAdmin && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Super admin</span>}</div>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
             const Icon = item.icon;
             return (
