@@ -48,7 +48,7 @@ export async function autoTranslateProduct(input: ProductInput): Promise<void> {
       if (desc) description_i18n[lang] = desc;
     }
 
-    const payload: Record<string, unknown> = {};
+    const payload: { name_i18n?: Record<string, string>; designation_i18n?: Record<string, string>; description_i18n?: Record<string, string> } = {};
     if (Object.keys(name_i18n).length > 0) payload.name_i18n = name_i18n;
     if (Object.keys(designation_i18n).length > 0) payload.designation_i18n = designation_i18n;
     if (Object.keys(description_i18n).length > 0) payload.description_i18n = description_i18n;
