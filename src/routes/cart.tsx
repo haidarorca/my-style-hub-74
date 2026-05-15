@@ -344,7 +344,7 @@ function CartPage() {
               </p>
             </div>
             <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
-              Passer la commande
+              <EditableLabel uiKey="cart.checkout" defaultLabel="Passer la commande" defaultSize="md" />
             </Button>
           </div>
         </div>
