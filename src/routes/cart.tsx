@@ -231,7 +231,8 @@ function CartPage() {
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       refresh();
       setCheckoutOpen(false);
-      toast.success("Commande enregistrée");
+      toast.success("Commande enregistrée — En attente de validation");
+      router.navigate({ to: "/orders" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
