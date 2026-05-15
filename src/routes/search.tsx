@@ -231,29 +231,19 @@ function SearchPage() {
     <div className="min-h-screen bg-background pb-24">
       <AppHeader />
       <div className="mx-auto max-w-3xl px-3 pt-2">
-        {!condensed && <BackButton fallbackTo="/" />}
+        <BackButton fallbackTo="/" />
 
-        {/* Compact, auto-collapsing search header */}
+        {/* Compact, auto-collapsing search header — layout stays stable */}
         <div
           className={cn(
-            "sticky z-30 -mx-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-200",
-            condensed ? "top-0 pb-1 pt-1" : "top-14 pb-2 pt-2 mt-1",
+            "sticky top-14 z-30 -mx-3 mt-1 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding] duration-200",
+            condensed ? "pb-1 pt-1" : "pb-2 pt-2",
           )}
         >
           <form onSubmit={onSubmit} className="flex w-full items-center gap-2">
-            {condensed && (
-              <button
-                type="button"
-                onClick={() => navigate({ to: "/" })}
-                aria-label={t("common.back")}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4 rotate-45" />
-              </button>
-            )}
             <div
               className={cn(
-                "flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-all focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
+                "flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-2 shadow-sm transition-[height] duration-200 focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30",
                 condensed ? "h-9" : "h-11",
               )}
             >
@@ -285,13 +275,23 @@ function SearchPage() {
                 </button>
               )}
             </div>
+            <Button
+              type="submit"
+              size="sm"
+              className={cn(
+                "shrink-0 rounded-full px-3 text-sm font-bold shadow-pink sm:px-4 transition-[height] duration-200",
+                condensed ? "h-9" : "h-11",
+              )}
+            >
+              {t("common.ok", "OK")}
+            </Button>
             <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button
                   type="button"
                   variant={hasFilters ? "default" : "outline"}
                   size="icon"
-                  className={cn("shrink-0 rounded-full", condensed ? "h-9 w-9" : "h-11 w-11")}
+                  className={cn("shrink-0 rounded-full transition-[height,width] duration-200", condensed ? "h-9 w-9" : "h-11 w-11")}
                   aria-label={t("search.filters")}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
