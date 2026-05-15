@@ -45,6 +45,13 @@ type VariantDraft = {
   image_url: string | null; image_file: File | null; remove_image: boolean;
 };
 type CatRow = { id: string; name: string; level: number; parent_id: string | null };
+type ReqRow = { id: string; name: string; level: number; status: string; parent_id: string | null; parent_request_id: string | null };
+type CatPick = string;
+
+const catValue = (id: string) => `cat:${id}`;
+const reqValue = (id: string) => `req:${id}`;
+const isReq = (value: CatPick) => value.startsWith("req:");
+const idOf = (value: CatPick) => value.slice(4);
 
 function fromExisting(v: ExistingVariant): VariantDraft {
   return {
@@ -74,9 +81,9 @@ function AdminEditProductPage() {
   const [vendorId, setVendorId] = useState<string>("");
 
   // Category 3 levels (approved only)
-  const [cat1, setCat1] = useState<string>("");
-  const [cat2, setCat2] = useState<string>("");
-  const [cat3, setCat3] = useState<string>("");
+  const [cat1, setCat1] = useState<CatPick>("");
+  const [cat2, setCat2] = useState<CatPick>("");
+  const [cat3, setCat3] = useState<CatPick>("");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
@@ -111,14 +118,23 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
-      let pendingReq: { id: string; name: string; level: number; status: string; parent_id: string | null } | null = null;
+      let pendingReq: ReqRow | null = null;
+      let categoryRequests: ReqRow[] = [];
       if (prod.data?.pending_category_request_id) {
         const { data: pr } = await supabase
           .from("category_requests")
-          .select("id, name, level, status, parent_id")
+          .select("id, name, level, status, parent_id, parent_request_id")
           .eq("id", prod.data.pending_category_request_id)
           .maybeSingle();
         pendingReq = pr as typeof pendingReq;
+      }
+      if (prod.data?.vendor_id) {
+        const { data: reqRows } = await supabase
+          .from("category_requests")
+          .select("id, name, level, status, parent_id, parent_request_id")
+          .eq("vendor_id", prod.data.vendor_id)
+          .order("level");
+        categoryRequests = (reqRows ?? []) as ReqRow[];
       }
       return {
         product: prod.data,
@@ -135,6 +151,7 @@ function AdminEditProductPage() {
           .map(r => r.profiles)
           .filter(Boolean),
         pendingCategoryRequest: pendingReq,
+        categoryRequests,
       };
     },
   });
