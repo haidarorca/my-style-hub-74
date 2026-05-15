@@ -6,6 +6,8 @@ import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { useI18n } from "@/hooks/use-i18n";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
