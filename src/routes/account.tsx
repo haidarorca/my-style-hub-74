@@ -276,10 +276,8 @@ function AccountPage() {
     <div className="min-h-screen bg-background pb-safe">
       <AppHeader />
       <main className="mx-auto max-w-2xl px-3 py-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground">
-            <ArrowLeft className="h-4 w-4" /> Accueil
-          </Link>
+        <div className="mb-3">
+          <BackButton fallbackTo="/" />
         </div>
         <div className="mb-4 flex items-end justify-between">
           <div>
