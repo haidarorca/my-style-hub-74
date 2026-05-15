@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { MapPin, Loader2, Eye, EyeOff } from "lucide-react";
+import { MapPin, Loader2, Eye, EyeOff, Home } from "lucide-react";
+import { BackButton } from "@/components/layout/BackButton";
+import { useI18n } from "@/hooks/use-i18n";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/signup")({
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -97,9 +100,20 @@ function SignupPage() {
 
   return (
     <div className="min-h-screen bg-background pt-safe">
-      <div className="mx-auto flex max-w-md flex-col px-4 py-8">
-        <h1 className="text-2xl font-bold">Créer un compte</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Rejoins-nous pour shopper et personnaliser tes produits.</p>
+      <div className="page-container flex max-w-md flex-col py-4">
+        <div className="flex items-center justify-between gap-2">
+          <BackButton fallbackTo="/" />
+          <Link
+            to="/"
+            aria-label={t("nav.home")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Home className="h-4 w-4" />
+            <span>{t("nav.home")}</span>
+          </Link>
+        </div>
+        <h1 className="mt-4 text-2xl font-bold">Créer un compte</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1.5">
