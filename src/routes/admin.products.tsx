@@ -281,8 +281,10 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setViewing(p)} title="Voir détails">
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(p)} title="Modifier">
-                <Pencil className="h-4 w-4" />
+              <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Édition complète">
+                <Link to="/admin/products/$productId/edit" params={{ productId: p.id }}>
+                  <Pencil className="h-4 w-4" />
+                </Link>
               </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteProduct(p.id)} title="Supprimer">
                 <Trash2 className="h-4 w-4 text-destructive" />
