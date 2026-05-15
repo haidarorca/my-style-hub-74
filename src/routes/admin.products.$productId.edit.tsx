@@ -118,6 +118,7 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
+      if (cats.error) throw cats.error;
       let pendingReq: ReqRow | null = null;
       let categoryRequests: ReqRow[] = [];
       if (prod.data?.pending_category_request_id) {
@@ -129,11 +130,12 @@ function AdminEditProductPage() {
         pendingReq = pr as typeof pendingReq;
       }
       if (prod.data?.vendor_id) {
-        const { data: reqRows } = await supabase
+        const { data: reqRows, error: reqErr } = await supabase
           .from("category_requests")
           .select("id, name, level, status, parent_id, parent_request_id")
           .eq("vendor_id", prod.data.vendor_id)
           .order("level");
+        if (reqErr) throw reqErr;
         categoryRequests = (reqRows ?? []) as ReqRow[];
       }
       return {
@@ -243,6 +245,16 @@ function AdminEditProductPage() {
     };
     return { level1, level2: childrenOf(2, cat1), level3: childrenOf(3, cat2) };
   }, [data?.categories, data?.categoryRequests, cat1, cat2]);
+
+  const categoryLabelByValue = useMemo(() => {
+    const labels = new Map<string, string>();
+    (data?.categories ?? []).forEach(c => labels.set(catValue(c.id), c.name));
+    (data?.categoryRequests ?? []).forEach(r => labels.set(reqValue(r.id), `${r.name} (en attente)`));
+    if (data?.pendingCategoryRequest) {
+      labels.set(reqValue(data.pendingCategoryRequest.id), `${data.pendingCategoryRequest.name} (en attente)`);
+    }
+    return labels;
+  }, [data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
 
   const orig = data?.product;
   const sensitiveChanged = useMemo(() => {
