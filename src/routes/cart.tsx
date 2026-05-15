@@ -22,6 +22,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
@@ -52,6 +54,7 @@ export const Route = createFileRoute("/cart")({
 function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
+  const { lang, t } = useI18n();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -124,22 +127,22 @@ function CartPage() {
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
     const parts: string[] = [];
-    if (c.text) parts.push(`texte « ${c.text} »`);
-    if (c.font) parts.push(`police ${c.font}`);
-    if (c.color) parts.push(`couleur ${c.color}`);
-    if (c.image_url) parts.push("image fournie");
+    if (c.text) parts.push(`${t("product.your_text")} « ${c.text} »`);
+    if (c.font) parts.push(`${t("product.font")} ${c.font}`);
+    if (c.color) parts.push(`${t("product.color")} ${c.color}`);
+    if (c.image_url) parts.push(t("product.your_image"));
     return parts.length ? parts.join(", ") : null;
   };
   const useGeolocation = () => {
-    if (!navigator.geolocation) return toast.error("Géolocalisation non disponible");
+    if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setNewForm((f) => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
         setLocating(false);
-        toast.success("Position enregistrée");
+        toast.success(t("common.location_saved"));
       },
-      () => { setLocating(false); toast.error("Impossible d'obtenir la position"); },
+      () => { setLocating(false); toast.error(t("common.location_failed")); },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
@@ -190,7 +193,7 @@ function CartPage() {
       .select("*")
       .single();
     if (error) {
-      toast.error("Erreur lors de l'enregistrement de l'adresse");
+      toast.error(t("checkout.address_save_error"));
       return null;
     }
     return data as Address;
@@ -226,7 +229,7 @@ function CartPage() {
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
         buyer_id: user?.id ?? null,
-        product_name: it.products.name,
+        product_name: pickI18n(it.products.name, it.products.name_i18n, lang),
         product_code: it.products.code,
         product_image_url: it.products.product_images?.[0]?.url ?? null,
         size: it.product_variants?.size ?? null,
@@ -245,15 +248,15 @@ function CartPage() {
       }
       refresh();
       setCheckoutOpen(false);
-      toast.success("Commande enregistrée — En attente de validation");
+      toast.success(t("checkout.order_saved_pending"));
       if (user) router.navigate({ to: "/orders" });
       else router.navigate({ to: "/" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
-          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || "Boutique",
+          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
           code: it.products?.code ?? "",
-          name: it.products?.name ?? "",
+          name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
           size: it.product_variants?.size ?? null,
           color: it.product_variants?.color ?? null,
           customization: customizationSummary(it.customization),
@@ -272,7 +275,7 @@ function CartPage() {
       }
     } catch (e) {
       console.error(e);
-      toast.error("Erreur lors de l'enregistrement de la commande");
+      toast.error(t("checkout.order_save_error"));
     } finally {
       setSubmitting(false);
     }
