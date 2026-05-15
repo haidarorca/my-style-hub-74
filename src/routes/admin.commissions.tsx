@@ -326,11 +326,13 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
         </Button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
+        {(showAll || configuredDestIds.has(null)) && (
+          <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
+        )}
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} rateLabel={pairRate(c.id)} onClick={() => onPick(c.id)} />
         ))}
-        {!showAll && filtered.length === 0 && (
+        {!showAll && filtered.length === 0 && !configuredDestIds.has(null) && (
           <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
             Aucune destination configurée pour ce pays. Cliquez « Voir tous les pays » pour en ajouter une.
           </p>
