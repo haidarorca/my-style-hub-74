@@ -57,8 +57,8 @@ export function RequestCategoryDialog() {
       parent_id = parent1;
     }
     if (lvl === 3) {
-      if (!parent1) return toast.error("Choisissez l'univers.");
-      if (!parent2) return toast.error("Choisissez la catégorie parente.");
+      if (!parent1) return toast.error("Choisissez la catégorie parente.");
+      if (!parent2) return toast.error("Choisissez la sous-catégorie parente.");
       parent_id = parent2;
     }
 
@@ -102,15 +102,15 @@ export function RequestCategoryDialog() {
             <Select value={level} onValueChange={(v) => { setLevel(v as "1" | "2" | "3"); setParent1(""); setParent2(""); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Univers (niveau 1)</SelectItem>
-                <SelectItem value="2">Catégorie (niveau 2)</SelectItem>
-                <SelectItem value="3">Sous-catégorie (niveau 3)</SelectItem>
+                <SelectItem value="1">Catégorie (niveau 1)</SelectItem>
+                <SelectItem value="2">Sous-catégorie (niveau 2)</SelectItem>
+                <SelectItem value="3">Sous-sous-catégorie (niveau 3)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {(level === "2" || level === "3") && (
             <div>
-              <Label>{level === "3" ? "Univers" : "Univers parent"}</Label>
+              <Label>Catégorie parente</Label>
               <Select value={parent1} onValueChange={(v) => { setParent1(v); setParent2(""); }}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
@@ -121,7 +121,7 @@ export function RequestCategoryDialog() {
           )}
           {level === "3" && parent1 && (
             <div>
-              <Label>Catégorie parente</Label>
+              <Label>Sous-catégorie parente</Label>
               <Select value={parent2} onValueChange={setParent2}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
