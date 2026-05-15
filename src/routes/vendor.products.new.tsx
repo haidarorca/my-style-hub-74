@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2, Upload, X, Sparkles, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -329,6 +330,14 @@ function NewProductPage() {
         const { error: cErr } = await supabase.from("product_customizations").insert(customRows);
         if (cErr) throw cErr;
       }
+
+      // Fire-and-forget auto-translation FR → EN+AR (stored on the same row)
+      void autoTranslateProduct({
+        productId,
+        name: name.trim(),
+        designation: designation.trim() || null,
+        description: description.trim() || null,
+      });
 
       toast.success("Produit créé. En attente de validation par l'admin.");
       router.navigate({ to: "/vendor" });

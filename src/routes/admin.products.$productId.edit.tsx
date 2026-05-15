@@ -354,6 +354,15 @@ function AdminEditProductPage() {
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
       if (updErr) throw updErr;
 
+      // Re-translate FR → EN+AR after admin edit (stored on the same row).
+      const { autoTranslateProduct } = await import("@/lib/auto-translate");
+      void autoTranslateProduct({
+        productId,
+        name: name.trim(),
+        designation: designation.trim() || null,
+        description: description.trim() || null,
+      });
+
       toast.success("Produit mis à jour.");
       router.navigate({ to: "/admin/products" });
     } catch (err) {

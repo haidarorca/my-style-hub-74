@@ -68,12 +68,17 @@ function CategoriesPage() {
         const { data: pub } = supabase.storage.from("category-logos").getPublicUrl(path);
         logo_url = pub.publicUrl;
       }
-      const { error } = await supabase.from("categories").insert({
+      const { data: inserted, error } = await supabase.from("categories").insert({
         name: name.trim(), slug: slugify(name), level,
         parent_id: level === 1 ? null : parentId, logo_url,
-      });
+      }).select("id").single();
       if (error) throw error;
       toast.success("Catégorie créée");
+      // Fire-and-forget translation FR → EN+AR
+      if (inserted?.id) {
+        const { autoTranslateCategory } = await import("@/lib/auto-translate");
+        void autoTranslateCategory(inserted.id, name.trim());
+      }
       setName(""); setLogoFile(null); setParentId(null); setGrandParentId(null);
       await qc.invalidateQueries({ queryKey: ["admin", "categories"] });
       await qc.invalidateQueries({ queryKey: ["categories", "level1"] });
