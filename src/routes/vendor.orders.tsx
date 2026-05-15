@@ -5,6 +5,7 @@ import { Package, ImageIcon, Phone, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -20,26 +21,34 @@ export const Route = createFileRoute("/vendor/orders")({
   component: VendorOrders,
 });
 
-const STATUSES = [
-  { value: "new", label: "En attente de validation" },
-  { value: "confirmed", label: "Confirmée" },
-  { value: "delivered", label: "Livrée" },
-  { value: "cancelled", label: "Annulée" },
-];
+const STATUS_VALUES = ["new", "confirmed", "delivered", "cancelled"] as const;
 
 const statusVariant = (s: string) =>
   s === "delivered" ? "default" : s === "cancelled" ? "destructive" : s === "confirmed" ? "secondary" : "outline";
 
 function VendorOrders() {
   const { user, isAdmin } = useAuth();
+  const { t, lang } = useI18n();
   const qc = useQueryClient();
   const [zoomImg, setZoomImg] = useState<string | null>(null);
+
+  const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
+  const locale = localeMap[lang] ?? "fr-FR";
+
+  const statusLabel = (v: string) => {
+    switch (v) {
+      case "new": return t("vendor.ord.status.new");
+      case "confirmed": return t("vendor.ord.status.confirmed");
+      case "delivered": return t("vendor.ord.status.delivered");
+      case "cancelled": return t("vendor.ord.status.cancelled");
+      default: return v;
+    }
+  };
 
   const { data: orders } = useQuery({
     queryKey: ["vendor-orders", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      // Fetch items first (vendor-scoped) then their orders.
       const { data: items, error } = await supabase
         .from("order_items")
         .select("*")
@@ -63,21 +72,21 @@ function VendorOrders() {
   const updateStatus = async (orderId: string, status: string) => {
     const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
     if (error) {
-      toast.error("Impossible de changer le statut");
+      toast.error(t("vendor.ord.toast.err"));
       return;
     }
-    toast.success("Statut mis à jour");
+    toast.success(t("vendor.ord.toast.ok"));
     qc.invalidateQueries({ queryKey: ["vendor-orders"] });
   };
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Commandes reçues</h1>
+      <h1 className="text-xl font-bold">{t("vendor.ord.title")}</h1>
 
       {!orders || orders.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           <Package className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Aucune commande pour le moment.
+          {t("vendor.ord.empty")}
         </div>
       ) : (
         <ul className="space-y-4">
@@ -91,21 +100,21 @@ function VendorOrders() {
               <li key={o.id} className="overflow-hidden rounded-xl border bg-card">
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
                   <div>
-                    <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
-                    <div className="text-[11px] text-muted-foreground">{date.toLocaleString("fr-FR")}</div>
+                    <div className="text-xs font-semibold">{t("vendor.ord.order_num")} #{o.id.slice(0, 8)}</div>
+                    <div className="text-[11px] text-muted-foreground">{date.toLocaleString(locale)}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={statusVariant(o.status) as any}>
-                      {STATUSES.find((s) => s.value === o.status)?.label ?? o.status}
+                      {statusLabel(o.status)}
                     </Badge>
                     <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v)}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <SelectTrigger className="h-7 w-[150px] text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {STATUSES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
+                        {STATUS_VALUES.map((v) => (
+                          <SelectItem key={v} value={v}>
+                            {statusLabel(v)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -128,7 +137,7 @@ function VendorOrders() {
                       </span>
                     )}
                   </div>
-                  {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
+                  {o.note && <div className="mt-1 italic text-muted-foreground">{t("vendor.ord.note")} : {o.note}</div>}
                 </div>
 
                 <ul>
@@ -144,33 +153,33 @@ function VendorOrders() {
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="text-sm font-semibold">{it.product_name}</div>
                           <div className="text-xs text-muted-foreground">
-                            Code {it.product_code} · Qté {it.quantity} ·{" "}
-                            {Number(it.unit_price).toLocaleString("fr-FR")} FCFA
+                            {t("vendor.ord.code")} {it.product_code} · {t("vendor.ord.qty")} {it.quantity} ·{" "}
+                            {Number(it.unit_price).toLocaleString(locale)} FCFA
                           </div>
                           {(it.size || it.color) && (
                             <div className="text-xs text-muted-foreground">
-                              {it.size && <>Taille : {it.size}</>}
+                              {it.size && <>{t("vendor.ord.size")} : {it.size}</>}
                               {it.size && it.color && " · "}
-                              {it.color && <>Couleur : {it.color}</>}
+                              {it.color && <>{t("vendor.ord.color")} : {it.color}</>}
                             </div>
                           )}
 
                           {(c.text || c.image_url) && (
                             <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
-                              <div className="mb-1 font-semibold text-primary">Personnalisation</div>
+                              <div className="mb-1 font-semibold text-primary">{t("vendor.ord.custom")}</div>
                               {c.text && (
                                 <div className="space-y-1">
                                   <div>
-                                    Texte : <span className="font-medium">{c.text}</span>
+                                    {t("vendor.ord.custom.text")} : <span className="font-medium">{c.text}</span>
                                   </div>
                                   {c.font && (
                                     <div>
-                                      Police : <span className="font-medium">{c.font}</span>
+                                      {t("vendor.ord.custom.font")} : <span className="font-medium">{c.font}</span>
                                     </div>
                                   )}
                                   {c.color && (
                                     <div className="flex items-center gap-1">
-                                      Couleur :
+                                      {t("vendor.ord.custom.color")} :
                                       <span
                                         className="inline-block h-3 w-3 rounded-full border"
                                         style={{ backgroundColor: c.color }}
@@ -192,7 +201,7 @@ function VendorOrders() {
                                     onClick={() => setZoomImg(c.image_url)}
                                     className="group relative block h-24 w-24 overflow-hidden rounded border bg-muted"
                                   >
-                                    <img src={c.image_url} alt="logo client" className="h-full w-full object-contain" />
+                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" />
                                     <span className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white group-hover:flex">
                                       <ImageIcon className="h-4 w-4" />
                                     </span>
@@ -204,7 +213,7 @@ function VendorOrders() {
                                       rel="noreferrer"
                                       className="text-[11px] text-primary underline"
                                     >
-                                      Ouvrir / télécharger
+                                      {t("vendor.ord.custom.open")}
                                     </a>
                                   </div>
                                 </div>
@@ -219,10 +228,10 @@ function VendorOrders() {
 
                 <div className="flex items-center justify-between border-t bg-muted/10 px-3 py-2 text-xs">
                   <span className="text-muted-foreground">
-                    {isAdmin ? "Total commande" : "Sous-total (vos articles)"}
+                    {isAdmin ? t("vendor.ord.total") : t("vendor.ord.subtotal")}
                   </span>
                   <span className="font-bold text-primary">
-                    {(isAdmin ? Number(o.total) : myItemsTotal).toLocaleString("fr-FR")} FCFA
+                    {(isAdmin ? Number(o.total) : myItemsTotal).toLocaleString(locale)} FCFA
                   </span>
                 </div>
               </li>
@@ -234,14 +243,14 @@ function VendorOrders() {
       <Dialog open={!!zoomImg} onOpenChange={(o) => !o && setZoomImg(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Image de personnalisation</DialogTitle>
+            <DialogTitle>{t("vendor.ord.dialog_title")}</DialogTitle>
           </DialogHeader>
           {zoomImg && (
             <div className="space-y-3">
-              <img src={zoomImg} alt="zoom" className="max-h-[70vh] w-full object-contain" />
+              <img src={zoomImg} alt="" className="max-h-[70vh] w-full object-contain" />
               <a href={zoomImg} target="_blank" rel="noreferrer">
                 <Button variant="outline" className="w-full">
-                  Ouvrir dans un nouvel onglet
+                  {t("vendor.ord.open_new_tab")}
                 </Button>
               </a>
             </div>
