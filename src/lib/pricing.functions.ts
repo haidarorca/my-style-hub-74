@@ -7,11 +7,21 @@ const InputSchema = z.object({
   destinationCountryId: z.string().uuid().nullable().optional(),
 });
 
+const LinesInputSchema = z.object({
+  lines: z.array(z.object({
+    productId: z.string().uuid(),
+    variantId: z.string().uuid().nullable().optional(),
+  })).min(1).max(200),
+  destinationCountryId: z.string().uuid().nullable().optional(),
+});
+
 export interface DisplayPrice {
   product_id: string;
+  variant_id: string | null;
   base_price: number;
   final_price: number;
   commission_rate: number;
+  commission_amount: number;
 }
 
 /**
@@ -30,8 +40,33 @@ export const getDisplayPrices = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r: any) => ({
       product_id: r.product_id,
+      variant_id: null,
       base_price: Number(r.base_price ?? 0),
       final_price: Number(r.final_price ?? 0),
       commission_rate: Number(r.commission_rate ?? 0),
+      commission_amount: Number(r.commission_amount ?? 0),
     }));
+  });
+
+export const getDisplayPriceLines = createServerFn({ method: "POST" })
+  .inputValidator((input) => LinesInputSchema.parse(input))
+  .handler(async ({ data }): Promise<DisplayPrice[]> => {
+    const rows = await Promise.all(data.lines.map(async (line) => {
+      const { data: result, error } = await supabaseAdmin.rpc("get_product_display_price", {
+        _product_id: line.productId,
+        _variant_id: line.variantId ?? null,
+        _destination_country_id: data.destinationCountryId ?? null,
+      });
+      if (error) throw new Error(error.message);
+      const r = Array.isArray(result) ? result[0] : null;
+      return {
+        product_id: line.productId,
+        variant_id: line.variantId ?? null,
+        base_price: Number(r?.base_price ?? 0),
+        final_price: Number(r?.final_price ?? 0),
+        commission_rate: Number(r?.commission_rate ?? 0),
+        commission_amount: Number(r?.commission_amount ?? 0),
+      };
+    }));
+    return rows;
   });
