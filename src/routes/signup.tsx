@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { MapPin, Loader2 } from "lucide-react";
+import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
