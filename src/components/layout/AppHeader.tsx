@@ -87,7 +87,7 @@ export function AppHeader() {
         ) : (
           <form
             onSubmit={submitSearch}
-            className="mx-auto flex h-10 w-full max-w-xl items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-1 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30"
+            className="mx-auto flex h-9 w-full max-w-xl items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30"
           >
             <button
               type="submit"
@@ -103,34 +103,32 @@ export function AppHeader() {
               placeholder="Rechercher…"
               inputMode="search"
               enterKeyHint="search"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground sm:text-sm"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Effacer"
-                className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
-            {query.trim() && (
-              <button
-                type="submit"
-                className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform"
-              >
-                OK
-              </button>
-            )}
+            <button
+              type="submit"
+              className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform sm:px-3 sm:text-xs"
+            >
+              OK
+            </button>
           </form>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {/* Top-positioned actions so phone gesture bar doesn't interfere */}
           <Link to="/cart" className="relative">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ShoppingBag className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
+              <ShoppingBag className="h-[18px] w-[18px]" />
             </Button>
             {count > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -142,8 +140,8 @@ export function AppHeader() {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <User className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
+                  <User className="h-[18px] w-[18px]" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
