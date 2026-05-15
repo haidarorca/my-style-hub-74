@@ -13,11 +13,11 @@ import { DEFAULT_LANG } from "./translations";
  */
 export function pickI18n(
   base: string | null | undefined,
-  i18n: Record<string, string | null | undefined> | null | undefined,
+  i18n: unknown,
   lang: Lang,
 ): string {
-  if (lang !== DEFAULT_LANG && i18n) {
-    const v = i18n[lang];
+  if (lang !== DEFAULT_LANG && i18n && typeof i18n === "object" && !Array.isArray(i18n)) {
+    const v = (i18n as Record<string, unknown>)[lang];
     if (typeof v === "string" && v.trim().length > 0) return v;
   }
   return (base ?? "").toString();
@@ -26,7 +26,7 @@ export function pickI18n(
 /** Same as pickI18n but tolerates the value missing entirely. */
 export function pickI18nOr(
   base: string | null | undefined,
-  i18n: Record<string, string | null | undefined> | null | undefined,
+  i18n: unknown,
   lang: Lang,
   fallback: string,
 ): string {

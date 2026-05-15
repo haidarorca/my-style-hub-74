@@ -9,7 +9,7 @@ export interface ProductCardProduct {
   name: string;
   price: number;
   code: string;
-  name_i18n?: Record<string, string> | null;
+  name_i18n?: unknown;
   product_images: { url: string }[] | null;
 }
 
@@ -21,7 +21,7 @@ interface Props {
 export function ProductCard({ product, onQuickAdd }: Props) {
   const { lang, t } = useI18n();
   const img = product.product_images?.[0]?.url;
-  const displayName = pickI18n(product.name, product.name_i18n, lang);
+  const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   return (
     <div className="group relative overflow-hidden rounded-xl bg-card shadow-soft transition-shadow hover:shadow-card">
       <Link
