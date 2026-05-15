@@ -53,12 +53,12 @@ export function RequestCategoryDialog() {
     const lvl = Number(level) as 1 | 2 | 3;
     let parent_id: string | null = null;
     if (lvl === 2) {
-      if (!parent1) return toast.error("Choisissez la catégorie parente.");
+      if (!parent1) return toast.error("Choisissez le rayon parent.");
       parent_id = parent1;
     }
     if (lvl === 3) {
-      if (!parent1) return toast.error("Choisissez la catégorie parente.");
-      if (!parent2) return toast.error("Choisissez la sous-catégorie parente.");
+      if (!parent1) return toast.error("Choisissez le rayon parent.");
+      if (!parent2) return toast.error("Choisissez la catégorie parente.");
       parent_id = parent2;
     }
 
