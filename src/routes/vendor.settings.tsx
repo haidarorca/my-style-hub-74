@@ -161,6 +161,7 @@ function VendorSettings() {
             value={f.shop_description}
             onChange={(e) => setF({ ...f, shop_description: e.target.value })}
             placeholder="Une phrase qui présente votre boutique" />
+        </div>
       </div>
 
       {/* Schedule editor */}
