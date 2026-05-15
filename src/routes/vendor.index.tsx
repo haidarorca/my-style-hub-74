@@ -17,8 +17,9 @@ export const Route = createFileRoute("/vendor/")({
 
 function VendorHome() {
   const { user, profile } = useAuth();
+  const { t, lang } = useI18n();
   const p = (profile ?? {}) as Record<string, unknown>;
-  const shopName = (p.shop_name as string) || (p.full_name as string) || "Ma boutique";
+  const shopName = (p.shop_name as string) || (p.full_name as string) || t("vendor.dash.my_shop_default");
   const logo = p.shop_logo_url as string | undefined;
   const banner = p.shop_banner_url as string | undefined;
   const verified = !!p.is_verified;
