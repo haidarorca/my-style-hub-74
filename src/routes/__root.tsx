@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SiteSettingsProvider } from "@/hooks/use-site-settings";
+import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
 import { PromoBar } from "@/components/layout/PromoBar";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,10 +132,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SiteSettingsProvider>
-          <AuthInvalidator />
-          <PromoBar />
-          <Outlet />
-          <Toaster richColors position="top-center" />
+          <UiOverridesProvider>
+            <AuthInvalidator />
+            <PromoBar />
+            <Outlet />
+            <Toaster richColors position="top-center" />
+          </UiOverridesProvider>
         </SiteSettingsProvider>
       </AuthProvider>
     </QueryClientProvider>

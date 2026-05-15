@@ -671,6 +671,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ui_overrides: {
+        Row: {
+          key: string
+          label: string | null
+          size: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          key: string
+          label?: string | null
+          size?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          key?: string
+          label?: string | null
+          size?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
+import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -471,7 +472,7 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : "Ajouter au panier"}
+            {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : needsCustomImage ? "Ajouter votre image" : needsCustomText ? "Saisir votre texte" : <EditableLabel uiKey="product.add_to_cart" defaultLabel="Ajouter au panier" defaultSize="md" />}
           </Button>
         </div>
       </div>

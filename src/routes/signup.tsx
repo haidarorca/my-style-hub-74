@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { MapPin, Loader2 } from "lucide-react";
+import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
@@ -144,7 +145,7 @@ function SignupPage() {
           </div>
 
           <Button type="submit" disabled={loading} className="w-full" size="lg">
-            {loading ? "Création…" : "Créer mon compte"}
+            {loading ? "Création…" : <EditableLabel uiKey="signup.submit" defaultLabel="Créer mon compte" defaultSize="md" />}
           </Button>
         </form>
 

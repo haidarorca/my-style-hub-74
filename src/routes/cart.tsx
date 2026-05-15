@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { BackButton } from "@/components/layout/BackButton";
+import { EditableLabel } from "@/components/admin/EditableLabel";
 import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -343,7 +344,7 @@ function CartPage() {
               </p>
             </div>
             <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
-              Passer la commande
+              <EditableLabel uiKey="cart.checkout" defaultLabel="Passer la commande" defaultSize="md" />
             </Button>
           </div>
         </div>
@@ -462,7 +463,7 @@ function CartPage() {
 
           <div className="mt-4 space-y-2 border-t border-border pt-3">
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-              {submitting ? "Envoi…" : "Valider et envoyer sur WhatsApp"}
+              {submitting ? "Envoi…" : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel="Valider et envoyer sur WhatsApp" defaultSize="md" />}
             </Button>
           </div>
         </DialogContent>
