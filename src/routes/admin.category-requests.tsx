@@ -169,9 +169,9 @@ function CategoryRequestsPage() {
             vendorName={vendorMap.get(r.vendor_id) ?? "Vendeur"}
             parentPath={pathOf(r.parent_id)}
             cats={cats ?? []}
-            onApprove={approve}
-            onMerge={merge}
-            onReject={reject}
+            onApprove={async (r, n) => { await approve(r, n); }}
+            onMerge={async (r, t) => { await merge(r, t); }}
+            onReject={async (r, n) => { await reject(r, n); }}
           />
         ))}
       </div>
