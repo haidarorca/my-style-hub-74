@@ -115,7 +115,7 @@ function CartPage() {
     const p = (it as any).products;
     if (!p) continue;
     const profileShop = p.profiles;
-    const shopName = profileShop?.shop_name || profileShop?.full_name || "Boutique";
+    const shopName = profileShop?.shop_name || profileShop?.full_name || t("product.shop");
     const key = p.vendor_id;
     if (!groups.has(key)) groups.set(key, { shopName, vendorId: key, items: [] });
     groups.get(key)!.items.push(it);
@@ -286,11 +286,11 @@ function CartPage() {
       <AppHeader />
       <main className="mx-auto max-w-3xl px-3 py-3">
         <BackButton fallbackTo="/" />
-        <h1 className="mb-3 mt-2 text-lg font-bold">Mon panier</h1>
+        <h1 className="mb-3 mt-2 text-lg font-bold">{t("cart.title")}</h1>
 
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            Votre panier est vide.
+            {t("cart.empty")}
           </div>
         ) : (
           <div className="space-y-4">
@@ -311,22 +311,22 @@ function CartPage() {
                           {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" />}
                         </div>
                         <div className="flex flex-1 flex-col">
-                          <p className="line-clamp-2 text-sm">{it.products.name}</p>
-                          <p className="text-xs text-muted-foreground">Code : {it.products.code}</p>
+                          <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
+                          <p className="text-xs text-muted-foreground">{t("product.code")} : {it.products.code}</p>
                           {(it.product_variants?.size || it.product_variants?.color) && (
                             <p className="text-xs text-muted-foreground">
-                              {it.product_variants.size && <>Taille : {it.product_variants.size}</>}
+                              {it.product_variants.size && <>{t("product.size")} : {it.product_variants.size}</>}
                               {it.product_variants.size && it.product_variants.color && " · "}
-                              {it.product_variants.color && <>Couleur : {it.product_variants.color}</>}
+                              {it.product_variants.color && <>{t("product.color")} : {it.product_variants.color}</>}
                             </p>
                           )}
-                          {cust && <p className="text-xs text-primary">Perso : {cust}</p>}
+                          {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
                           <div className="mt-auto flex items-end justify-between pt-2">
                             <p className="text-sm font-bold text-primary">
                               {price.toLocaleString("fr-FR")} FCFA
                             </p>
                             <div className="flex items-center gap-2">
-                              <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label="Supprimer">
+                                <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
                                 <Trash2 className="h-4 w-4" />
                               </button>
                               <div className="inline-flex items-center rounded-md border border-border">
@@ -355,13 +355,13 @@ function CartPage() {
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur pb-safe">
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-3 py-3">
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
               <p className="text-lg font-extrabold text-primary">
                 {grandTotal.toLocaleString("fr-FR")} FCFA
               </p>
             </div>
             <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
-              <EditableLabel uiKey="cart.checkout" defaultLabel="Passer la commande" defaultSize="md" />
+              <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
             </Button>
           </div>
         </div>
