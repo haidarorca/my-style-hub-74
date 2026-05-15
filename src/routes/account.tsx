@@ -4,6 +4,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { BackButton } from "@/components/layout/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -276,10 +277,8 @@ function AccountPage() {
     <div className="min-h-screen bg-background pb-safe">
       <AppHeader />
       <main className="mx-auto max-w-2xl px-3 py-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground">
-            <ArrowLeft className="h-4 w-4" /> Accueil
-          </Link>
+        <div className="mb-3">
+          <BackButton fallbackTo="/" />
         </div>
         <div className="mb-4 flex items-end justify-between">
           <div>

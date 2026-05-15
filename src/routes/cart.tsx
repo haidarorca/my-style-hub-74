@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { BackButton } from "@/components/layout/BackButton";
 import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/cart")({
 function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
+  const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -229,7 +231,8 @@ function CartPage() {
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       refresh();
       setCheckoutOpen(false);
-      toast.success("Commande enregistrée");
+      toast.success("Commande enregistrée — En attente de validation");
+      router.navigate({ to: "/orders" });
 
       if (openWhatsApp) {
         const lines: WhatsAppLine[] = items.map((it: any) => ({
@@ -263,8 +266,9 @@ function CartPage() {
   return (
     <div className="min-h-screen bg-background pb-32">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-3 py-4">
-        <h1 className="mb-3 text-lg font-bold">Mon panier</h1>
+      <main className="mx-auto max-w-3xl px-3 py-3">
+        <BackButton fallbackTo="/" />
+        <h1 className="mb-3 mt-2 text-lg font-bold">Mon panier</h1>
 
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">

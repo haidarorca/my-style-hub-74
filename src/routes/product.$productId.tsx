@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { BackButton } from "@/components/layout/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -203,6 +204,9 @@ function ProductPage() {
     <div className="min-h-screen bg-background pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
+        <div className="px-3 pt-2">
+          <BackButton fallbackTo="/" />
+        </div>
         {/* Gallery — swipeable */}
         {(() => {
           const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;

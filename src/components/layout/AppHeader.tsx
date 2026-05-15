@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin } from "lucide-react";
+import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -76,6 +76,9 @@ export function AppHeader() {
                 {profile?.full_name || profile?.email || "Mon compte"}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/orders"><Package className="mr-2 h-4 w-4" /> Mes commandes</Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
               </DropdownMenuItem>

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/vendor/orders")({
 });
 
 const STATUSES = [
-  { value: "new", label: "Nouvelle" },
+  { value: "new", label: "En attente de validation" },
   { value: "confirmed", label: "Confirmée" },
   { value: "delivered", label: "Livrée" },
   { value: "cancelled", label: "Annulée" },
