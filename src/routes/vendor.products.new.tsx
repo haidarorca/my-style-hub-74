@@ -6,6 +6,8 @@ import { Plus, Trash2, Upload, X, Sparkles, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,7 +47,7 @@ type Pick = string;
 const isReq = (v: Pick) => v.startsWith("req:");
 const idOf = (v: Pick) => v.slice(4);
 
-type CatRow = { id: string; name: string; level: number; parent_id: string | null };
+type CatRow = { id: string; name: string; level: number; parent_id: string | null; name_i18n: unknown };
 type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
 
 function NewProductPage() {
