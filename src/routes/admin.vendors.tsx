@@ -163,7 +163,16 @@ function EditVendorDialog({
   vendor: VendorRow | null;
   onClose: () => void;
   onSaved: () => void;
-  save: ReturnType<typeof useServerFn<typeof updateVendor>>;
+  save: (args: { data: {
+    user_id: string;
+    shop_name: string | null;
+    full_name: string | null;
+    phone: string | null;
+    source_country_id: string;
+    vendor_mode: "commission" | "no_commission";
+    ships_internationally: boolean;
+    allowed_destination_country_ids: string[];
+  } }) => Promise<unknown>;
 }) {
   const isOpen = !!vendor;
   const [shopName, setShopName] = useState("");
@@ -177,10 +186,8 @@ function EditVendorDialog({
   const { data: countries } = useCountries({ onlyEnabled: true });
   const labelOf = useCountryLabel();
 
-  // hydrate when opening
-  const lastIdRef = vendor?.user_id ?? "";
-  if (vendor && lastIdRef !== (window as unknown as { __evd?: string }).__evd) {
-    (window as unknown as { __evd?: string }).__evd = lastIdRef;
+  useEffect(() => {
+    if (!vendor) return;
     const p = vendor.profiles;
     setShopName(p?.shop_name ?? "");
     setFullName(p?.full_name ?? "");
@@ -189,7 +196,7 @@ function EditVendorDialog({
     setMode(p?.vendor_mode ?? "no_commission");
     setIntl(p?.ships_internationally ?? false);
     setAllowed(p?.allowed_destination_country_ids ?? []);
-  }
+  }, [vendor]);
 
   async function handleSave() {
     if (!vendor) return;
