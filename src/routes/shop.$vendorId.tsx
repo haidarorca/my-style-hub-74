@@ -51,6 +51,9 @@ function ShopPage() {
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
   const whatsapp = (v.shop_whatsapp as string) || (v.phone as string) || "";
+  const schedule = normalizeSchedule(v.shop_hours_schedule);
+  const scheduleSummary = summarizeSchedule(schedule);
+  const openNow = isOpenNow(schedule);
   const verified = !!v.is_verified;
   const productCount = products?.length ?? 0;
 
