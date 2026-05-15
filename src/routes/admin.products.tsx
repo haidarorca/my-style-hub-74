@@ -161,9 +161,7 @@ function ProductDetailDialog({ product, onClose }: { product: ProductRow | null;
 function ProductList({ status }: { status: "pending" | "approved" | "rejected" }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<ProductRow | null>(null);
   const [viewing, setViewing] = useState<ProductRow | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", price: "", description: "" });
 
   const { data: items } = useQuery({
     queryKey: ["admin", "products", status],
