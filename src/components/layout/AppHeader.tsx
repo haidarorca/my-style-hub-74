@@ -113,7 +113,7 @@ export function AppHeader() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher…"
+              placeholder={t("common.search_placeholder")}
               inputMode="search"
               enterKeyHint="search"
               className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground sm:text-sm"
