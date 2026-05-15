@@ -113,6 +113,7 @@ function AccountPage() {
       full_name: profile?.full_name ?? "",
       phone: parsedProfile?.local ?? "",
     });
+    setDestinationCountryId(null);
     setErrors({});
     setOpen(true);
   };
