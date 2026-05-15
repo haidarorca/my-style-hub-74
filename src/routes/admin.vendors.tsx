@@ -52,16 +52,33 @@ function VendorsPage() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
+  const [cSourceId, setCSourceId] = useState<string | null>(null);
+  const [cMode, setCMode] = useState<"commission" | "no_commission">("no_commission");
+  const [cIntl, setCIntl] = useState(false);
+  const [cAllowed, setCAllowed] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<VendorRow | null>(null);
 
   async function handleCreate() {
+    if (!cSourceId) { toast.error("Pays source obligatoire"); return; }
+    if (cIntl && cAllowed.length === 0) {
+      toast.error("Sélectionnez au moins un pays de livraison autorisé.");
+      return;
+    }
     setBusy(true);
     try {
-      await create({ data: { ...form, phone: form.phone || null } });
+      await create({ data: {
+        ...form,
+        phone: form.phone || null,
+        source_country_id: cSourceId,
+        vendor_mode: cMode,
+        ships_internationally: cIntl,
+        allowed_destination_country_ids: cAllowed,
+      } });
       toast.success("Vendeur créé");
       setOpen(false);
       setForm({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
+      setCSourceId(null); setCMode("no_commission"); setCIntl(false); setCAllowed([]);
       qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     } catch (e) {
       toast.error((e as Error).message);
@@ -85,7 +102,7 @@ function VendorsPage() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-1 h-4 w-4" /> Nouveau vendeur</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>Créer un compte vendeur</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div><label className="text-xs">Nom complet</label>
@@ -98,6 +115,13 @@ function VendorsPage() {
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
               <div><label className="text-xs">Mot de passe (min 6)</label>
                 <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+              <VendorScopeFields
+                sourceId={cSourceId} setSourceId={setCSourceId}
+                mode={cMode} setMode={setCMode}
+                intl={cIntl} setIntl={setCIntl}
+                allowed={cAllowed} setAllowed={setCAllowed}
+                radioName="mode-create"
+              />
             </div>
             <DialogFooter>
               <Button onClick={handleCreate} disabled={busy}>{busy ? "Création…" : "Créer"}</Button>
@@ -224,9 +248,7 @@ function EditVendorDialog({
     } finally { setSaving(false); }
   }
 
-  const sourceCountry = countries?.find((c) => c.id === sourceId);
-  const toggleAllowed = (id: string) =>
-    setAllowed((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  void countries; void labelOf;
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -246,77 +268,13 @@ function EditVendorDialog({
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Pays source des produits *</Label>
-            <CountrySelect value={sourceId} onChange={setSourceId} onlyEnabled placeholder="Choisir le pays source" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Mode commission *</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
-                <input type="radio" name="mode-edit" checked={mode === "no_commission"} onChange={() => setMode("no_commission")} />
-                <span className="text-xs font-medium">Sans commission</span>
-              </Label>
-              <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
-                <input type="radio" name="mode-edit" checked={mode === "commission"} onChange={() => setMode("commission")} />
-                <span className="text-xs font-medium">Avec commission</span>
-              </Label>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-semibold">Vente internationale</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Désactivé = livraison uniquement dans {sourceCountry ? labelOf(sourceCountry) : "le pays source"}.
-                </p>
-              </div>
-              <Switch checked={intl} onCheckedChange={setIntl} />
-            </div>
-
-            {intl && (
-              <div className="space-y-1.5 pt-2 border-t">
-                <Label className="text-xs">Pays de livraison autorisés *</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Cochez chaque pays vers lequel le vendeur peut livrer.
-                </p>
-                <div className="max-h-48 overflow-auto rounded-md border divide-y">
-                  {(countries ?? []).map((c) => {
-                    const checked = allowed.includes(c.id);
-                    return (
-                      <label key={c.id} className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAllowed(c.id)}
-                        />
-                        <span className="text-base">{c.flag_emoji ?? "🏳️"}</span>
-                        <span className="flex-1 truncate">{labelOf(c)}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {allowed.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {allowed.map((id) => {
-                      const c = countries?.find((x) => x.id === id);
-                      if (!c) return null;
-                      return (
-                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px]">
-                          {c.flag_emoji} {c.name}
-                          <button type="button" onClick={() => toggleAllowed(id)} aria-label="Retirer">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <VendorScopeFields
+            sourceId={sourceId} setSourceId={setSourceId}
+            mode={mode} setMode={setMode}
+            intl={intl} setIntl={setIntl}
+            allowed={allowed} setAllowed={setAllowed}
+            radioName="mode-edit"
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
@@ -324,5 +282,88 @@ function EditVendorDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function VendorScopeFields({
+  sourceId, setSourceId, mode, setMode, intl, setIntl, allowed, setAllowed, radioName,
+}: {
+  sourceId: string | null;
+  setSourceId: (id: string | null) => void;
+  mode: "commission" | "no_commission";
+  setMode: (m: "commission" | "no_commission") => void;
+  intl: boolean;
+  setIntl: (v: boolean) => void;
+  allowed: string[];
+  setAllowed: (updater: (cur: string[]) => string[]) => void;
+  radioName: string;
+}) {
+  const { data: countries } = useCountries({ onlyEnabled: true });
+  const labelOf = useCountryLabel();
+  const sourceCountry = countries?.find((c) => c.id === sourceId);
+  const toggle = (id: string) =>
+    setAllowed((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Pays source des produits *</Label>
+        <CountrySelect value={sourceId} onChange={setSourceId} onlyEnabled placeholder="Choisir le pays source" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Mode commission *</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
+            <input type="radio" name={radioName} checked={mode === "no_commission"} onChange={() => setMode("no_commission")} />
+            <span className="text-xs font-medium">Sans commission</span>
+          </Label>
+          <Label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 has-[:checked]:border-primary has-[:checked]:bg-accent">
+            <input type="radio" name={radioName} checked={mode === "commission"} onChange={() => setMode("commission")} />
+            <span className="text-xs font-medium">Avec commission</span>
+          </Label>
+        </div>
+      </div>
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm font-semibold">Vente internationale</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Désactivé = livraison uniquement dans {sourceCountry ? labelOf(sourceCountry) : "le pays source"}.
+            </p>
+          </div>
+          <Switch checked={intl} onCheckedChange={setIntl} />
+        </div>
+        {intl && (
+          <div className="space-y-1.5 pt-2 border-t">
+            <Label className="text-xs">Pays de livraison autorisés *</Label>
+            <p className="text-[11px] text-muted-foreground">Cochez chaque pays vers lequel le vendeur peut livrer.</p>
+            <div className="max-h-48 overflow-auto rounded-md border divide-y">
+              {(countries ?? []).map((c) => (
+                <label key={c.id} className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent">
+                  <input type="checkbox" checked={allowed.includes(c.id)} onChange={() => toggle(c.id)} />
+                  <span className="text-base">{c.flag_emoji ?? "🏳️"}</span>
+                  <span className="flex-1 truncate">{labelOf(c)}</span>
+                </label>
+              ))}
+            </div>
+            {allowed.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {allowed.map((id) => {
+                  const c = countries?.find((x) => x.id === id);
+                  if (!c) return null;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px]">
+                      {c.flag_emoji} {c.name}
+                      <button type="button" onClick={() => toggle(id)} aria-label="Retirer">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -9,6 +9,10 @@ const CreateVendorSchema = z.object({
   full_name: z.string().min(1).max(120),
   shop_name: z.string().min(1).max(120),
   phone: z.string().min(3).max(40).optional().nullable(),
+  source_country_id: z.string().uuid(),
+  vendor_mode: z.enum(["commission", "no_commission"]),
+  ships_internationally: z.boolean(),
+  allowed_destination_country_ids: z.array(z.string().uuid()).max(300),
 });
 
 export const createVendor = createServerFn({ method: "POST" })
@@ -34,6 +38,7 @@ export const createVendor = createServerFn({ method: "POST" })
     if (createErr || !created.user) throw new Error(createErr?.message ?? "Création échouée");
 
     const userId = created.user.id;
+    const allowed = data.ships_internationally ? data.allowed_destination_country_ids : [];
 
     // Profile may have been created by the new-user trigger; upsert shop info
     await supabaseAdmin.from("profiles").upsert({
@@ -42,6 +47,10 @@ export const createVendor = createServerFn({ method: "POST" })
       full_name: data.full_name,
       shop_name: data.shop_name,
       phone: data.phone ?? null,
+      source_country_id: data.source_country_id,
+      vendor_mode: data.vendor_mode,
+      ships_internationally: data.ships_internationally,
+      allowed_destination_country_ids: allowed,
     });
 
     // Replace default 'acheteur' role with 'vendeur'
