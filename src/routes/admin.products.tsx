@@ -195,23 +195,6 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
     qc.invalidateQueries({ queryKey: ["admin", "products"] });
   }
 
-  function openEdit(p: ProductRow) {
-    setEditing(p);
-    setEditForm({ name: p.name, price: String(p.price), description: p.description ?? "" });
-  }
-
-  async function saveEdit() {
-    if (!editing) return;
-    const { error } = await supabase.from("products").update({
-      name: editForm.name.trim(),
-      price: Number(editForm.price) || 0,
-      description: editForm.description.trim() || null,
-    }).eq("id", editing.id);
-    if (error) return toast.error(error.message);
-    toast.success("Produit mis à jour");
-    setEditing(null);
-    qc.invalidateQueries({ queryKey: ["admin", "products"] });
-  }
 
   if (!items) return <p className="text-sm text-muted-foreground">Chargement…</p>;
   if (items.length === 0) return <p className="text-sm text-muted-foreground">Aucun produit.</p>;
