@@ -137,7 +137,7 @@ function ShopPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
-      <main className="mx-auto max-w-7xl px-3 pb-safe">
+      <main className="page-container pb-safe">
         <div className="mt-2"><BackButton fallbackTo="/" /></div>
 
         {/* Banner + logo */}
@@ -230,7 +230,7 @@ function ShopPage() {
             <span className="ml-2 text-xs font-normal text-muted-foreground">({filteredProducts.length})</span>
           </h2>
           {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="grid-products">
               {filteredProducts.map((p) => (
                 <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
               ))}
