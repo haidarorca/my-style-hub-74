@@ -87,7 +87,7 @@ export function AppHeader() {
         ) : (
           <form
             onSubmit={submitSearch}
-            className="mx-auto flex h-10 w-full max-w-xl items-center gap-1.5 rounded-full border border-border bg-muted pl-1 pr-1 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30"
+            className="mx-auto flex h-9 w-full max-w-xl items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30"
           >
             <button
               type="submit"
@@ -103,26 +103,24 @@ export function AppHeader() {
               placeholder="Rechercher…"
               inputMode="search"
               enterKeyHint="search"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground sm:text-sm"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Effacer"
-                className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
-            {query.trim() && (
-              <button
-                type="submit"
-                className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform"
-              >
-                OK
-              </button>
-            )}
+            <button
+              type="submit"
+              className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-pink active:scale-95 transition-transform sm:px-3 sm:text-xs"
+            >
+              OK
+            </button>
           </form>
         )}
 
