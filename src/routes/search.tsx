@@ -369,10 +369,10 @@ function SearchPage() {
               <section>
                 <div className="mb-2 flex items-center justify-between">
                   <h2 className="flex items-center gap-1.5 text-sm font-bold">
-                    <Clock className="h-4 w-4" /> Recherches récentes
+                    <Clock className="h-4 w-4" /> {t("search.recent")}
                   </h2>
                   <button onClick={clearRecent} className="text-xs text-muted-foreground hover:text-foreground">
-                    Effacer
+                    {t("search.clear")}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -392,7 +392,7 @@ function SearchPage() {
             {trending && trending.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <TrendingUp className="h-4 w-4" /> Tendances
+                  <TrendingUp className="h-4 w-4" /> {t("search.trending")}
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {trending.map((t) => (
@@ -401,7 +401,7 @@ function SearchPage() {
                       onClick={() => submitTerm(t.name)}
                       className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
                     >
-                      {t.name}
+                      {pickI18n(t.name, t.name_i18n, lang)}
                     </button>
                   ))}
                 </div>
@@ -410,7 +410,7 @@ function SearchPage() {
 
             {recent.length === 0 && (!trending || trending.length === 0) && (
               <p className="mt-10 text-center text-sm text-muted-foreground">
-                Tapez pour rechercher des produits, catégories ou boutiques.
+                {t("search.empty_hint")}
               </p>
             )}
           </div>
@@ -438,7 +438,7 @@ function SearchPage() {
             {showCategories && categories && categories.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <LayoutGrid className="h-4 w-4" /> Catégories
+                  <LayoutGrid className="h-4 w-4" /> {t("search.tab_categories")}
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {categories.map((c) => (
@@ -449,7 +449,7 @@ function SearchPage() {
                       className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-accent"
                     >
                       {c.logo_url && <img src={c.logo_url} alt="" className="h-5 w-5 rounded-full object-cover" />}
-                      {c.name}
+                      {pickI18n(c.name, c.name_i18n, lang)}
                     </Link>
                   ))}
                 </div>
@@ -460,7 +460,7 @@ function SearchPage() {
             {showShops && shops && shops.length > 0 && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Store className="h-4 w-4" /> Boutiques
+                  <Store className="h-4 w-4" /> {t("search.tab_shops")}
                 </h2>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {shops.map((s) => (
@@ -493,9 +493,9 @@ function SearchPage() {
             {showProducts && (
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Package className="h-4 w-4" /> Produits
+                  <Package className="h-4 w-4" /> {t("search.tab_products")}
                 </h2>
-                {pLoading && <p className="text-sm text-muted-foreground">Recherche…</p>}
+                {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
                 {!pLoading && products && products.length > 0 ? (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                     {products.map((p) => (
@@ -507,18 +507,18 @@ function SearchPage() {
                       >
                         <div className="aspect-square overflow-hidden bg-muted">
                           {p.product_images?.[0]?.url ? (
-                            <img src={p.product_images[0].url} alt={p.name} className="h-full w-full object-cover" />
+                            <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
                           ) : null}
                         </div>
                         <div className="p-2">
-                          <div className="line-clamp-2 text-xs font-semibold">{p.name}</div>
-                          <div className="mt-1 text-sm font-bold text-primary">{p.price} FCFA</div>
+                          <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
+                          <div className="mt-1 text-sm font-bold text-primary">{Number(p.price).toLocaleString("fr-FR")} {t("misc.currency")}</div>
                         </div>
                       </Link>
                     ))}
                   </div>
                 ) : (
-                  !pLoading && <p className="text-sm text-muted-foreground">Aucun produit trouvé.</p>
+                  !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
                 )}
               </section>
             )}
@@ -529,7 +529,7 @@ function SearchPage() {
               counts.categories === 0 &&
               counts.shops === 0 && (
                 <p className="mt-6 text-center text-sm text-muted-foreground">
-                  Aucun résultat pour « {debounced} ». Vérifiez l'orthographe ou essayez un autre mot.
+                  {t("search.no_results_for")} « {debounced} ». {t("search.check_spelling")}
                 </p>
               )}
           </div>
