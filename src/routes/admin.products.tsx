@@ -18,7 +18,7 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 
-import { Outlet } from "@tanstack/react-router";
+
 
 export const Route = createFileRoute("/admin/products")({
   component: () => <Outlet />,
