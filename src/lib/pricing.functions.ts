@@ -52,11 +52,12 @@ export const getDisplayPriceLines = createServerFn({ method: "POST" })
   .inputValidator((input) => LinesInputSchema.parse(input))
   .handler(async ({ data }): Promise<DisplayPrice[]> => {
     const rows = await Promise.all(data.lines.map(async (line) => {
-      const { data: result, error } = await supabaseAdmin.rpc("get_product_display_price", {
+      const args: Record<string, string | null> = {
         _product_id: line.productId,
         _variant_id: line.variantId ?? null,
         _destination_country_id: data.destinationCountryId ?? null,
-      });
+      };
+      const { data: result, error } = await (supabaseAdmin as any).rpc("get_product_display_price", args);
       if (error) throw new Error(error.message);
       const r = Array.isArray(result) ? result[0] : null;
       return {
