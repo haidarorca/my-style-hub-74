@@ -85,6 +85,7 @@ function AccountPage() {
   const [locating, setLocating] = useState(false);
   const { data: countriesList } = useCountries({ onlyEnabled: true });
   const labelOfCountry = useCountryLabel();
+  const { countryId: deliveryCountryId, setCountryId: setDeliveryCountryId } = useDeliveryCountry();
 
   useEffect(() => {
     if (!loading && !user) router.navigate({ to: "/login" });
