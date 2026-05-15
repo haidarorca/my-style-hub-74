@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/account")({
@@ -66,6 +67,7 @@ const emptyForm = {
 
 function AccountPage() {
   const { user, profile, loading, isAdmin, isVendor } = useAuth();
+  const { t, dir } = useI18n();
   const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -133,7 +135,7 @@ function AccountPage() {
 
   const useGeolocation = () => {
     if (!navigator.geolocation) {
-      toast.error("Géolocalisation non disponible");
+      toast.error(t("common.location_unavailable"));
       return;
     }
     setLocating(true);
@@ -167,19 +169,19 @@ function AccountPage() {
             if (cityName) {
               setForm((f) => ({ ...f, city: f.city?.trim() ? f.city : cityName }));
             }
-            toast.success("Position et localité détectées");
+            toast.success(t("common.location_detected"));
           } else {
-            toast.success("Position enregistrée");
+            toast.success(t("common.location_saved"));
           }
         } catch {
-          toast.success("Position enregistrée");
+          toast.success(t("common.location_saved"));
         } finally {
           setLocating(false);
         }
       },
       () => {
         setLocating(false);
-        toast.error("Impossible d'obtenir la position");
+        toast.error(t("common.location_failed"));
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
@@ -206,7 +208,7 @@ function AccountPage() {
       }
       setErrors(e);
       const first = Object.values(e)[0];
-      toast.error(first ?? "Veuillez corriger les champs");
+      toast.error(first ?? t("common.correct_fields"));
       return;
     }
     setErrors({});
@@ -232,22 +234,22 @@ function AccountPage() {
         const { error } = await (supabase as any).from("customer_addresses").insert(payload);
         if (error) throw error;
       }
-      toast.success("Adresse enregistrée");
+      toast.success(t("common.saved"));
       setOpen(false);
       await refresh();
     } catch (e: any) {
       console.error("Save address error", e);
-      toast.error(e?.message ?? "Erreur lors de l'enregistrement");
+      toast.error(e?.message ?? t("checkout.address_save_error"));
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (a: Address) => {
-    if (!confirm("Supprimer cette adresse ?")) return;
+    if (!confirm(t("account.delete_confirm"))) return;
     const { error } = await (supabase as any).from("customer_addresses").delete().eq("id", a.id);
-    if (error) return toast.error("Erreur");
-    toast.success("Supprimée");
+    if (error) return toast.error(t("common.error"));
+    toast.success(t("common.deleted"));
     await refresh();
   };
 
@@ -261,14 +263,14 @@ function AccountPage() {
       .from("customer_addresses")
       .update({ is_default: true })
       .eq("id", a.id);
-    toast.success("Adresse par défaut mise à jour");
+    toast.success(t("account.default_updated"));
     await refresh();
   };
 
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
