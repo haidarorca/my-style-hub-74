@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/hooks/use-cart";
 import { EditableLabel } from "@/components/admin/EditableLabel";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 interface Variant {
   id: string;
@@ -23,6 +25,7 @@ interface Props {
 
 export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
   const { addToCart } = useCart();
+  const { lang, t } = useI18n();
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -34,7 +37,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, code, product_images(url), product_variants(*)")
+        .select("id, name, name_i18n, price, code, product_images(url), product_variants(*)")
         .eq("id", productId!)
         .maybeSingle();
       if (error) throw error;
@@ -88,31 +91,32 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
 
   const img = (data?.product_images as { url: string }[] | null)?.[0]?.url;
   const price = matchedVariant?.price_override ?? data?.price ?? 0;
+  const productName = data ? pickI18n(data.name, (data as any).name_i18n, lang) : "";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-2xl">
         <SheetHeader className="text-left">
-          <SheetTitle className="text-base">Ajouter au panier</SheetTitle>
+          <SheetTitle className="text-base">{t("product.add_to_cart")}</SheetTitle>
         </SheetHeader>
 
         {data && (
           <div className="mt-3 space-y-4">
             <div className="flex gap-3">
               <div className="h-20 w-20 overflow-hidden rounded-lg bg-muted">
-                {img && <img src={img} alt={data.name} className="h-full w-full object-cover" />}
+                {img && <img src={img} alt={productName} className="h-full w-full object-cover" />}
               </div>
               <div className="flex-1">
-                <p className="line-clamp-2 text-sm font-medium">{data.name}</p>
+                <p className="line-clamp-2 text-sm font-medium">{productName}</p>
                 <p className="mt-1 text-lg font-bold text-primary">
-                  {Number(price).toLocaleString("fr-FR")} FCFA
+                  {Number(price).toLocaleString("fr-FR")} {t("misc.currency")}
                 </p>
               </div>
             </div>
 
             {sizes.length > 0 && (
               <div>
-                <p className="mb-1.5 text-xs font-semibold">Taille</p>
+                <p className="mb-1.5 text-xs font-semibold">{t("product.size")}</p>
                 <div className="flex flex-wrap gap-2">
                   {sizes.map((s) => (
                     <button
@@ -133,7 +137,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
 
             {colors.length > 0 && (
               <div>
-                <p className="mb-1.5 text-xs font-semibold">Couleur</p>
+                <p className="mb-1.5 text-xs font-semibold">{t("product.color")}</p>
                 <div className="flex flex-wrap gap-2">
                   {colors.map(([c, hex]) => (
                     <button
@@ -157,7 +161,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
             )}
 
             <div>
-              <p className="mb-1.5 text-xs font-semibold">Quantité</p>
+              <p className="mb-1.5 text-xs font-semibold">{t("product.quantity")}</p>
               <div className="inline-flex items-center rounded-md border border-border">
                 <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(Math.max(1, qty - 1))}>
                   <Minus className="h-4 w-4" />
@@ -174,7 +178,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
               disabled={!canAdd || submitting}
               onClick={onConfirm}
             >
-              {needsSize ? "Choisir une taille" : needsColor ? "Choisir une couleur" : <EditableLabel uiKey="product.add_to_cart" defaultLabel="Ajouter au panier" defaultSize="md" />}
+              {needsSize ? t("product.choose_size") : needsColor ? t("product.choose_color") : <EditableLabel uiKey="product.add_to_cart" defaultLabel={t("product.add_to_cart")} defaultSize="md" />}
             </Button>
           </div>
         )}
