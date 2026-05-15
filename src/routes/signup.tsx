@@ -145,7 +145,7 @@ function SignupPage() {
           </div>
 
           <Button type="submit" disabled={loading} className="w-full" size="lg">
-            {loading ? "Création…" : "Créer mon compte"}
+            {loading ? "Création…" : <EditableLabel uiKey="signup.submit" defaultLabel="Créer mon compte" defaultSize="md" />}
           </Button>
         </form>
 
