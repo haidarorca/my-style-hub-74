@@ -579,11 +579,17 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_verified: boolean
           latitude: number | null
           longitude: number | null
           phone: string | null
           sex: Database["public"]["Enums"]["user_sex"] | null
+          shop_banner_url: string | null
+          shop_description: string | null
+          shop_hours: string | null
+          shop_logo_url: string | null
           shop_name: string | null
+          shop_whatsapp: string | null
           updated_at: string
         }
         Insert: {
@@ -592,11 +598,17 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_verified?: boolean
           latitude?: number | null
           longitude?: number | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_hours?: string | null
+          shop_logo_url?: string | null
           shop_name?: string | null
+          shop_whatsapp?: string | null
           updated_at?: string
         }
         Update: {
@@ -605,11 +617,17 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_verified?: boolean
           latitude?: number | null
           longitude?: number | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_hours?: string | null
+          shop_logo_url?: string | null
           shop_name?: string | null
+          shop_whatsapp?: string | null
           updated_at?: string
         }
         Relationships: []
