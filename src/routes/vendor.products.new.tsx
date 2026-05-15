@@ -52,6 +52,7 @@ type ReqRow = { id: string; name: string; level: number; parent_id: string | nul
 
 function NewProductPage() {
   const { user } = useAuth();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -76,7 +77,7 @@ function NewProductPage() {
   const [images, setImages] = useState<File[]>([]);
   const [variants, setVariants] = useState<VariantInput[]>([]);
   const [allowImage, setAllowImage] = useState(false);
-  const [imageMessage, setImageMessage] = useState("Téléchargez votre image en haute résolution.");
+  const [imageMessage, setImageMessage] = useState(t("vendor.new.custom_image_msg_placeholder"));
   const [allowText, setAllowText] = useState(false);
   const [allowAllFonts, setAllowAllFonts] = useState(false);
   const [allowedFonts, setAllowedFonts] = useState<string[]>([]);
@@ -90,7 +91,7 @@ function NewProductPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("categories")
-        .select("id, name, level, parent_id")
+        .select("id, name, level, parent_id, name_i18n")
         .order("position");
       return (data ?? []) as CatRow[];
     },
@@ -117,7 +118,7 @@ function NewProductPage() {
     const pending = (reqs ?? []).filter((r) => r.level === level);
     if (level === 1) {
       return [
-        ...approved.map((c) => ({ value: `cat:${c.id}`, label: c.name, pending: false })),
+        ...approved.map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
         ...pending
           .filter((r) => r.parent_id === null && r.parent_request_id === null)
           .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
@@ -126,14 +127,13 @@ function NewProductPage() {
     const parent = level === 2 ? pick1 : pick2;
     if (!parent) return [];
     if (isReq(parent)) {
-      // Parent is itself pending → only pending children belong here
       return pending
         .filter((r) => r.parent_request_id === idOf(parent))
         .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true }));
     }
     const parentId = idOf(parent);
     return [
-      ...approved.filter((c) => c.parent_id === parentId).map((c) => ({ value: `cat:${c.id}`, label: c.name, pending: false })),
+      ...approved.filter((c) => c.parent_id === parentId).map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
       ...pending.filter((r) => r.parent_id === parentId).map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
     ];
   }
