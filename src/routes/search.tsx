@@ -26,7 +26,7 @@ function SearchPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, image_url, vendor_id")
+        .select("id, name, price, product_images(url)")
         .ilike("name", `%${term}%`)
         .eq("status", "approved")
         .limit(40);
@@ -84,8 +84,8 @@ function SearchPage() {
                 className="overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:bg-accent"
               >
                 <div className="aspect-square overflow-hidden bg-muted">
-                  {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                  {p.product_images?.[0]?.url ? (
+                    <img src={p.product_images[0].url} alt={p.name} className="h-full w-full object-cover" />
                   ) : null}
                 </div>
                 <div className="p-2">
