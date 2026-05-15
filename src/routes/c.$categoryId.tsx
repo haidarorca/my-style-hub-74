@@ -102,7 +102,7 @@ function CategoryPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
-      <main className="mx-auto max-w-7xl px-3 pb-safe">
+      <main className="page-container pb-safe">
         {/* Breadcrumb — chevrons auto-flip in RTL via global CSS */}
         <nav aria-label="breadcrumb" className="flex items-center gap-1 py-3 text-xs text-muted-foreground">
           <Link to="/" className="flex items-center gap-1 hover:text-foreground">
@@ -161,7 +161,7 @@ function CategoryPage() {
           {productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="grid-products">
               {products.map((p) => (
                 <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
               ))}

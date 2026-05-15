@@ -34,7 +34,7 @@ export function SimilarProducts({
   return (
     <section>
       <h2 className="mb-2 text-sm font-bold">Vous aimerez aussi</h2>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+      <div className="grid-products">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
         ))}

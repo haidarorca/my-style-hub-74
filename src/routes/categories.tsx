@@ -37,7 +37,7 @@ function CategoriesPage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <AppHeader />
-      <div className="mx-auto max-w-7xl px-3 pt-2">
+      <div className="page-container pt-2">
         <BackButton fallbackTo="/" />
         <h1 className="mt-1 text-xl font-extrabold">{t("categories.title")}</h1>
         <p className="text-xs text-muted-foreground">{t("categories.subtitle")}</p>

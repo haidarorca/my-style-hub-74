@@ -464,7 +464,7 @@ function ProductPage() {
       </main>
 
       {/* Bottom bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur pb-safe">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
         <div className="mx-auto flex max-w-3xl gap-2 px-3 py-3">
           <Link to="/cart" className="shrink-0">
             <Button variant="outline" className="h-12 rounded-full">
