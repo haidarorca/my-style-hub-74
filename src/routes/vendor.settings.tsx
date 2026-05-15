@@ -161,11 +161,56 @@ function VendorSettings() {
             value={f.shop_description}
             onChange={(e) => setF({ ...f, shop_description: e.target.value })}
             placeholder="Une phrase qui présente votre boutique" />
+      </div>
+
+      {/* Schedule editor */}
+      <div className="space-y-3 rounded-xl border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold">Horaires d'ouverture</Label>
+          <button type="button" onClick={applyMonToSat} className="text-xs font-medium text-primary">
+            Copier Lun→Sam
+          </button>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="hours">Horaires de réponse / livraison</Label>
-          <Input id="hours" value={f.shop_hours} onChange={(e) => setF({ ...f, shop_hours: e.target.value })} placeholder="Ex : Lun-Sam 9h-19h, livraison 24h" />
+        <div className="space-y-2">
+          {DAY_ORDER.map((day) => {
+            const d = schedule[day];
+            return (
+              <div key={day} className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
+                <div className="flex w-20 shrink-0 items-center gap-2">
+                  <Switch checked={d.open} onCheckedChange={(open) => updateDay(day, { open })} />
+                  <span className="text-sm font-medium">{DAY_LABELS[day].slice(0, 3)}</span>
+                </div>
+                {d.open ? (
+                  <div className="flex flex-1 items-center gap-1.5">
+                    <Input
+                      type="time"
+                      value={d.from}
+                      onChange={(e) => updateDay(day, { from: e.target.value })}
+                      className="h-9 flex-1 px-2 text-sm"
+                    />
+                    <span className="text-xs text-muted-foreground">à</span>
+                    <Input
+                      type="time"
+                      value={d.to}
+                      onChange={(e) => updateDay(day, { to: e.target.value })}
+                      className="h-9 flex-1 px-2 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <span className="flex-1 text-sm text-muted-foreground">Fermé</span>
+                )}
+              </div>
+            );
+          })}
         </div>
+        <div className="space-y-1.5 pt-2">
+          <Label htmlFor="hours">Note de livraison (optionnel)</Label>
+          <Input id="hours" value={f.shop_hours} onChange={(e) => setF({ ...f, shop_hours: e.target.value })} placeholder="Ex : Livraison sous 24h" />
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border bg-card p-4">
+        <Label className="text-base font-semibold">Contact</Label>
         <div className="space-y-1.5">
           <Label htmlFor="phone">Téléphone</Label>
           <Input id="phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+225 ..." />
