@@ -158,9 +158,12 @@ function VendorRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => v
     if (!selectedId) return toast.error("Choisissez un vendeur");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = await sb.from("commission_rules").upsert({
-      scope: "vendor", vendor_id: selectedId, rate_percent: v, is_enabled: true,
-    }, { onConflict: "vendor_id" });
+    const { data: existing } = await sb.from("commission_rules")
+      .select("id").eq("scope", "vendor").eq("vendor_id", selectedId)
+      .is("category_id", null).is("product_id", null).maybeSingle();
+    const { error } = existing
+      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+      : await sb.from("commission_rules").insert({ scope: "vendor", vendor_id: selectedId, rate_percent: v, is_enabled: true });
     if (error) return toast.error(error.message);
     toast.success("Règle vendeur enregistrée"); setRate(""); onChange();
   }
