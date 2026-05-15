@@ -289,11 +289,22 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
         <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input placeholder="Rechercher une destination…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
       </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{showAll ? "Tous les pays affichés" : `${configuredDestIds.size} destination(s) configurée(s)`}</span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Voir uniquement configurées" : "Voir tous les pays"}
+        </Button>
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
         {filtered.map((c) => (
           <CountryCard key={c.id} country={c} rateLabel={pairRate(c.id)} onClick={() => onPick(c.id)} />
         ))}
+        {!showAll && filtered.length === 0 && (
+          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+            Aucune destination configurée pour ce pays. Cliquez « Voir tous les pays » pour en ajouter une.
+          </p>
+        )}
       </div>
     </div>
   );
