@@ -291,6 +291,15 @@ const fr: Dict = {
   "vendor.stats.orders": "Commandes",
   "vendor.stats.products": "Produits",
   "vendor.stats.views": "Vues",
+  "vendor.space": "Espace vendeur",
+  "vendor.shop": "Ma boutique",
+  "vendor.messages.empty": "Aucun message pour le moment",
+  "vendor.messages.help": "Les messages de vos clients apparaîtront ici prochainement.",
+  "vendor.products.empty_help": "Aucun produit pour le moment. Cliquez sur « Ajouter » pour créer votre premier produit.",
+  "vendor.products.status_approved": "Publié",
+  "vendor.products.status_rejected": "Rejeté",
+  "vendor.products.status_pending": "En attente",
+  "vendor.products.reject_reason": "Motif",
 
   // Admin
   "admin.dashboard": "Tableau de bord",
@@ -325,6 +334,9 @@ const fr: Dict = {
   "admin.settings.promo_bar": "Bandeau promo",
   "admin.settings.promo_bar_text": "Texte du bandeau",
   "admin.settings.whatsapp_number": "Numéro WhatsApp par défaut",
+  "admin.space": "Espace admin",
+  "admin.super_admin": "Super admin",
+  "admin.products.validation": "Validation produits",
 
   // Language input helper
   "lang.tab.fr": "Français",
