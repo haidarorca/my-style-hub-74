@@ -14,6 +14,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SiteSettingsProvider } from "@/hooks/use-site-settings";
 import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
 import { PromoBar } from "@/components/layout/PromoBar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -136,6 +137,7 @@ function RootComponent() {
             <AuthInvalidator />
             <PromoBar />
             <Outlet />
+            <MobileBottomNav />
             <Toaster richColors position="top-center" />
           </UiOverridesProvider>
         </SiteSettingsProvider>

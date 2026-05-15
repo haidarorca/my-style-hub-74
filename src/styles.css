@@ -140,8 +140,11 @@
   .gradient-flash { background-image: var(--gradient-flash); }
   .shadow-pink { box-shadow: var(--shadow-pink); }
   .shadow-card { box-shadow: var(--shadow-card); }
-  /* Padding that respects Samsung/iOS gesture areas */
-  .pb-safe { padding-bottom: calc(1rem + var(--safe-bottom)); }
+  /* Padding that respects Samsung/iOS gesture areas + mobile bottom nav (~56px) */
+  .pb-safe { padding-bottom: calc(5rem + var(--safe-bottom)); }
+  @media (min-width: 768px) {
+    .pb-safe { padding-bottom: calc(1rem + var(--safe-bottom)); }
+  }
   .pt-safe { padding-top: calc(0.5rem + var(--safe-top)); }
   /* Bottom nav with extra clearance so phone gesture buttons don't conflict */
   .bottom-safe { bottom: calc(1rem + var(--safe-bottom)); }
