@@ -43,11 +43,11 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           {/* Subtle gradient overlay for legibility */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
-        <div className="p-2.5">
-          <p className="line-clamp-2 text-xs leading-snug text-foreground/90 min-h-[2.25rem]">
+        <div className="p-[clamp(0.5rem,2vw,0.75rem)]">
+          <p className="line-clamp-2 text-[clamp(11px,3.2vw,13px)] leading-snug text-foreground/90 min-h-[2.4em]">
             {displayName}
           </p>
-          <p className="mt-1.5 text-sm font-bold tracking-tight text-primary">
+          <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
             {product.price.toLocaleString("fr-FR")} {t("misc.currency")}
           </p>
         </div>
