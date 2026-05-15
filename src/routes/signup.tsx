@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { MapPin, Loader2, Eye, EyeOff } from "lucide-react";
+import { MapPin, Loader2, Eye, EyeOff, Home } from "lucide-react";
+import { BackButton } from "@/components/layout/BackButton";
+import { useI18n } from "@/hooks/use-i18n";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/signup")({
