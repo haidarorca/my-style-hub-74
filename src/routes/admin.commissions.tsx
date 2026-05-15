@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCountries, useCountryLabel, type Country } from "@/hooks/use-countries";
 import { PermissionGate } from "@/components/admin/PermissionGate";
+import { BackButton } from "@/components/layout/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,7 @@ function CommissionsPage() {
   if (!isSuperAdmin) return null;
   return (
     <div className="space-y-4">
+      <BackButton fallbackTo="/admin" label="Retour admin" className="border bg-background shadow-sm" />
       <div>
         <h1 className="text-xl font-bold">Commissions</h1>
         <p className="text-xs text-muted-foreground">
