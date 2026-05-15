@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store } from "lucide-react";
+import { LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { BackButton } from "@/components/layout/BackButton";
 import { cn } from "@/lib/utils";
@@ -14,6 +16,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/vendor/orders", label: "Commandes", icon: ShoppingBag },
   { to: "/vendor/products", label: "Mes produits", icon: Package, exact: true },
   { to: "/vendor/products/new", label: "Nouveau produit", icon: Plus },
+  { to: "/vendor/notifications", label: "Notifications", icon: Bell },
   { to: "/vendor/messages", label: "Messages", icon: MessageSquare },
   { to: "/vendor/settings", label: "Paramètres", icon: Settings },
 ];
