@@ -465,7 +465,7 @@ function AdminEditProductPage() {
             let cur = data.product.category_id ? byId.get(data.product.category_id) : undefined;
             while (cur) { chain.unshift(cur.name); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
             const currentLabel = chain.length ? chain.join(" › ") : null;
-            const pending = data.pendingCategoryRequest;
+            const pending = data.pendingCategoryRequest as { id: string; name: string; level: number; status: string; parent_id: string | null } | null;
             if (!currentLabel && !pending) return null;
             return (
               <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1">
