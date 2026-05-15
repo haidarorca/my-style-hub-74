@@ -127,7 +127,7 @@ export function AppHeader() {
           </form>
         )}
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           <LanguageSwitcher />
           <Link to="/cart" className="relative">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
@@ -175,8 +175,8 @@ export function AppHeader() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link to="/login">
-              <Button size="sm" className="rounded-full">
+            <Link to="/login" className="shrink-0">
+              <Button className="h-9 rounded-full px-4 text-[13px] font-semibold shadow-sm whitespace-nowrap transition-all hover:shadow-md active:scale-[0.97] sm:h-10 sm:px-5 sm:text-sm">
                 {t("common.login")}
               </Button>
             </Link>
