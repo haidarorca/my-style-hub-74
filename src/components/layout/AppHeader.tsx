@@ -138,7 +138,7 @@ export function AppHeader() {
         )}
 
         <div className="flex items-center gap-0.5">
-          {/* Top-positioned actions so phone gesture bar doesn't interfere */}
+          <LanguageSwitcher />
           <Link to="/cart" className="relative">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
               <ShoppingBag className="h-[18px] w-[18px]" />
@@ -159,35 +159,35 @@ export function AppHeader() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="truncate">
-                  {profile?.full_name || profile?.email || "Mon compte"}
+                  {profile?.full_name || profile?.email || t("common.account")}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/orders"><Package className="mr-2 h-4 w-4" /> Mes commandes</Link>
+                  <Link to="/orders"><Package className="mr-2 h-4 w-4" /> {t("nav.orders")}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> Mes adresses</Link>
+                  <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem asChild>
-                    <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> Espace admin</Link>
+                    <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> {t("nav.admin")}</Link>
                   </DropdownMenuItem>
                 )}
                 {(isVendor || isAdmin) && (
                   <DropdownMenuItem asChild>
-                    <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> Espace vendeur</Link>
+                    <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> {t("nav.vendor")}</Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" /> Se déconnecter
+                  <LogOut className="mr-2 h-4 w-4" /> {t("common.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Link to="/login">
               <Button size="sm" className="rounded-full">
-                Connexion
+                {t("common.login")}
               </Button>
             </Link>
           )}
