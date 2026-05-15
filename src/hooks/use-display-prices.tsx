@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getDisplayPrices, type DisplayPrice } from "@/lib/pricing.functions";
+import { getDisplayPriceLines, getDisplayPrices, type DisplayPrice } from "@/lib/pricing.functions";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 
 /**
@@ -37,4 +37,34 @@ export function useDisplayPrices(productIds: string[]) {
 export function useDisplayPrice(productId: string | null | undefined) {
   const map = useDisplayPrices(productId ? [productId] : []);
   return productId ? map.get(productId) ?? null : null;
+}
+
+export function useDisplayPriceLines(lines: Array<{ productId: string; variantId?: string | null }>) {
+  const { countryId } = useDeliveryCountry();
+  const fetcher = useServerFn(getDisplayPriceLines);
+  const stableLines = useMemo(
+    () => lines.filter((l) => l.productId).map((l) => ({ productId: l.productId, variantId: l.variantId ?? null })),
+    [lines],
+  );
+  const key = useMemo(
+    () => stableLines.map((l) => `${l.productId}:${l.variantId ?? ""}`).sort(),
+    [stableLines],
+  );
+
+  const { data } = useQuery({
+    queryKey: ["display-price-lines", countryId, key],
+    enabled: stableLines.length > 0,
+    staleTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => {
+      const rows = await fetcher({ data: { lines: stableLines, destinationCountryId: countryId ?? null } });
+      return rows as DisplayPrice[];
+    },
+  });
+
+  return useMemo(() => {
+    const map = new Map<string, DisplayPrice>();
+    (data ?? []).forEach((r) => map.set(`${r.product_id}:${r.variant_id ?? ""}`, r));
+    return map;
+  }, [data]);
 }
