@@ -461,15 +461,9 @@ function CartPage() {
           )}
 
           <div className="mt-4 space-y-2 border-t border-border pt-3">
-            <Button onClick={() => submitOrder(false)} disabled={submitting} variant="outline" className="w-full">
-              {submitting ? "Envoi…" : "Valider la commande"}
-            </Button>
             <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
               {submitting ? "Envoi…" : "Valider et envoyer sur WhatsApp"}
             </Button>
-            <p className="text-center text-[11px] text-muted-foreground">
-              WhatsApp est optionnel — la commande est enregistrée dans tous les cas.
-            </p>
           </div>
         </DialogContent>
       </Dialog>
