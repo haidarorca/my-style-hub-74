@@ -535,7 +535,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Catégorie</Label>
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat1 ? categoryLabelByValue.get(cat1) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level1.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
@@ -544,7 +544,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Sous-catégorie</Label>
             <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat2 ? categoryLabelByValue.get(cat2) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level2.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
@@ -553,7 +553,7 @@ function AdminEditProductPage() {
           <div>
             <Label>Sous-sous-catégorie</Label>
             <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="—">{cat3 ? categoryLabelByValue.get(cat3) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
                 {categoryOptions.level3.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
