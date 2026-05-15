@@ -566,6 +566,7 @@ export type Database = {
           id: string
           is_edit: boolean
           name: string
+          pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
           status: Database["public"]["Enums"]["product_status"]
@@ -581,6 +582,7 @@ export type Database = {
           id?: string
           is_edit?: boolean
           name: string
+          pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -596,6 +598,7 @@ export type Database = {
           id?: string
           is_edit?: boolean
           name?: string
+          pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -615,6 +618,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_pending_category_request_id_fkey"
+            columns: ["pending_category_request_id"]
+            isOneToOne: false
+            referencedRelation: "category_requests"
             referencedColumns: ["id"]
           },
           {
