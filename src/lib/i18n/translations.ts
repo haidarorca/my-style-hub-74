@@ -80,6 +80,12 @@ const fr: Dict = {
   "nav.account": "Compte",
   "nav.search": "Recherche",
   "nav.shop": "Boutique",
+  "nav.products": "Produits",
+
+  // Category page
+  "category.choose_sub": "Choisir une catégorie",
+  "category.all_products": "Tous les produits",
+  "category.empty": "Aucun produit dans cette catégorie pour l’instant.",
 
   // Home
   "home.new": "Nouveautés",
@@ -600,6 +606,11 @@ const en: Dict = {
   "nav.account": "Account",
   "nav.search": "Search",
   "nav.shop": "Shop",
+  "nav.products": "Products",
+
+  "category.choose_sub": "Choose a category",
+  "category.all_products": "All products",
+  "category.empty": "No products in this category yet.",
 
   "home.new": "New",
   "home.hero_title_default": "Your favorite products, personalized for you",
@@ -1102,6 +1113,11 @@ const ar: Dict = {
   "nav.account": "الحساب",
   "nav.search": "بحث",
   "nav.shop": "المتجر",
+  "nav.products": "المنتجات",
+
+  "category.choose_sub": "اختر فئة",
+  "category.all_products": "جميع المنتجات",
+  "category.empty": "لا توجد منتجات في هذه الفئة بعد.",
 
   "home.new": "جديد",
   "home.hero_title_default": "منتجاتك المفضلة، مخصصة لك",
