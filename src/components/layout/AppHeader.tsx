@@ -50,11 +50,11 @@ export function AppHeader() {
         </Link>
 
         <Link
-          to="/"
+          to="/search"
           className="flex h-9 flex-1 items-center gap-2 rounded-full bg-muted px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
         >
           <Search className="h-4 w-4" />
-          <span>Rechercher un produit…</span>
+          <span>Rechercher un produit, boutique…</span>
         </Link>
 
         {/* Top-positioned actions so phone gesture bar doesn't interfere */}
