@@ -276,8 +276,10 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
   const configuredDestIds = useMemo(() => {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
+      if (!r.is_enabled) return;
       if (r.scope === "global" || r.scope === "vendor") return;
       if ((r.source_country_id ?? null) !== srcMatch) return;
+      if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.destination_country_id ?? null);
     });
     return set;
