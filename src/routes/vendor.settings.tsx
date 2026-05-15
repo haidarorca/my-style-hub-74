@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  DAY_LABELS, DAY_ORDER, DEFAULT_SCHEDULE, normalizeSchedule,
+  type DayKey, type ShopSchedule,
+} from "@/lib/shop-hours";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
