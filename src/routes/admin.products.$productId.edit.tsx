@@ -257,6 +257,15 @@ function AdminEditProductPage() {
     return labels;
   }, [data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
 
+  const withSelectedCategory = (
+    options: Array<{ value: string; label: string; pending: boolean }>,
+    selected: CatPick,
+  ) => {
+    if (!selected || options.some(o => o.value === selected)) return options;
+    const label = categoryLabelByValue.get(selected);
+    return label ? [{ value: selected, label, pending: isReq(selected) }, ...options] : options;
+  };
+
   const orig = data?.product;
   const sensitiveChanged = useMemo(() => {
     if (!orig) return false;
