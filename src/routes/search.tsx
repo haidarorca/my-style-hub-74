@@ -63,13 +63,11 @@ function useDebounced<T>(value: T, ms = 250) {
 
 function SearchPage() {
   const { q: initialQ } = Route.useSearch();
+  const navigate = useNavigate();
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
-    if (initialQ) {
-      setQ(initialQ);
-      pushRecent(initialQ);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setQ(initialQ ?? "");
+    if (initialQ) pushRecent(initialQ);
   }, [initialQ]);
   const [tab, setTab] = useState<Tab>("all");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
