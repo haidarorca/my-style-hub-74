@@ -25,7 +25,6 @@ function useCount(table: string, filter?: { col: string; val: string }) {
 
 function Dashboard() {
   const { isSuperAdmin } = useAuth();
-  void isSuperAdmin;
   const products = useCount("products");
   const pending = useCount("products", { col: "status", val: "pending" });
   const categories = useCount("categories");
