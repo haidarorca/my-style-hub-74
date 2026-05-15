@@ -257,6 +257,15 @@ function AdminEditProductPage() {
     return labels;
   }, [data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
 
+  const withSelectedCategory = (
+    options: Array<{ value: string; label: string; pending: boolean }>,
+    selected: CatPick,
+  ) => {
+    if (!selected || options.some(o => o.value === selected)) return options;
+    const label = categoryLabelByValue.get(selected);
+    return label ? [{ value: selected, label, pending: isReq(selected) }, ...options] : options;
+  };
+
   const orig = data?.product;
   const sensitiveChanged = useMemo(() => {
     if (!orig) return false;
@@ -537,7 +546,7 @@ function AdminEditProductPage() {
             <Select value={cat1} onValueChange={(v) => { setCat1(v); setCat2(""); setCat3(""); }}>
               <SelectTrigger><SelectValue placeholder="—">{cat1 ? categoryLabelByValue.get(cat1) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
-                {categoryOptions.level1.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                {withSelectedCategory(categoryOptions.level1, cat1).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -546,7 +555,7 @@ function AdminEditProductPage() {
             <Select value={cat2} onValueChange={(v) => { setCat2(v); setCat3(""); }} disabled={!cat1}>
               <SelectTrigger><SelectValue placeholder="—">{cat2 ? categoryLabelByValue.get(cat2) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
-                {categoryOptions.level2.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                {withSelectedCategory(categoryOptions.level2, cat2).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -555,7 +564,7 @@ function AdminEditProductPage() {
             <Select value={cat3} onValueChange={setCat3} disabled={!cat2}>
               <SelectTrigger><SelectValue placeholder="—">{cat3 ? categoryLabelByValue.get(cat3) : undefined}</SelectValue></SelectTrigger>
               <SelectContent>
-                {categoryOptions.level3.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                {withSelectedCategory(categoryOptions.level3, cat3).map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
