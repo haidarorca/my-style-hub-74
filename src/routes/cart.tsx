@@ -73,7 +73,11 @@ function CartPage() {
   const [locating, setLocating] = useState(false);
 
   const loadAddresses = async () => {
-    if (!user) return;
+    if (!user) {
+      setAddresses([]);
+      setMode("new");
+      return;
+    }
     const { data } = await (supabase as any)
       .from("customer_addresses")
       .select("*")
