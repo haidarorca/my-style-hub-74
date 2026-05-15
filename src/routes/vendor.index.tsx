@@ -108,20 +108,42 @@ function VendorHome() {
         <p className="text-xs text-muted-foreground">Aperçu de votre boutique</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
-                <t.icon className={`h-5 w-5 ${t.color}`} />
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-xs text-muted-foreground">{t.label}</div>
-                <div className="truncate text-lg font-bold">{t.value}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Commandes & produits</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {orderTiles.map((t) => (
+            <Card key={t.label}>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
+                  <t.icon className={`h-5 w-5 ${t.color}`} />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs text-muted-foreground">{t.label}</div>
+                  <div className="truncate text-lg font-bold">{t.value}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Mes ventes</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {salesTiles.map((t) => (
+            <Card key={t.label}>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.bg}`}>
+                  <TrendingUp className={`h-5 w-5 ${t.color}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-muted-foreground">{t.label}</div>
+                  <div className="text-lg font-bold">{t.value}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       <div>
