@@ -100,7 +100,7 @@ export function AppHeader() {
         ) : (
           <form
             onSubmit={submitSearch}
-            className="mx-auto flex h-9 w-full max-w-[220px] items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30 sm:max-w-md"
+            className="mx-auto flex h-9 w-full max-w-[160px] items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30 xs:max-w-[200px] sm:max-w-md"
           >
             <input
               type="search"
