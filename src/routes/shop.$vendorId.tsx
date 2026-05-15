@@ -160,11 +160,11 @@ function ShopPage() {
                   <h1 className="truncate text-lg font-extrabold">{shopName}</h1>
                   {verified && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                      <BadgeCheck className="h-3 w-3" /> Vérifié
+                      <BadgeCheck className="h-3 w-3" /> {t("shop.verified")}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">{productCount} produit{productCount > 1 ? "s" : ""}</p>
+                <p className="text-xs text-muted-foreground">{productCount} {productCount > 1 ? t("shop.products_many") : t("shop.products_one")}</p>
               </div>
             </div>
 
@@ -181,7 +181,7 @@ function ShopPage() {
                 rel="noopener noreferrer"
                 className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-sm font-semibold text-white shadow active:scale-[0.99]"
               >
-                <Phone className="h-4 w-4" /> Contacter sur WhatsApp
+                <Phone className="h-4 w-4" /> {t("shop.contact_wa")}
               </a>
             )}
           </div>
@@ -191,10 +191,10 @@ function ShopPage() {
           <section className="mt-5 space-y-2">
             <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex gap-2 pb-1">
-                <CatChip active={!selL1} onClick={() => { setSelL1(null); setSelL2(null); setSelL3(null); }}>Tout</CatChip>
-                {l1List.map((c) => (
+                <CatChip active={!selL1} onClick={() => { setSelL1(null); setSelL2(null); setSelL3(null); }}>{t("shop.cat_all")}</CatChip>
+                {l1List.map((c: any) => (
                   <CatChip key={c.id} active={selL1 === c.id} onClick={() => { setSelL1(c.id); setSelL2(null); setSelL3(null); }}>
-                    {c.name}
+                    {pickI18n(c.name, c.name_i18n, lang)}
                   </CatChip>
                 ))}
               </div>
@@ -202,9 +202,9 @@ function ShopPage() {
             {l2List.length > 0 && (
               <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
-                  {l2List.map((c) => (
+                  {l2List.map((c: any) => (
                     <CatChip key={c.id} active={selL2 === c.id} onClick={() => { setSelL2(selL2 === c.id ? null : c.id); setSelL3(null); }} small>
-                      {c.name}
+                      {pickI18n(c.name, c.name_i18n, lang)}
                     </CatChip>
                   ))}
                 </div>
@@ -213,9 +213,9 @@ function ShopPage() {
             {l3List.length > 0 && (
               <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
-                  {l3List.map((c) => (
+                  {l3List.map((c: any) => (
                     <CatChip key={c.id} active={selL3 === c.id} onClick={() => setSelL3(selL3 === c.id ? null : c.id)} small>
-                      {c.name}
+                      {pickI18n(c.name, c.name_i18n, lang)}
                     </CatChip>
                   ))}
                 </div>
@@ -226,7 +226,7 @@ function ShopPage() {
 
         <section className="mt-4">
           <h2 className="mb-3 text-base font-bold">
-            {selL1 ? "Produits" : "Tous les produits"}
+            {selL1 ? t("shop.products_title") : t("shop.all_products_title")}
             <span className="ml-2 text-xs font-normal text-muted-foreground">({filteredProducts.length})</span>
           </h2>
           {filteredProducts.length > 0 ? (
@@ -237,7 +237,7 @@ function ShopPage() {
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {selL1 ? "Aucun produit dans cette catégorie." : "Cette boutique n'a aucun produit pour l'instant."}
+              {selL1 ? t("shop.empty_cat") : t("shop.empty_all")}
             </p>
           )}
         </section>
@@ -247,26 +247,27 @@ function ShopPage() {
         <section className="mt-8 mb-6 rounded-xl border bg-muted/30 px-4 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-semibold text-muted-foreground">Horaires d'ouverture</span>
+            <span className="text-xs font-semibold text-muted-foreground">{t("shop.hours_title")}</span>
             <span
               className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 openNow ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${openNow ? "bg-emerald-500" : "bg-muted-foreground/60"}`} />
-              {openNow ? "Ouvert" : "Fermé"}
+              {openNow ? t("shop.open_now") : t("shop.closed_now")}
             </span>
           </div>
           <ul className="space-y-0.5 text-[11px] text-muted-foreground">
             {scheduleSummary.map((row, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span>{row.label}</span>
-                <span className={row.value === "Fermé" ? "text-muted-foreground/70" : "text-foreground/80"}>{row.value}</span>
+                <span className={row.value === t("shop.closed_day") ? "text-muted-foreground/70" : "text-foreground/80"}>{row.value}</span>
               </li>
             ))}
           </ul>
           {hours && <p className="mt-2 text-[11px] italic text-muted-foreground">{hours}</p>}
         </section>
+
       </main>
       <QuickAddSheet
         productId={quickAdd}
