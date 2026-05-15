@@ -100,7 +100,27 @@ function NewProductPage() {
     },
   });
 
-  const finalCategoryId = useMemo(() => cat3 || cat2 || cat1 || null, [cat1, cat2, cat3]);
+  // If a proposal is active, do not assign an existing category; the product
+  // will be linked to the pending request instead.
+  const finalCategoryId = useMemo(
+    () => (proposeLevel > 0 ? null : (cat3 || cat2 || cat1 || null)),
+    [cat1, cat2, cat3, proposeLevel],
+  );
+
+  const proposalParentId = useMemo<string | null>(() => {
+    if (proposeLevel === 2) return cat1 || null;
+    if (proposeLevel === 3) return cat2 || null;
+    return null;
+  }, [proposeLevel, cat1, cat2]);
+
+  function startProposal(level: 1 | 2 | 3) {
+    setProposeLevel(level);
+    setProposeName("");
+    if (level === 1) { setCat1(""); setCat2(""); setCat3(""); }
+    if (level === 2) { setCat2(""); setCat3(""); }
+    if (level === 3) { setCat3(""); }
+  }
+  function cancelProposal() { setProposeLevel(0); setProposeName(""); }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
