@@ -461,7 +461,9 @@ function AdminEditProductPage() {
       toast.success("Produit mis à jour.");
       router.navigate({ to: "/admin/products" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      console.error("[admin-edit-product] save failed:", err);
+      const msg = err instanceof Error && err.message ? err.message : (typeof err === "object" ? JSON.stringify(err) : "Erreur inconnue");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
