@@ -81,6 +81,9 @@ function VendorLayout() {
                 )}
               >
                 <Icon className="h-3.5 w-3.5" /> {item.label}
+                {item.to === "/vendor/notifications" && unread && unread > 0 ? (
+                  <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{unread}</span>
+                ) : null}
               </Link>
             );
           })}
