@@ -4,6 +4,8 @@ import { ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
 import { supabase } from "@/integrations/supabase/client";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
@@ -16,12 +18,13 @@ export const Route = createFileRoute("/categories")({
 });
 
 function CategoriesPage() {
+  const { lang, t, dir } = useI18n();
   const { data: categories, isLoading } = useQuery({
-    queryKey: ["categories", "all-tree"],
+    queryKey: ["categories", "all-tree", lang],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, name, slug, logo_url, parent_id, level")
+        .select("id, name, name_i18n, slug, logo_url, parent_id, level")
         .order("level")
         .order("position");
       if (error) throw error;
@@ -36,15 +39,16 @@ function CategoriesPage() {
       <AppHeader />
       <div className="mx-auto max-w-7xl px-3 pt-2">
         <BackButton fallbackTo="/" />
-        <h1 className="mt-1 text-xl font-extrabold">Catégories</h1>
-        <p className="text-xs text-muted-foreground">Toutes les catégories du site</p>
+        <h1 className="mt-1 text-xl font-extrabold">{t("categories.title")}</h1>
+        <p className="text-xs text-muted-foreground">{t("categories.subtitle")}</p>
 
         {isLoading ? (
-          <div className="mt-6 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="mt-6 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : (
           <ul className="mt-4 space-y-2">
             {level1.map((cat) => {
               const subs = (categories ?? []).filter((c) => c.parent_id === cat.id);
+              const catName = pickI18n(cat.name, cat.name_i18n, lang);
               return (
                 <li key={cat.id} className="overflow-hidden rounded-2xl border border-border bg-card">
                   <Link
@@ -56,16 +60,16 @@ function CategoriesPage() {
                       <img src={cat.logo_url} alt="" className="h-12 w-12 rounded-xl object-cover" />
                     ) : (
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-base font-bold">
-                        {cat.name.charAt(0)}
+                        {catName.charAt(0)}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{cat.name}</div>
+                      <div className="truncate text-sm font-semibold">{catName}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        {subs.length} sous-catégorie{subs.length > 1 ? "s" : ""}
+                        {subs.length} {t(subs.length > 1 ? "categories.subcategories_plural" : "categories.subcategories")}
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
                   </Link>
                   {subs.length > 0 && (
                     <div className="no-scrollbar flex gap-1.5 overflow-x-auto border-t border-border px-3 py-2">
@@ -76,7 +80,7 @@ function CategoriesPage() {
                           params={{ categoryId: s.id }}
                           className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-accent"
                         >
-                          {s.name}
+                          {pickI18n(s.name, s.name_i18n, lang)}
                         </Link>
                       ))}
                     </div>
@@ -86,7 +90,7 @@ function CategoriesPage() {
             })}
             {level1.length === 0 && (
               <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                Aucune catégorie disponible.
+                {t("categories.empty")}
               </li>
             )}
           </ul>
