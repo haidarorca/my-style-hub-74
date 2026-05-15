@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Plus, Package, Clock, CheckCircle2, XCircle, ShoppingBag, TrendingUp,
-  Truck, Ban, MessageSquare, Settings, ListOrdered,
+  Truck, Ban, MessageSquare, Settings, ListOrdered, BadgeCheck, Store, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,7 +14,12 @@ export const Route = createFileRoute("/vendor/")({
 });
 
 function VendorHome() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const p = (profile ?? {}) as Record<string, unknown>;
+  const shopName = (p.shop_name as string) || (p.full_name as string) || "Ma boutique";
+  const logo = p.shop_logo_url as string | undefined;
+  const banner = p.shop_banner_url as string | undefined;
+  const verified = !!p.is_verified;
 
   const { data: stats } = useQuery({
     queryKey: ["vendor-dashboard", user?.id],
@@ -33,10 +38,14 @@ function VendorHome() {
         .eq("vendor_id", vid);
 
       const orderIds = Array.from(new Set((items ?? []).map((i) => i.order_id)));
-      let orders: { id: string; status: string }[] = [];
+      let orders: { id: string; status: string; created_at: string; customer_name: string | null; total: number }[] = [];
       if (orderIds.length > 0) {
-        const { data } = await supabase.from("orders").select("id, status").in("id", orderIds);
-        orders = (data ?? []) as { id: string; status: string }[];
+        const { data } = await supabase
+          .from("orders")
+          .select("id, status, created_at, customer_name, total")
+          .in("id", orderIds)
+          .order("created_at", { ascending: false });
+        orders = (data ?? []) as typeof orders;
       }
 
       const totalOrders = orders.length;
@@ -70,11 +79,20 @@ function VendorHome() {
         activeProducts: activeProducts ?? 0,
         rejectedProducts: rejectedProducts ?? 0,
         salesDay, salesWeek, salesMonth, salesYear,
+        recentOrders: orders.slice(0, 5),
       };
     },
   });
 
   const fmt = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+  const statusLabel = (s: string) =>
+    s === "new" ? "En attente" : s === "confirmed" ? "Confirmée" : s === "delivered" ? "Livrée" : s === "cancelled" ? "Annulée" : s;
+  const statusColor = (s: string) =>
+    s === "new" ? "bg-amber-500/10 text-amber-700"
+    : s === "confirmed" ? "bg-emerald-500/10 text-emerald-700"
+    : s === "delivered" ? "bg-blue-500/10 text-blue-700"
+    : s === "cancelled" ? "bg-destructive/10 text-destructive"
+    : "bg-muted text-foreground";
 
   const orderTiles = [
     { label: "Commandes totales", value: stats?.totalOrders ?? "—", icon: ShoppingBag, color: "text-primary", bg: "bg-primary/10" },
@@ -103,9 +121,39 @@ function VendorHome() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Tableau de bord</h1>
-        <p className="text-xs text-muted-foreground">Aperçu de votre boutique</p>
+      {/* Shop header */}
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div
+          className="h-20 w-full bg-gradient-to-br from-primary/40 to-accent/40 sm:h-28"
+          style={banner ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+        />
+        <div className="flex items-end gap-3 px-4 pb-3">
+          <div className="-mt-8 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted shadow">
+            {logo ? (
+              <img src={logo} alt={shopName} className="h-full w-full object-cover" />
+            ) : (
+              <Store className="h-7 w-7 text-muted-foreground" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1 pb-1">
+            <div className="flex items-center gap-1.5">
+              <h1 className="truncate text-base font-bold">{shopName}</h1>
+              {verified && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  <BadgeCheck className="h-3 w-3" /> Vérifié
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {stats?.activeProducts ?? 0} produit{(stats?.activeProducts ?? 0) > 1 ? "s" : ""} · {stats?.totalOrders ?? 0} commande{(stats?.totalOrders ?? 0) > 1 ? "s" : ""}
+            </p>
+          </div>
+          {user && (
+            <Button asChild size="sm" variant="outline" className="shrink-0">
+              <Link to="/shop/$vendorId" params={{ vendorId: user.id }}>Voir</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div>
@@ -144,6 +192,40 @@ function VendorHome() {
             </Card>
           ))}
         </div>
+      </div>
+
+      {/* Recent orders */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-muted-foreground">Dernières commandes</h2>
+          <Link to="/vendor/orders" className="text-xs font-medium text-primary">Tout voir</Link>
+        </div>
+        <Card>
+          <CardContent className="p-0">
+            {stats?.recentOrders && stats.recentOrders.length > 0 ? (
+              <ul className="divide-y">
+                {stats.recentOrders.map((o) => (
+                  <li key={o.id}>
+                    <Link to="/vendor/orders" className="flex items-center gap-3 p-3 hover:bg-accent/50">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{o.customer_name ?? "Client"}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(o.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(o.status)}`}>
+                        {statusLabel(o.status)}
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-6 text-center text-sm text-muted-foreground">Aucune commande pour l'instant.</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div>
