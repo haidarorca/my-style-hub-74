@@ -215,7 +215,7 @@ function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
       if (!r.is_enabled) return;
-      if (r.scope === "global" || r.scope === "vendor") return;
+      if (r.scope !== "country_pair") return;
       if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.source_country_id ?? null);
     });
@@ -281,7 +281,7 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
     const set = new Set<string | null>();
     (rules ?? []).forEach((r) => {
       if (!r.is_enabled) return;
-      if (r.scope === "global" || r.scope === "vendor") return;
+      if (r.scope !== "country_pair") return;
       if ((r.source_country_id ?? null) !== srcMatch) return;
       if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
       set.add(r.destination_country_id ?? null);
@@ -304,7 +304,7 @@ function DestinationPicker({ sourceId, onPick, onBack }: {
       && (x.source_country_id ?? null) === srcMatch
       && (x.destination_country_id ?? null) === destId,
     );
-    return r ? <Badge variant="secondary">{r.rate_percent}%</Badge> : <Badge variant="outline" className="text-muted-foreground">—</Badge>;
+    return r && Number(r.rate_percent) > 0 ? <Badge variant="secondary">{r.rate_percent}%</Badge> : <Badge variant="outline" className="text-muted-foreground">—</Badge>;
   };
 
   return (
