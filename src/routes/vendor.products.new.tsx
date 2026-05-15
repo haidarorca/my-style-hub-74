@@ -50,10 +50,14 @@ function NewProductPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
 
-  // Category 3-level
+  // Category 3-level (existing) — or proposed new at one level
   const [cat1, setCat1] = useState<string>("");
   const [cat2, setCat2] = useState<string>("");
   const [cat3, setCat3] = useState<string>("");
+  // Proposal at a single level. When set, finalCategoryId becomes null
+  // and a category_request is created on submit, parent_id = selected parent.
+  const [proposeLevel, setProposeLevel] = useState<0 | 1 | 2 | 3>(0);
+  const [proposeName, setProposeName] = useState("");
 
   // Images
   const [images, setImages] = useState<File[]>([]);
