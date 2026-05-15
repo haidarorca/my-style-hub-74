@@ -159,9 +159,19 @@
 html, body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: auto;
+  touch-action: manipulation;
+}
+html {
+  scroll-behavior: smooth;
 }
 body {
   min-height: 100vh;
   min-height: 100dvh;
+  /* Never lock vertical scroll globally; individual overlays manage their own */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+/* Avoid accidental horizontal overflow that breaks vertical scroll on mobile */
+#root, main { max-width: 100%; }
+
 
