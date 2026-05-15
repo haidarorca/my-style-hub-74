@@ -46,12 +46,27 @@ function Home() {
     },
   });
 
+  // Level 3 sub-sub-categories of the selected level-2
+  const { data: subSubCategories } = useQuery({
+    queryKey: ["categories", "level3", subCategoryId],
+    enabled: !!subCategoryId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name, slug")
+        .eq("parent_id", subCategoryId!)
+        .order("position");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // Get descendant category ids for filtering
   const { data: descendantIds } = useQuery({
-    queryKey: ["category-descendants", universeId, subCategoryId],
+    queryKey: ["category-descendants", universeId, subCategoryId, subSubCategoryId],
     enabled: universeId !== ALL,
     queryFn: async () => {
-      const root = subCategoryId ?? universeId;
+      const root = subSubCategoryId ?? subCategoryId ?? universeId;
       // Fetch level 2 + 3 children
       const { data: l2 } = await supabase
         .from("categories")
@@ -70,7 +85,7 @@ function Home() {
   });
 
   const { data: products } = useQuery({
-    queryKey: ["products", "approved", universeId, subCategoryId, descendantIds],
+    queryKey: ["products", "approved", universeId, subCategoryId, subSubCategoryId, descendantIds],
     queryFn: async () => {
       let q = supabase
         .from("products")
@@ -95,6 +110,12 @@ function Home() {
   const onSelectUniverse = (id: string) => {
     setUniverseId(id);
     setSubCategoryId(null);
+    setSubSubCategoryId(null);
+  };
+
+  const onSelectSubCategory = (id: string | null) => {
+    setSubCategoryId(id);
+    setSubSubCategoryId(null);
   };
 
   return (
