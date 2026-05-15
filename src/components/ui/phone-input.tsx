@@ -65,6 +65,11 @@ export function findCountryByCode(code: string | undefined): Country {
   return COUNTRIES.find((c) => c.code === code) ?? DEFAULT_COUNTRY;
 }
 
+export function findCountryByDial(dial: string | undefined): Country | undefined {
+  if (!dial) return undefined;
+  return COUNTRIES.find((c) => c.dial === dial);
+}
+
 /** Country selector with search. Single-pick, controlled. */
 export function CountryPicker({
   value,
@@ -102,7 +107,13 @@ export function CountryPicker({
         <span className="text-xs font-medium text-muted-foreground">{value.dial}</span>
         <ChevronDown className="h-3 w-3 opacity-60" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-64 p-0">
+      <PopoverContent
+        align="start"
+        className="pointer-events-auto w-[var(--radix-popover-trigger-width)] min-w-64 p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="border-b border-border p-2">
           <Input
             autoFocus
