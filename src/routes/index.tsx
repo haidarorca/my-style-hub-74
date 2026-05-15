@@ -8,6 +8,8 @@ import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { supabase } from "@/integrations/supabase/client";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useSiteSettings, useHomeBanners } from "@/hooks/use-site-settings";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -24,13 +26,14 @@ function Home() {
   const hideTabs = useHideOnScroll();
   const settings = useSiteSettings();
   const { data: banners } = useHomeBanners();
+  const { t, lang } = useI18n();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, name, slug, logo_url")
+        .select("id, name, name_i18n, slug, logo_url")
         .eq("level", 1)
         .order("position");
       if (error) throw error;
@@ -44,7 +47,7 @@ function Home() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, name, slug")
+        .select("id, name, name_i18n, slug")
         .eq("parent_id", universeId)
         .order("position");
       if (error) throw error;
@@ -59,7 +62,7 @@ function Home() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, name, slug")
+        .select("id, name, name_i18n, slug")
         .eq("parent_id", subCategoryId!)
         .order("position");
       if (error) throw error;
@@ -95,7 +98,7 @@ function Home() {
     queryFn: async () => {
       let q = supabase
         .from("products")
-        .select("id, name, price, code, product_images(url)")
+        .select("id, name, name_i18n, price, code, product_images(url)")
         .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(40);
@@ -109,8 +112,8 @@ function Home() {
   });
 
   const universeTabs = useMemo(
-    () => [{ id: ALL, name: "Tout" }, ...(universes ?? [])],
-    [universes],
+    () => [{ id: ALL, name: t("common.all"), name_i18n: null as Record<string, string> | null }, ...((universes ?? []) as Array<{ id: string; name: string; name_i18n: Record<string, string> | null }>)],
+    [universes, t],
   );
 
   const onSelectUniverse = (id: string) => {
@@ -145,7 +148,7 @@ function Home() {
                   : "bg-muted text-foreground"
               }`}
             >
-              {u.name}
+              {pickI18n(u.name, u.name_i18n, lang)}
             </button>
           ))}
         </div>
@@ -160,7 +163,7 @@ function Home() {
                   : "bg-muted text-foreground"
               }`}
             >
-              Tout
+              {t("common.all")}
             </button>
             {subCategories.map((c) => (
               <button
@@ -172,7 +175,7 @@ function Home() {
                     : "bg-muted text-foreground"
                 }`}
               >
-                {c.name}
+                {pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang)}
               </button>
             ))}
           </div>
@@ -188,7 +191,7 @@ function Home() {
                   : "bg-muted text-foreground"
               }`}
             >
-              Tout
+              {t("common.all")}
             </button>
             {subSubCategories.map((c) => (
               <button
@@ -200,7 +203,7 @@ function Home() {
                     : "bg-muted text-foreground"
                 }`}
               >
-                {c.name}
+                {pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang)}
               </button>
             ))}
           </div>
@@ -214,13 +217,13 @@ function Home() {
         ) : (
           <section className="mt-3 overflow-hidden rounded-2xl gradient-flash p-5 text-primary-foreground shadow-pink">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-90">
-              <Flame className="h-4 w-4" /> Nouveautés
+              <Flame className="h-4 w-4" /> {t("home.new")}
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
-              {settings.hero_title || "Vos produits préférés, personnalisés à votre image"}
+              {pickI18n(settings.hero_title, (settings as unknown as { hero_title_i18n?: Record<string, string> | null }).hero_title_i18n, lang) || t("home.hero_title_default")}
             </h1>
             <p className="mt-2 max-w-md text-sm opacity-90">
-              {settings.hero_subtitle || "Ajoutez votre nom, votre logo, votre photo. Commande envoyée directement sur WhatsApp."}
+              {pickI18n(settings.hero_subtitle, (settings as unknown as { hero_subtitle_i18n?: Record<string, string> | null }).hero_subtitle_i18n, lang) || t("home.hero_subtitle_default")}
             </p>
           </section>
         )}
@@ -229,40 +232,43 @@ function Home() {
         <section className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl bg-card p-3 shadow-soft">
             <Sparkles className="mx-auto mb-1 h-5 w-5 text-primary" />
-            Personnalisation
+            {t("home.trust.personalization")}
           </div>
           <div className="rounded-xl bg-card p-3 shadow-soft">
             <Truck className="mx-auto mb-1 h-5 w-5 text-primary" />
-            Livraison rapide
+            {t("home.trust.fast_delivery")}
           </div>
           <div className="rounded-xl bg-card p-3 shadow-soft">
             <ShieldCheck className="mx-auto mb-1 h-5 w-5 text-primary" />
-            Produits vérifiés
+            {t("home.trust.verified")}
           </div>
         </section>
 
         {/* Categories logos */}
         {universes && universes.length > 0 && (
           <section className="mt-6">
-            <h2 className="mb-3 text-base font-bold">Catégories</h2>
+            <h2 className="mb-3 text-base font-bold">{t("home.section.categories")}</h2>
             <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
-              {universes.map((c) => (
-                <Link
-                  key={c.id}
-                  to="/c/$categoryId"
-                  params={{ categoryId: c.id }}
-                  className="flex flex-col items-center gap-1.5 text-center"
-                >
-                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
-                    {c.logo_url ? (
-                      <img src={c.logo_url} alt={c.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-lg font-bold text-primary">{c.name[0]}</span>
-                    )}
-                  </div>
-                  <span className="line-clamp-1 text-xs">{c.name}</span>
-                </Link>
-              ))}
+              {universes.map((c) => {
+                const cName = pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang);
+                return (
+                  <Link
+                    key={c.id}
+                    to="/c/$categoryId"
+                    params={{ categoryId: c.id }}
+                    className="flex flex-col items-center gap-1.5 text-center"
+                  >
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
+                      {c.logo_url ? (
+                        <img src={c.logo_url} alt={cName} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-lg font-bold text-primary">{cName[0]}</span>
+                      )}
+                    </div>
+                    <span className="line-clamp-1 text-xs">{cName}</span>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}
@@ -271,7 +277,7 @@ function Home() {
         <section className="mt-6">
           <div className="mb-3 flex items-center gap-2">
             <Flame className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-bold">Tendances</h2>
+            <h2 className="text-base font-bold">{t("home.section.trending")}</h2>
           </div>
           {products && products.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
@@ -281,7 +287,7 @@ function Home() {
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Aucun produit publié pour cette sélection.
+              {t("home.empty_products")}
             </p>
           )}
         </section>
