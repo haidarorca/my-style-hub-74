@@ -219,6 +219,11 @@ function AccountPage() {
       toast.error(first ?? t("common.correct_fields"));
       return;
     }
+    if (!destinationCountryId) {
+      setErrors({ destination_country_id: "Pays de livraison requis" });
+      toast.error("Sélectionnez le pays de livraison.");
+      return;
+    }
     setErrors({});
     setSaving(true);
     try {
@@ -229,6 +234,7 @@ function AccountPage() {
         phone_alt: parsed.data.phone_alt || null,
         latitude: form.latitude,
         longitude: form.longitude,
+        destination_country_id: destinationCountryId,
         user_id: user.id,
         is_default: editing ? editing.is_default : addresses.length === 0,
       };
