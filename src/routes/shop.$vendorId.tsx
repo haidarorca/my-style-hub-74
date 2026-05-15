@@ -18,6 +18,7 @@ export const Route = createFileRoute("/shop/$vendorId")({
 
 function ShopPage() {
   const { vendorId } = Route.useParams();
+  const { t, lang } = useI18n();
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
   const [selL1, setSelL1] = useState<string | null>(null);
   const [selL2, setSelL2] = useState<string | null>(null);
