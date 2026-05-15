@@ -124,10 +124,14 @@ function VendorSettings() {
 
   const save = async () => {
     if (!user) return;
+    if (!sourceCountryId) {
+      toast.error("Le pays d'origine de vos produits est obligatoire.");
+      return;
+    }
     setSaving(true);
     const phoneFull = joinPhone(phoneCountry, phoneLocal);
     const waFull = joinPhone(waCountry, waLocal);
-    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId };
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId, vendor_mode: vendorMode };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
