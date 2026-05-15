@@ -18,7 +18,8 @@ export function useDisplayPrices(productIds: string[]) {
   const { data } = useQuery({
     queryKey: ["display-prices", countryId, ids],
     enabled: ids.length > 0,
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const rows = await fetcher({ data: { productIds: ids, destinationCountryId: countryId ?? null } });
       return rows as DisplayPrice[];
