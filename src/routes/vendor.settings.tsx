@@ -300,3 +300,61 @@ function VendorSettings() {
     </div>
   );
 }
+
+function PhoneField({
+  id, label, country, local, onCountryChange, onLocalChange, showWaTest,
+}: {
+  id: string;
+  label: string;
+  country: string;
+  local: string;
+  onCountryChange: (code: string) => void;
+  onLocalChange: (v: string) => void;
+  showWaTest?: boolean;
+}) {
+  const c = getCountryByCode(country);
+  const fullDigits = c ? c.dial + local.replace(/\D/g, "") : local.replace(/\D/g, "");
+  const waLink = fullDigits ? `https://wa.me/${fullDigits}` : "";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <select
+          aria-label="Indicatif pays"
+          value={country}
+          onChange={(e) => onCountryChange(e.target.value)}
+          className="h-10 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {COUNTRIES.map((co) => (
+            <option key={co.code} value={co.code}>
+              {co.flag} +{co.dial}
+            </option>
+          ))}
+        </select>
+        <Input
+          id={id}
+          inputMode="tel"
+          value={local}
+          onChange={(e) => onLocalChange(e.target.value.replace(/[^\d\s]/g, ""))}
+          placeholder={c?.example ?? ""}
+          className="flex-1"
+        />
+      </div>
+      {fullDigits && (
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Sera enregistré : <span className="font-mono">+{fullDigits}</span></span>
+          {showWaTest && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary"
+            >
+              Tester sur WhatsApp
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
