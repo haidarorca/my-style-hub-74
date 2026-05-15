@@ -102,7 +102,7 @@ function VendorsPage() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-1 h-4 w-4" /> Nouveau vendeur</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>Créer un compte vendeur</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div><label className="text-xs">Nom complet</label>
@@ -115,6 +115,13 @@ function VendorsPage() {
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
               <div><label className="text-xs">Mot de passe (min 6)</label>
                 <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+              <VendorScopeFields
+                sourceId={cSourceId} setSourceId={setCSourceId}
+                mode={cMode} setMode={setCMode}
+                intl={cIntl} setIntl={setCIntl}
+                allowed={cAllowed} setAllowed={setCAllowed}
+                radioName="mode-create"
+              />
             </div>
             <DialogFooter>
               <Button onClick={handleCreate} disabled={busy}>{busy ? "Création…" : "Créer"}</Button>
