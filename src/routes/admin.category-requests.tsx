@@ -93,7 +93,19 @@ function CategoryRequestsPage() {
     return parts.join(" › ");
   }
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "category-requests"] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin", "category-requests"] });
+    qc.invalidateQueries({ queryKey: ["admin", "products"] });
+    qc.invalidateQueries({ queryKey: ["admin", "category-requests-pending-count"] });
+  };
+
+  async function linkProductsToCategory(reqId: string, categoryId: string) {
+    const { error } = await supabase
+      .from("products")
+      .update({ category_id: categoryId, pending_category_request_id: null } as never)
+      .eq("pending_category_request_id" as never, reqId);
+    if (error) throw error;
+  }
 
   async function approve(req: Req, finalName: string) {
     const trimmed = finalName.trim();
@@ -115,7 +127,10 @@ function CategoryRequestsPage() {
       .update({ status: "approved", resolved_category_id: created.id, admin_note: null })
       .eq("id", req.id);
     if (upErr) return toast.error(upErr.message);
-    toast.success("Catégorie créée et demande acceptée.");
+    try { await linkProductsToCategory(req.id, created.id); } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur liaison produits");
+    }
+    toast.success("Catégorie créée. Produits liés débloqués.");
     refresh();
     qc.invalidateQueries({ queryKey: ["admin", "categories"] });
   }
@@ -127,7 +142,10 @@ function CategoryRequestsPage() {
       .update({ status: "merged", resolved_category_id: targetId })
       .eq("id", req.id);
     if (error) return toast.error(error.message);
-    toast.success("Demande fusionnée.");
+    try { await linkProductsToCategory(req.id, targetId); } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur liaison produits");
+    }
+    toast.success("Demande fusionnée. Produits liés débloqués.");
     refresh();
   }
 
