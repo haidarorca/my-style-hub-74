@@ -111,16 +111,28 @@ function GlobalRuleCard({ rule, onChange }: { rule: Rule | undefined; onChange: 
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Commission globale</CardTitle></CardHeader>
-      <CardContent className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs">Taux (%)</label>
-          <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs">Taux (%)</label>
+            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <span className="text-sm">Activée</span>
+          </div>
+          <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-          <span className="text-sm">Activée</span>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-xs text-muted-foreground mr-1">Préréglages :</span>
+          {[0, 2, 5, 10, 15, 20, 25, 30].map((p) => (
+            <Button key={p} size="sm" variant="outline" className="h-7 px-2 text-xs"
+              onClick={() => setRate(String(p))}>{p}%</Button>
+          ))}
         </div>
-        <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
+        <p className="text-xs text-muted-foreground">
+          S'applique à toute commande d'un vendeur en mode « Avec commission », sauf si une règle plus précise existe.
+        </p>
       </CardContent>
     </Card>
   );
@@ -158,9 +170,12 @@ function VendorRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => v
     if (!selectedId) return toast.error("Choisissez un vendeur");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = await sb.from("commission_rules").upsert({
-      scope: "vendor", vendor_id: selectedId, rate_percent: v, is_enabled: true,
-    }, { onConflict: "vendor_id" });
+    const { data: existing } = await sb.from("commission_rules")
+      .select("id").eq("scope", "vendor").eq("vendor_id", selectedId)
+      .is("category_id", null).is("product_id", null).maybeSingle();
+    const { error } = existing
+      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+      : await sb.from("commission_rules").insert({ scope: "vendor", vendor_id: selectedId, rate_percent: v, is_enabled: true });
     if (error) return toast.error(error.message);
     toast.success("Règle vendeur enregistrée"); setRate(""); onChange();
   }
@@ -226,10 +241,11 @@ function CategoryRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () =>
     if (!selectedId) return toast.error("Choisissez une catégorie");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = await sb.from("commission_rules").upsert(
-      { scope: "category", category_id: selectedId, rate_percent: v, is_enabled: true },
-      { onConflict: "category_id,vendor_id" },
-    );
+    const { data: existing } = await sb.from("commission_rules")
+      .select("id").eq("scope", "category").eq("category_id", selectedId).is("vendor_id", null).maybeSingle();
+    const { error } = existing
+      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+      : await sb.from("commission_rules").insert({ scope: "category", category_id: selectedId, rate_percent: v, is_enabled: true });
     if (error) return toast.error(error.message);
     toast.success("Règle catégorie enregistrée"); setRate(""); onChange();
   }
@@ -275,10 +291,11 @@ function ProductRulesCard({ rules, onChange }: { rules: Rule[]; onChange: () => 
     if (!selectedId) return toast.error("Choisissez un produit");
     const v = Number(rate);
     if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    const { error } = await sb.from("commission_rules").upsert(
-      { scope: "product", product_id: selectedId, rate_percent: v, is_enabled: true },
-      { onConflict: "product_id" },
-    );
+    const { data: existing } = await sb.from("commission_rules")
+      .select("id").eq("scope", "product").eq("product_id", selectedId).maybeSingle();
+    const { error } = existing
+      ? await sb.from("commission_rules").update({ rate_percent: v, is_enabled: true }).eq("id", existing.id)
+      : await sb.from("commission_rules").insert({ scope: "product", product_id: selectedId, rate_percent: v, is_enabled: true });
     if (error) return toast.error(error.message);
     toast.success("Règle produit enregistrée"); setRate(""); onChange();
   }
@@ -408,8 +425,6 @@ function VendorsTab() {
                     <SelectContent>
                       <SelectItem value="no_commission">Sans commission</SelectItem>
                       <SelectItem value="commission">Avec commission</SelectItem>
-                      <SelectItem value="autonomous">Autonome</SelectItem>
-                      <SelectItem value="partially_managed">Partiellement géré</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">

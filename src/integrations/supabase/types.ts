@@ -1068,11 +1068,7 @@ export type Database = {
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
       user_sex: "homme" | "femme"
-      vendor_mode:
-        | "no_commission"
-        | "commission"
-        | "autonomous"
-        | "partially_managed"
+      vendor_mode: "no_commission" | "commission"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1217,12 +1213,7 @@ export const Constants = {
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
       user_sex: ["homme", "femme"],
-      vendor_mode: [
-        "no_commission",
-        "commission",
-        "autonomous",
-        "partially_managed",
-      ],
+      vendor_mode: ["no_commission", "commission"],
     },
   },
 } as const
