@@ -137,10 +137,44 @@ function AccountPage() {
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setForm((f) => ({ ...f, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
-        setLocating(false);
-        toast.success("Position enregistrée");
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setForm((f) => ({ ...f, latitude, longitude }));
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=fr&zoom=14`,
+            { headers: { Accept: "application/json" } },
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const a = data?.address ?? {};
+            const cc = (a.country_code ?? "").toUpperCase();
+            if (cc) {
+              const matched = findCountryByCode(cc);
+              if (matched) setCountry(matched);
+            }
+            const cityName: string | undefined =
+              a.neighbourhood ||
+              a.suburb ||
+              a.quarter ||
+              a.city_district ||
+              a.village ||
+              a.town ||
+              a.city ||
+              a.municipality ||
+              a.county;
+            if (cityName) {
+              setForm((f) => ({ ...f, city: f.city?.trim() ? f.city : cityName }));
+            }
+            toast.success("Position et localité détectées");
+          } else {
+            toast.success("Position enregistrée");
+          }
+        } catch {
+          toast.success("Position enregistrée");
+        } finally {
+          setLocating(false);
+        }
       },
       () => {
         setLocating(false);
