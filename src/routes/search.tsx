@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search as SearchIcon, X, Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
