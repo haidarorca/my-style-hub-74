@@ -920,6 +920,7 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          allowed_destination_country_ids: string[]
           created_at: string
           email: string | null
           full_name: string | null
@@ -930,6 +931,7 @@ export type Database = {
           longitude: number | null
           phone: string | null
           sex: Database["public"]["Enums"]["user_sex"] | null
+          ships_internationally: boolean
           shop_banner_url: string | null
           shop_description: string | null
           shop_description_i18n: Json | null
@@ -945,6 +947,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          allowed_destination_country_ids?: string[]
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -955,6 +958,7 @@ export type Database = {
           longitude?: number | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
+          ships_internationally?: boolean
           shop_banner_url?: string | null
           shop_description?: string | null
           shop_description_i18n?: Json | null
@@ -970,6 +974,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          allowed_destination_country_ids?: string[]
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -980,6 +985,7 @@ export type Database = {
           longitude?: number | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
+          ships_internationally?: boolean
           shop_banner_url?: string | null
           shop_description?: string | null
           shop_description_i18n?: Json | null
