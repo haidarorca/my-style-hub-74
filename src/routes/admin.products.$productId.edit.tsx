@@ -439,24 +439,9 @@ function AdminEditProductPage() {
           </div>
           <div><Label>Désignation</Label><Input value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
           <div><Label>Description</Label><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
-              <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            </div>
-            <div>
-              <Label>Vendeur associé</Label>
-              <Select value={vendorId} onValueChange={setVendorId}>
-                <SelectTrigger><SelectValue placeholder="Choisir un vendeur" /></SelectTrigger>
-                <SelectContent>
-                  {data.vendors.map(v => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.shop_name || v.full_name || v.email || v.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
+            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
         </CardContent>
       </Card>
