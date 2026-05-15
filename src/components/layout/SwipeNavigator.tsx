@@ -112,12 +112,17 @@ export function SwipeNavigator({ children }: { children: React.ReactNode }) {
     };
   }, [isMobile, pathname, navigate]);
 
+  const isTab = getActiveIndex(pathname) !== -1;
+
   return (
     <div ref={containerRef} className="contents">
-      <div key={pathname} className="md:contents animate-fade-in">
-        {children}
-      </div>
-      {!isMobile && null}
+      {isMobile && isTab ? (
+        <div key={pathname} className="animate-fade-in">
+          {children}
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
