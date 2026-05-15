@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, Eye, EyeOff } from "lucide-react";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 
 export const Route = createFileRoute("/signup")({
@@ -24,6 +24,7 @@ function SignupPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
@@ -97,9 +98,6 @@ function SignupPage() {
   return (
     <div className="min-h-screen bg-background pt-safe">
       <div className="mx-auto flex max-w-md flex-col px-4 py-8">
-        <Link to="/" className="gradient-primary mb-6 self-center bg-clip-text text-3xl font-extrabold text-transparent">
-          ORCA
-        </Link>
         <h1 className="text-2xl font-bold">Créer un compte</h1>
         <p className="mt-1 text-sm text-muted-foreground">Rejoins-nous pour shopper et personnaliser tes produits.</p>
 
@@ -114,7 +112,17 @@ function SignupPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Mot de passe</Label>
-            <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <div className="relative">
+              <Input id="password" type={showPassword ? "text" : "password"} required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="pr-10" />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="phone">Téléphone</Label>
