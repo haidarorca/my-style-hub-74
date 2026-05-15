@@ -103,11 +103,14 @@ function SearchPage() {
     enabled: debounced.length >= 1,
     queryFn: async () => {
       const term = debounced;
+      const first = term.charAt(0);
       let q1 = supabase
         .from("products")
         .select("id, name, price, designation, product_images(url), product_variants(size, color)")
         .eq("status", "approved")
-        .or(`name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%`)
+        .or(
+          `name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%,designation.ilike.${first}%`,
+        )
         .limit(40);
       if (filters.minPrice) q1 = q1.gte("price", Number(filters.minPrice));
       if (filters.maxPrice) q1 = q1.lte("price", Number(filters.maxPrice));
@@ -123,6 +126,12 @@ function SearchPage() {
           p.product_variants?.some((v) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())),
         );
       }
+      // Rank: exact substring match before first-letter-only match
+      rows.sort((a, b) => {
+        const ai = (a.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        const bi = (b.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        return ai - bi;
+      });
       return rows;
     },
   });
@@ -132,27 +141,43 @@ function SearchPage() {
     queryKey: ["search", "categories", debounced],
     enabled: debounced.length >= 1,
     queryFn: async () => {
+      const term = debounced;
+      const first = term.charAt(0);
       const { data } = await supabase
         .from("categories")
         .select("id, name, level, logo_url")
-        .ilike("name", `%${debounced}%`)
+        .or(`name.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
-      return data ?? [];
+      const rows = data ?? [];
+      rows.sort((a, b) => {
+        const ai = (a.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        const bi = (b.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        return ai - bi;
+      });
+      return rows;
     },
   });
 
-  // Shops (vendor profiles)
+  // Shops (vendor profiles) — match substring OR same first letter
   const { data: shops } = useQuery({
     queryKey: ["search", "shops", debounced],
     enabled: debounced.length >= 1,
     queryFn: async () => {
+      const term = debounced;
+      const first = term.charAt(0);
       const { data } = await supabase
         .from("profiles")
         .select("id, shop_name, shop_logo_url, address")
         .not("shop_name", "is", null)
-        .ilike("shop_name", `%${debounced}%`)
+        .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
         .limit(20);
-      return data ?? [];
+      const rows = data ?? [];
+      rows.sort((a, b) => {
+        const ai = (a.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        const bi = (b.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
+        return ai - bi;
+      });
+      return rows;
     },
   });
 
