@@ -124,11 +124,11 @@ export function AppHeader() {
           </form>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {/* Top-positioned actions so phone gesture bar doesn't interfere */}
           <Link to="/cart" className="relative">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ShoppingBag className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
+              <ShoppingBag className="h-[18px] w-[18px]" />
             </Button>
             {count > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
