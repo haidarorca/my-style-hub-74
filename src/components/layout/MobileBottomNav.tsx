@@ -11,7 +11,7 @@ const ITEMS = [
   { to: "/account", label: "Compte", icon: User },
 ];
 
-const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/product", "/cart"];
+const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup"];
 
 export function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
