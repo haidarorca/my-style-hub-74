@@ -127,7 +127,7 @@ function AdminEditProductPage() {
           .select("id, name, level, status, parent_id, parent_request_id")
           .eq("id", prod.data.pending_category_request_id)
           .maybeSingle();
-        pendingReq = pr as typeof pendingReq;
+        pendingReq = (pr ?? null) as ReqRow | null;
       }
       if (prod.data?.vendor_id) {
         const { data: reqRows, error: reqErr } = await supabase
@@ -250,8 +250,9 @@ function AdminEditProductPage() {
     const labels = new Map<string, string>();
     (data?.categories ?? []).forEach(c => labels.set(catValue(c.id), c.name));
     (data?.categoryRequests ?? []).forEach(r => labels.set(reqValue(r.id), `${r.name} (en attente)`));
-    if (data?.pendingCategoryRequest) {
-      labels.set(reqValue(data.pendingCategoryRequest.id), `${data.pendingCategoryRequest.name} (en attente)`);
+    const pending = data?.pendingCategoryRequest as ReqRow | null | undefined;
+    if (pending) {
+      labels.set(reqValue(pending.id), `${pending.name} (en attente)`);
     }
     return labels;
   }, [data?.categories, data?.categoryRequests, data?.pendingCategoryRequest]);
