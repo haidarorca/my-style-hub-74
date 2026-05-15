@@ -111,6 +111,15 @@ function AdminEditProductPage() {
         supabase.from("user_roles").select("user_id, profiles:profiles!inner(id, full_name, shop_name, email)").eq("role", "vendeur"),
       ]);
       if (prod.error) throw prod.error;
+      let pendingReq: { id: string; name: string; level: number; status: string; parent_id: string | null } | null = null;
+      if (prod.data?.pending_category_request_id) {
+        const { data: pr } = await supabase
+          .from("category_requests")
+          .select("id, name, level, status, parent_id")
+          .eq("id", prod.data.pending_category_request_id)
+          .maybeSingle();
+        pendingReq = pr as typeof pendingReq;
+      }
       return {
         product: prod.data,
         images: (imgs.data ?? []) as ExistingImage[],
@@ -125,6 +134,7 @@ function AdminEditProductPage() {
         vendors: ((vendors.data ?? []) as Array<{ user_id: string; profiles: { id: string; full_name: string | null; shop_name: string | null; email: string | null } }>)
           .map(r => r.profiles)
           .filter(Boolean),
+        pendingCategoryRequest: pendingReq,
       };
     },
   });
