@@ -30,6 +30,8 @@ type ProductRow = {
   is_edit: boolean | null;
   product_images: { url: string }[] | null;
   vendor_id: string;
+  pending_category_request_id: string | null;
+  pending_category_request: { id: string; level: number; name: string; status: string } | null;
 };
 
 type Variant = {
