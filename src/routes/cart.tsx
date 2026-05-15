@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { BackButton } from "@/components/layout/BackButton";
@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
+import { useDeliveryCountry } from "@/hooks/use-delivery-country";
+import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
@@ -56,6 +58,7 @@ function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
+  const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -75,7 +78,13 @@ function CartPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locating, setLocating] = useState(false);
-  const [destinationCountryId, setDestinationCountryId] = useState<string | null>(null);
+  const priceLines = useMemo(
+    () => items
+      .map((it: any) => ({ productId: it.products?.id ?? it.product_id, variantId: it.variant_id ?? null }))
+      .filter((line) => !!line.productId),
+    [items],
+  );
+  const displayPriceLines = useDisplayPriceLines(priceLines);
 
   const loadAddresses = async () => {
     if (!user) {
@@ -123,7 +132,12 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
-  const unitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
+  const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
+  const unitPrice = (it: any) => {
+    const productId = it.products?.id ?? it.product_id;
+    const key = `${productId}:${it.variant_id ?? ""}`;
+    return displayPriceLines.get(key)?.final_price ?? fallbackUnitPrice(it);
+  };
   const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
   const customizationSummary = (c: any): string | null => {
