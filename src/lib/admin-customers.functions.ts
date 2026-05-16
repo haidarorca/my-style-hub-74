@@ -28,21 +28,41 @@ export type CustomerListRow = {
   total_spent: number;
 };
 
+export type CustomerListPage = {
+  rows: CustomerListRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totals: { active: number; blocked: number; revenue: number };
+};
+
+const ListInput = z.object({
+  page: z.number().int().min(1).max(10_000).default(1),
+  pageSize: z.number().int().min(5).max(100).default(25),
+  q: z.string().trim().max(200).default(""),
+  status: z.enum(["all", "active", "blocked"]).default("all"),
+  country_id: z.string().uuid().nullable().optional(),
+  has_orders: z.enum(["all", "with", "without"]).default("all"),
+});
+
 export const listCustomers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<CustomerListRow[]> => {
+  .inputValidator((input) => (input ? ListInput.parse(input) : ListInput.parse({})))
+  .handler(async ({ data, context }): Promise<CustomerListPage> => {
     await assertAdmin(context.userId);
 
-    // 1) acheteur role rows (include suspended flag)
-    const { data: roleRows, error: rErr } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id, is_suspended")
-      .eq("role", "acheteur");
+    // 1) acheteur ids (filter by suspended flag when status set)
+    let roleQ = supabaseAdmin.from("user_roles").select("user_id, is_suspended").eq("role", "acheteur");
+    if (data.status === "active") roleQ = roleQ.eq("is_suspended", false);
+    if (data.status === "blocked") roleQ = roleQ.eq("is_suspended", true);
+    const { data: roleRows, error: rErr } = await roleQ;
     if (rErr) throw new Error(rErr.message);
     const acheteurs = (roleRows ?? []) as { user_id: string; is_suspended: boolean }[];
-    if (acheteurs.length === 0) return [];
+    if (acheteurs.length === 0) {
+      return { rows: [], total: 0, page: data.page, pageSize: data.pageSize, totals: { active: 0, blocked: 0, revenue: 0 } };
+    }
 
-    // Exclude users who also have a vendor or admin role (those have their own dashboards)
+    // Exclude users who also have a vendor or admin role
     const ids = acheteurs.map((r) => r.user_id);
     const { data: otherRoles } = await supabaseAdmin
       .from("user_roles")
@@ -50,81 +70,115 @@ export const listCustomers = createServerFn({ method: "POST" })
       .in("user_id", ids)
       .in("role", ["vendeur", "admin", "super_admin"]);
     const excluded = new Set((otherRoles ?? []).map((r) => (r as { user_id: string }).user_id));
-    const customers = acheteurs.filter((r) => !excluded.has(r.user_id));
-    const customerIds = customers.map((c) => c.user_id);
-    if (customerIds.length === 0) return [];
+    const eligible = acheteurs.filter((r) => !excluded.has(r.user_id));
+    const eligibleIds = eligible.map((c) => c.user_id);
+    if (eligibleIds.length === 0) {
+      return { rows: [], total: 0, page: data.page, pageSize: data.pageSize, totals: { active: 0, blocked: 0, revenue: 0 } };
+    }
 
-    // 2) profiles
-    const { data: profs } = await supabaseAdmin
+    // 2) profiles (apply text search + sort + paginate at SQL level)
+    let profQ = supabaseAdmin
       .from("profiles")
-      .select("id, email, full_name, phone, created_at")
-      .in("id", customerIds);
-    const profById = new Map<string, { email: string | null; full_name: string | null; phone: string | null; created_at: string }>();
-    for (const p of profs ?? []) {
-      const row = p as { id: string; email: string | null; full_name: string | null; phone: string | null; created_at: string };
-      profById.set(row.id, { email: row.email, full_name: row.full_name, phone: row.phone, created_at: row.created_at });
-    }
-
-    // 3) default delivery country per customer
-    const { data: addrs } = await supabaseAdmin
-      .from("customer_addresses")
-      .select("user_id, destination_country_id, is_default, created_at")
-      .in("user_id", customerIds)
-      .order("is_default", { ascending: false })
+      .select("id, email, full_name, phone, created_at", { count: "exact" })
+      .in("id", eligibleIds)
       .order("created_at", { ascending: false });
-    const countryByUser = new Map<string, string | null>();
-    for (const a of addrs ?? []) {
-      const row = a as { user_id: string; destination_country_id: string | null };
-      if (!countryByUser.has(row.user_id)) countryByUser.set(row.user_id, row.destination_country_id);
+
+    const q = data.q.trim();
+    if (q.length > 0) {
+      // Escape % and , for PostgREST or-filter
+      const safe = q.replace(/[%,]/g, " ");
+      profQ = profQ.or(`email.ilike.%${safe}%,full_name.ilike.%${safe}%,phone.ilike.%${safe}%`);
     }
 
-    // 4) orders aggregate (count + sum)
-    const { data: orders } = await supabaseAdmin
-      .from("orders")
-      .select("buyer_id, total")
-      .in("buyer_id", customerIds);
-    const ordersByUser = new Map<string, { count: number; total: number }>();
-    for (const o of orders ?? []) {
-      const row = o as { buyer_id: string; total: number | null };
-      const cur = ordersByUser.get(row.buyer_id) ?? { count: 0, total: 0 };
-      cur.count += 1;
-      cur.total += Number(row.total ?? 0);
-      ordersByUser.set(row.buyer_id, cur);
-    }
-
-    // 5) last_sign_in_at from auth.users (paginate up to ~5k users)
-    const lastSignInByUser = new Map<string, string | null>();
-    const wanted = new Set(customerIds);
-    let page = 1;
-    while (wanted.size > 0 && page <= 5) {
-      const { data: list, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) break;
-      for (const u of list.users) {
-        if (wanted.has(u.id)) {
-          lastSignInByUser.set(u.id, u.last_sign_in_at ?? null);
-          wanted.delete(u.id);
-        }
+    // Optional country filter requires an inner narrowing: get matching ids first.
+    if (data.country_id) {
+      const { data: addrIds } = await supabaseAdmin
+        .from("customer_addresses")
+        .select("user_id")
+        .in("user_id", eligibleIds)
+        .eq("destination_country_id", data.country_id);
+      const filtered = new Set((addrIds ?? []).map((a) => (a as { user_id: string }).user_id));
+      profQ = profQ.in("id", Array.from(filtered));
+      if (filtered.size === 0) {
+        return { rows: [], total: 0, page: data.page, pageSize: data.pageSize, totals: { active: 0, blocked: 0, revenue: 0 } };
       }
-      if (list.users.length < 1000) break;
-      page += 1;
     }
 
-    return customers.map((c) => {
-      const prof = profById.get(c.user_id);
-      const agg = ordersByUser.get(c.user_id);
+    const offset = (data.page - 1) * data.pageSize;
+    const { data: profs, count: totalCount } = await profQ.range(offset, offset + data.pageSize - 1);
+    const profRows = (profs ?? []) as Array<{ id: string; email: string | null; full_name: string | null; phone: string | null; created_at: string }>;
+    const pageIds = profRows.map((p) => p.id);
+
+    // Per-row enrichments (only for the current page slice → cheap)
+    const [addrRes, ordersRes] = await Promise.all([
+      pageIds.length
+        ? supabaseAdmin
+            .from("customer_addresses")
+            .select("user_id, destination_country_id, is_default, created_at")
+            .in("user_id", pageIds)
+            .order("is_default", { ascending: false })
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] }),
+      pageIds.length
+        ? supabaseAdmin.from("orders").select("buyer_id, total").in("buyer_id", pageIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const countryByUser = new Map<string, string | null>();
+    for (const a of (addrRes.data ?? []) as Array<{ user_id: string; destination_country_id: string | null }>) {
+      if (!countryByUser.has(a.user_id)) countryByUser.set(a.user_id, a.destination_country_id);
+    }
+    const ordersByUser = new Map<string, { count: number; total: number }>();
+    for (const o of (ordersRes.data ?? []) as Array<{ buyer_id: string; total: number | null }>) {
+      const cur = ordersByUser.get(o.buyer_id) ?? { count: 0, total: 0 };
+      cur.count += 1;
+      cur.total += Number(o.total ?? 0);
+      ordersByUser.set(o.buyer_id, cur);
+    }
+
+    // last_sign_in only for the current page slice
+    const lastSignInByUser = new Map<string, string | null>();
+    await Promise.all(
+      pageIds.map(async (id) => {
+        const res = await supabaseAdmin.auth.admin.getUserById(id);
+        lastSignInByUser.set(id, res.data.user?.last_sign_in_at ?? null);
+      }),
+    );
+
+    const suspendedByUser = new Map(eligible.map((c) => [c.user_id, c.is_suspended] as const));
+
+    let rows: CustomerListRow[] = profRows.map((p) => {
+      const agg = ordersByUser.get(p.id);
       return {
-        user_id: c.user_id,
-        email: prof?.email ?? null,
-        full_name: prof?.full_name ?? null,
-        phone: prof?.phone ?? null,
-        created_at: prof?.created_at ?? new Date(0).toISOString(),
-        last_sign_in_at: lastSignInByUser.get(c.user_id) ?? null,
-        default_country_id: countryByUser.get(c.user_id) ?? null,
-        status: c.is_suspended ? "blocked" : "active",
+        user_id: p.id,
+        email: p.email,
+        full_name: p.full_name,
+        phone: p.phone,
+        created_at: p.created_at,
+        last_sign_in_at: lastSignInByUser.get(p.id) ?? null,
+        default_country_id: countryByUser.get(p.id) ?? null,
+        status: suspendedByUser.get(p.id) ? "blocked" : "active",
         orders_count: agg?.count ?? 0,
         total_spent: Math.round((agg?.total ?? 0) * 100) / 100,
       } satisfies CustomerListRow;
     });
+
+    if (data.has_orders === "with") rows = rows.filter((r) => r.orders_count > 0);
+    if (data.has_orders === "without") rows = rows.filter((r) => r.orders_count === 0);
+
+    // Aggregate totals across eligible set (not the page).
+    const totals = {
+      active: eligible.filter((c) => !c.is_suspended).length,
+      blocked: eligible.filter((c) => c.is_suspended).length,
+      revenue: 0, // computed on demand only — kept 0 to stay cheap
+    };
+
+    return {
+      rows,
+      total: totalCount ?? rows.length,
+      page: data.page,
+      pageSize: data.pageSize,
+      totals,
+    };
   });
 
 export type CustomerDetail = {
