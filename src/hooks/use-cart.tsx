@@ -101,7 +101,7 @@ export function useCart() {
           .from("cart_items")
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
-             products!inner(id, name, name_i18n, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name)),
+             products!inner(id, name, name_i18n, code, price, vendor_id, product_images(url), profiles:vendor_id(full_name, shop_name, shop_whatsapp)),
              product_variants(id, size, color, color_hex, price_override)`,
           )
           .order("created_at", { ascending: false });
