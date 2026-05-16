@@ -243,11 +243,9 @@ export const syncTranslations = createServerFn({ method: "POST" })
       const nameI18n = (p.name_i18n as Record<string, string> | null) ?? {};
       const desigI18n = (p.designation_i18n as Record<string, string> | null) ?? {};
       const descI18n = (p.description_i18n as Record<string, string> | null) ?? {};
-      const nameSrc = { ...(p.name ? { __c: p.name } : {}), ...nameI18n };
-      const nm = missingLangs(nameI18n, {});
-      const dm = hasAnyText(p.designation as string | null, desigI18n) ? missingLangs(desigI18n, {}) : [];
-      const desm = hasAnyText(p.description as string | null, descI18n) ? missingLangs(descI18n, {}) : [];
-      void nameSrc;
+      const nm = langsNeedingTranslation(nameI18n);
+      const dm = hasAnyText(p.designation as string | null, desigI18n) ? langsNeedingTranslation(desigI18n) : [];
+      const desm = hasAnyText(p.description as string | null, descI18n) ? langsNeedingTranslation(descI18n) : [];
       return nm.length || dm.length || desm.length;
     }).slice(0, MAX_PER_TABLE);
 
@@ -259,13 +257,16 @@ export const syncTranslations = createServerFn({ method: "POST" })
         const desigI18n = { ...((p.designation_i18n as Record<string, string>) ?? {}) };
         const descI18n = { ...((p.description_i18n as Record<string, string>) ?? {}) };
 
-        // Compute union of missing langs across the three fields where source has text
+        const nameTrivial = looksUntranslated(nameI18n);
+        const desigTrivial = looksUntranslated(desigI18n);
+        const descTrivial = looksUntranslated(descI18n);
+
         const desigHas = hasAnyText(p.designation as string | null, desigI18n);
         const descHas = hasAnyText(p.description as string | null, descI18n);
         const missing = new Set<Lang>();
-        for (const l of missingLangs(nameI18n, {})) missing.add(l);
-        if (desigHas) for (const l of missingLangs(desigI18n, {})) missing.add(l);
-        if (descHas) for (const l of missingLangs(descI18n, {})) missing.add(l);
+        for (const l of langsNeedingTranslation(nameI18n)) missing.add(l);
+        if (desigHas) for (const l of langsNeedingTranslation(desigI18n)) missing.add(l);
+        if (descHas) for (const l of langsNeedingTranslation(descI18n)) missing.add(l);
         const targets = LANGS.filter((l) => missing.has(l));
         if (targets.length === 0) continue;
 
@@ -281,9 +282,9 @@ export const syncTranslations = createServerFn({ method: "POST" })
         );
         let changed = false;
         for (const l of targets) {
-          if (!nameI18n[l] && res[l].name) { nameI18n[l] = res[l].name!; changed = true; }
-          if (desigHas && !desigI18n[l] && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
-          if (descHas && !descI18n[l] && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
+          if ((nameTrivial || !nameI18n[l]) && res[l].name) { nameI18n[l] = res[l].name!; changed = true; }
+          if (desigHas && (desigTrivial || !desigI18n[l]) && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
+          if (descHas && (descTrivial || !descI18n[l]) && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
         }
         if (!changed) { report.products.errors++; continue; }
         const { error } = await supabaseAdmin
