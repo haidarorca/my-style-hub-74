@@ -23,6 +23,17 @@ function VendorHome() {
   const logo = p.shop_logo_url as string | undefined;
   const banner = p.shop_banner_url as string | undefined;
   const verified = !!p.is_verified;
+  const vendorStatus = (p.vendor_status as "active" | "pending" | "suspended" | "expired" | "blocked" | undefined) ?? "pending";
+  const statusBanner: { title: string; msg: string; cls: string } | null = (() => {
+    if (vendorStatus === "active") return null;
+    const map: Record<string, { title: string; msg: string; cls: string }> = {
+      pending:   { title: "⏳ Boutique en attente de validation", msg: "Votre boutique et vos produits ne seront visibles publiquement qu'après validation par un administrateur. Vous pouvez déjà préparer vos produits.", cls: "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200" },
+      suspended: { title: "⏸️ Compte vendeur suspendu",          msg: "L'ajout de produits et les nouvelles commandes sont temporairement désactivés. Contactez l'administrateur.", cls: "border-orange-500/40 bg-orange-500/10 text-orange-900 dark:text-orange-200" },
+      expired:   { title: "⌛ Accès vendeur expiré",              msg: "Votre durée d'accès est terminée. Contactez l'administrateur pour la prolonger.", cls: "border-muted-foreground/30 bg-muted text-foreground" },
+      blocked:   { title: "🚫 Compte vendeur bloqué",             msg: "Votre compte vendeur a été bloqué. Contactez l'administrateur pour plus d'informations.", cls: "border-destructive/40 bg-destructive/10 text-destructive" },
+    };
+    return map[vendorStatus] ?? null;
+  })();
 
   const { data: stats } = useQuery({
     queryKey: ["vendor-dashboard", user?.id],
