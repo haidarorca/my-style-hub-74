@@ -280,11 +280,11 @@ async function syncHashTable(
     if (data.length < limit) break;
   }
 }
-async function syncShops(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncShops(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   // Shops use missing-lang detection across shop_description + shop_hours.
   let offset = 0;
-  while (budget.left > 0) {
+  while (!timeUp(budget)) {
     const limit = Math.min(BATCH, budget.left);
     const pageSize = limit * 4; // overscan since many rows are already-complete
     const { data } = await supabaseAdmin
@@ -297,7 +297,7 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
 
     let touched = 0;
     for (const s of data) {
-      if (budget.left <= 0) break;
+      if (timeUp(budget)) break;
       const row = s as {
         id: string;
         shop_description: string | null; shop_description_i18n: Record<string, string> | null;
@@ -339,15 +339,15 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
   }
 }
 
-async function syncBanners(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncBanners(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   const { data } = await supabaseAdmin
     .from("home_banners")
     .select("id, title, subtitle, cta_label, title_i18n, subtitle_i18n, cta_label_i18n");
   if (!data) return;
 
   for (const b of data) {
-    if (budget.left <= 0) break;
+    if (timeUp(budget)) break;
     const row = b as {
       id: string;
       title: string | null; subtitle: string | null; cta_label: string | null;
@@ -368,7 +368,7 @@ async function syncBanners(report: Report, apiKey: string, budget: { left: numbe
         const miss = missingLangs(f.i18n);
         if (miss.length === 0) continue;
         needs = true;
-        if (budget.left <= 0) break;
+        if (timeUp(budget)) break;
         budget.left--;
         const res = f.long
           ? await translateLong(f.src, miss, apiKey)
@@ -390,8 +390,8 @@ async function syncBanners(report: Report, apiKey: string, budget: { left: numbe
   }
 }
 
-async function syncSettings(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncSettings(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   const { data } = await supabaseAdmin
     .from("site_settings")
     .select("id, hero_title, hero_subtitle, footer_text, promo_bar_text, hero_title_i18n, hero_subtitle_i18n, footer_text_i18n, promo_bar_text_i18n")
@@ -420,7 +420,7 @@ async function syncSettings(report: Report, apiKey: string, budget: { left: numb
       const miss = missingLangs(f.i18n);
       if (miss.length === 0) continue;
       needs = true;
-      if (budget.left <= 0) break;
+      if (timeUp(budget)) break;
       budget.left--;
       const res = f.long
         ? await translateLong(f.src, miss, apiKey)
@@ -464,7 +464,7 @@ export async function runTranslationSync(scope: Scope = "all"): Promise<Report> 
     durationMs: 0,
   };
 
-  const budget = { left: HARD_CAP_PER_RUN };
+  const budget: Budget = { left: HARD_CAP_PER_RUN, deadline: start + WALL_CLOCK_MS };
   const runAll = scope === "all";
 
   if (runAll || scope === "products") await syncProducts(report, apiKey, budget);
