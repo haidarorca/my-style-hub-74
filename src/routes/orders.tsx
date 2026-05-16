@@ -199,7 +199,7 @@ function OrdersPage() {
         .select("*")
         .in("order_id", ids);
       const vendorIds = Array.from(new Set((items ?? []).map((i: any) => i.vendor_id))).filter(Boolean);
-      let vendorsMap = new Map<string, any>();
+      const vendorsMap = new Map<string, any>();
       if (vendorIds.length > 0) {
         const { data: vendors } = await supabase
           .from("profiles")
