@@ -10,7 +10,7 @@ type Report = {
   durationMs: number;
 };
 
-const LANGS = ["en", "ar"] as const;
+const LANGS = ["fr", "en", "ar"] as const;
 type Lang = (typeof LANGS)[number];
 
 const MAX_PER_TABLE = 60;
@@ -46,54 +46,134 @@ function parseJson(raw: string): Record<string, unknown> | null {
   }
 }
 
-const TARGET_NAME: Record<Lang, string> = { en: "English", ar: "Modern Standard Arabic" };
-
-async function translateShort(text: string, apiKey: string): Promise<Partial<Record<Lang, string>>> {
+/**
+ * Build a payload of known-language values (canonical text + any existing i18n entries),
+ * so the AI can pick the best source and fill in missing langs.
+ */
+function buildSources(canonical: string, i18n: Record<string, string> | null | undefined): Partial<Record<Lang, string>> {
   const out: Partial<Record<Lang, string>> = {};
+  const obj = (i18n ?? {}) as Record<string, string>;
+  for (const l of LANGS) {
+    const v = obj[l];
+    if (typeof v === "string" && v.trim().length > 0) out[l] = v.trim();
+  }
+  // canonical column has unknown language — pass it under a separate key
+  if (canonical && canonical.trim().length > 0 && Object.keys(out).length === 0) {
+    // we still need a hint; use it as fallback in prompt
+  }
+  return out;
+}
+
+function hasAnyText(s: string | null | undefined, i18n: Record<string, string> | null | undefined): boolean {
+  if (s && s.trim().length > 0) return true;
+  if (i18n) {
+    for (const v of Object.values(i18n)) if (typeof v === "string" && v.trim().length > 0) return true;
+  }
+  return false;
+}
+
+function missingLangs(i18n: Record<string, string> | null | undefined, sources: Partial<Record<Lang, string>>): Lang[] {
+  const obj = (i18n ?? {}) as Record<string, string>;
+  return LANGS.filter((l) => {
+    const inI18n = obj[l] && obj[l].trim().length > 0;
+    const inSources = sources[l] && sources[l]!.trim().length > 0;
+    return !inI18n && !inSources;
+  });
+}
+
+async function translateShort(
+  canonical: string,
+  sources: Partial<Record<Lang, string>>,
+  targets: Lang[],
+  apiKey: string,
+): Promise<Partial<Record<Lang, string>>> {
+  const out: Partial<Record<Lang, string>> = {};
+  if (targets.length === 0) return out;
   const prompt = [
-    "Translate this short French e-commerce label into English and Modern Standard Arabic.",
+    "Translate this short e-commerce label.",
+    "Auto-detect the source language from the provided inputs (French, English or Arabic).",
     "Rules: keep brand names/numbers exact, 1-4 words, no quotes, no explanation.",
-    'Return ONLY strict JSON of shape: {"en":"","ar":""}',
+    `For Arabic, output Modern Standard Arabic.`,
+    `Return ONLY strict JSON with these exact keys: ${JSON.stringify(targets)}`,
+    'Example shape: {"fr":"","en":"","ar":""}',
     "",
-    "French:",
-    text,
+    "Known inputs (any subset of fr/en/ar may be present, plus a canonical source of unknown language):",
+    JSON.stringify({ canonical, ...sources }),
   ].join("\n");
   const raw = await callGateway(prompt, apiKey);
   if (!raw) return out;
   const parsed = parseJson(raw);
   if (!parsed) return out;
-  for (const l of LANGS) {
+  for (const l of targets) {
     const v = parsed[l];
     if (typeof v === "string" && v.trim().length > 0) out[l] = v.trim();
   }
   return out;
 }
 
-async function translateProduct(
-  name: string,
-  designation: string,
-  description: string,
+async function translateLong(
+  canonical: string,
+  sources: Partial<Record<Lang, string>>,
+  targets: Lang[],
   apiKey: string,
-): Promise<Record<Lang, { name?: string; designation?: string; description?: string }>> {
-  const empty = { en: {}, ar: {} } as Record<Lang, { name?: string; designation?: string; description?: string }>;
+): Promise<Partial<Record<Lang, string>>> {
+  const out: Partial<Record<Lang, string>> = {};
+  if (targets.length === 0) return out;
   const prompt = [
-    "You translate e-commerce product copy from French to English and Arabic.",
+    "Translate this e-commerce description.",
+    "Auto-detect the source language (French, English or Arabic).",
+    "Keep brand names/numbers/units exact. Preserve line breaks. Natural store tone.",
+    "For Arabic, output Modern Standard Arabic.",
+    `Return ONLY strict JSON with these exact keys: ${JSON.stringify(targets)}`,
+    "",
+    "Known inputs:",
+    JSON.stringify({ canonical, ...sources }),
+  ].join("\n");
+  const raw = await callGateway(prompt, apiKey);
+  if (!raw) return out;
+  const parsed = parseJson(raw);
+  if (!parsed) return out;
+  for (const l of targets) {
+    const v = parsed[l];
+    if (typeof v === "string" && v.trim().length > 0) out[l] = v.trim();
+  }
+  return out;
+}
+
+type ProductTrio = Record<Lang, { name?: string; designation?: string; description?: string }>;
+
+async function translateProduct(
+  canonical: { name: string; designation: string; description: string },
+  i18n: { name: Record<string, string>; designation: Record<string, string>; description: Record<string, string> },
+  targets: Lang[],
+  apiKey: string,
+): Promise<ProductTrio> {
+  const empty = { fr: {}, en: {}, ar: {} } as ProductTrio;
+  if (targets.length === 0) return empty;
+  const prompt = [
+    "You translate e-commerce product copy. Auto-detect the source language (French, English or Arabic) from the inputs below.",
     "Rules:",
     "- Keep brand names, codes, prices, units and numbers EXACTLY as written.",
-    "- Translate naturally for an online store (titles short, descriptions fluid).",
+    "- Titles short, descriptions natural for an online store.",
     "- For Arabic, output Modern Standard Arabic.",
-    "- If an input field is empty, return an empty string for it.",
-    'Return ONLY strict JSON of shape: {"en":{"name":"","designation":"","description":""},"ar":{"name":"","designation":"","description":""}}',
+    "- If a field is empty in all inputs, return an empty string for it.",
+    `Return ONLY strict JSON with these exact top-level keys: ${JSON.stringify(targets)}`,
+    'Each value is an object: {"name":"","designation":"","description":""}',
     "",
-    "Input (French):",
-    JSON.stringify({ name, designation, description }),
+    "Known inputs (canonical + any existing translations per language):",
+    JSON.stringify({
+      canonical,
+      fr: { name: i18n.name.fr, designation: i18n.designation.fr, description: i18n.description.fr },
+      en: { name: i18n.name.en, designation: i18n.designation.en, description: i18n.description.en },
+      ar: { name: i18n.name.ar, designation: i18n.designation.ar, description: i18n.description.ar },
+    }),
   ].join("\n");
   const raw = await callGateway(prompt, apiKey);
   if (!raw) return empty;
   const parsed = parseJson(raw);
   if (!parsed) return empty;
-  const result = { en: {}, ar: {} } as Record<Lang, { name?: string; designation?: string; description?: string }>;
-  for (const l of LANGS) {
+  const result = { fr: {}, en: {}, ar: {} } as ProductTrio;
+  for (const l of targets) {
     const node = parsed[l];
     if (!node || typeof node !== "object") continue;
     const n = node as Record<string, unknown>;
@@ -105,38 +185,11 @@ async function translateProduct(
   return result;
 }
 
-async function translateLongHTML(text: string, apiKey: string): Promise<Partial<Record<Lang, string>>> {
-  const out: Partial<Record<Lang, string>> = {};
-  const prompt = [
-    `Translate this French e-commerce description into ${LANGS.map((l) => TARGET_NAME[l]).join(" and ")}.`,
-    "Keep brand names/numbers/units exact. Preserve line breaks.",
-    'Return ONLY strict JSON of shape: {"en":"","ar":""}',
-    "",
-    "French:",
-    text,
-  ].join("\n");
-  const raw = await callGateway(prompt, apiKey);
-  if (!raw) return out;
-  const parsed = parseJson(raw);
-  if (!parsed) return out;
-  for (const l of LANGS) {
-    const v = parsed[l];
-    if (typeof v === "string" && v.trim().length > 0) out[l] = v.trim();
-  }
-  return out;
-}
-
-function missingLangs(i18n: Record<string, string> | null | undefined): Lang[] {
-  const obj = (i18n ?? {}) as Record<string, string>;
-  return LANGS.filter((l) => !obj[l] || obj[l].trim().length === 0);
-}
-
 export const syncTranslations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<Report> => {
     const start = Date.now();
 
-    // Verify admin
     const { data: roleRow } = await context.supabase
       .from("user_roles")
       .select("role")
@@ -164,9 +217,14 @@ export const syncTranslations = createServerFn({ method: "POST" })
       .limit(MAX_PER_TABLE * 3);
 
     const productsNeeding = (products ?? []).filter((p) => {
-      const nm = missingLangs(p.name_i18n as Record<string, string> | null);
-      const dm = p.designation ? missingLangs(p.designation_i18n as Record<string, string> | null) : [];
-      const desm = p.description ? missingLangs(p.description_i18n as Record<string, string> | null) : [];
+      const nameI18n = (p.name_i18n as Record<string, string> | null) ?? {};
+      const desigI18n = (p.designation_i18n as Record<string, string> | null) ?? {};
+      const descI18n = (p.description_i18n as Record<string, string> | null) ?? {};
+      const nameSrc = { ...(p.name ? { __c: p.name } : {}), ...nameI18n };
+      const nm = missingLangs(nameI18n, {});
+      const dm = hasAnyText(p.designation as string | null, desigI18n) ? missingLangs(desigI18n, {}) : [];
+      const desm = hasAnyText(p.description as string | null, descI18n) ? missingLangs(descI18n, {}) : [];
+      void nameSrc;
       return nm.length || dm.length || desm.length;
     }).slice(0, MAX_PER_TABLE);
 
@@ -174,20 +232,35 @@ export const syncTranslations = createServerFn({ method: "POST" })
 
     for (const p of productsNeeding) {
       try {
-        const res = await translateProduct(
-          p.name ?? "",
-          (p.designation as string | null) ?? "",
-          (p.description as string | null) ?? "",
-          apiKey,
-        );
         const nameI18n = { ...((p.name_i18n as Record<string, string>) ?? {}) };
         const desigI18n = { ...((p.designation_i18n as Record<string, string>) ?? {}) };
         const descI18n = { ...((p.description_i18n as Record<string, string>) ?? {}) };
+
+        // Compute union of missing langs across the three fields where source has text
+        const desigHas = hasAnyText(p.designation as string | null, desigI18n);
+        const descHas = hasAnyText(p.description as string | null, descI18n);
+        const missing = new Set<Lang>();
+        for (const l of missingLangs(nameI18n, {})) missing.add(l);
+        if (desigHas) for (const l of missingLangs(desigI18n, {})) missing.add(l);
+        if (descHas) for (const l of missingLangs(descI18n, {})) missing.add(l);
+        const targets = LANGS.filter((l) => missing.has(l));
+        if (targets.length === 0) continue;
+
+        const res = await translateProduct(
+          {
+            name: p.name ?? "",
+            designation: (p.designation as string | null) ?? "",
+            description: (p.description as string | null) ?? "",
+          },
+          { name: nameI18n, designation: desigI18n, description: descI18n },
+          targets,
+          apiKey,
+        );
         let changed = false;
-        for (const l of LANGS) {
+        for (const l of targets) {
           if (!nameI18n[l] && res[l].name) { nameI18n[l] = res[l].name!; changed = true; }
-          if (p.designation && !desigI18n[l] && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
-          if (p.description && !descI18n[l] && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
+          if (desigHas && !desigI18n[l] && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
+          if (descHas && !descI18n[l] && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
         }
         if (!changed) { report.products.errors++; continue; }
         const { error } = await supabaseAdmin
@@ -206,15 +279,22 @@ export const syncTranslations = createServerFn({ method: "POST" })
       .from("categories")
       .select("id, name, name_i18n")
       .limit(MAX_PER_TABLE * 3);
-    const catsNeeding = (cats ?? []).filter((c) => missingLangs(c.name_i18n as Record<string, string> | null).length > 0).slice(0, MAX_PER_TABLE);
+    const catsNeeding = (cats ?? []).filter((c) => {
+      const i18n = (c.name_i18n as Record<string, string> | null) ?? {};
+      return missingLangs(i18n, {}).length > 0;
+    }).slice(0, MAX_PER_TABLE);
     report.categories.skipped = (cats?.length ?? 0) - catsNeeding.length;
 
     for (const c of catsNeeding) {
       try {
-        const res = await translateShort(c.name ?? "", apiKey);
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
+        const targets = missingLangs(merged, {});
+        if (targets.length === 0) continue;
+        const sources: Partial<Record<Lang, string>> = {};
+        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of LANGS) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.categories.errors++; continue; }
         const { error } = await supabaseAdmin.from("categories").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.categories.errors++; else report.categories.translated++;
@@ -223,14 +303,18 @@ export const syncTranslations = createServerFn({ method: "POST" })
 
     // ---------- COUNTRIES ----------
     const { data: ctys } = await supabaseAdmin.from("countries").select("id, name, name_i18n");
-    const ctysNeeding = (ctys ?? []).filter((c) => missingLangs(c.name_i18n as Record<string, string> | null).length > 0).slice(0, MAX_PER_TABLE);
+    const ctysNeeding = (ctys ?? []).filter((c) => missingLangs((c.name_i18n as Record<string, string> | null) ?? {}, {}).length > 0).slice(0, MAX_PER_TABLE);
     report.countries.skipped = (ctys?.length ?? 0) - ctysNeeding.length;
     for (const c of ctysNeeding) {
       try {
-        const res = await translateShort(c.name ?? "", apiKey);
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
+        const targets = missingLangs(merged, {});
+        if (targets.length === 0) continue;
+        const sources: Partial<Record<Lang, string>> = {};
+        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of LANGS) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.countries.errors++; continue; }
         const { error } = await supabaseAdmin.from("countries").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.countries.errors++; else report.countries.translated++;
@@ -244,16 +328,21 @@ export const syncTranslations = createServerFn({ method: "POST" })
       .not("shop_description", "is", null)
       .limit(MAX_PER_TABLE * 3);
     const shopsNeeding = (shops ?? []).filter((s) => {
+      const i18n = (s.shop_description_i18n as Record<string, string> | null) ?? {};
       const txt = (s.shop_description as string | null) ?? "";
-      return txt.trim().length > 0 && missingLangs(s.shop_description_i18n as Record<string, string> | null).length > 0;
+      return hasAnyText(txt, i18n) && missingLangs(i18n, {}).length > 0;
     }).slice(0, MAX_PER_TABLE);
     report.shops.skipped = (shops?.length ?? 0) - shopsNeeding.length;
     for (const s of shopsNeeding) {
       try {
-        const res = await translateLongHTML((s.shop_description as string) ?? "", apiKey);
         const merged = { ...((s.shop_description_i18n as Record<string, string>) ?? {}) };
+        const targets = missingLangs(merged, {});
+        if (targets.length === 0) continue;
+        const sources: Partial<Record<Lang, string>> = {};
+        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        const res = await translateLong((s.shop_description as string) ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of LANGS) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.shops.errors++; continue; }
         const { error } = await supabaseAdmin.from("profiles").update({ shop_description_i18n: merged }).eq("id", s.id);
         if (error) report.shops.errors++; else report.shops.translated++;
