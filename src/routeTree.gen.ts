@@ -39,6 +39,7 @@ import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
 import { Route as AdminCommissionOrdersRouteImport } from './routes/admin.commission-orders'
@@ -203,6 +204,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCustomersRoute = AdminCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCountriesRoute = AdminCountriesRouteImport.update({
   id: '/countries',
   path: '/countries',
@@ -291,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -334,6 +341,7 @@ export interface FileRoutesByTo {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -379,6 +387,7 @@ export interface FileRoutesById {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -469,6 +479,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/reports'
     | '/admin/reviews'
@@ -513,6 +524,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -770,6 +782,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/customers': {
+      id: '/admin/customers'
+      path: '/customers'
+      fullPath: '/admin/customers'
+      preLoaderRoute: typeof AdminCustomersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/countries': {
       id: '/admin/countries'
       path: '/countries'
@@ -898,6 +917,7 @@ interface AdminRouteChildren {
   AdminCommissionOrdersRoute: typeof AdminCommissionOrdersRoute
   AdminCommissionsRoute: typeof AdminCommissionsRouteWithChildren
   AdminCountriesRoute: typeof AdminCountriesRoute
+  AdminCustomersRoute: typeof AdminCustomersRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminReportsRoute: typeof AdminReportsRoute
@@ -914,6 +934,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCommissionOrdersRoute: AdminCommissionOrdersRoute,
   AdminCommissionsRoute: AdminCommissionsRouteWithChildren,
   AdminCountriesRoute: AdminCountriesRoute,
+  AdminCustomersRoute: AdminCustomersRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminReportsRoute: AdminReportsRoute,
