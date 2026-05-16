@@ -127,7 +127,7 @@ function SignupPage() {
           <div className="space-y-1.5">
             <Label htmlFor="password">Mot de passe</Label>
             <div className="relative">
-              <Input id="password" type={showPassword ? "text" : "password"} required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="pr-10" />
+              <Input id="password" type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="pr-10" />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}

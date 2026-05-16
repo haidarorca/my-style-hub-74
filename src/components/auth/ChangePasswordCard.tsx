@@ -18,8 +18,6 @@ export function ChangePasswordCard() {
   const [attempts, setAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState(0);
 
-  const strength = checkPasswordStrength(next);
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.email) {
@@ -29,10 +27,6 @@ export function ChangePasswordCard() {
     if (Date.now() < lockUntil) {
       const s = Math.ceil((lockUntil - Date.now()) / 1000);
       toast.error(`Trop de tentatives. Réessayez dans ${s}s`);
-      return;
-    }
-    if (!strength.ok) {
-      toast.error("Le nouveau mot de passe est trop faible");
       return;
     }
     if (next !== confirm) {
@@ -126,7 +120,6 @@ export function ChangePasswordCard() {
             value={next}
             onChange={(e) => setNext(e.target.value)}
           />
-          <PasswordStrengthMeter password={next} />
         </div>
 
         <div className="space-y-1.5">
