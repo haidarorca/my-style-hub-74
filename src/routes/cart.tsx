@@ -69,6 +69,7 @@ function CartPage() {
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
+  const settings = useSiteSettings();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
