@@ -85,12 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
-        setTimeout(() => { void loadProfileAndRoles(newSession.user.id); }, 0);
+        setTimeout(() => {
+          void loadProfileAndRoles(newSession.user.id).finally(() => setLoading(false));
+        }, 0);
       } else {
         setProfile(null);
         setRoles([]);
         setPermissions([]);
         setIsSuspended(false);
+        setLoading(false);
       }
     });
 
