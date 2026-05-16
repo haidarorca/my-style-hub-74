@@ -6,6 +6,8 @@ import { BackButton } from "@/components/layout/BackButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
+import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
@@ -32,7 +34,11 @@ function CategoriesPage() {
     },
   });
 
-  const level1 = (categories ?? []).filter((c) => c.level === 1);
+  const { data: counts } = useCategoryProductCounts();
+  const hasProducts = (id: string) => (counts?.get(id) ?? 0) > 0;
+
+  const allCats = categories ?? [];
+  const level1 = allCats.filter((c) => c.level === 1 && hasProducts(c.id));
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -57,22 +63,18 @@ function CategoriesPage() {
         ) : (
           <ul className="mt-4 space-y-2">
             {level1.map((cat) => {
-              const subs = (categories ?? []).filter((c) => c.parent_id === cat.id);
+              const subs = allCats.filter((c) => c.parent_id === cat.id && hasProducts(c.id));
               const catName = pickI18n(cat.name, cat.name_i18n, lang);
               return (
                 <li key={cat.id} className="overflow-hidden rounded-2xl border border-border bg-card">
                   <Link
                     to="/c/$categoryId"
                     params={{ categoryId: cat.id }}
-                    className="flex items-center gap-3 p-3 hover:bg-accent"
+                    className="flex items-center gap-3 p-3 transition-colors hover:bg-accent active:bg-accent"
                   >
-                    {cat.logo_url ? (
-                      <img src={cat.logo_url} alt="" className="h-12 w-12 rounded-xl object-cover" />
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-base font-bold">
-                        {catName.charAt(0)}
-                      </div>
-                    )}
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-accent to-muted">
+                      <CategoryIcon logoUrl={cat.logo_url} name={catName} iconClassName="h-6 w-6 text-foreground" className="flex h-full w-full items-center justify-center" />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">{catName}</div>
                       <div className="text-[11px] text-muted-foreground">
