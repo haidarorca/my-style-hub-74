@@ -213,10 +213,10 @@ export function ReviewsSection({ productId }: { productId: string }) {
       <div className="space-y-2">
         {reviews && reviews.length > 0 ? (
           reviews.map((r) => {
-            const name = r.profiles?.full_name || r.profiles?.email || "Client";
-            const isOwn = user?.id === r.user_id;
+            const name = r.author_name;
+            const isOwn = r.is_own;
             const canEdit = isOwn || isAdmin;
-            const verified = !!r.order_id;
+            const verified = r.is_verified;
             return (
               <div key={r.id} className="rounded-xl border border-border bg-card p-3">
                 {editingId === r.id ? (
