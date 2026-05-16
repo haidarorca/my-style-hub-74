@@ -22,7 +22,7 @@ export function DeliveryAvailabilityBadge({ vendorId }: { vendorId: string }) {
     enabled: !!vendorId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("profiles")
+        .from("public_vendor_profiles")
         .select("source_country_id, ships_internationally, allowed_destination_country_ids")
         .eq("id", vendorId)
         .maybeSingle();

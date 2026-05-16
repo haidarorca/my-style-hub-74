@@ -124,8 +124,8 @@ export function SearchAutocomplete() {
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
-      let q = supabase
-        .from("profiles")
+      let q = (supabase as any)
+        .from("public_vendor_profiles")
         .select("id, shop_name, shop_logo_url")
         .not("shop_name", "is", null)
         .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
@@ -350,7 +350,7 @@ export function SearchAutocomplete() {
                         <Store className="h-3 w-3" /> {t("search.tab_shops")}
                       </div>
                       <ul>
-                        {shops.map((s) => (
+                        {(shops as Array<{ id: string; shop_name: string | null; shop_logo_url: string | null }>).map((s) => (
                           <li key={s.id}>
                             <button
                               type="button"

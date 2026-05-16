@@ -29,7 +29,7 @@ export function useDeliverableVendorIds(): {
       //  - their source country IS the selected country (delivers in own country), OR
       //  - they ship internationally AND the country is in their allowed list.
       const { data, error } = await (supabase as any)
-        .from("profiles")
+        .from("public_vendor_profiles")
         .select("id, source_country_id, ships_internationally, allowed_destination_country_ids");
       if (error) throw error;
       return ((data ?? []) as Array<{

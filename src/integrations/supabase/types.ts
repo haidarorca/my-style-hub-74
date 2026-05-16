@@ -133,6 +133,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cart_items_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "cart_items_variant_id_fkey"
             columns: ["variant_id"]
             isOneToOne: false
@@ -920,6 +927,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_reports_reporter_id_profiles_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_reviews: {
@@ -975,6 +989,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1114,6 +1135,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_vendor_id_profiles_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1378,11 +1406,115 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_roles_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      public_vendor_profiles: {
+        Row: {
+          access_ends_at: string | null
+          address: string | null
+          allowed_destination_country_ids: string[] | null
+          created_at: string | null
+          full_name: string | null
+          hide_contact_publicly: boolean | null
+          id: string | null
+          is_verified: boolean | null
+          latitude: number | null
+          longitude: number | null
+          phone: string | null
+          ships_internationally: boolean | null
+          shop_banner_url: string | null
+          shop_description: string | null
+          shop_description_i18n: Json | null
+          shop_hours: string | null
+          shop_hours_i18n: Json | null
+          shop_hours_schedule: Json | null
+          shop_logo_url: string | null
+          shop_name: string | null
+          shop_whatsapp: string | null
+          source_country_id: string | null
+          updated_at: string | null
+          vendor_mode: Database["public"]["Enums"]["vendor_mode"] | null
+          vendor_status:
+            | Database["public"]["Enums"]["vendor_account_status"]
+            | null
+        }
+        Insert: {
+          access_ends_at?: string | null
+          address?: string | null
+          allowed_destination_country_ids?: string[] | null
+          created_at?: string | null
+          full_name?: string | null
+          hide_contact_publicly?: boolean | null
+          id?: string | null
+          is_verified?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          phone?: never
+          ships_internationally?: boolean | null
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_description_i18n?: Json | null
+          shop_hours?: string | null
+          shop_hours_i18n?: Json | null
+          shop_hours_schedule?: Json | null
+          shop_logo_url?: string | null
+          shop_name?: string | null
+          shop_whatsapp?: never
+          source_country_id?: string | null
+          updated_at?: string | null
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"] | null
+          vendor_status?:
+            | Database["public"]["Enums"]["vendor_account_status"]
+            | null
+        }
+        Update: {
+          access_ends_at?: string | null
+          address?: string | null
+          allowed_destination_country_ids?: string[] | null
+          created_at?: string | null
+          full_name?: string | null
+          hide_contact_publicly?: boolean | null
+          id?: string | null
+          is_verified?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          phone?: never
+          ships_internationally?: boolean | null
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_description_i18n?: Json | null
+          shop_hours?: string | null
+          shop_hours_i18n?: Json | null
+          shop_hours_schedule?: Json | null
+          shop_logo_url?: string | null
+          shop_name?: string | null
+          shop_whatsapp?: never
+          source_country_id?: string | null
+          updated_at?: string | null
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"] | null
+          vendor_status?:
+            | Database["public"]["Enums"]["vendor_account_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_source_country_id_fkey"
+            columns: ["source_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_insert_order_item: {
