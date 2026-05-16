@@ -249,6 +249,8 @@ function ProductPage() {
             )}
           </div>
 
+          <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
+
           {sizes.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-semibold">{t("product.size")}</p>
