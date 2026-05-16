@@ -213,7 +213,7 @@ function VendorsPage() {
           };
           const va = getVal(pa), vb = getVal(pb);
           const cmp = va < vb ? -1 : va > vb ? 1 : 0;
-          return sortBy.dir === "asc" ? cmp : -cmp;
+          return sb.dir === "asc" ? cmp : -cmp;
         }
         return new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime();
       });
