@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Package, ImageIcon, Phone, MapPin, Search, MessageCircle, Clock, CheckCircle2,
-  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History, Download, ExternalLink, Eye,
+  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History, Download, ExternalLink, Eye, ClipboardList, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -55,6 +56,17 @@ function VendorOrders() {
   const locale = localeMap[lang] ?? "fr-FR";
 
   useEffect(() => { setPage(0); }, [search, statusFilter]);
+
+  // Bulk selection for preparation
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const clearSelection = () => setSelected(new Set());
 
   // Counts per status (HEAD requests, scoped to vendor via orders join)
   const { data: counts } = useQuery({
@@ -157,6 +169,20 @@ function VendorOrders() {
         <span className="text-xs text-muted-foreground">{total} résultat{total > 1 ? "s" : ""}{isFetching && !isLoading ? " · …" : ""}</span>
       </div>
 
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
+          <span className="text-sm font-semibold text-primary">{selected.size} sélectionnée(s)</span>
+          <Button asChild size="sm" className="ml-auto">
+            <Link to="/vendor/preparation" search={{ ids: Array.from(selected).join(",") }}>
+              <ClipboardList className="h-4 w-4" /> Préparation groupée
+            </Link>
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -204,6 +230,24 @@ function VendorOrders() {
           Aucune commande dans cette catégorie.
         </div>
       ) : (
+        <>
+        <div className="flex items-center justify-between text-xs">
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <Checkbox
+              checked={orders.length > 0 && orders.every((o: any) => selected.has(o.id))}
+              onCheckedChange={(c) => {
+                if (c) setSelected((s) => { const n = new Set(s); orders.forEach((o: any) => n.add(o.id)); return n; });
+                else setSelected((s) => { const n = new Set(s); orders.forEach((o: any) => n.delete(o.id)); return n; });
+              }}
+            />
+            <span className="text-muted-foreground">Tout sélectionner sur cette page</span>
+          </label>
+          {selected.size > 0 && (
+            <button onClick={clearSelection} className="text-muted-foreground hover:text-foreground">
+              <X className="inline h-3 w-3" /> Effacer ({selected.size})
+            </button>
+          )}
+        </div>
         <ul className="space-y-4">
           {orders.map((o: any) => {
             const meta = STATUS_META[o.status as OrderStatus] ?? STATUS_META.new;
@@ -213,13 +257,17 @@ function VendorOrders() {
             const isComm = !!o.is_commission;
             const waNum = isComm ? "" : (o.customer_phone ?? "").replace(/\D/g, "");
             const waText = encodeURIComponent(`Bonjour ${o.customer_name ?? ""}, à propos de votre commande #${o.id.slice(0, 8)}.`);
+            const isSel = selected.has(o.id);
             return (
-              <li key={o.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              <li key={o.id} className={cn("overflow-hidden rounded-xl border bg-card shadow-sm", isSel && "ring-2 ring-primary")}>
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Checkbox checked={isSel} onCheckedChange={() => toggleOne(o.id)} aria-label="Sélectionner" />
+                    <div className="min-w-0">
                     <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
                     <div className="text-[11px] text-muted-foreground">
                       {new Date(o.created_at).toLocaleString(locale)}
+                    </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -365,6 +413,7 @@ function VendorOrders() {
             );
           })}
         </ul>
+        </>
       )}
 
       {totalPages > 1 && (

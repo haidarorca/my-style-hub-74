@@ -27,6 +27,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as VendorSettingsRouteImport } from './routes/vendor.settings'
 import { Route as VendorReviewsRouteImport } from './routes/vendor.reviews'
 import { Route as VendorReportsRouteImport } from './routes/vendor.reports'
+import { Route as VendorPreparationRouteImport } from './routes/vendor.preparation'
 import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
 import { Route as VendorNotificationsRouteImport } from './routes/vendor.notifications'
 import { Route as VendorMessagesRouteImport } from './routes/vendor.messages'
@@ -38,6 +39,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
+import { Route as AdminPreparationRouteImport } from './routes/admin.preparation'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
@@ -147,6 +149,11 @@ const VendorReportsRoute = VendorReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => VendorRoute,
 } as any)
+const VendorPreparationRoute = VendorPreparationRouteImport.update({
+  id: '/preparation',
+  path: '/preparation',
+  getParentRoute: () => VendorRoute,
+} as any)
 const VendorOrdersRoute = VendorOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -200,6 +207,11 @@ const AdminReportsRoute = AdminReportsRouteImport.update({
 const AdminProductsRoute = AdminProductsRouteImport.update({
   id: '/products',
   path: '/products',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPreparationRoute = AdminPreparationRouteImport.update({
+  id: '/preparation',
+  path: '/preparation',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
@@ -318,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/preparation': typeof AdminPreparationRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -329,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -365,6 +379,7 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/preparation': typeof AdminPreparationRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -375,6 +390,7 @@ export interface FileRoutesByTo {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -414,6 +430,7 @@ export interface FileRoutesById {
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/preparation': typeof AdminPreparationRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -425,6 +442,7 @@ export interface FileRoutesById {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -465,6 +483,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/preparation'
     | '/admin/products'
     | '/admin/reports'
     | '/admin/reviews'
@@ -476,6 +495,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -512,6 +532,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/preparation'
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/settings'
@@ -522,6 +543,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -560,6 +582,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/preparation'
     | '/admin/products'
     | '/admin/reports'
     | '/admin/reviews'
@@ -571,6 +594,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -735,6 +759,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorReportsRouteImport
       parentRoute: typeof VendorRoute
     }
+    '/vendor/preparation': {
+      id: '/vendor/preparation'
+      path: '/preparation'
+      fullPath: '/vendor/preparation'
+      preLoaderRoute: typeof VendorPreparationRouteImport
+      parentRoute: typeof VendorRoute
+    }
     '/vendor/orders': {
       id: '/vendor/orders'
       path: '/orders'
@@ -810,6 +841,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/admin/products'
       preLoaderRoute: typeof AdminProductsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/preparation': {
+      id: '/admin/preparation'
+      path: '/preparation'
+      fullPath: '/admin/preparation'
+      preLoaderRoute: typeof AdminPreparationRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/orders': {
@@ -990,6 +1028,7 @@ interface AdminRouteChildren {
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminPreparationRoute: typeof AdminPreparationRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminReportsRoute: typeof AdminReportsRoute
   AdminReviewsRoute: typeof AdminReviewsRoute
@@ -1008,6 +1047,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminPreparationRoute: AdminPreparationRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminReportsRoute: AdminReportsRoute,
   AdminReviewsRoute: AdminReviewsRoute,
@@ -1022,6 +1062,7 @@ interface VendorRouteChildren {
   VendorMessagesRoute: typeof VendorMessagesRoute
   VendorNotificationsRoute: typeof VendorNotificationsRoute
   VendorOrdersRoute: typeof VendorOrdersRoute
+  VendorPreparationRoute: typeof VendorPreparationRoute
   VendorReportsRoute: typeof VendorReportsRoute
   VendorReviewsRoute: typeof VendorReviewsRoute
   VendorSettingsRoute: typeof VendorSettingsRoute
@@ -1035,6 +1076,7 @@ const VendorRouteChildren: VendorRouteChildren = {
   VendorMessagesRoute: VendorMessagesRoute,
   VendorNotificationsRoute: VendorNotificationsRoute,
   VendorOrdersRoute: VendorOrdersRoute,
+  VendorPreparationRoute: VendorPreparationRoute,
   VendorReportsRoute: VendorReportsRoute,
   VendorReviewsRoute: VendorReviewsRoute,
   VendorSettingsRoute: VendorSettingsRoute,
@@ -1069,13 +1111,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,87 +1,79 @@
-## Objectif
+## Préparation groupée des commandes — Vendeur & Admin
 
-Améliorer la recherche du site sur deux niveaux : (1) une recherche dédiée intelligente dans chaque boutique vendeur avec filtres avancés, et (2) une barre de recherche globale enrichie avec auto-complétion, suggestions et historique.
+Système complet permettant de sélectionner plusieurs commandes et générer une vue regroupée par produit (et par vendeur côté admin) pour faciliter la préparation.
 
-## 1. Recherche dans la boutique vendeur
+### Périmètre
 
-**Fichier ciblé** : `src/routes/shop.$vendorId.tsx` (à confirmer après inspection).
+**Espace vendeur** (`/vendor/orders`)
+- Cases à cocher devant chaque commande + sélection multiple (tout/aucun)
+- Bouton "Préparation groupée" (apparaît dès 1 sélection)
+- Statuts inclus par défaut : `new`, `confirmed` (les autres exclus)
+- Page dédiée `/vendor/preparation` recevant les IDs sélectionnés
 
-Ajouts :
-- Barre de recherche sticky dédiée à la boutique avec icône loupe et bouton clear.
-- Recherche fuzzy côté client (Fuse.js) sur : `name`, `name_i18n`, `description`, `category.name`, `variants.color`, `variants.size`, `code`.
-- Suggestions live (dropdown) pendant la frappe : top 5 produits + catégories de la boutique.
-- Debounce 200ms et highlight du terme dans les résultats.
+**Espace admin** (`/admin/orders`)
+- Mêmes cases à cocher + bouton
+- Page dédiée `/admin/preparation`
+- Colonne **Vendeur** visible + regroupement par couple (produit + vendeur)
 
-Filtres intelligents (panneau pliable + chips actives) :
-- Prix min / max (slider double)
-- Taille (multi-select depuis variants)
-- Couleur (chips couleur depuis variants, avec pastille)
-- Catégorie (multi-select)
-- Disponibilité (in stock uniquement)
-- Nouveautés (< 30 jours, via `created_at`)
-- Promotions (si `price_override < price` dans variants)
-- Best-sellers (tri par count dans `order_items`, calculé via une server function légère)
-- Tri : pertinence / prix ↑ / prix ↓ / nouveauté
+### Page de préparation (UI partagée)
 
-UX :
-- Drawer mobile pour filtres, sidebar desktop.
-- Chips de filtres actifs avec « ✕ » individuel et « Tout effacer ».
-- État synchronisé dans les search params (`q`, `min`, `max`, `sizes`, `colors`, `cats`, `sort`, `instock`, `promo`, `new`) avec `zodValidator` + `fallback` pour partage d'URL.
-- Skeletons légers, pas de spinner bloquant.
-
-i18n :
-- Toutes les étiquettes via `t("shop_search.*")` en FR/EN/AR.
-
-## 2. Recherche globale du site
-
-**Fichier ciblé** : barre dans `src/components/Header.tsx` (ou équivalent).
-
-Refonte en `<CommandPalette>` (shadcn Command) ouvert au focus / `Cmd+K` :
-- Section **Suggestions** (auto-complétion fuzzy sur produits approuvés).
-- Section **Produits** (top 6 résultats avec image + prix + boutique).
-- Section **Boutiques** (top 3 vendeurs par `shop_name`).
-- Section **Récents** (localStorage, 5 derniers, avec « ✕ »).
-- Section **Populaires** (top 5 produits par ventes, mis en cache 5 min).
-- Correction légère des fautes via Fuse.js `threshold: 0.4`.
-- Touche `Enter` → page résultats `/search?q=...` (déjà existante ou à créer).
-
-Performance :
-- Server function `searchSuggestions({ q, limit })` qui retourne `{ products, vendors }` avec `ILIKE` côté Postgres + index trigram.
-- Cache react-query 60s sur la query.
-- Debounce 180ms.
-
-## 3. Base de données
-
-Migration légère :
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON public.products USING gin (name gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_profiles_shop_name_trgm ON public.profiles USING gin (shop_name gin_trgm_ops);
+```
+┌─────────────────────────────────────────┐
+│ Préparation groupée — 5 commandes       │
+│ [Imprimer] [PDF] [Excel] [Copier]       │
+├─────────────────────────────────────────┤
+│ ▼ 🟦 PRODUIT A · Vendeur X (admin)      │
+│    Image · SKU · Qté totale : 6         │
+│    ├ Taille M / Noir   ×2  (cmd #abc..) │
+│    ├ Taille L / Noir   ×3  (cmd #def..) │
+│    └ Taille XL / Blanc ×1  (cmd #ghi..) │
+│    [Détails] [Commandes] [Personnalis.] │
+├─────────────────────────────────────────┤
+│ ▼ 🟧 PRODUIT B …                        │
+└─────────────────────────────────────────┘
 ```
 
-Aucune nouvelle table requise. Pas de changement de schéma RLS.
+- Bloc accordéon par produit (couleur de fond légère + bordure colorée par produit, hash du product_id → palette de tokens)
+- Variantes listées en sous-lignes (taille, couleur, qté, commandes liées)
+- Produits personnalisés : bouton "Voir personnalisations" → dialog listant chaque ligne client (texte, police, couleur, image téléchargeable)
+- Boutons : marquer en préparation (passe le statut commande à `confirmed`), imprimer (window.print + styles), PDF (via print-to-PDF du navigateur), Excel (xlsx généré côté client), copier résumé texte
+- Téléchargement images clients (lien direct par fichier + "tout télécharger" en ZIP)
 
-## 4. Détails techniques
+### Logique de regroupement
 
-- Dépendances : `fuse.js`, `cmdk` (déjà via shadcn `Command`).
-- Server fn dans `src/lib/search.functions.ts` (lecture publique, pas d'auth requise) :
-  - `globalSearch({ q })` → produits + boutiques.
-  - `shopSearch({ vendorId })` → renvoie les produits + agrégats (tailles, couleurs, catégories, prix min/max) pour alimenter les filtres en un seul round-trip; recherche/filtrage ensuite côté client pour la réactivité.
-  - `getBestSellers({ vendorId? })` → IDs triés par ventes (cache react-query).
-- Pas de modification du flux checkout/cart.
+- **Clé vendeur** : `product_id + variant_id + customization?` → variante
+- **Clé admin** : `vendor_id + product_id + variant_id + customization?` → variante
+- Personnalisations (texte/image client) : jamais fusionnées, chacune reste une ligne propre rattachée au produit parent
+- Statuts filtrés côté serveur : `new` et `confirmed` uniquement
 
-## 5. Hors périmètre
+### Architecture technique
 
-- Aucune modification de la logique commande/panier/auth.
-- Pas de refonte visuelle du reste du site.
-- Pas de moteur de recherche externe (Algolia/Meilisearch) — tout reste sur Lovable Cloud.
+**Backend (server functions)**
+- `src/lib/preparation.functions.ts`
+  - `getVendorPreparation({ order_ids })` — middleware `requireSupabaseAuth`, filtre `vendor_id = userId`
+  - `getAdminPreparation({ order_ids })` — middleware admin, retourne aussi `vendor_id`/`vendor_shop_name`
+  - Retour : `groups: [{ product_id, vendor_id?, product, total_qty, variants:[…], customizations:[…], order_refs:[…] }]`
 
-## Étapes d'implémentation
+**Frontend**
+- `src/components/orders/PreparationView.tsx` — composant partagé (props : `mode: "vendor"|"admin"`, `groups`)
+- `src/routes/vendor.preparation.tsx` — lit `?ids=` du querystring, appelle `getVendorPreparation`
+- `src/routes/admin.preparation.tsx` — idem côté admin
+- Ajout sélection dans `vendor.orders.tsx` et `admin.orders.tsx` (state local `Set<orderId>`, barre d'action fixe en bas mobile / sticky en haut desktop)
 
-1. Migration pg_trgm + index.
-2. `src/lib/search.functions.ts` (globalSearch, shopSearch, getBestSellers).
-3. `src/components/search/ShopSearchBar.tsx` + `ShopFilters.tsx`.
-4. Intégration dans la page boutique vendeur + sync URL params.
-5. `src/components/search/GlobalSearchCommand.tsx` + intégration Header.
-6. Clés i18n FR/EN/AR.
-7. QA mobile (384px) + desktop.
+**Dépendances**
+- `xlsx` pour l'export Excel (déjà courant)
+- `jszip` pour le téléchargement groupé des images clients
+
+### Détails techniques
+
+- IDs passés via querystring (limite ~50 commandes par préparation pour rester sous la limite URL)
+- Mobile : barre d'action en bas (sticky), cases à cocher à gauche de chaque carte commande
+- Print CSS : masquer header/nav, layout A4 propre
+- Images chargées en `loading=lazy`
+- Pas de modification des statuts en bulk dans cette V1 sauf "marquer en préparation" (= `confirmed`)
+
+### Hors périmètre (V2 possible)
+
+- Vue temps réel multi-utilisateurs
+- Bons de préparation imprimables par commande individuelle
+- Gestion de stock automatique au passage en préparation
