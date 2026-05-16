@@ -280,53 +280,6 @@ async function syncHashTable(
     if (data.length < limit) break;
   }
 }
-
-async function syncHashTable(
-  table: "categories" | "countries",
-  bucket: BucketReport,
-  report: Report,
-  apiKey: string,
-  budget: { left: number },
-) {
-  if (budget.left <= 0) return;
-  const { count } = await supabaseAdmin
-    .from(table)
-    .select("id", { count: "exact", head: true })
-    .or("translated_hash.is.null,translated_hash.neq.content_hash");
-  bucket.pending = count ?? 0;
-
-  while (budget.left > 0) {
-    const limit = Math.min(BATCH, budget.left);
-    const { data } = await supabaseAdmin
-      .from(table)
-      .select("id, name, name_i18n, content_hash, translated_hash")
-      .or("translated_hash.is.null,translated_hash.neq.content_hash")
-      .limit(limit);
-    if (!data || data.length === 0) break;
-
-    for (const c of data) {
-      budget.left--;
-      try {
-        const row = c as { id: string; name: string; name_i18n: Record<string, string> | null; content_hash: string };
-        const merged: Record<string, string> = { ...(row.name_i18n ?? {}) };
-        const res = await translateShort(row.name ?? "", [...LANGS], apiKey);
-        for (const l of LANGS) if (res[l]) merged[l] = res[l]!;
-        const { error } = await supabaseAdmin
-          .from(table)
-          .update({ name_i18n: merged, translated_hash: row.content_hash })
-          .eq("id", row.id);
-        if (error) { bucket.errors++; pushError(report.errorSamples, `${table} ${row.id.slice(0, 8)}: ${error.message}`); }
-        else bucket.translated++;
-      } catch (e) {
-        bucket.errors++;
-        pushError(report.errorSamples, `${table}: ${e instanceof Error ? e.message : "erreur"}`);
-      }
-      if (budget.left <= 0) break;
-    }
-    if (data.length < limit) break;
-  }
-}
-
 async function syncShops(report: Report, apiKey: string, budget: { left: number }) {
   if (budget.left <= 0) return;
   // Shops use missing-lang detection across shop_description + shop_hours.
