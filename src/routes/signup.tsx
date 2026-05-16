@@ -28,6 +28,7 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
