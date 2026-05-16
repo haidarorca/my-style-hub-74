@@ -93,7 +93,7 @@ function VendorOrders() {
       const q = search.trim();
       let oq = supabase
         .from("orders")
-        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total", { count: "exact" })
+        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, is_commission", { count: "exact" })
         .in("id", orderIds)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
@@ -209,7 +209,8 @@ function VendorOrders() {
             const myItemsTotal = o.items.reduce(
               (s: number, i: any) => s + Number(i.unit_price) * i.quantity, 0,
             );
-            const waNum = (o.customer_phone ?? "").replace(/\D/g, "");
+            const isComm = !!o.is_commission;
+            const waNum = isComm ? "" : (o.customer_phone ?? "").replace(/\D/g, "");
             const waText = encodeURIComponent(`Bonjour ${o.customer_name ?? ""}, à propos de votre commande #${o.id.slice(0, 8)}.`);
             return (
               <li key={o.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -221,6 +222,11 @@ function VendorOrders() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {isComm && (
+                      <Badge variant="outline" className="gap-1 border-primary/40 bg-primary/10 text-primary">
+                        💼 Plateforme
+                      </Badge>
+                    )}
                     <Badge variant="outline" className={cn("gap-1 border", meta.cls)}>
                       <meta.icon className="h-3 w-3" />{meta.label}
                     </Badge>
@@ -246,23 +252,32 @@ function VendorOrders() {
                   </div>
                 </header>
 
-                <div className="border-b bg-muted/20 px-3 py-2 text-xs">
-                  <div className="font-semibold">{o.customer_name ?? "—"}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
-                    {o.customer_phone && (
-                      <a href={`tel:${o.customer_phone}`} className="inline-flex items-center gap-1 hover:text-primary">
-                        <Phone className="h-3 w-3" /> {o.customer_phone}
-                      </a>
-                    )}
-                    {(o.address || o.city) && (
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {[o.address, o.city].filter(Boolean).join(", ")}
-                      </span>
-                    )}
+                {isComm ? (
+                  <div className="border-b bg-primary/5 px-3 py-2 text-xs">
+                    <div className="font-semibold text-primary">Commande plateforme</div>
+                    <div className="mt-0.5 text-muted-foreground">
+                      Les coordonnées du client sont gérées par l'administration. Vous recevrez les instructions de préparation par WhatsApp.
+                    </div>
                   </div>
-                  {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
-                </div>
+                ) : (
+                  <div className="border-b bg-muted/20 px-3 py-2 text-xs">
+                    <div className="font-semibold">{o.customer_name ?? "—"}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                      {o.customer_phone && (
+                        <a href={`tel:${o.customer_phone}`} className="inline-flex items-center gap-1 hover:text-primary">
+                          <Phone className="h-3 w-3" /> {o.customer_phone}
+                        </a>
+                      )}
+                      {(o.address || o.city) && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {[o.address, o.city].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
+                  </div>
+                )}
 
                 <ul>
                   {o.items.map((it: any) => {
