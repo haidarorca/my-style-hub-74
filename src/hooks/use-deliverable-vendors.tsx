@@ -46,9 +46,16 @@ export function useDeliverableVendorIds(): {
     },
   });
 
+  // If no vendor delivers to the detected country, fall back to no filter
+  // so the catalogue still shows products (per-product delivery badge will
+  // still inform the buyer). Without this, visitors from countries with
+  // zero deliverable vendors see a completely empty store.
+  const filtered = countryId ? (data ?? null) : null;
+  const vendorIds = filtered && filtered.length === 0 ? null : filtered;
+
   return {
     countryId,
-    vendorIds: countryId ? (data ?? null) : null,
+    vendorIds,
     ready: ready && (!countryId || !isLoading),
   };
 }
