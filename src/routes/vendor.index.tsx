@@ -141,12 +141,10 @@ function VendorHome() {
 
   return (
     <div className="space-y-5">
-      {!verified && (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
-          <p className="font-semibold">⏳ Boutique en attente de validation</p>
-          <p className="mt-1 text-xs">
-            Votre boutique et vos produits ne seront visibles publiquement qu'après validation par un administrateur. Vous pouvez déjà ajouter vos produits — ils apparaîtront automatiquement dès l'approbation.
-          </p>
+      {statusBanner && (
+        <div className={`rounded-2xl border p-3 text-sm ${statusBanner.cls}`}>
+          <p className="font-semibold">{statusBanner.title}</p>
+          <p className="mt-1 text-xs">{statusBanner.msg}</p>
         </div>
       )}
       {/* Shop header */}
