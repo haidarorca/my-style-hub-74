@@ -13,6 +13,8 @@ import { useSiteSettings, useHomeBanners } from "@/hooks/use-site-settings";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
+import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 
 export const Route = createFileRoute("/")({
   component: Home,
