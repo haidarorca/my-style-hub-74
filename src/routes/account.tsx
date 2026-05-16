@@ -313,7 +313,7 @@ function AccountPage() {
             </span>
             <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
           </Link>
-          {(isVendor || isAdmin) && (
+          {(isVendor || isAdmin) ? (
             <Link
               to="/vendor"
               className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
@@ -323,6 +323,22 @@ function AccountPage() {
                   <Store className="h-4 w-4" />
                 </span>
                 <span className="text-sm font-semibold">{t("nav.vendor")}</span>
+              </span>
+              <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
+            </Link>
+          ) : (
+            <Link
+              to="/become-vendor"
+              className="flex items-center justify-between rounded-xl border border-primary/40 bg-gradient-to-br from-primary/10 to-accent/10 p-3 shadow-soft transition hover:from-primary/20 hover:to-accent/20"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Store className="h-4 w-4" />
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-sm font-semibold">Devenir vendeur</span>
+                  <span className="text-[11px] text-muted-foreground">Ouvrez votre boutique en quelques minutes</span>
+                </span>
               </span>
               <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Link>

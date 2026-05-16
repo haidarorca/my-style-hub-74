@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as CartRouteImport } from './routes/cart'
+import { Route as BecomeVendorRouteImport } from './routes/become-vendor'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
@@ -95,6 +96,11 @@ const CategoriesRoute = CategoriesRouteImport.update({
 const CartRoute = CartRouteImport.update({
   id: '/cart',
   path: '/cart',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BecomeVendorRoute = BecomeVendorRouteImport.update({
+  id: '/become-vendor',
+  path: '/become-vendor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRouteWithChildren
+  '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRouteWithChildren
+  '/become-vendor': typeof BecomeVendorRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -401,6 +410,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/become-vendor'
     | '/cart'
     | '/categories'
     | '/forgot-password'
@@ -444,6 +454,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
+    | '/become-vendor'
     | '/cart'
     | '/categories'
     | '/forgot-password'
@@ -486,6 +497,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/become-vendor'
     | '/cart'
     | '/categories'
     | '/forgot-password'
@@ -531,6 +543,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRouteWithChildren
+  BecomeVendorRoute: typeof BecomeVendorRoute
   CartRoute: typeof CartRoute
   CategoriesRoute: typeof CategoriesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -608,6 +621,13 @@ declare module '@tanstack/react-router' {
       path: '/cart'
       fullPath: '/cart'
       preLoaderRoute: typeof CartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/become-vendor': {
+      id: '/become-vendor'
+      path: '/become-vendor'
+      fullPath: '/become-vendor'
+      preLoaderRoute: typeof BecomeVendorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -938,6 +958,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   AdminRoute: AdminRouteWithChildren,
+  BecomeVendorRoute: BecomeVendorRoute,
   CartRoute: CartRoute,
   CategoriesRoute: CategoriesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
