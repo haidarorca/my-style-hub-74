@@ -20,7 +20,7 @@ import {
 import { useCart, clearGuestCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { buildWhatsAppMessage, whatsappUrl, type WhatsAppLine } from "@/lib/whatsapp";
+import { buildWhatsAppMessage, whatsappUrlForOrder, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
@@ -315,7 +315,12 @@ function CartPage() {
           note: addr.note,
           orderId: order.id,
         });
-        window.open(whatsappUrl(msg), "_blank");
+        const hasCommission = items.some((it: any) => {
+          const productId = it.products?.id ?? it.product_id;
+          const key = `${productId}:${it.variant_id ?? ""}`;
+          return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
+        });
+        window.open(whatsappUrlForOrder(msg, { isCommission: hasCommission }), "_blank");
       }
     } catch (e) {
       console.error(e);
