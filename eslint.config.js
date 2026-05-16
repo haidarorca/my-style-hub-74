@@ -36,7 +36,7 @@ export default tseslint.config(
       "react/jsx-key": ["error", { checkFragmentShorthand: true }],
       "react/jsx-no-target-blank": ["error", { allowReferrer: false }],
       "react/no-unescaped-entities": "off",
-      "react/no-unknown-property": "error",
+      "react/no-unknown-property": ["error", { ignore: ["cmdk-input-wrapper"] }],
       "react/self-closing-comp": "warn",
       "no-restricted-imports": [
         "error",
