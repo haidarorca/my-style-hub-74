@@ -18,6 +18,7 @@ function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<number>(0);
+  const sendReset = useServerFn(sendPasswordResetEmail);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,17 +35,21 @@ function ForgotPasswordPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(clean, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      await sendReset({
+        data: {
+          email: clean,
+          redirectTo: `${window.location.origin}/reset-password`,
+        },
+      });
+      setLastSentAt(Date.now());
+      setSent(true);
+      toast.success("Email de réinitialisation envoyé");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi");
+    } finally {
+      setLoading(false);
     }
-    setLastSentAt(Date.now());
-    setSent(true);
-    toast.success("Email de réinitialisation envoyé");
   };
 
   return (
