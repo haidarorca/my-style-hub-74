@@ -188,7 +188,7 @@ function SearchPage() {
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
-      let qs = supabase
+      let qs = (supabase as any)
         .from("public_vendor_profiles")
         .select("id, shop_name, shop_logo_url, address")
         .not("shop_name", "is", null)
