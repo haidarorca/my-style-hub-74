@@ -238,6 +238,7 @@ function CartPage() {
   };
 
   const isCommissionItem = (it: any): boolean => {
+    if (it?.products?.profiles?.vendor_mode === "commission") return true;
     const productId = it.products?.id ?? it.product_id;
     const key = `${productId}:${it.variant_id ?? ""}`;
     return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
