@@ -375,15 +375,15 @@ function VendorsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Boutique</TableHead>
-                    <TableHead>Vendeur</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead><FilterableHead label="Boutique" colKey="shop" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Vendeur" colKey="vendor" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Email" colKey="email" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
                     <TableHead>Téléphone</TableHead>
-                    <TableHead>Pays / Ville</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Inscrit le</TableHead>
-                    <TableHead>Fin d'accès</TableHead>
+                    <TableHead><FilterableHead label="Pays / Ville" colKey="location" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Statut" colKey="status" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Type" colKey="type" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Inscrit le" colKey="signup" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} kind="date" /></TableHead>
+                    <TableHead><FilterableHead label="Fin d'accès" colKey="endAccess" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} kind="date" /></TableHead>
                     <TableHead className="text-right">Produits</TableHead>
                     <TableHead className="text-right">Commandes</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
