@@ -50,6 +50,10 @@ function CommissionOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [page, setPage] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
   useEffect(() => { setPage(0); }, [search, statusFilter]);
 
@@ -282,13 +286,15 @@ function CommissionOrders() {
                           <Store className="h-3 w-3 text-primary" />
                           {vendor?.shop_name || vendor?.full_name || "Boutique"}
                         </span>
-                        <Button
-                          size="sm"
-                          className="h-7 gap-1 bg-emerald-600 px-2 text-[11px] text-white hover:bg-emerald-700"
-                          onClick={() => forwardToVendor(o.id, vendorId, vendor, items)}
-                        >
-                          <Send className="h-3 w-3" /> Envoyer au vendeur
-                        </Button>
+                        {vendorId !== currentUserId && (
+                          <Button
+                            size="sm"
+                            className="h-7 gap-1 bg-emerald-600 px-2 text-[11px] text-white hover:bg-emerald-700"
+                            onClick={() => forwardToVendor(o.id, vendorId, vendor, items)}
+                          >
+                            <Send className="h-3 w-3" /> Envoyer au vendeur
+                          </Button>
+                        )}
                       </div>
                       <ul>
                         {items.map((it: any) => {
