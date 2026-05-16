@@ -73,6 +73,8 @@ function CartPage() {
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
