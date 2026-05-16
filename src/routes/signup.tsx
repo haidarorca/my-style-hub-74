@@ -185,11 +185,14 @@ function SignupPage() {
             {loading ? "Création…" : <EditableLabel uiKey="signup.submit" defaultLabel="Créer mon compte" defaultSize="md" />}
           </Button>
         </form>
+        )}
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Déjà un compte ?{" "}
-          <Link to="/login" className="font-semibold text-primary">Se connecter</Link>
-        </p>
+        {!signupSuccess && (
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Déjà un compte ?{" "}
+            <Link to="/login" className="font-semibold text-primary">Se connecter</Link>
+          </p>
+        )}
       </div>
     </div>
   );
