@@ -163,6 +163,73 @@ function CommissionOrders() {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const sendGroupedForSelection = async () => {
+    const picked = orders.filter((o: any) => selected.has(o.id));
+    if (picked.length === 0) return;
+    // Group items per vendor across all selected orders
+    const byVendor = new Map<string, { vendor: any; entries: Array<{ orderId: string; items: any[] }> }>();
+    for (const o of picked) {
+      for (const it of o.items as any[]) {
+        const v = o.vendorMap.get(it.vendor_id);
+        if (!byVendor.has(it.vendor_id)) byVendor.set(it.vendor_id, { vendor: v, entries: [] });
+        const bucket = byVendor.get(it.vendor_id)!;
+        let entry = bucket.entries.find((e) => e.orderId === o.id);
+        if (!entry) { entry = { orderId: o.id, items: [] }; bucket.entries.push(entry); }
+        entry.items.push(it);
+      }
+    }
+    const missing: string[] = [];
+    const orderIdsToMark = new Set<string>();
+    for (const [, { vendor, entries }] of byVendor) {
+      const num = (vendor?.shop_whatsapp || vendor?.phone || "").replace(/\D/g, "");
+      if (!num) { missing.push(vendor?.shop_name || vendor?.full_name || "Boutique"); continue; }
+      // Build cumulative message: one section per order
+      const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
+      let msg = `📦 *${entries.length} commande${entries.length > 1 ? "s" : ""} à préparer*\n`;
+      msg += `_(commandes plateforme — infos client gérées par l'admin)_\n\n`;
+      let grand = 0;
+      for (const e of entries) {
+        const lines: WhatsAppLine[] = e.items.map((it) => ({
+          shopName: vendor?.shop_name || "Boutique",
+          code: it.product_code ?? "",
+          name: it.product_name,
+          size: it.size, color: it.color,
+          customization: customizationToString(it.customization),
+          quantity: it.quantity,
+          unitPrice: Number(it.unit_price),
+        }));
+        const sub = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+        grand += sub;
+        msg += `━━━━━━━━━━━━━━\n*N° ${e.orderId.slice(0, 8)}*\n`;
+        for (const l of lines) {
+          msg += `\n• Code : ${l.code}\n  Article : ${l.name}\n`;
+          if (l.size) msg += `  Taille : ${l.size}\n`;
+          if (l.color) msg += `  Couleur : ${l.color}\n`;
+          if (l.customization) msg += `  Personnalisation : ${l.customization}\n`;
+          msg += `  Quantité : ${l.quantity}\n  Prix unitaire : ${fmt(l.unitPrice)}\n`;
+        }
+        msg += `\nSous-total commande : ${fmt(sub)}\n\n`;
+        orderIdsToMark.add(e.orderId);
+      }
+      msg += `━━━━━━━━━━━━━━\n💰 *TOTAL À PRÉPARER : ${fmt(grand)}*\n\nMerci de préparer ces commandes. La livraison est gérée par la plateforme.`;
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+    if (orderIdsToMark.size > 0) {
+      await supabase.from("orders")
+        .update({ forwarded_to_vendor_at: new Date().toISOString() })
+        .in("id", Array.from(orderIdsToMark));
+    }
+    if (missing.length > 0) {
+      toast.warning(`WhatsApp manquant pour : ${missing.join(", ")}`);
+    } else {
+      toast.success(`Envoi groupé préparé pour ${byVendor.size} vendeur${byVendor.size > 1 ? "s" : ""}.`);
+    }
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    // silence unused import warnings if any
+    void buildVendorForwardMessage;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
