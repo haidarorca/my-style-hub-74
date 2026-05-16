@@ -12,11 +12,13 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { Send as SendIcon, X } from "lucide-react";
 
 export const Route = createFileRoute("/admin/commission-orders")({
   component: () => <PermissionGate perm="orders"><CommissionOrders /></PermissionGate>,
@@ -52,6 +54,11 @@ function CommissionOrders() {
   const [page, setPage] = useState(0);
 
   useEffect(() => { setPage(0); }, [search, statusFilter]);
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clearSelection = () => setSelected(new Set());
 
   const { data: counts } = useQuery({
     queryKey: ["admin-commission-orders", "counts"],
@@ -156,6 +163,73 @@ function CommissionOrders() {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const sendGroupedForSelection = async () => {
+    const picked = orders.filter((o: any) => selected.has(o.id));
+    if (picked.length === 0) return;
+    // Group items per vendor across all selected orders
+    const byVendor = new Map<string, { vendor: any; entries: Array<{ orderId: string; items: any[] }> }>();
+    for (const o of picked) {
+      for (const it of o.items as any[]) {
+        const v = o.vendorMap.get(it.vendor_id);
+        if (!byVendor.has(it.vendor_id)) byVendor.set(it.vendor_id, { vendor: v, entries: [] });
+        const bucket = byVendor.get(it.vendor_id)!;
+        let entry = bucket.entries.find((e) => e.orderId === o.id);
+        if (!entry) { entry = { orderId: o.id, items: [] }; bucket.entries.push(entry); }
+        entry.items.push(it);
+      }
+    }
+    const missing: string[] = [];
+    const orderIdsToMark = new Set<string>();
+    for (const [, { vendor, entries }] of byVendor) {
+      const num = (vendor?.shop_whatsapp || vendor?.phone || "").replace(/\D/g, "");
+      if (!num) { missing.push(vendor?.shop_name || vendor?.full_name || "Boutique"); continue; }
+      // Build cumulative message: one section per order
+      const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
+      let msg = `📦 *${entries.length} commande${entries.length > 1 ? "s" : ""} à préparer*\n`;
+      msg += `_(commandes plateforme — infos client gérées par l'admin)_\n\n`;
+      let grand = 0;
+      for (const e of entries) {
+        const lines: WhatsAppLine[] = e.items.map((it) => ({
+          shopName: vendor?.shop_name || "Boutique",
+          code: it.product_code ?? "",
+          name: it.product_name,
+          size: it.size, color: it.color,
+          customization: customizationToString(it.customization),
+          quantity: it.quantity,
+          unitPrice: Number(it.unit_price),
+        }));
+        const sub = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+        grand += sub;
+        msg += `━━━━━━━━━━━━━━\n*N° ${e.orderId.slice(0, 8)}*\n`;
+        for (const l of lines) {
+          msg += `\n• Code : ${l.code}\n  Article : ${l.name}\n`;
+          if (l.size) msg += `  Taille : ${l.size}\n`;
+          if (l.color) msg += `  Couleur : ${l.color}\n`;
+          if (l.customization) msg += `  Personnalisation : ${l.customization}\n`;
+          msg += `  Quantité : ${l.quantity}\n  Prix unitaire : ${fmt(l.unitPrice)}\n`;
+        }
+        msg += `\nSous-total commande : ${fmt(sub)}\n\n`;
+        orderIdsToMark.add(e.orderId);
+      }
+      msg += `━━━━━━━━━━━━━━\n💰 *TOTAL À PRÉPARER : ${fmt(grand)}*\n\nMerci de préparer ces commandes. La livraison est gérée par la plateforme.`;
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+    if (orderIdsToMark.size > 0) {
+      await supabase.from("orders")
+        .update({ forwarded_to_vendor_at: new Date().toISOString() })
+        .in("id", Array.from(orderIdsToMark));
+    }
+    if (missing.length > 0) {
+      toast.warning(`WhatsApp manquant pour : ${missing.join(", ")}`);
+    } else {
+      toast.success(`Envoi groupé préparé pour ${byVendor.size} vendeur${byVendor.size > 1 ? "s" : ""}.`);
+    }
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    // silence unused import warnings if any
+    void buildVendorForwardMessage;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -170,6 +244,20 @@ function CommissionOrders() {
       <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
         Ces commandes proviennent de vendeurs <strong>avec commission</strong>. Vous traitez le client et transmettez la préparation au vendeur par WhatsApp (sans partager les coordonnées du client).
       </p>
+
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
+          <span className="text-sm font-semibold text-primary">
+            {selected.size} commande{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}
+          </span>
+          <Button size="sm" className="ml-auto gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
+            <SendIcon className="h-4 w-4" /> Envoyer groupé aux vendeurs
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -215,6 +303,24 @@ function CommissionOrders() {
           Aucune commande commission dans cette catégorie.
         </div>
       ) : (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={orders.length > 0 && orders.every((o: any) => selected.has(o.id))}
+                onCheckedChange={(c) => {
+                  if (c) setSelected((s) => { const n = new Set(s); orders.forEach((o: any) => n.add(o.id)); return n; });
+                  else setSelected((s) => { const n = new Set(s); orders.forEach((o: any) => n.delete(o.id)); return n; });
+                }}
+              />
+              <span className="text-muted-foreground">Tout sélectionner sur cette page</span>
+            </label>
+            {selected.size > 0 && (
+              <button onClick={clearSelection} className="text-muted-foreground hover:text-foreground">
+                <X className="inline h-3 w-3" /> Effacer ({selected.size})
+              </button>
+            )}
+          </div>
         <ul className="space-y-4">
           {orders.map((o: any) => {
             const meta = STATUS_META[o.status as OrderStatus] ?? STATUS_META.new;
@@ -224,13 +330,17 @@ function CommissionOrders() {
               if (!itemsByVendor.has(it.vendor_id)) itemsByVendor.set(it.vendor_id, []);
               itemsByVendor.get(it.vendor_id)!.push(it);
             }
+            const isSel = selected.has(o.id);
             return (
-              <li key={o.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              <li key={o.id} className={cn("overflow-hidden rounded-xl border bg-card shadow-sm", isSel && "ring-2 ring-primary")}>
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(o.created_at).toLocaleString(locale)}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Checkbox checked={isSel} onCheckedChange={() => toggleOne(o.id)} aria-label="Sélectionner" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {new Date(o.created_at).toLocaleString(locale)}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -368,6 +478,7 @@ function CommissionOrders() {
             );
           })}
         </ul>
+        </>
       )}
 
       {totalPages > 1 && (
