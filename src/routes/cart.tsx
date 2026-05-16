@@ -20,7 +20,7 @@ import {
 import { useCart, clearGuestCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { buildWhatsAppMessage, whatsappUrlForOrder, type WhatsAppLine } from "@/lib/whatsapp";
+import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
