@@ -190,13 +190,13 @@ export const syncTranslations = createServerFn({ method: "POST" })
   .handler(async ({ context }): Promise<Report> => {
     const start = Date.now();
 
-    const { data: roleRow } = await context.supabase
+    const { data: roleRows, error: roleErr } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId)
-      .in("role", ["admin", "super_admin"])
-      .maybeSingle();
-    if (!roleRow) throw new Error("Accès refusé : admin requis");
+      .in("role", ["admin", "super_admin"]);
+    if (roleErr) throw new Error(`Erreur vérification rôle: ${roleErr.message}`);
+    if (!roleRows || roleRows.length === 0) throw new Error("Accès refusé : admin requis");
 
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Lovable AI Gateway non configuré");
