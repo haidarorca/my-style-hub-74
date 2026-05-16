@@ -69,13 +69,40 @@ async function uploadImage(file: File, prefix: string): Promise<string | null> {
 
 export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, onSaved }: Props) {
   const [draft, setDraft] = useState<BannerDraft | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<Partial<Record<"image_url" | "image_url_mobile" | "image_url_tablet", File>>>({});
   const [previewVp, setPreviewVp] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [saving, setSaving] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const objectUrls = useRef<string[]>([]);
+
+  const revokeObjectUrls = () => {
+    objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrls.current = [];
+  };
+
+  const makePreviewUrl = (file: File) => {
+    const url = URL.createObjectURL(file);
+    objectUrls.current.push(url);
+    return url;
+  };
+
+  const validateImage = (file: File) => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      toast.error("Format non supporté. Utilisez JPG, PNG ou WEBP.");
+      return false;
+    }
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      toast.error(`Image trop volumineuse (max ${MAX_SIZE_MB} Mo).`);
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     if (!open) return;
+    revokeObjectUrls();
+    setPendingFiles({});
     if (banner) {
       setDraft({ ...banner });
     } else {
@@ -84,22 +111,24 @@ export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, o
     setPreviewVp("desktop");
   }, [open, banner]);
 
+  useEffect(() => () => revokeObjectUrls(), []);
+
   const set = <K extends keyof BannerDraft>(k: K, v: BannerDraft[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
 
   async function handleInitialUpload(file: File) {
-    const url = await uploadImage(file, "banner");
-    if (!url) return;
+    if (!validateImage(file)) return;
     setDraft({
-      image_url: url,
+      image_url: makePreviewUrl(file),
       ...BANNER_DEFAULTS,
     });
+    setPendingFiles({ image_url: file });
   }
 
   async function handleVariantUpload(file: File, key: "image_url" | "image_url_mobile" | "image_url_tablet") {
-    const url = await uploadImage(file, `banner-${key}`);
-    if (!url || !draft) return;
-    set(key, url);
+    if (!draft || !validateImage(file)) return;
+    set(key, makePreviewUrl(file));
+    setPendingFiles((files) => ({ ...files, [key]: file }));
   }
 
   // Drag the image inside the canvas → updates focal_x / focal_y
@@ -124,10 +153,29 @@ export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, o
   async function save() {
     if (!draft) return;
     setSaving(true);
+    const uploadedImageUrl = pendingFiles.image_url ? await uploadImage(pendingFiles.image_url, "banner") : draft.image_url;
+    if (!uploadedImageUrl) {
+      setSaving(false);
+      return;
+    }
+    const uploadedTabletUrl = pendingFiles.image_url_tablet
+      ? await uploadImage(pendingFiles.image_url_tablet, "banner-image_url_tablet")
+      : draft.image_url_tablet;
+    if (pendingFiles.image_url_tablet && !uploadedTabletUrl) {
+      setSaving(false);
+      return;
+    }
+    const uploadedMobileUrl = pendingFiles.image_url_mobile
+      ? await uploadImage(pendingFiles.image_url_mobile, "banner-image_url_mobile")
+      : draft.image_url_mobile;
+    if (pendingFiles.image_url_mobile && !uploadedMobileUrl) {
+      setSaving(false);
+      return;
+    }
     const payload = {
-      image_url: draft.image_url,
-      image_url_mobile: draft.image_url_mobile ?? null,
-      image_url_tablet: draft.image_url_tablet ?? null,
+      image_url: uploadedImageUrl,
+      image_url_mobile: uploadedMobileUrl ?? null,
+      image_url_tablet: uploadedTabletUrl ?? null,
       link_url: draft.link_url ?? null,
       title: draft.title ?? null,
       subtitle: draft.subtitle ?? null,
