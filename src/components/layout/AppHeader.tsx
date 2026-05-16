@@ -1,6 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Search, ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, X } from "lucide-react";
+import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -8,6 +7,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { useI18n } from "@/hooks/use-i18n";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { SearchAutocomplete } from "@/components/layout/SearchAutocomplete";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,50 +27,10 @@ export function AppHeader() {
   const { t } = useI18n();
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const urlQ = useRouterState({
-    select: (s) => (s.location.pathname === "/search" ? ((s.location.search as { q?: string })?.q ?? "") : ""),
-  });
-  const [query, setQuery] = useState(urlQ);
-
-  // Keep input in sync when URL ?q= changes externally (recent searches, trending tags)
-  useEffect(() => {
-    if (pathname === "/search") setQuery(urlQ);
-  }, [urlQ, pathname]);
-
-  // Live-update results: as the user types from any page, navigate to /search?q=…
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const q = query.trim();
-      if (!q) {
-        // On /search with empty input, clear the q param. Elsewhere do nothing.
-        if (pathname === "/search" && urlQ) {
-          router.navigate({ to: "/search", search: {}, replace: true });
-        }
-        return;
-      }
-      if (pathname === "/search") {
-        if (q === (urlQ ?? "")) return;
-        router.navigate({ to: "/search", search: { q }, replace: true });
-      } else {
-        router.navigate({ to: "/search", search: { q } });
-      }
-    }, 220);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, pathname, urlQ, router]);
 
   const handleSignOut = async () => {
     await signOut();
     router.navigate({ to: "/" });
-  };
-
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    router.navigate({ to: "/search", search: q ? { q } : {} });
   };
 
   return (
