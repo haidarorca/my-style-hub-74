@@ -15,6 +15,7 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { Sparkles, Flame, Truck, ShieldCheck } from "lucide-react";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -32,6 +33,7 @@ function Home() {
   const { data: banners } = useHomeBanners();
   const { t, lang } = useI18n();
   const { data: catCountsMap } = useCategoryProductCounts();
+  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
@@ -99,7 +101,8 @@ function Home() {
   });
 
   const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products", "approved", universeId, subCategoryId, subSubCategoryId, descendantIds],
+    queryKey: ["products", "approved", universeId, subCategoryId, subSubCategoryId, descendantIds, countryId, deliverableVendorIds],
+    enabled: !countryId || deliverableVendorIds !== null,
     queryFn: async () => {
       let q = supabase
         .from("products")
@@ -109,6 +112,10 @@ function Home() {
         .limit(40);
       if (universeId !== ALL && descendantIds && descendantIds.length > 0) {
         q = q.in("category_id", descendantIds);
+      }
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        q = q.in("vendor_id", deliverableVendorIds);
       }
       const { data, error } = await q;
       if (error) throw error;

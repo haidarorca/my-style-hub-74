@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 function SearchPriceTag({ productId, fallback }: { productId: string; fallback: number }) {
   const dp = useProductDisplayPrice(productId);

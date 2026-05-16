@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/c/$categoryId")({
   component: CategoryPage,
@@ -82,17 +83,24 @@ function CategoryPage() {
 
   const hasChildren = (children?.length ?? 0) > 0;
 
+  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+
   const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products-by-cat", descendantIds],
-    enabled: !!descendantIds && descendantIds.length > 0,
+    queryKey: ["products-by-cat", descendantIds, countryId, deliverableVendorIds],
+    enabled: !!descendantIds && descendantIds.length > 0 && (!countryId || deliverableVendorIds !== null),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("products")
         .select("id, name, name_i18n, price, code, product_images(url)")
         .eq("status", "approved")
         .in("category_id", descendantIds!)
         .order("created_at", { ascending: false })
         .limit(60);
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        q = q.in("vendor_id", deliverableVendorIds);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },
