@@ -81,6 +81,29 @@ function missingLangs(i18n: Record<string, string> | null | undefined, sources: 
   });
 }
 
+/**
+ * Detect i18n entries that are trivial copies (all values identical) — typical
+ * sign that translations were never actually generated and the canonical value
+ * was just duplicated across languages. In that case we want to retranslate.
+ */
+function looksUntranslated(i18n: Record<string, string> | null | undefined): boolean {
+  const obj = (i18n ?? {}) as Record<string, string>;
+  const vals = LANGS.map((l) => (obj[l] ?? "").trim().toLowerCase()).filter((v) => v.length > 0);
+  if (vals.length < 2) return false;
+  return vals.every((v) => v === vals[0]);
+}
+
+/** Langs that are missing OR look like trivial copies (need real translation). */
+function langsNeedingTranslation(i18n: Record<string, string> | null | undefined): Lang[] {
+  const obj = (i18n ?? {}) as Record<string, string>;
+  if (looksUntranslated(obj)) {
+    // keep one as source (the one matching canonical preferred — caller passes canonical separately)
+    // Return all langs; the caller decides which to overwrite based on detected source.
+    return [...LANGS];
+  }
+  return missingLangs(obj, {});
+}
+
 async function translateShort(
   canonical: string,
   sources: Partial<Record<Lang, string>>,
