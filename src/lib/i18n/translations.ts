@@ -1261,6 +1261,8 @@ const ar: Dict = {
   "checkout.order_saved_pending": "تم حفظ الطلب — بانتظار التحقق",
   "checkout.order_save_error": "حدث خطأ أثناء حفظ الطلب",
   "checkout.address_save_error": "حدث خطأ أثناء حفظ العنوان",
+  "checkout.delivery_country": "بلد التوصيل",
+  "checkout.choose_delivery_country": "اختر بلد التوصيل",
 
   "account.title": "حسابي",
   "account.profile": "الملف الشخصي",
