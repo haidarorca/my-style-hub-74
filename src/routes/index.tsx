@@ -249,33 +249,34 @@ function Home() {
         </section>
 
         {/* Categories logos */}
-        {universes && universes.length > 0 && (
-          <section className="mt-6">
-            <h2 className="mb-3 text-base font-bold">{t("home.section.categories")}</h2>
-            <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
-              {universes.map((c) => {
-                const cName = pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang);
-                return (
-                  <Link
-                    key={c.id}
-                    to="/c/$categoryId"
-                    params={{ categoryId: c.id }}
-                    className="flex flex-col items-center gap-1.5 text-center"
-                  >
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
-                      {c.logo_url ? (
-                        <img src={c.logo_url} alt={cName} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-bold text-primary">{cName[0]}</span>
-                      )}
-                    </div>
-                    <span className="line-clamp-1 text-xs">{cName}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {universes && universes.length > 0 && (() => {
+          const counts = catCountsMap;
+          const visibleUniverses = universes.filter((c) => (counts?.get(c.id) ?? 0) > 0);
+          if (visibleUniverses.length === 0) return null;
+          return (
+            <section className="mt-6">
+              <h2 className="mb-3 text-base font-bold">{t("home.section.categories")}</h2>
+              <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
+                {visibleUniverses.map((c) => {
+                  const cName = pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang);
+                  return (
+                    <Link
+                      key={c.id}
+                      to="/c/$categoryId"
+                      params={{ categoryId: c.id }}
+                      className="group flex flex-col items-center gap-1.5 text-center"
+                    >
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-accent to-muted shadow-sm transition-transform duration-200 group-hover:scale-105 group-active:scale-95">
+                        <CategoryIcon logoUrl={c.logo_url} name={cName} iconClassName="h-7 w-7 text-foreground" className="flex h-full w-full items-center justify-center" />
+                      </div>
+                      <span className="line-clamp-1 text-xs font-medium">{cName}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Tendances */}
         <section className="mt-6">
