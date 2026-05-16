@@ -140,12 +140,13 @@ function CategoryPage() {
                     params={{ categoryId: c.id }}
                     className="flex flex-col items-center gap-2 rounded-2xl bg-card p-3 text-center shadow-soft transition-shadow hover:shadow-card"
                   >
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-accent">
-                      {c.logo_url ? (
-                        <img src={c.logo_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-bold text-primary">{cName[0]}</span>
-                      )}
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-muted">
+                      <CategoryIcon
+                        logoUrl={c.logo_url}
+                        name={cName}
+                        iconClassName="h-7 w-7 text-foreground"
+                        className="flex h-full w-full items-center justify-center"
+                      />
                     </div>
                     <span className="line-clamp-2 text-xs font-medium">{cName}</span>
                   </Link>
