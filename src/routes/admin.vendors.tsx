@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Store, Pencil, X, MoreHorizontal, CheckCircle2, PauseCircle,
   Ban, Clock, AlertTriangle, CalendarClock, Eye, ShoppingBag, Search,
+  ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,6 +133,15 @@ function VendorsPage() {
   const [fEndFrom, setFEndFrom] = useState<Date | undefined>();
   const [fEndTo, setFEndTo] = useState<Date | undefined>();
 
+  // Per-column filters (Excel-like)
+  type ColF = { search?: string; startsWith?: string };
+  type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+  const [colF, setColF] = useState<Record<ColKey, ColF>>({
+    shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
+  });
+  const [sortBy, setSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  const updateColF = (k: ColKey, v: ColF) => setColF((s) => ({ ...s, [k]: v }));
+
   const { data: countries } = useCountries({ onlyEnabled: true });
   const labelOf = useCountryLabel();
   const countryName = (id: string | null) => {
@@ -164,10 +174,50 @@ function VendorsPage() {
           const end = new Date(fEndTo); end.setHours(23, 59, 59, 999);
           if (!p.access_ends_at || new Date(p.access_ends_at) > end) return false;
         }
+        // Per-column text filters (Excel-like)
+        const statusLabel = STATUS_META[(p.vendor_status ?? "pending") as AccountStatus]?.label ?? "";
+        const typeLabel = p.vendor_mode === "commission" ? "Avec commission" : "Sans commission";
+        const accessors: Record<ColKey, string> = {
+          shop: p.shop_name ?? "",
+          vendor: p.full_name ?? "",
+          email: p.email ?? "",
+          location: `${countryName(p.source_country_id)} ${p.address ?? ""}`,
+          status: statusLabel,
+          type: typeLabel,
+          signup: p.created_at ?? "",
+          endAccess: p.access_ends_at ?? "",
+        };
+        for (const k of Object.keys(colF) as ColKey[]) {
+          const f = colF[k];
+          const val = (accessors[k] ?? "").toString().toLowerCase().trim();
+          if (f.search && !val.includes(f.search.toLowerCase().trim())) return false;
+          if (f.startsWith && !val.startsWith(f.startsWith.toLowerCase().trim())) return false;
+        }
         return true;
       })
-      .sort((a, b) => new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime());
-  }, [vendors, query, fStatus, fMode, fCountry, fSignupFrom, fSignupTo, fEndFrom, fEndTo]);
+      .sort((a, b) => {
+        if (sortBy) {
+          const pa = a.profiles, pb = b.profiles;
+          const getVal = (p: typeof pa): string | number => {
+            if (!p) return "";
+            switch (sortBy.col) {
+              case "shop": return (p.shop_name ?? "").toLowerCase();
+              case "vendor": return (p.full_name ?? "").toLowerCase();
+              case "email": return (p.email ?? "").toLowerCase();
+              case "location": return `${countryName(p.source_country_id)} ${p.address ?? ""}`.toLowerCase();
+              case "status": return (STATUS_META[(p.vendor_status ?? "pending") as AccountStatus]?.label ?? "").toLowerCase();
+              case "type": return p.vendor_mode === "commission" ? "1" : "0";
+              case "signup": return new Date(p.created_at ?? 0).getTime();
+              case "endAccess": return p.access_ends_at ? new Date(p.access_ends_at).getTime() : 0;
+            }
+          };
+          const va = getVal(pa), vb = getVal(pb);
+          const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+          return sortBy.dir === "asc" ? cmp : -cmp;
+        }
+        return new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime();
+      });
+  }, [vendors, query, fStatus, fMode, fCountry, fSignupFrom, fSignupTo, fEndFrom, fEndTo, colF, sortBy, countries]);
 
   // Create dialog
   const [open, setOpen] = useState(false);
@@ -325,15 +375,15 @@ function VendorsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Boutique</TableHead>
-                    <TableHead>Vendeur</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead><FilterableHead label="Boutique" colKey="shop" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Vendeur" colKey="vendor" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Email" colKey="email" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
                     <TableHead>Téléphone</TableHead>
-                    <TableHead>Pays / Ville</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Inscrit le</TableHead>
-                    <TableHead>Fin d'accès</TableHead>
+                    <TableHead><FilterableHead label="Pays / Ville" colKey="location" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Statut" colKey="status" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Type" colKey="type" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} /></TableHead>
+                    <TableHead><FilterableHead label="Inscrit le" colKey="signup" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} kind="date" /></TableHead>
+                    <TableHead><FilterableHead label="Fin d'accès" colKey="endAccess" colF={colF} updateColF={updateColF} sortBy={sortBy} setSortBy={setSortBy} kind="date" /></TableHead>
                     <TableHead className="text-right">Produits</TableHead>
                     <TableHead className="text-right">Commandes</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -478,6 +528,82 @@ function DateRangeMini({ label, value, onChange }: { label: string; value?: Date
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+type ColFKind = "text" | "date";
+type _ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+function FilterableHead({
+  label, colKey, colF, updateColF, sortBy, setSortBy, kind = "text",
+}: {
+  label: string;
+  colKey: _ColKey;
+  colF: Record<_ColKey, { search?: string; startsWith?: string }>;
+  updateColF: (k: _ColKey, v: { search?: string; startsWith?: string }) => void;
+  sortBy: { col: _ColKey; dir: "asc" | "desc" } | null;
+  setSortBy: (s: { col: _ColKey; dir: "asc" | "desc" } | null) => void;
+  kind?: ColFKind;
+}) {
+  const f = colF[colKey] ?? {};
+  const isActive = !!(f.search || f.startsWith) || sortBy?.col === colKey;
+  const SortIcon = sortBy?.col === colKey
+    ? (sortBy.dir === "asc" ? ArrowUp : ArrowDown)
+    : ArrowUpDown;
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      {label}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-5 w-5 p-0", isActive && "text-primary")}
+            aria-label={`Filtrer ${label}`}
+          >
+            <SortIcon className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-2 space-y-1" align="start">
+          <Button variant="ghost" size="sm" className="w-full justify-start h-8"
+            onClick={() => setSortBy({ col: colKey, dir: "asc" })}>
+            <ArrowUp className="mr-2 h-3 w-3" />
+            {kind === "date" ? "Plus ancien → récent" : "Trier A → Z"}
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start h-8"
+            onClick={() => setSortBy({ col: colKey, dir: "desc" })}>
+            <ArrowDown className="mr-2 h-3 w-3" />
+            {kind === "date" ? "Plus récent → ancien" : "Trier Z → A"}
+          </Button>
+          {kind === "text" && (
+            <>
+              <div className="pt-1">
+                <Label className="text-[10px] text-muted-foreground">Rechercher</Label>
+                <Input
+                  placeholder="Mot précis…"
+                  value={f.search ?? ""}
+                  onChange={(e) => updateColF(colKey, { ...f, search: e.target.value })}
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Commence par</Label>
+                <Input
+                  placeholder="ex: M"
+                  maxLength={3}
+                  value={f.startsWith ?? ""}
+                  onChange={(e) => updateColF(colKey, { ...f, startsWith: e.target.value })}
+                  className="h-8 mt-1"
+                />
+              </div>
+            </>
+          )}
+          <Button variant="ghost" size="sm" className="w-full h-8"
+            onClick={() => { updateColF(colKey, {}); if (sortBy?.col === colKey) setSortBy(null); }}>
+            <X className="mr-2 h-3 w-3" /> Réinitialiser
+          </Button>
+        </PopoverContent>
+      </Popover>
+    </span>
   );
 }
 
