@@ -41,6 +41,7 @@ const searchSchema = z.object({
   country: fallback(z.string(), "all").default("all"),
   has_orders: fallback(z.enum(["all", "with", "without"]), "all").default("all"),
 });
+type SearchState = z.infer<typeof searchSchema>;
 
 const PAGE_SIZE = 25;
 
