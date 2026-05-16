@@ -568,6 +568,33 @@ export type Database = {
           },
         ]
       }
+      order_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          order_id: string
+          to_status: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          order_id: string
+          to_status: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          order_id?: string
+          to_status?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           address: string | null
@@ -759,6 +786,8 @@ export type Database = {
           rating: number
           updated_at: string
           user_id: string
+          vendor_response: string | null
+          vendor_response_at: string | null
         }
         Insert: {
           comment?: string | null
@@ -770,6 +799,8 @@ export type Database = {
           rating: number
           updated_at?: string
           user_id: string
+          vendor_response?: string | null
+          vendor_response_at?: string | null
         }
         Update: {
           comment?: string | null
@@ -781,6 +812,8 @@ export type Database = {
           rating?: number
           updated_at?: string
           user_id?: string
+          vendor_response?: string | null
+          vendor_response_at?: string | null
         }
         Relationships: [
           {
