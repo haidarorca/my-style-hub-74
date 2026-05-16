@@ -388,6 +388,13 @@ function VendorsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {filtered.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={12} className="p-8 text-center text-sm text-muted-foreground">
+                        Aucun vendeur ne correspond au filtre.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {filtered.map((v) => {
                     const p = v.profiles!;
                     const c = counts?.[v.user_id];
