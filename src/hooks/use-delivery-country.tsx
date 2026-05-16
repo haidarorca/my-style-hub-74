@@ -34,13 +34,15 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
   const [isManual, setIsManual] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // 1) hydrate from localStorage (only honor stored id if user picked it manually)
+  // 1) hydrate from localStorage for guests only. Logged-in users should use
+  // their default address country first, so a stale country saved on one phone
+  // cannot hide the Senegal catalogue for a Senegal account.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const manual = window.localStorage.getItem(MANUAL_KEY) === "1";
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (manual && stored) {
+      if (!user && manual && stored) {
         setCountryIdState(stored);
         setIsManual(true);
       }
@@ -48,11 +50,11 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     setReady(true);
-  }, []);
+  }, [user]);
 
-  // 2) for logged-in users without a manual pick, use their default address country
+  // 2) for logged-in users, use their default address country before geo-IP/manual cache.
   useEffect(() => {
-    if (!ready || isManual || !user) return;
+    if (!ready || !user) return;
     let cancelled = false;
     (async () => {
       const { data } = await (supabase as any)
@@ -63,10 +65,11 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       if (!cancelled && data?.destination_country_id) {
         setCountryIdState(data.destination_country_id);
+        setIsManual(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [ready, isManual, user]);
+  }, [ready, user]);
 
   // 3) auto-detect via geo-IP if still nothing and no manual pick
   useEffect(() => {
