@@ -46,7 +46,22 @@ const vendorsSearchSchema = z.object({
   page: fallback(z.number().int().min(1).max(10_000), 1).default(1),
   q: fallback(z.string().max(200), "").default(""),
   status: fallback(z.enum(["all", ...VENDOR_STATUSES]), "all").default("all"),
+  sort: fallback(z.enum(["created_at", "shop_name", "vendor_status"]), "created_at").default("created_at"),
+  dir: fallback(z.enum(["asc", "desc"]), "desc").default("desc"),
 });
+
+// Map UI column keys to server-sortable DB columns
+const SERVER_SORT_BY_COL = {
+  shop: "shop_name",
+  signup: "created_at",
+  status: "vendor_status",
+} as const;
+type ServerSortCol = keyof typeof SERVER_SORT_BY_COL;
+const DB_TO_COL: Record<(typeof SERVER_SORT_BY_COL)[ServerSortCol], ServerSortCol> = {
+  shop_name: "shop",
+  created_at: "signup",
+  vendor_status: "status",
+};
 
 export const Route = createFileRoute("/admin/vendors")({
   validateSearch: zodValidator(vendorsSearchSchema),
@@ -102,7 +117,7 @@ function VendorsPage() {
   // URL state (page, q, status)
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/admin/vendors" });
-  const { page, q: urlQuery, status: urlStatus } = search;
+  const { page, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir } = search;
   type SearchState = typeof search;
 
   // Local debounced search input
@@ -117,8 +132,8 @@ function VendorsPage() {
   const PAGE_SIZE = 25;
 
   const { data: pageData, isLoading } = useQuery({
-    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus }],
-    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus } }),
+    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir }],
+    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir } }),
     placeholderData: keepPreviousData,
   });
 
@@ -167,7 +182,22 @@ function VendorsPage() {
   const [colF, setColF] = useState<Record<ColKey, ColF>>({
     shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
   });
-  const [sortBy, setSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  // Sort state: URL drives server-sortable cols (shop/signup/status); other cols stay local
+  const [localSortBy, setLocalSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  const urlSortCol = DB_TO_COL[urlSort as keyof typeof DB_TO_COL];
+  const sortBy: { col: ColKey; dir: "asc" | "desc" } | null = localSortBy ?? { col: urlSortCol, dir: urlDir };
+  const setSortBy = (s: { col: ColKey; dir: "asc" | "desc" } | null) => {
+    if (s && (s.col in SERVER_SORT_BY_COL)) {
+      const dbCol = SERVER_SORT_BY_COL[s.col as ServerSortCol];
+      setLocalSortBy(null);
+      navigate({
+        search: (prev: SearchState) => ({ ...prev, sort: dbCol, dir: s.dir, page: 1 }),
+        replace: true,
+      });
+    } else {
+      setLocalSortBy(s);
+    }
+  };
   const updateColF = (k: ColKey, v: ColF) => setColF((s) => ({ ...s, [k]: v }));
 
   const { data: countries } = useCountries({ onlyEnabled: true });

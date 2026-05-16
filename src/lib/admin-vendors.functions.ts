@@ -53,6 +53,8 @@ const ListInput = z.object({
   status: z
     .enum(["all", "active", "pending", "suspended", "expired", "blocked"])
     .default("all"),
+  sort: z.enum(["created_at", "shop_name", "vendor_status"]).default("created_at"),
+  dir: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export const listAdminVendors = createServerFn({ method: "POST" })
@@ -96,7 +98,9 @@ export const listAdminVendors = createServerFn({ method: "POST" })
 
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
-    q = q.order("created_at", { ascending: false }).range(from, to);
+    q = q
+      .order(data.sort, { ascending: data.dir === "asc", nullsFirst: false })
+      .range(from, to);
 
     const { data: profs, error: pErr, count } = await q;
     if (pErr) throw new Error(pErr.message);
