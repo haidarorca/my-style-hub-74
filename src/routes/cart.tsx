@@ -237,7 +237,73 @@ function CartPage() {
     return data as Address;
   };
 
-  const submitOrder = async (openWhatsApp: boolean) => {
+  const isCommissionItem = (it: any): boolean => {
+    const productId = it.products?.id ?? it.product_id;
+    const key = `${productId}:${it.variant_id ?? ""}`;
+    return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
+  };
+
+  const lineFor = (it: any): WhatsAppLine => ({
+    shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
+    code: it.products?.code ?? "",
+    name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
+    size: it.product_variants?.size ?? null,
+    color: it.product_variants?.color ?? null,
+    customization: customizationSummary(it.customization),
+    quantity: it.quantity,
+    unitPrice: unitPrice(it),
+  });
+
+  const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
+    const groups: DispatchGroup[] = [];
+    // 1) Per non-commission vendor — each gets only their items, with full customer info, sent to their shop_whatsapp
+    const byVendor = new Map<string, any[]>();
+    const commissionItems: any[] = [];
+    for (const it of items) {
+      if (isCommissionItem(it)) commissionItems.push(it);
+      else {
+        const vid = (it as any).products?.vendor_id;
+        if (!vid) continue;
+        if (!byVendor.has(vid)) byVendor.set(vid, []);
+        byVendor.get(vid)!.push(it);
+      }
+    }
+    for (const [vid, vItems] of byVendor) {
+      const first = vItems[0] as any;
+      const shopName = first.products?.profiles?.shop_name || first.products?.profiles?.full_name || t("product.shop");
+      const wa = first.products?.profiles?.shop_whatsapp ?? null;
+      const msg = buildWhatsAppMessage(vItems.map(lineFor), {
+        name: addr.full_name,
+        phone: addr.phone,
+        address: addr.address,
+        city: addr.city,
+        note: addr.note,
+        orderId,
+      });
+      groups.push({ id: `vendor-${vid}`, label: shopName, whatsappNumber: wa, message: msg, isAdmin: false });
+    }
+    // 2) Single admin group for all commission items
+    if (commissionItems.length > 0) {
+      const msg = buildWhatsAppMessage(commissionItems.map(lineFor), {
+        name: addr.full_name,
+        phone: addr.phone,
+        address: addr.address,
+        city: addr.city,
+        note: addr.note,
+        orderId,
+      });
+      groups.push({
+        id: "admin-commission",
+        label: "Administration (commande plateforme)",
+        whatsappNumber: settings.commission_whatsapp_number ?? null,
+        message: msg,
+        isAdmin: true,
+      });
+    }
+    return groups;
+  };
+
+  const submitOrder = async () => {
     if (items.length === 0) return;
     if (!destinationCountryId) {
       toast.error("Sélectionnez le pays de livraison.");
@@ -248,7 +314,6 @@ function CartPage() {
       const addr = await resolveAddress();
       if (!addr) { setSubmitting(false); return; }
 
-      // Block when the saved address country differs from the chosen delivery country.
       if (
         user && mode === "saved" &&
         addr.destination_country_id &&
@@ -277,10 +342,9 @@ function CartPage() {
           destination_country_id: destinationCountryId,
         } as any);
       if (oErr) throw oErr;
-      const order = { id: orderId };
 
       const rows = items.map((it: any) => ({
-        order_id: order.id,
+        order_id: orderId,
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -297,43 +361,18 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
+      // Build dispatch groups BEFORE clearing the cart
+      const groups = buildDispatchGroups(orderId, addr);
+
       if (user) {
         await supabase.from("cart_items").delete().eq("user_id", user.id);
       } else {
         clearGuestCart();
       }
       refresh();
-      setCheckoutOpen(false);
       toast.success(t("checkout.order_saved_pending"));
-      if (user) router.navigate({ to: "/orders" });
-      else router.navigate({ to: "/" });
-
-      if (openWhatsApp) {
-        const lines: WhatsAppLine[] = items.map((it: any) => ({
-          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
-          code: it.products?.code ?? "",
-          name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
-          size: it.product_variants?.size ?? null,
-          color: it.product_variants?.color ?? null,
-          customization: customizationSummary(it.customization),
-          quantity: it.quantity,
-          unitPrice: unitPrice(it),
-        }));
-        const msg = buildWhatsAppMessage(lines, {
-          name: addr.full_name,
-          phone: addr.phone,
-          address: addr.address,
-          city: addr.city,
-          note: addr.note,
-          orderId: order.id,
-        });
-        const hasCommission = items.some((it: any) => {
-          const productId = it.products?.id ?? it.product_id;
-          const key = `${productId}:${it.variant_id ?? ""}`;
-          return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
-        });
-        window.open(whatsappUrlForOrder(msg, { isCommission: hasCommission }), "_blank");
-      }
+      setSentIds(new Set());
+      setDispatch({ groups, orderId });
     } catch (e) {
       console.error(e);
       toast.error(t("checkout.order_save_error"));
@@ -341,6 +380,19 @@ function CartPage() {
       setSubmitting(false);
     }
   };
+
+  const sendDispatch = (g: DispatchGroup) => {
+    window.open(whatsappUrlTo(g.whatsappNumber, g.message), "_blank");
+    setSentIds((s) => new Set(s).add(g.id));
+  };
+
+  const finishDispatch = () => {
+    setDispatch(null);
+    setCheckoutOpen(false);
+    if (user) router.navigate({ to: "/orders" });
+    else router.navigate({ to: "/" });
+  };
+
 
   return (
     <div className="min-h-screen bg-background pb-32">
