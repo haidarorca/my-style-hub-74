@@ -1,30 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Store, BadgeCheck, Clock, MapPin, Phone } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
-import { ProductCard } from "@/components/product/ProductCard";
-import { ProductPricesProvider } from "@/components/product/ProductPricesProvider";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
+import { ShopProductsExplorer, type ShopProduct } from "@/components/shop/ShopProductsExplorer";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSchedule, summarizeSchedule, isOpenNow, type ScheduleLabels } from "@/lib/shop-hours";
 import { useI18n } from "@/hooks/use-i18n";
-import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
 });
 
-
 function ShopPage() {
   const { vendorId } = Route.useParams();
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
-  const [selL1, setSelL1] = useState<string | null>(null);
-  const [selL2, setSelL2] = useState<string | null>(null);
-  const [selL3, setSelL3] = useState<string | null>(null);
 
   const { data: vendor } = useQuery({
     queryKey: ["vendor", vendorId],
@@ -45,15 +39,17 @@ function ShopPage() {
     queryKey: ["vendor-products", vendorId, countryId, vendorDeliverable],
     enabled: !countryId || deliverableVendorIds !== null,
     queryFn: async () => {
-      if (!vendorDeliverable) return [];
+      if (!vendorDeliverable) return [] as ShopProduct[];
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, category_id, product_images(url)")
+        .select(
+          "id, name, name_i18n, price, code, category_id, created_at, product_images(url), product_variants(id, size, color, color_hex, stock, price_override)",
+        )
         .eq("vendor_id", vendorId)
         .eq("status", "approved")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as ShopProduct[];
     },
   });
 
@@ -64,55 +60,8 @@ function ShopPage() {
         .from("categories")
         .select("id, name, name_i18n, level, parent_id, position")
         .order("position");
-      return (data ?? []) as Array<{ id: string; name: string; name_i18n: any; level: number; parent_id: string | null; position: number | null }>;
+      return (data ?? []) as Array<{ id: string; name: string; name_i18n: unknown; level: number; parent_id: string | null }>;
     },
-  });
-
-
-  // Build map + used-category sets including ancestors
-  const { usedL1, usedL2, usedL3, productCatToL1, productCatToL2 } = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; name_i18n?: any; level: number; parent_id: string | null }>();
-    (allCats ?? []).forEach((c) => map.set(c.id, c));
-    const u1 = new Set<string>();
-    const u2 = new Set<string>();
-    const u3 = new Set<string>();
-    const toL1 = new Map<string, string>(); // any cat id -> its L1 ancestor
-    const toL2 = new Map<string, string>(); // any cat id -> its L2 ancestor (if any)
-    (products ?? []).forEach((p) => {
-      const cid = (p as { category_id: string | null }).category_id;
-      if (!cid) return;
-      let cur = map.get(cid);
-      let l1: string | null = null;
-      let l2: string | null = null;
-      let l3: string | null = null;
-      while (cur) {
-        if (cur.level === 1) l1 = cur.id;
-        if (cur.level === 2) l2 = cur.id;
-        if (cur.level === 3) l3 = cur.id;
-        cur = cur.parent_id ? map.get(cur.parent_id) : undefined;
-      }
-      if (l1) { u1.add(l1); toL1.set(cid, l1); }
-      if (l2) { u2.add(l2); toL2.set(cid, l2); }
-      if (l3) u3.add(l3);
-    });
-    return { usedL1: u1, usedL2: u2, usedL3: u3, productCatToL1: toL1, productCatToL2: toL2 };
-  }, [allCats, products]);
-
-  const l1List = (allCats ?? []).filter((c) => c.level === 1 && usedL1.has(c.id));
-  const l2List = selL1
-    ? (allCats ?? []).filter((c) => c.level === 2 && c.parent_id === selL1 && usedL2.has(c.id))
-    : [];
-  const l3List = selL2
-    ? (allCats ?? []).filter((c) => c.level === 3 && c.parent_id === selL2 && usedL3.has(c.id))
-    : [];
-
-  const filteredProducts = (products ?? []).filter((p) => {
-    const cid = (p as { category_id: string | null }).category_id;
-    if (!selL1) return true;
-    if (!cid) return false;
-    if (selL3) return cid === selL3;
-    if (selL2) return productCatToL2.get(cid) === selL2 || cid === selL2;
-    return productCatToL1.get(cid) === selL1 || cid === selL1;
   });
 
   const v = vendor ?? {};
@@ -194,63 +143,11 @@ function ShopPage() {
           </div>
         </section>
 
-        {l1List.length > 0 && (
-          <section className="mt-5 space-y-2">
-            <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex gap-2 pb-1">
-                <CatChip active={!selL1} onClick={() => { setSelL1(null); setSelL2(null); setSelL3(null); }}>{t("shop.cat_all")}</CatChip>
-                {l1List.map((c: any) => (
-                  <CatChip key={c.id} active={selL1 === c.id} onClick={() => { setSelL1(c.id); setSelL2(null); setSelL3(null); }}>
-                    {pickI18n(c.name, c.name_i18n, lang)}
-                  </CatChip>
-                ))}
-              </div>
-            </div>
-            {l2List.length > 0 && (
-              <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex gap-2 pb-1">
-                  {l2List.map((c: any) => (
-                    <CatChip key={c.id} active={selL2 === c.id} onClick={() => { setSelL2(selL2 === c.id ? null : c.id); setSelL3(null); }} small>
-                      {pickI18n(c.name, c.name_i18n, lang)}
-                    </CatChip>
-                  ))}
-                </div>
-              </div>
-            )}
-            {l3List.length > 0 && (
-              <div className="-mx-3 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex gap-2 pb-1">
-                  {l3List.map((c: any) => (
-                    <CatChip key={c.id} active={selL3 === c.id} onClick={() => setSelL3(selL3 === c.id ? null : c.id)} small>
-                      {pickI18n(c.name, c.name_i18n, lang)}
-                    </CatChip>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className="mt-4">
-          <h2 className="mb-3 text-base font-bold">
-            {selL1 ? t("shop.products_title") : t("shop.all_products_title")}
-            <span className="ml-2 text-xs font-normal text-muted-foreground">({filteredProducts.length})</span>
-          </h2>
-          {filteredProducts.length > 0 ? (
-            <ProductPricesProvider productIds={filteredProducts.map((p) => p.id)}>
-              <div className="grid-products">
-                {filteredProducts.map((p) => (
-                  <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
-                ))}
-              </div>
-            </ProductPricesProvider>
-          ) : (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {selL1 ? t("shop.empty_cat") : t("shop.empty_all")}
-            </p>
-          )}
-        </section>
-
+        <ShopProductsExplorer
+          products={products ?? []}
+          allCats={allCats ?? []}
+          onQuickAdd={setQuickAdd}
+        />
 
         {/* Discreet schedule footer */}
         <section className="mt-8 mb-6 rounded-xl border bg-muted/30 px-4 py-3">
@@ -276,7 +173,6 @@ function ShopPage() {
           </ul>
           {hours && <p className="mt-2 text-[11px] italic text-muted-foreground">{hours}</p>}
         </section>
-
       </main>
       <QuickAddSheet
         productId={quickAdd}
@@ -284,25 +180,5 @@ function ShopPage() {
         onOpenChange={(o) => !o && setQuickAdd(null)}
       />
     </div>
-  );
-}
-
-function CatChip({
-  children, active, onClick, small,
-}: { children: React.ReactNode; active?: boolean; onClick?: () => void; small?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`shrink-0 whitespace-nowrap rounded-full border transition active:scale-[0.98] ${
-        small ? "px-3 py-1 text-[11px]" : "px-3.5 py-1.5 text-xs"
-      } ${
-        active
-          ? "border-primary bg-primary text-primary-foreground font-semibold"
-          : "border-border bg-card text-foreground/80 hover:bg-accent"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

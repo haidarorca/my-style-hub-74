@@ -1475,6 +1475,8 @@ export type Database = {
               rule_id: string
             }[]
           }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       upsert_commission_rule: {
         Args: {
           _category_id?: string
