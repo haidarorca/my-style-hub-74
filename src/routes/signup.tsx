@@ -93,10 +93,13 @@ function SignupPage() {
     setLoading(false);
     if (profErr) {
       toast.error("Compte créé, mais profil incomplet : " + profErr.message);
+    }
+    if (!data.user.email_confirmed_at) {
+      setSignupSuccess(true);
     } else {
       toast.success("Compte créé !");
+      navigate({ to: "/" });
     }
-    navigate({ to: "/" });
   };
 
   return (
