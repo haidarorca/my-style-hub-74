@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent } from "lucide-react";
+import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
