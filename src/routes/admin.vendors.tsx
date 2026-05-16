@@ -196,9 +196,10 @@ function VendorsPage() {
       .sort((a, b) => {
         if (sortBy) {
           const pa = a.profiles, pb = b.profiles;
+          const sb = sortBy;
           const getVal = (p: typeof pa): string | number => {
             if (!p) return "";
-            switch (sortBy.col) {
+            switch (sb.col) {
               case "shop": return (p.shop_name ?? "").toLowerCase();
               case "vendor": return (p.full_name ?? "").toLowerCase();
               case "email": return (p.email ?? "").toLowerCase();
@@ -207,6 +208,7 @@ function VendorsPage() {
               case "type": return p.vendor_mode === "commission" ? "1" : "0";
               case "signup": return new Date(p.created_at ?? 0).getTime();
               case "endAccess": return p.access_ends_at ? new Date(p.access_ends_at).getTime() : 0;
+              default: return "";
             }
           };
           const va = getVal(pa), vb = getVal(pb);
