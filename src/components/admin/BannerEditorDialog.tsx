@@ -174,15 +174,15 @@ export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, o
         {!draft ? (
           <div className="rounded-xl border-2 border-dashed p-10 text-center">
             <Upload className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-            <p className="mb-3 text-sm text-muted-foreground">
-              Glissez une image ici ou choisissez un fichier depuis votre appareil
+            <p className="mb-1 text-sm text-muted-foreground">
+              Choisissez une image depuis votre galerie ou votre ordinateur
             </p>
+            <p className="mb-3 text-xs text-muted-foreground">JPG, PNG ou WEBP — max {MAX_SIZE_MB} Mo</p>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
               <Upload className="h-4 w-4" /> Choisir une image
               <input
                 type="file"
-                accept="image/*"
-                capture="environment"
+                accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleInitialUpload(e.target.files[0])}
               />
