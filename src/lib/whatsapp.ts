@@ -73,3 +73,42 @@ export function whatsappUrl(message: string): string {
   const number = (runtimeSettings.whatsapp_number || WHATSAPP_NUMBER).replace(/\D/g, "");
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Pick the right destination WhatsApp number for an order checkout.
+ * If the order contains commission items, route to the admin's dedicated
+ * commission WhatsApp number (falls back to the default site number if unset).
+ */
+export function whatsappUrlForOrder(message: string, opts: { isCommission: boolean }): string {
+  if (opts.isCommission && runtimeSettings.commission_whatsapp_number) {
+    const num = runtimeSettings.commission_whatsapp_number.replace(/\D/g, "");
+    if (num) return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
+  }
+  return whatsappUrl(message);
+}
+
+/** Build a vendor-facing forward message that contains NO customer PII. */
+export function buildVendorForwardMessage(
+  orderShortId: string,
+  lines: WhatsAppLine[],
+): string {
+  const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
+  let msg = "📦 *Commande à préparer*\n";
+  msg += `N° ${orderShortId}\n`;
+  msg += "_(commande plateforme — infos client gérées par l'admin)_\n\n";
+  let total = 0;
+  for (const it of lines) {
+    const lineTotal = it.unitPrice * it.quantity;
+    total += lineTotal;
+    msg += `• Code : ${it.code}\n`;
+    msg += `  Article : ${it.name}\n`;
+    if (it.size) msg += `  Taille : ${it.size}\n`;
+    if (it.color) msg += `  Couleur : ${it.color}\n`;
+    if (it.customization) msg += `  Personnalisation : ${it.customization}\n`;
+    msg += `  Quantité : ${it.quantity}\n`;
+    msg += `  Prix unitaire : ${fmt(it.unitPrice)}\n\n`;
+  }
+  msg += `Sous-total : ${fmt(total)}\n\n`;
+  msg += "Merci de préparer la commande. La livraison est gérée par la plateforme.";
+  return msg;
+}
