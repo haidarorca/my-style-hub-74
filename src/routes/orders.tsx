@@ -19,6 +19,7 @@ import {
   ExternalLink,
   StickyNote,
   X,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -45,6 +46,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { cn } from "@/lib/utils";
+import { ReviewDialog } from "@/components/orders/ReviewDialog";
+import { ReportDialog } from "@/components/orders/ReportDialog";
 
 export const Route = createFileRoute("/orders")({
   component: OrdersPage,
@@ -171,6 +174,12 @@ function OrdersPage() {
   const [openOrder, setOpenOrder] = useState<any | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     null | { kind: "cancel" | "received"; orderId: string }
+  >(null);
+  const [reviewTarget, setReviewTarget] = useState<null | { productId: string; productName: string; orderId: string }>(null);
+  const [reportTarget, setReportTarget] = useState<
+    null
+    | { type: "product"; productId: string; orderId: string; name: string }
+    | { type: "vendor"; vendorId: string; orderId: string; name: string }
   >(null);
 
   const { data: orders, isLoading } = useQuery({
@@ -472,17 +481,7 @@ function OrdersPage() {
                         <Home className="mr-1.5 h-4 w-4" /> Confirmer la réception
                       </Button>
                     )}
-                    {canReview && (
-                      <Link
-                        to="/product/$productId"
-                        params={{ productId: openOrder.items[0].product_id }}
-                        className="col-span-2"
-                      >
-                        <Button variant="default" className="w-full rounded-xl">
-                          <Star className="mr-1.5 h-4 w-4" /> Laisser un avis
-                        </Button>
-                      </Link>
-                    )}
+                    {/* Avis et signalements visibles UNIQUEMENT après livraison, par article */}
                     {canCancel && (
                       <Button
                         variant="outline"
@@ -539,16 +538,34 @@ function OrdersPage() {
                               </div>
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                             </Link>
-                            {wa && (
-                              <a
-                                href={buildWa(wa, openOrder.id, v.shop_name)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                              >
-                                <MessageCircle className="h-3 w-3" /> WhatsApp
-                              </a>
-                            )}
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {wa && (
+                                <a
+                                  href={buildWa(wa, openOrder.id, v.shop_name)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                                >
+                                  <MessageCircle className="h-3 w-3" /> WhatsApp
+                                </a>
+                              )}
+                              {canReview && (
+                                <button
+                                  onClick={() =>
+                                    setReportTarget({
+                                      type: "vendor",
+                                      vendorId: v.id,
+                                      orderId: openOrder.id,
+                                      name: v.shop_name ?? v.full_name ?? "Boutique",
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+                                  title="Signaler ce vendeur"
+                                >
+                                  <Flag className="h-3 w-3" /> Signaler
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <ul>
                             {vendorItems.map((it: any) => (
@@ -597,6 +614,36 @@ function OrdersPage() {
                                       {fmtFcfa(Number(it.unit_price) * it.quantity)}
                                     </span>
                                   </div>
+                                  {canReview && (
+                                    <div className="mt-2 flex gap-1.5">
+                                      <button
+                                        onClick={() =>
+                                          setReviewTarget({
+                                            productId: it.product_id,
+                                            productName: it.product_name,
+                                            orderId: openOrder.id,
+                                          })
+                                        }
+                                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                                      >
+                                        <Star className="h-3 w-3" /> Laisser un avis
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          setReportTarget({
+                                            type: "product",
+                                            productId: it.product_id,
+                                            orderId: openOrder.id,
+                                            name: it.product_name,
+                                          })
+                                        }
+                                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:border-rose-500/40 hover:text-rose-600"
+                                        title="Signaler ce produit"
+                                      >
+                                        <Flag className="h-3 w-3" /> Signaler
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </li>
                             ))}
@@ -689,6 +736,31 @@ function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {reviewTarget && (
+        <ReviewDialog
+          open={!!reviewTarget}
+          onOpenChange={(v) => !v && setReviewTarget(null)}
+          productId={reviewTarget.productId}
+          productName={reviewTarget.productName}
+          orderId={reviewTarget.orderId}
+          userId={user.id}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ["my-orders"] })}
+        />
+      )}
+
+      {reportTarget && (
+        <ReportDialog
+          open={!!reportTarget}
+          onOpenChange={(v) => !v && setReportTarget(null)}
+          type={reportTarget.type}
+          productId={reportTarget.type === "product" ? reportTarget.productId : undefined}
+          vendorId={reportTarget.type === "vendor" ? reportTarget.vendorId : undefined}
+          orderId={reportTarget.orderId}
+          targetName={reportTarget.name}
+          reporterId={user.id}
+        />
+      )}
     </div>
   );
 }

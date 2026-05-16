@@ -698,26 +698,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          product_id: string
+          order_id: string | null
+          product_id: string | null
           reason: string
+          reason_category: string | null
+          report_type: string
           reporter_id: string
           status: Database["public"]["Enums"]["report_status"]
+          vendor_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
-          product_id: string
+          order_id?: string | null
+          product_id?: string | null
           reason: string
+          reason_category?: string | null
+          report_type?: string
           reporter_id: string
           status?: Database["public"]["Enums"]["report_status"]
+          vendor_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
-          product_id?: string
+          order_id?: string | null
+          product_id?: string | null
           reason?: string
+          reason_category?: string | null
+          report_type?: string
           reporter_id?: string
           status?: Database["public"]["Enums"]["report_status"]
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -742,6 +754,7 @@ export type Database = {
           created_at: string
           id: string
           order_id: string | null
+          photos: string[]
           product_id: string
           rating: number
           updated_at: string
@@ -752,6 +765,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id?: string | null
+          photos?: string[]
           product_id: string
           rating: number
           updated_at?: string
@@ -762,6 +776,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id?: string | null
+          photos?: string[]
           product_id?: string
           rating?: number
           updated_at?: string
