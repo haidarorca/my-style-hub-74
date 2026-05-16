@@ -29,6 +29,7 @@ type VendorProfile = {
   vendor_mode: "commission" | "no_commission";
   ships_internationally: boolean;
   allowed_destination_country_ids: string[] | null;
+  is_verified: boolean | null;
 };
 type VendorRow = { user_id: string; profiles: VendorProfile | null };
 
@@ -43,7 +44,7 @@ function VendorsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids)")
+        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids, is_verified)")
         .eq("role", "vendeur");
       if (error) throw error;
       return (data ?? []) as unknown as VendorRow[];
@@ -92,6 +93,14 @@ function VendorsPage() {
       toast.success("Supprimé");
       qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     } catch (e) { toast.error((e as Error).message); }
+  }
+
+  async function toggleVerified(v: VendorRow) {
+    const next = !v.profiles?.is_verified;
+    const { error } = await supabase.from("profiles").update({ is_verified: next }).eq("id", v.user_id);
+    if (error) return toast.error(error.message);
+    toast.success(next ? "Boutique validée" : "Validation retirée");
+    qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
   }
 
   return (
@@ -145,7 +154,14 @@ function VendorsPage() {
                     <Store className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{v.profiles?.shop_name || v.profiles?.full_name || "—"}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{v.profiles?.shop_name || v.profiles?.full_name || "—"}</span>
+                      {v.profiles?.is_verified ? (
+                        <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Validée</span>
+                      ) : (
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">En attente</span>
+                      )}
+                    </div>
                     <div className="truncate text-xs text-muted-foreground">
                       {v.profiles?.email}
                       {" • "}
@@ -154,6 +170,14 @@ function VendorsPage() {
                       {v.profiles?.ships_internationally ? "International" : "Local seulement"}
                     </div>
                   </div>
+                  <Button
+                    variant={v.profiles?.is_verified ? "outline" : "default"}
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full text-xs"
+                    onClick={() => toggleVerified(v)}
+                  >
+                    {v.profiles?.is_verified ? "Retirer" : "Valider"}
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => setEditing(v)} aria-label="Modifier">
                     <Pencil className="h-4 w-4" />
                   </Button>
