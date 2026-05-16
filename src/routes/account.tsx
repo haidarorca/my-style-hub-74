@@ -84,6 +84,7 @@ function AccountPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const { data: countriesList } = useCountries({ onlyEnabled: true });
   const labelOfCountry = useCountryLabel();
   const { countryId: deliveryCountryId, setCountryId: setDeliveryCountryId } = useDeliveryCountry();
