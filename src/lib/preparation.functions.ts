@@ -198,11 +198,15 @@ export const getVendorPreparation = createServerFn({ method: "POST" })
 
     const groups = buildGroups((items ?? []) as ItemRow[], orderMap, new Map(), "vendor");
 
+    // Only return orders that contain at least one item belonging to this vendor.
+    const vendorOrderIds = new Set<string>((items ?? []).map((i) => i.order_id));
+    const filteredOrders = Array.from(orderMap.values()).filter((o) => vendorOrderIds.has(o.id));
+
     return {
       mode: "vendor",
       groups,
-      orders: Array.from(orderMap.values()),
-      skipped_orders: data.order_ids.length - validIds.length,
+      orders: filteredOrders,
+      skipped_orders: data.order_ids.length - vendorOrderIds.size,
     };
   });
 

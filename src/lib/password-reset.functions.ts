@@ -15,7 +15,7 @@ const SendSchema = z.object({
 const VerifySchema = z.object({
   email: z.string().email().max(255),
   code: z.string().regex(/^\d{4}$/),
-  newPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(8).max(200),
 });
 
 function hashCode(email: string, code: string): string {

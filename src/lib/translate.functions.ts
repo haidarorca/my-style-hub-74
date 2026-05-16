@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const TARGETS: Record<string, string> = {
   fr: "French",
@@ -34,6 +35,7 @@ async function callGateway(prompt: string, apiKey: string): Promise<string | nul
  * Translate a short piece of e-commerce text via Lovable AI Gateway.
  */
 export const translateText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => inputSchema.parse(input))
   .handler(async ({ data }) => {
     if (data.from === data.to) return { text: data.text };
@@ -90,6 +92,7 @@ function safeParseJson(raw: string): Record<string, unknown> | null {
  * Returns a partial map per language. Empty strings are dropped.
  */
 export const translateProductFields = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => productSchema.parse(input))
   .handler(async ({ data }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
@@ -147,6 +150,7 @@ const categorySchema = z.object({ name: z.string().min(1).max(200) });
  * Translate a category name into EN + AR in a single AI call.
  */
 export const translateCategoryName = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => categorySchema.parse(input))
   .handler(async ({ data }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
