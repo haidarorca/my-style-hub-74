@@ -49,25 +49,36 @@ export function ReviewsSection({ productId }: { productId: string }) {
   const [editRating, setEditRating] = useState(5);
 
   const { data: reviews } = useQuery({
-    queryKey: ["reviews", productId],
+    queryKey: ["reviews", productId, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("product_reviews")
-        .select("id, rating, comment, created_at, user_id, order_id")
+        .from("public_product_reviews" as never)
+        .select("id, rating, comment, created_at, is_verified")
         .eq("product_id", productId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const rows = data ?? [];
-      const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-      const profilesMap = new Map<string, { full_name: string | null; email: string | null }>();
-      if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .in("id", userIds);
-        (profs ?? []).forEach((p) => profilesMap.set(p.id, { full_name: p.full_name, email: p.email }));
+      const rows = (data ?? []) as Array<{
+        id: string;
+        rating: number;
+        comment: string | null;
+        created_at: string;
+        is_verified: boolean;
+      }>;
+      // Overlay ownership for current user (RLS already allows reading own rows from the base table)
+      let ownIds = new Set<string>();
+      if (user) {
+        const { data: own } = await supabase
+          .from("product_reviews")
+          .select("id")
+          .eq("product_id", productId)
+          .eq("user_id", user.id);
+        ownIds = new Set((own ?? []).map((r) => r.id));
       }
-      return rows.map((r) => ({ ...r, profiles: profilesMap.get(r.user_id) ?? null })) as Review[];
+      return rows.map((r) => ({
+        ...r,
+        is_own: ownIds.has(r.id),
+        author_name: ownIds.has(r.id) ? "Vous" : "Client",
+      })) as Review[];
     },
   });
 
