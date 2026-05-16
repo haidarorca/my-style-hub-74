@@ -1,89 +1,109 @@
-# Refonte de la page Admin → Vendeurs
+# Refonte du système de bannières
 
-Améliorer `src/routes/admin.vendors.tsx` (pas de nouvelle page) avec un tableau pro, filtres, statuts de compte, et gestion flexible de la durée d'accès.
+## Objectif
+Remplacer la gestion actuelle (upload + lien + ordre) par un véritable éditeur de bannières e-commerce avec recadrage par viewport, contenu (titre/description/CTA), et configuration du slider.
 
-## 1. Base de données (migration)
+## 1. Schéma BDD (migration)
 
-Ajouter sur `profiles` (le profil vendeur) :
-- `vendor_status` : enum `vendor_account_status` = `active | pending | suspended | expired | blocked`
-- `access_starts_at` : timestamptz (date de début d'accès)
-- `access_ends_at` : timestamptz null (date de fin ; null = illimité)
-- `access_started_at`, `blocked_at`, `suspended_at` : timestamptz pour l'historique
-- `blocked_reason`, `suspended_reason` : text
+Étendre `home_banners` :
 
-Logique :
-- Trigger BEFORE INSERT/UPDATE qui met `vendor_status = 'expired'` si `access_ends_at < now()` et que statut courant est `active`.
-- Cron `pg_cron` toutes les heures : `UPDATE profiles SET vendor_status='expired' WHERE access_ends_at < now() AND vendor_status='active'`.
-- RLS produits déjà existante (`is_verified` + status approved). On ajoute condition : le vendeur doit être `vendor_status IN ('active')` pour que ses produits/boutique soient publics. Idem `profiles_public_shop_read`.
-- Politique INSERT produits : bloquer si `vendor_status != 'active'` (via fonction `can_vendor_operate(uid)`).
-- Politique INSERT orders/order_items côté vendeur : bloquer nouvelles commandes si vendeur non-actif (via vérification dans `can_insert_order_item` ou trigger sur `order_items`).
+```text
+home_banners
+├─ image_url              (existant)
+├─ title, title_i18n      (existant — réutilisé pour titre overlay)
+├─ link_url               (existant — réutilisé pour CTA)
+├─ position, enabled      (existant)
+├─ subtitle, subtitle_i18n        text / jsonb     (nouveau)
+├─ cta_label, cta_label_i18n      text / jsonb     (nouveau)
+├─ text_align              text   'left'|'center'|'right'   default 'left'
+├─ text_color              text   default '#ffffff'
+├─ overlay_opacity         numeric (0..1) default 0.35
+├─ height_mobile           int    default 220   (px)
+├─ height_tablet           int    default 320
+├─ height_desktop          int    default 480
+├─ object_fit              text   'cover'|'contain'|'fill'   default 'cover'
+├─ focal_x                 numeric (0..1) default 0.5    -- position image
+├─ focal_y                 numeric (0..1) default 0.5
+├─ zoom                    numeric default 1.0          -- 1.0 .. 3.0
+├─ rotation                int    default 0             -- 0/90/180/270
+├─ image_url_mobile        text   nullable   -- override mobile
+└─ image_url_tablet        text   nullable
 
-Backfill : tous les vendeurs vérifiés → `active`, non vérifiés → `pending`.
+site_settings (slider config global) — nouveaux champs :
+├─ banner_autoplay         boolean default true
+├─ banner_interval_ms      int     default 4500
+├─ banner_transition       text    'fade'|'slide'  default 'slide'
+├─ banner_show_arrows      boolean default true
+└─ banner_show_dots        boolean default true
+```
 
-## 2. Server functions
+Toutes les colonnes sont nullable / ont un default → pas de rupture avec les bannières existantes.
 
-`src/lib/admin-vendor-status.functions.ts` :
-- `setVendorStatus({ user_id, status, reason? })` — admin-only (`requireSupabaseAuth` + check role admin)
-- `extendVendorAccess({ user_id, ends_at })` — set fin d'accès
-- `setVendorAccessWindow({ user_id, starts_at, ends_at })`
-- Toutes via `supabaseAdmin` après vérification du rôle admin.
+## 2. UI Admin — `BannersManager` (refonte)
 
-## 3. UI — `src/routes/admin.vendors.tsx`
+Nouvelle structure dans `src/routes/admin.settings.tsx` (composant extrait dans `src/components/admin/BannersManager.tsx`) :
 
-Remplacer la liste actuelle par un **tableau responsive** (shadcn `Table`) avec colonnes :
-Boutique · Vendeur · Email · Téléphone · Pays/Ville · Statut · Type · Inscrit le · Fin d'accès · Produits · Commandes · Actions
+- **Liste** : cartes draggables (réordonner via boutons ↑↓ + drag handle), toggle activer/désactiver, badge ordre.
+- **Bouton "Nouvelle bannière"** → ouvre `BannerEditorDialog`.
+- **Bouton "Paramètres du slider"** → modal de réglages globaux (autoplay, vitesse, flèches, dots, transition).
 
-**Toolbar de filtres** (au-dessus du tableau) :
-- Recherche texte (email, nom boutique)
-- Select pays (depuis `useCountries`)
-- Select statut (les 5)
-- Select type (commission / sans / tous)
-- Range dates inscription (popover calendar)
-- Range dates fin d'accès
+### `BannerEditorDialog` (cœur de la feature)
 
-Filtrage côté client sur la liste chargée (tri par date_inscription desc par défaut).
+Dialog plein écran avec 3 onglets :
 
-**Counts** : query agrégée
-- `products` count par vendor_id (status='approved' uniquement, ou total ? → total)
-- `orders` count via `order_items` distincts order_id par vendor_id
+**Onglet 1 — Image**
+- Upload (drag & drop + bouton mobile/desktop).
+- Éditeur visuel (viewport simulé 16/9 par défaut) :
+  - Zoom slider (0.5x → 3x)
+  - Rotation (boutons 90°)
+  - Position image : drag sur le canvas → met à jour focal_x / focal_y (point focal CSS `object-position`)
+  - Sélecteur ratio prévisualisation (mobile/tablette/desktop)
+- Mode d'affichage : cover / contain / fill
+- Upload optionnel d'une variante **mobile** et **tablette** (pour images différentes par device).
 
-Une seule requête `select` enrichie + 2 RPC/views légères, ou simple post-fetch agrégé.
+**Onglet 2 — Contenu**
+- Titre, sous-titre, libellé du bouton, URL de redirection
+- Alignement du texte (gauche/centre/droite)
+- Couleur du texte + opacité de l'overlay sombre (slider)
 
-**Actions par ligne** (DropdownMenu) :
-- Activer / Réactiver (status → active, set access_ends_at si vide = +30j ou null)
-- Suspendre (modal raison)
-- Bloquer (modal raison)
-- Modifier (réutilise `EditVendorDialog` existant)
-- Voir les produits → `/admin/products?vendor=:id`
-- Voir les commandes → `/admin/orders?vendor=:id`
-- Supprimer (confirmation)
-- **Prolonger l'accès** (modal dédié)
+**Onglet 3 — Dimensions**
+- Hauteur en px par breakpoint : mobile / tablette / desktop (sliders 120-800).
+- Aperçu en direct des 3 viewports côte à côte.
 
-**Modal "Prolonger l'accès"** :
-- Date début (DatePicker) — readonly si déjà set, sinon now
-- Mode : "Durée prédéfinie" (7j / 30j / 90j / 6 mois / 1 an / illimité) OU "Durée personnalisée" (input number + unité jours) OU "Date de fin précise" (DatePicker)
-- Bouton "Appliquer"
+Footer du dialog : "Annuler" / "Enregistrer". L'aperçu utilise le même composant `<BannerSlide>` que le front (cf. §3) pour garantir un rendu fidèle.
 
-Badges de statut colorés :
-- Actif vert, En attente ambre, Suspendu orange, Expiré gris, Bloqué rouge
+## 3. Front — `HeroCarousel` (refonte)
 
-## 4. Effets côté boutique publique
+`src/components/home/HeroCarousel.tsx` réécrit :
 
-Mise à jour de `profiles_public_shop_read` et `products_public_read_approved` pour exiger `vendor_status = 'active'`. Le vendeur lui-même voit toujours ses produits dans son dashboard, avec bandeau "Compte expiré/suspendu/bloqué — contacter l'admin".
+- Utilise embla-carousel-react (déjà standard dans shadcn) → flèches, dots, autoplay, transition fade/slide selon `site_settings`.
+- Sélection automatique de `image_url_mobile/tablet/desktop` selon breakpoint (avec fallback).
+- Chaque slide rendu par `<BannerSlide banner={…} />` partagé entre admin (preview) et front :
+  - `height` selon viewport (CSS responsive via classes Tailwind dynamiques + style inline pour les valeurs sur-mesure)
+  - `object-fit` + `object-position: ${focal_x*100}% ${focal_y*100}%`
+  - `transform: scale(zoom) rotate(rotation)`
+  - Overlay assombri configurable
+  - Titre / sous-titre / CTA (bouton primary) avec alignement
+  - Lien cliquable sur toute la slide si `link_url` sans CTA
 
-`src/routes/vendor.index.tsx` : ajouter bandeau si statut ≠ active (réutiliser le bandeau "en attente" existant, le généraliser).
+Le carrousel se masque si aucune bannière activée.
+
+## 4. Dépendances
+
+- `react-easy-crop` (~16 kB gzip) pour le canvas drag/zoom intuitif — alternative légère à un crop maison.
+- (embla-carousel-react est déjà inclus via shadcn `Carousel`.)
 
 ## 5. Fichiers touchés
 
-Migration :
-- `supabase/migrations/..._vendor_account_status.sql`
-
-Code :
-- `src/lib/admin-vendor-status.functions.ts` (nouveau)
-- `src/routes/admin.vendors.tsx` (refonte)
-- `src/routes/vendor.index.tsx` (bandeau généralisé)
-- `src/integrations/supabase/types.ts` (régénéré auto)
+- **migration SQL** : ALTER `home_banners` + `site_settings`
+- **nouveau** `src/components/admin/BannersManager.tsx`
+- **nouveau** `src/components/admin/BannerEditorDialog.tsx`
+- **nouveau** `src/components/home/BannerSlide.tsx` (rendu partagé)
+- **modifié** `src/components/home/HeroCarousel.tsx`
+- **modifié** `src/routes/admin.settings.tsx` (remplace `BannersManager` inline)
+- **modifié** `src/hooks/use-site-settings.ts` (étendre type `HomeBanner` + lire nouveaux champs site_settings)
 
 ## Notes
-- L'admin existant peut déjà créer/éditer/supprimer ; je conserve `createVendor` / `updateVendor` / `deleteVendor`.
-- Le bouton "Valider/Retirer" (`is_verified`) reste mais devient un raccourci vers "Activer" si on veut unifier — je le garde séparé : `is_verified` = boutique visible publiquement, `vendor_status` = état du compte. Les deux conditions doivent être vraies pour apparaître sur le site.
+- Le recadrage est non-destructif : on stocke focal/zoom/rotation, l'image originale reste intacte → on peut re-régler à tout moment.
+- Aucune fonction serveur nécessaire : tout passe par le client Supabase + RLS admin existante.
+- Pas de changement aux RLS (lecture publique déjà OK).
