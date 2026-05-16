@@ -822,6 +822,8 @@ const en: Dict = {
   "vendor.orders": "Orders",
   "vendor.orders.empty": "No orders to process",
   "vendor.notifications": "Notifications",
+  "vendor.reviews": "Reviews",
+  "vendor.reports": "Reports",
   "vendor.messages": "Customer messages",
   "vendor.settings": "Shop settings",
   "vendor.settings.shop_name": "Shop name",
