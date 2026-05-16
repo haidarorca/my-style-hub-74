@@ -68,7 +68,7 @@ function Dashboard() {
         profiles: { shop_name: string | null; full_name: string | null; email: string | null } | null;
       }>;
       const ids = list.map((v) => v.user_id);
-      let countsByVendor: Record<string, { total: number; approved: number; pending: number }> = {};
+      const countsByVendor: Record<string, { total: number; approved: number; pending: number }> = {};
       if (ids.length > 0) {
         const { data: prods } = await supabase
           .from("products")
