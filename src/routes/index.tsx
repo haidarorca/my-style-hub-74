@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
 
 const ALL = "__all__";
 
-function Home() {
+export function Home() {
   const [universeId, setUniverseId] = useState<string>(ALL);
   const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
   const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Route as HomeRoute } from "./index";
+import { Home } from "./index";
 
 // Alias : /index rend la même page d'accueil que /
 export const Route = createFileRoute("/index")({
-  component: HomeRoute.options.component,
+  component: Home,
 });
