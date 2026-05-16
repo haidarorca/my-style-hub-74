@@ -47,6 +47,7 @@ function VendorOrders() {
   const qc = useQueryClient();
   const [zoomImg, setZoomImg] = useState<string | null>(null);
   const [historyOrderId, setHistoryOrderId] = useState<string | null>(null);
+  const [detailsOrder, setDetailsOrder] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [page, setPage] = useState(0);
