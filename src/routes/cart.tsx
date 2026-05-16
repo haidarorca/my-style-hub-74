@@ -297,7 +297,7 @@ function CartPage() {
       });
       groups.push({
         id: "admin-commission",
-        label: "Administration (commande plateforme)",
+        label: t("checkout.admin_group_label"),
         whatsappNumber: settings.commission_whatsapp_number ?? null,
         message: msg,
         isAdmin: true,
