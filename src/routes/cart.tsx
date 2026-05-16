@@ -328,7 +328,7 @@ function CartPage() {
   return (
     <div className="min-h-screen bg-background pb-32">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-[var(--page-px)] py-3">
+      <main className="mx-auto max-w-3xl px-[var(--page-px)] py-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <BackButton fallbackTo="/" />
         <h1 className="mb-3 mt-2 text-lg font-bold">{t("cart.title")}</h1>
 
