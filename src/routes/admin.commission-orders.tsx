@@ -289,10 +289,15 @@ function CommissionOrders() {
       {selected.size > 0 && (
         <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
           <span className="text-sm font-semibold text-primary">
-            {selected.size} commande{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}
+            {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
           </span>
-          <Button size="sm" className="ml-auto gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
-            <SendIcon className="h-4 w-4" /> Envoyer groupé aux vendeurs
+          <Button asChild size="sm" className="ml-auto gap-1">
+            <Link to="/admin/preparation" search={{ ids: Array.from(selected).join(",") }}>
+              <ClipboardList className="h-4 w-4" /> Préparation groupée
+            </Link>
+          </Button>
+          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
+            <SendIcon className="h-4 w-4" /> Envoyer aux vendeurs
           </Button>
           <Button size="sm" variant="ghost" onClick={clearSelection}>
             <X className="h-4 w-4" />
@@ -300,14 +305,28 @@ function CommissionOrders() {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher client, téléphone, ville, n° commande…"
-          className="pl-8"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher client, téléphone, ville, n° commande…"
+            className="pl-8"
+          />
+        </div>
+        <Select value={vendorFilter} onValueChange={setVendorFilter}>
+          <SelectTrigger className="sm:w-[220px]">
+            <Store className="h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Tous les vendeurs" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les vendeurs</SelectItem>
+            {(vendorsList ?? []).map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="-mx-3 overflow-x-auto px-3">
