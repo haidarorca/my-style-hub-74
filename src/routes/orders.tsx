@@ -481,17 +481,7 @@ function OrdersPage() {
                         <Home className="mr-1.5 h-4 w-4" /> Confirmer la réception
                       </Button>
                     )}
-                    {canReview && (
-                      <Link
-                        to="/product/$productId"
-                        params={{ productId: openOrder.items[0].product_id }}
-                        className="col-span-2"
-                      >
-                        <Button variant="default" className="w-full rounded-xl">
-                          <Star className="mr-1.5 h-4 w-4" /> Laisser un avis
-                        </Button>
-                      </Link>
-                    )}
+                    {/* Avis et signalements visibles UNIQUEMENT après livraison, par article */}
                     {canCancel && (
                       <Button
                         variant="outline"
