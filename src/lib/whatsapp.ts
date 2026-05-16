@@ -87,6 +87,14 @@ export function whatsappUrlForOrder(message: string, opts: { isCommission: boole
   return whatsappUrl(message);
 }
 
+/** Build a WhatsApp URL to an arbitrary phone number. Falls back to the
+ * site default number when the provided one is missing/invalid. */
+export function whatsappUrlTo(rawNumber: string | null | undefined, message: string): string {
+  const num = (rawNumber ?? "").replace(/\D/g, "");
+  if (num) return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
+  return whatsappUrl(message);
+}
+
 /** Build a vendor-facing forward message that contains NO customer PII. */
 export function buildVendorForwardMessage(
   orderShortId: string,

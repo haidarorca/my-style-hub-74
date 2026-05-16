@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { BackButton } from "@/components/layout/BackButton";
 import { EditableLabel } from "@/components/admin/EditableLabel";
-import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check } from "lucide-react";
+import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,22 @@ import {
 import { useCart, clearGuestCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { buildWhatsAppMessage, whatsappUrlForOrder, type WhatsAppLine } from "@/lib/whatsapp";
+import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { useSiteSettings } from "@/hooks/use-site-settings";
+
+interface DispatchGroup {
+  id: string;
+  label: string;
+  whatsappNumber: string | null;
+  message: string;
+  isAdmin: boolean;
+}
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
@@ -60,9 +69,12 @@ function CartPage() {
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
+  const settings = useSiteSettings();
   const router = useRouter();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -225,7 +237,73 @@ function CartPage() {
     return data as Address;
   };
 
-  const submitOrder = async (openWhatsApp: boolean) => {
+  const isCommissionItem = (it: any): boolean => {
+    const productId = it.products?.id ?? it.product_id;
+    const key = `${productId}:${it.variant_id ?? ""}`;
+    return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
+  };
+
+  const lineFor = (it: any): WhatsAppLine => ({
+    shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
+    code: it.products?.code ?? "",
+    name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
+    size: it.product_variants?.size ?? null,
+    color: it.product_variants?.color ?? null,
+    customization: customizationSummary(it.customization),
+    quantity: it.quantity,
+    unitPrice: unitPrice(it),
+  });
+
+  const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
+    const groups: DispatchGroup[] = [];
+    // 1) Per non-commission vendor — each gets only their items, with full customer info, sent to their shop_whatsapp
+    const byVendor = new Map<string, any[]>();
+    const commissionItems: any[] = [];
+    for (const it of items) {
+      if (isCommissionItem(it)) commissionItems.push(it);
+      else {
+        const vid = (it as any).products?.vendor_id;
+        if (!vid) continue;
+        if (!byVendor.has(vid)) byVendor.set(vid, []);
+        byVendor.get(vid)!.push(it);
+      }
+    }
+    for (const [vid, vItems] of byVendor) {
+      const first = vItems[0] as any;
+      const shopName = first.products?.profiles?.shop_name || first.products?.profiles?.full_name || t("product.shop");
+      const wa = first.products?.profiles?.shop_whatsapp ?? null;
+      const msg = buildWhatsAppMessage(vItems.map(lineFor), {
+        name: addr.full_name,
+        phone: addr.phone,
+        address: addr.address,
+        city: addr.city,
+        note: addr.note,
+        orderId,
+      });
+      groups.push({ id: `vendor-${vid}`, label: shopName, whatsappNumber: wa, message: msg, isAdmin: false });
+    }
+    // 2) Single admin group for all commission items
+    if (commissionItems.length > 0) {
+      const msg = buildWhatsAppMessage(commissionItems.map(lineFor), {
+        name: addr.full_name,
+        phone: addr.phone,
+        address: addr.address,
+        city: addr.city,
+        note: addr.note,
+        orderId,
+      });
+      groups.push({
+        id: "admin-commission",
+        label: "Administration (commande plateforme)",
+        whatsappNumber: settings.commission_whatsapp_number ?? null,
+        message: msg,
+        isAdmin: true,
+      });
+    }
+    return groups;
+  };
+
+  const submitOrder = async () => {
     if (items.length === 0) return;
     if (!destinationCountryId) {
       toast.error("Sélectionnez le pays de livraison.");
@@ -236,7 +314,6 @@ function CartPage() {
       const addr = await resolveAddress();
       if (!addr) { setSubmitting(false); return; }
 
-      // Block when the saved address country differs from the chosen delivery country.
       if (
         user && mode === "saved" &&
         addr.destination_country_id &&
@@ -265,10 +342,9 @@ function CartPage() {
           destination_country_id: destinationCountryId,
         } as any);
       if (oErr) throw oErr;
-      const order = { id: orderId };
 
       const rows = items.map((it: any) => ({
-        order_id: order.id,
+        order_id: orderId,
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -285,43 +361,18 @@ function CartPage() {
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) throw iErr;
 
+      // Build dispatch groups BEFORE clearing the cart
+      const groups = buildDispatchGroups(orderId, addr);
+
       if (user) {
         await supabase.from("cart_items").delete().eq("user_id", user.id);
       } else {
         clearGuestCart();
       }
       refresh();
-      setCheckoutOpen(false);
       toast.success(t("checkout.order_saved_pending"));
-      if (user) router.navigate({ to: "/orders" });
-      else router.navigate({ to: "/" });
-
-      if (openWhatsApp) {
-        const lines: WhatsAppLine[] = items.map((it: any) => ({
-          shopName: it.products?.profiles?.shop_name || it.products?.profiles?.full_name || t("product.shop"),
-          code: it.products?.code ?? "",
-          name: pickI18n(it.products?.name ?? "", it.products?.name_i18n, lang),
-          size: it.product_variants?.size ?? null,
-          color: it.product_variants?.color ?? null,
-          customization: customizationSummary(it.customization),
-          quantity: it.quantity,
-          unitPrice: unitPrice(it),
-        }));
-        const msg = buildWhatsAppMessage(lines, {
-          name: addr.full_name,
-          phone: addr.phone,
-          address: addr.address,
-          city: addr.city,
-          note: addr.note,
-          orderId: order.id,
-        });
-        const hasCommission = items.some((it: any) => {
-          const productId = it.products?.id ?? it.product_id;
-          const key = `${productId}:${it.variant_id ?? ""}`;
-          return (displayPriceLines.get(key)?.commission_amount ?? 0) > 0;
-        });
-        window.open(whatsappUrlForOrder(msg, { isCommission: hasCommission }), "_blank");
-      }
+      setSentIds(new Set());
+      setDispatch({ groups, orderId });
     } catch (e) {
       console.error(e);
       toast.error(t("checkout.order_save_error"));
@@ -329,6 +380,19 @@ function CartPage() {
       setSubmitting(false);
     }
   };
+
+  const sendDispatch = (g: DispatchGroup) => {
+    window.open(whatsappUrlTo(g.whatsappNumber, g.message), "_blank");
+    setSentIds((s) => new Set(s).add(g.id));
+  };
+
+  const finishDispatch = () => {
+    setDispatch(null);
+    setCheckoutOpen(false);
+    if (user) router.navigate({ to: "/orders" });
+    else router.navigate({ to: "/" });
+  };
+
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -416,8 +480,71 @@ function CartPage() {
         </div>
       )}
 
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+      <Dialog
+        open={checkoutOpen}
+        onOpenChange={(o) => {
+          if (!o && dispatch) { finishDispatch(); return; }
+          setCheckoutOpen(o);
+        }}
+      >
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          {dispatch ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Envoyer votre commande sur WhatsApp</DialogTitle>
+                <DialogDescription>
+                  Votre commande #{dispatch.orderId.slice(0, 8)} est enregistrée. Envoyez-la maintenant à chaque destinataire ci-dessous.
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="mt-2 space-y-2">
+                {dispatch.groups.map((g) => {
+                  const sent = sentIds.has(g.id);
+                  return (
+                    <li key={g.id} className="rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-start gap-2">
+                        {g.isAdmin ? (
+                          <ShieldCheck className="mt-0.5 h-4 w-4 text-primary" />
+                        ) : (
+                          <Store className="mt-0.5 h-4 w-4 text-primary" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{g.label}</p>
+                          {g.isAdmin && (
+                            <p className="text-[11px] text-muted-foreground">Articles avec commission — gérés par la plateforme.</p>
+                          )}
+                          {!g.whatsappNumber && (
+                            <p className="text-[11px] text-destructive">Numéro WhatsApp non configuré — message envoyé sur le numéro du site.</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => sendDispatch(g)}
+                        className={cn(
+                          "mt-2 w-full",
+                          sent
+                            ? "bg-muted text-foreground hover:bg-muted/80"
+                            : "bg-[#25D366] text-white hover:bg-[#1ebe5a]",
+                        )}
+                      >
+                        {sent ? (
+                          <><Check className="h-4 w-4" /> Envoyé · renvoyer</>
+                        ) : (
+                          <><MessageCircle className="h-4 w-4" /> Envoyer sur WhatsApp</>
+                        )}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
+                <Button onClick={finishDispatch} variant="outline" className="w-full">
+                  Terminer
+                </Button>
+              </div>
+            </>
+          ) : (
+          <>
           <DialogHeader>
             <DialogTitle>{t("checkout.delivery_address")}</DialogTitle>
             <DialogDescription>
@@ -540,10 +667,12 @@ function CartPage() {
           )}
 
           <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
-            <Button onClick={() => submitOrder(true)} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
+            <Button onClick={() => submitOrder()} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
               {submitting ? t("checkout.submitting") : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel={t("checkout.confirm_whatsapp")} defaultSize="md" />}
             </Button>
           </div>
+          </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
