@@ -43,10 +43,23 @@ const VIEWPORTS = [
   { key: "desktop" as const, label: "Desktop", icon: Monitor, w: "max-w-full" },
 ];
 
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_SIZE_MB = 10;
+
 async function uploadImage(file: File, prefix: string): Promise<string | null> {
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${prefix}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from("site-assets").upload(path, file, { upsert: false });
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    toast.error("Format non supporté. Utilisez JPG, PNG ou WEBP.");
+    return null;
+  }
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    toast.error(`Image trop volumineuse (max ${MAX_SIZE_MB} Mo).`);
+    return null;
+  }
+  const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
+  const path = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage
+    .from("site-assets")
+    .upload(path, file, { upsert: false, contentType: file.type });
   if (error) {
     toast.error(error.message);
     return null;
