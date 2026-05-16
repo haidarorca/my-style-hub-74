@@ -25,7 +25,8 @@ export type AdminOrderItem = {
   unit_price: number;
   size: string | null;
   color: string | null;
-  customization: Record<string, unknown> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  customization: Record<string, any> | null;
   commission_amount: number;
 };
 
