@@ -24,7 +24,7 @@ function ShopPage() {
     queryKey: ["vendor", vendorId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("profiles")
+        .from("public_vendor_profiles")
         .select("*")
         .eq("id", vendorId)
         .maybeSingle();
