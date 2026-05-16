@@ -736,6 +736,31 @@ function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {reviewTarget && (
+        <ReviewDialog
+          open={!!reviewTarget}
+          onOpenChange={(v) => !v && setReviewTarget(null)}
+          productId={reviewTarget.productId}
+          productName={reviewTarget.productName}
+          orderId={reviewTarget.orderId}
+          userId={user.id}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ["my-orders"] })}
+        />
+      )}
+
+      {reportTarget && (
+        <ReportDialog
+          open={!!reportTarget}
+          onOpenChange={(v) => !v && setReportTarget(null)}
+          type={reportTarget.type}
+          productId={reportTarget.type === "product" ? reportTarget.productId : undefined}
+          vendorId={reportTarget.type === "vendor" ? reportTarget.vendorId : undefined}
+          orderId={reportTarget.orderId}
+          targetName={reportTarget.name}
+          reporterId={user.id}
+        />
+      )}
     </div>
   );
 }
