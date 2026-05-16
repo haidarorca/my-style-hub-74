@@ -92,6 +92,8 @@ function Dashboard() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
 
+      <TranslationSyncCard />
+
       <div className="space-y-1">
         <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
 
