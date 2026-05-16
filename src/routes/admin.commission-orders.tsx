@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Briefcase, Phone, MapPin, Search, MessageCircle, Send, Clock, CheckCircle2,
-  ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck,
+  ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
