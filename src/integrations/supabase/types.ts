@@ -1033,8 +1033,12 @@ export type Database = {
       }
       profiles: {
         Row: {
+          access_ends_at: string | null
+          access_starts_at: string | null
           address: string | null
           allowed_destination_country_ids: string[]
+          blocked_at: string | null
+          blocked_reason: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -1056,12 +1060,19 @@ export type Database = {
           shop_name: string | null
           shop_whatsapp: string | null
           source_country_id: string | null
+          suspended_at: string | null
+          suspended_reason: string | null
           updated_at: string
           vendor_mode: Database["public"]["Enums"]["vendor_mode"]
+          vendor_status: Database["public"]["Enums"]["vendor_account_status"]
         }
         Insert: {
+          access_ends_at?: string | null
+          access_starts_at?: string | null
           address?: string | null
           allowed_destination_country_ids?: string[]
+          blocked_at?: string | null
+          blocked_reason?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1083,12 +1094,19 @@ export type Database = {
           shop_name?: string | null
           shop_whatsapp?: string | null
           source_country_id?: string | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
+          vendor_status?: Database["public"]["Enums"]["vendor_account_status"]
         }
         Update: {
+          access_ends_at?: string | null
+          access_starts_at?: string | null
           address?: string | null
           allowed_destination_country_ids?: string[]
+          blocked_at?: string | null
+          blocked_reason?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1110,8 +1128,11 @@ export type Database = {
           shop_name?: string | null
           shop_whatsapp?: string | null
           source_country_id?: string | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
+          vendor_status?: Database["public"]["Enums"]["vendor_account_status"]
         }
         Relationships: [
           {
@@ -1381,6 +1402,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      vendor_is_active: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       admin_permission:
@@ -1399,6 +1421,12 @@ export type Database = {
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
       user_sex: "homme" | "femme"
+      vendor_account_status:
+        | "active"
+        | "pending"
+        | "suspended"
+        | "expired"
+        | "blocked"
       vendor_mode: "no_commission" | "commission"
     }
     CompositeTypes: {
@@ -1544,6 +1572,13 @@ export const Constants = {
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
       user_sex: ["homme", "femme"],
+      vendor_account_status: [
+        "active",
+        "pending",
+        "suspended",
+        "expired",
+        "blocked",
+      ],
       vendor_mode: ["no_commission", "commission"],
     },
   },
