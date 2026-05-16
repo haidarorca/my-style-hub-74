@@ -29,6 +29,7 @@ type VendorProfile = {
   vendor_mode: "commission" | "no_commission";
   ships_internationally: boolean;
   allowed_destination_country_ids: string[] | null;
+  is_verified: boolean | null;
 };
 type VendorRow = { user_id: string; profiles: VendorProfile | null };
 
