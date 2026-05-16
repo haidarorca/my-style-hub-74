@@ -1,109 +1,91 @@
-# Refonte du système de bannières
+# Plan d'optimisation globale
 
-## Objectif
-Remplacer la gestion actuelle (upload + lien + ordre) par un véritable éditeur de bannières e-commerce avec recadrage par viewport, contenu (titre/description/CTA), et configuration du slider.
+Volume cible : 100–1000 clients/produits/commandes. Architecture pensée pour scaler ×10 sans refactor.
 
-## 1. Schéma BDD (migration)
+## Étape 1 — Indexation base de données (impact immédiat)
 
-Étendre `home_banners` :
+Ajouter les index manquants sur les colonnes filtrées/triées dans toutes les pages admin et publiques :
 
-```text
-home_banners
-├─ image_url              (existant)
-├─ title, title_i18n      (existant — réutilisé pour titre overlay)
-├─ link_url               (existant — réutilisé pour CTA)
-├─ position, enabled      (existant)
-├─ subtitle, subtitle_i18n        text / jsonb     (nouveau)
-├─ cta_label, cta_label_i18n      text / jsonb     (nouveau)
-├─ text_align              text   'left'|'center'|'right'   default 'left'
-├─ text_color              text   default '#ffffff'
-├─ overlay_opacity         numeric (0..1) default 0.35
-├─ height_mobile           int    default 220   (px)
-├─ height_tablet           int    default 320
-├─ height_desktop          int    default 480
-├─ object_fit              text   'cover'|'contain'|'fill'   default 'cover'
-├─ focal_x                 numeric (0..1) default 0.5    -- position image
-├─ focal_y                 numeric (0..1) default 0.5
-├─ zoom                    numeric default 1.0          -- 1.0 .. 3.0
-├─ rotation                int    default 0             -- 0/90/180/270
-├─ image_url_mobile        text   nullable   -- override mobile
-└─ image_url_tablet        text   nullable
+- `products` : `(status, vendor_id)`, `(category_id) WHERE status='approved'`, `(created_at DESC)`, GIN sur `name_i18n`/`designation_i18n` pour recherche multilingue.
+- `orders` : `(buyer_id, created_at DESC)`, `(status, created_at DESC)`, `(destination_country_id)`, `(is_commission) WHERE is_commission=true`.
+- `order_items` : `(order_id)`, `(vendor_id, created_at DESC)`, `(product_id)`, `(buyer_id)`.
+- `profiles` : `(vendor_status, is_verified) WHERE vendor_status='active'`, `(source_country_id)`.
+- `user_roles` : `(role, is_suspended)`, `(user_id, role)` unique déjà partiel — vérifier.
+- `customer_addresses` : `(user_id, is_default DESC)`.
+- `notifications` : `(user_id, is_read, created_at DESC)`.
+- `product_reviews` : `(product_id, created_at DESC)`, `(user_id)`.
 
-site_settings (slider config global) — nouveaux champs :
-├─ banner_autoplay         boolean default true
-├─ banner_interval_ms      int     default 4500
-├─ banner_transition       text    'fade'|'slide'  default 'slide'
-├─ banner_show_arrows      boolean default true
-└─ banner_show_dots        boolean default true
-```
+## Étape 2 — Cache de traduction intelligent
 
-Toutes les colonnes sont nullable / ont un default → pas de rupture avec les bannières existantes.
+Problème actuel : `sync-translations` rescanne tout à chaque exécution même si rien n'a changé.
 
-## 2. UI Admin — `BannersManager` (refonte)
+Solution :
+- Ajouter colonne `content_hash text` sur `products`, `categories`, `countries` (hash MD5 du nom+désignation+description source).
+- Trigger BEFORE INSERT/UPDATE qui recalcule le hash.
+- Ajouter colonne `translated_hash text` qui stocke le hash au moment où `name_i18n`/`description_i18n` a été rempli.
+- Le scan ne traite QUE les lignes où `content_hash != translated_hash` OR `translated_hash IS NULL`.
+- Index partiel : `WHERE content_hash IS DISTINCT FROM translated_hash` pour scan O(diff) au lieu de O(total).
+- Garder la détection des « copies triviales » (3 langues identiques) déjà en place.
 
-Nouvelle structure dans `src/routes/admin.settings.tsx` (composant extrait dans `src/components/admin/BannersManager.tsx`) :
+Résultat : 2ᵉ exécution = 0 appel IA si rien n'a bougé.
 
-- **Liste** : cartes draggables (réordonner via boutons ↑↓ + drag handle), toggle activer/désactiver, badge ordre.
-- **Bouton "Nouvelle bannière"** → ouvre `BannerEditorDialog`.
-- **Bouton "Paramètres du slider"** → modal de réglages globaux (autoplay, vitesse, flèches, dots, transition).
+## Étape 3 — Background jobs via Inngest
 
-### `BannerEditorDialog` (cœur de la feature)
+Connecter Inngest (proxy gateway Lovable, pas besoin de clé externe pour toi).
 
-Dialog plein écran avec 3 onglets :
+Fonctions Inngest à créer dans `src/lib/inngest/`:
+- `translate-product` (event `product/changed`) — déclenchée par trigger DB → webhook sur création/MAJ produit.
+- `sync-all-translations` (cron `0 */6 * * *`) — passe complète toutes les 6h en sécurité, ne traite que le diff (grâce à l'étape 2).
+- `cleanup-expired-codes` (cron quotidien) — purge `email_verification_codes` et `password_reset_codes` expirés.
+- `refresh-admin-stats` (cron `*/15 * * *`) — alimente la table cache `admin_stats_cache`.
 
-**Onglet 1 — Image**
-- Upload (drag & drop + bouton mobile/desktop).
-- Éditeur visuel (viewport simulé 16/9 par défaut) :
-  - Zoom slider (0.5x → 3x)
-  - Rotation (boutons 90°)
-  - Position image : drag sur le canvas → met à jour focal_x / focal_y (point focal CSS `object-position`)
-  - Sélecteur ratio prévisualisation (mobile/tablette/desktop)
-- Mode d'affichage : cover / contain / fill
-- Upload optionnel d'une variante **mobile** et **tablette** (pour images différentes par device).
+Endpoint serve : `src/routes/api/public/inngest.ts` (TanStack server route, vérifié par signing key).
 
-**Onglet 2 — Contenu**
-- Titre, sous-titre, libellé du bouton, URL de redirection
-- Alignement du texte (gauche/centre/droite)
-- Couleur du texte + opacité de l'overlay sombre (slider)
+## Étape 4 — Cache des statistiques admin
 
-**Onglet 3 — Dimensions**
-- Hauteur en px par breakpoint : mobile / tablette / desktop (sliders 120-800).
-- Aperçu en direct des 3 viewports côte à côte.
+Nouvelle table `admin_stats_cache` (key text PRIMARY KEY, value jsonb, updated_at) :
+- `customers_overview` (total, actifs, bloqués, revenus 30j)
+- `vendors_overview`
+- `orders_overview`
 
-Footer du dialog : "Annuler" / "Enregistrer". L'aperçu utilise le même composant `<BannerSlide>` que le front (cf. §3) pour garantir un rendu fidèle.
+Le dashboard lit cette table (1 SELECT) au lieu de recalculer `COUNT()` + `SUM()` sur des centaines de lignes à chaque ouverture. Refresh toutes les 15 min via Inngest + au déclenchement d'évènements critiques (nouvelle commande, etc.).
 
-## 3. Front — `HeroCarousel` (refonte)
+## Étape 5 — Pagination serveur partout
 
-`src/components/home/HeroCarousel.tsx` réécrit :
+Refactor des listings admin pour pagination DB (LIMIT/OFFSET + COUNT) au lieu de tout charger en mémoire :
+- `admin.customers.tsx` — déjà créé → ajouter `page`, `pageSize` dans `listCustomers`.
+- `admin.vendors.tsx`, `admin.orders.tsx`, `admin.products.tsx` — même traitement si pas déjà fait.
+- Page size par défaut : 25.
 
-- Utilise embla-carousel-react (déjà standard dans shadcn) → flèches, dots, autoplay, transition fade/slide selon `site_settings`.
-- Sélection automatique de `image_url_mobile/tablet/desktop` selon breakpoint (avec fallback).
-- Chaque slide rendu par `<BannerSlide banner={…} />` partagé entre admin (preview) et front :
-  - `height` selon viewport (CSS responsive via classes Tailwind dynamiques + style inline pour les valeurs sur-mesure)
-  - `object-fit` + `object-position: ${focal_x*100}% ${focal_y*100}%`
-  - `transform: scale(zoom) rotate(rotation)`
-  - Overlay assombri configurable
-  - Titre / sous-titre / CTA (bouton primary) avec alignement
-  - Lien cliquable sur toute la slide si `link_url` sans CTA
+## Étape 6 — Optimisations frontend
 
-Le carrousel se masque si aucune bannière activée.
+- `useQuery` avec `staleTime` raisonnable (30s pour stats, 5min pour catégories/pays) pour éviter refetch répété.
+- `React.memo` sur les lignes de tableaux lourds (CustomerRow, OrderRow).
+- Lazy-load des routes admin via `lazy()` pour ne pas inclure le code admin dans le bundle public.
+- Images produits : ajouter `loading="lazy"` + `decoding="async"` partout où ce n'est pas déjà fait.
 
-## 4. Dépendances
+## Étape 7 — Vérifications finales
 
-- `react-easy-crop` (~16 kB gzip) pour le canvas drag/zoom intuitif — alternative légère à un crop maison.
-- (embla-carousel-react est déjà inclus via shadcn `Carousel`.)
+- Lancer le linter Supabase (`supabase--linter`) après les migrations pour vérifier qu'aucun index n'est manquant ou redondant.
+- Tester l'admin clients avec 500 lignes simulées pour valider la pagination.
+- Profiler la page d'accueil pour vérifier que le bundle n'a pas grossi.
 
-## 5. Fichiers touchés
+---
 
-- **migration SQL** : ALTER `home_banners` + `site_settings`
-- **nouveau** `src/components/admin/BannersManager.tsx`
-- **nouveau** `src/components/admin/BannerEditorDialog.tsx`
-- **nouveau** `src/components/home/BannerSlide.tsx` (rendu partagé)
-- **modifié** `src/components/home/HeroCarousel.tsx`
-- **modifié** `src/routes/admin.settings.tsx` (remplace `BannersManager` inline)
-- **modifié** `src/hooks/use-site-settings.ts` (étendre type `HomeBanner` + lire nouveaux champs site_settings)
+## Détails techniques
 
-## Notes
-- Le recadrage est non-destructif : on stocke focal/zoom/rotation, l'image originale reste intacte → on peut re-régler à tout moment.
-- Aucune fonction serveur nécessaire : tout passe par le client Supabase + RLS admin existante.
-- Pas de changement aux RLS (lecture publique déjà OK).
+**Stack** : TanStack Start + Supabase + Inngest (via gateway Lovable).
+**Pas d'Edge Functions** — tout passe par `createServerFn` + cron pg_cron pour les triggers internes + Inngest pour les jobs lourds.
+**Sécurité** : Toutes les nouvelles fonctions admin restent protégées par `requireSupabaseAuth` + check `has_admin_permission`.
+
+## Ordre d'exécution proposé
+
+1. Migration : index DB + colonnes `content_hash` + table `admin_stats_cache`
+2. Connecter Inngest (tu confirmeras le popup)
+3. Endpoint `/api/public/inngest` + 4 fonctions Inngest
+4. Refactor `sync-translations` pour utiliser le hash
+5. Pagination serveur + cache stats sur dashboard clients
+6. Frontend : staleTime + memo + lazy
+7. Linter + test
+
+Ça fait beaucoup. Je peux tout enchaîner en une seule passe, mais l'étape 2 (connecter Inngest) demande une action de ta part (clic sur le popup). Confirme et je commence par l'étape 1.
