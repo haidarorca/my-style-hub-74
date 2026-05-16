@@ -12,11 +12,13 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { Send as SendIcon, X } from "lucide-react";
 
 export const Route = createFileRoute("/admin/commission-orders")({
   component: () => <PermissionGate perm="orders"><CommissionOrders /></PermissionGate>,
