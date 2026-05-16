@@ -53,6 +53,8 @@ const ListInput = z.object({
   status: z
     .enum(["all", "active", "pending", "suspended", "expired", "blocked"])
     .default("all"),
+  sort: z.enum(["created_at", "shop_name", "vendor_status"]).default("created_at"),
+  dir: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export const listAdminVendors = createServerFn({ method: "POST" })
