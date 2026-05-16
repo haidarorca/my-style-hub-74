@@ -302,7 +302,7 @@ export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, o
                       {label}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         className="hidden"
                         onChange={(e) => e.target.files?.[0] && handleVariantUpload(e.target.files[0], key)}
                       />
