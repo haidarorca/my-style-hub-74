@@ -81,7 +81,7 @@ function CartPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"saved" | "new">("saved");
   const [newForm, setNewForm] = useState({
-    label: "Domicile",
+    label: t("checkout.default_label_home"),
     full_name: "",
     phone: "",
     address: "",
@@ -91,6 +91,7 @@ function CartPage() {
     longitude: null as number | null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const newAddressSchema = useMemo(() => buildAddressSchema(t), [t]);
   const [locating, setLocating] = useState(false);
   const priceLines = useMemo(
     () => items
