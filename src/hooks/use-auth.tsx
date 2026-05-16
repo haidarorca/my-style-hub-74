@@ -118,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isSuperAdmin = roles.includes("super_admin") && !isSuspended;
   const isAdmin = (roles.includes("admin") || roles.includes("super_admin")) && !isSuspended;
+  const isEmailVerified = !!user?.email_confirmed_at;
 
   const can = (perm: AdminPermission) => {
     if (isSuspended) return false;
@@ -134,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isSuperAdmin,
     isVendor: roles.includes("vendeur"),
     isSuspended,
+    isEmailVerified,
     permissions,
     can,
     loading,
