@@ -25,6 +25,7 @@ import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
+import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
