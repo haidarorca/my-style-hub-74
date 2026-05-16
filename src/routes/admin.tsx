@@ -60,7 +60,8 @@ function AdminLayout() {
           <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Site
           </Link>
-          <div className="ml-2 text-base font-bold">Espace Admin{isSuperAdmin && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Super admin</span>}</div>
+          <div className="ml-2 flex-1 truncate text-base font-bold">Espace Admin{isSuperAdmin && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Super admin</span>}</div>
+          <AdminNotificationBell />
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">
           {visibleNav.map((item) => {
