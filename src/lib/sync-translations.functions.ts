@@ -81,6 +81,29 @@ function missingLangs(i18n: Record<string, string> | null | undefined, sources: 
   });
 }
 
+/**
+ * Detect i18n entries that are trivial copies (all values identical) — typical
+ * sign that translations were never actually generated and the canonical value
+ * was just duplicated across languages. In that case we want to retranslate.
+ */
+function looksUntranslated(i18n: Record<string, string> | null | undefined): boolean {
+  const obj = (i18n ?? {}) as Record<string, string>;
+  const vals = LANGS.map((l) => (obj[l] ?? "").trim().toLowerCase()).filter((v) => v.length > 0);
+  if (vals.length < 2) return false;
+  return vals.every((v) => v === vals[0]);
+}
+
+/** Langs that are missing OR look like trivial copies (need real translation). */
+function langsNeedingTranslation(i18n: Record<string, string> | null | undefined): Lang[] {
+  const obj = (i18n ?? {}) as Record<string, string>;
+  if (looksUntranslated(obj)) {
+    // keep one as source (the one matching canonical preferred — caller passes canonical separately)
+    // Return all langs; the caller decides which to overwrite based on detected source.
+    return [...LANGS];
+  }
+  return missingLangs(obj, {});
+}
+
 async function translateShort(
   canonical: string,
   sources: Partial<Record<Lang, string>>,
@@ -220,11 +243,9 @@ export const syncTranslations = createServerFn({ method: "POST" })
       const nameI18n = (p.name_i18n as Record<string, string> | null) ?? {};
       const desigI18n = (p.designation_i18n as Record<string, string> | null) ?? {};
       const descI18n = (p.description_i18n as Record<string, string> | null) ?? {};
-      const nameSrc = { ...(p.name ? { __c: p.name } : {}), ...nameI18n };
-      const nm = missingLangs(nameI18n, {});
-      const dm = hasAnyText(p.designation as string | null, desigI18n) ? missingLangs(desigI18n, {}) : [];
-      const desm = hasAnyText(p.description as string | null, descI18n) ? missingLangs(descI18n, {}) : [];
-      void nameSrc;
+      const nm = langsNeedingTranslation(nameI18n);
+      const dm = hasAnyText(p.designation as string | null, desigI18n) ? langsNeedingTranslation(desigI18n) : [];
+      const desm = hasAnyText(p.description as string | null, descI18n) ? langsNeedingTranslation(descI18n) : [];
       return nm.length || dm.length || desm.length;
     }).slice(0, MAX_PER_TABLE);
 
@@ -236,13 +257,16 @@ export const syncTranslations = createServerFn({ method: "POST" })
         const desigI18n = { ...((p.designation_i18n as Record<string, string>) ?? {}) };
         const descI18n = { ...((p.description_i18n as Record<string, string>) ?? {}) };
 
-        // Compute union of missing langs across the three fields where source has text
+        const nameTrivial = looksUntranslated(nameI18n);
+        const desigTrivial = looksUntranslated(desigI18n);
+        const descTrivial = looksUntranslated(descI18n);
+
         const desigHas = hasAnyText(p.designation as string | null, desigI18n);
         const descHas = hasAnyText(p.description as string | null, descI18n);
         const missing = new Set<Lang>();
-        for (const l of missingLangs(nameI18n, {})) missing.add(l);
-        if (desigHas) for (const l of missingLangs(desigI18n, {})) missing.add(l);
-        if (descHas) for (const l of missingLangs(descI18n, {})) missing.add(l);
+        for (const l of langsNeedingTranslation(nameI18n)) missing.add(l);
+        if (desigHas) for (const l of langsNeedingTranslation(desigI18n)) missing.add(l);
+        if (descHas) for (const l of langsNeedingTranslation(descI18n)) missing.add(l);
         const targets = LANGS.filter((l) => missing.has(l));
         if (targets.length === 0) continue;
 
@@ -258,9 +282,9 @@ export const syncTranslations = createServerFn({ method: "POST" })
         );
         let changed = false;
         for (const l of targets) {
-          if (!nameI18n[l] && res[l].name) { nameI18n[l] = res[l].name!; changed = true; }
-          if (desigHas && !desigI18n[l] && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
-          if (descHas && !descI18n[l] && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
+          if ((nameTrivial || !nameI18n[l]) && res[l].name) { nameI18n[l] = res[l].name!; changed = true; }
+          if (desigHas && (desigTrivial || !desigI18n[l]) && res[l].designation) { desigI18n[l] = res[l].designation!; changed = true; }
+          if (descHas && (descTrivial || !descI18n[l]) && res[l].description) { descI18n[l] = res[l].description!; changed = true; }
         }
         if (!changed) { report.products.errors++; continue; }
         const { error } = await supabaseAdmin
@@ -281,20 +305,21 @@ export const syncTranslations = createServerFn({ method: "POST" })
       .limit(MAX_PER_TABLE * 3);
     const catsNeeding = (cats ?? []).filter((c) => {
       const i18n = (c.name_i18n as Record<string, string> | null) ?? {};
-      return missingLangs(i18n, {}).length > 0;
+      return langsNeedingTranslation(i18n).length > 0;
     }).slice(0, MAX_PER_TABLE);
     report.categories.skipped = (cats?.length ?? 0) - catsNeeding.length;
 
     for (const c of catsNeeding) {
       try {
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
-        const targets = missingLangs(merged, {});
+        const trivial = looksUntranslated(merged);
+        const targets = langsNeedingTranslation(merged);
         if (targets.length === 0) continue;
         const sources: Partial<Record<Lang, string>> = {};
-        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        if (!trivial) for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
         const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if ((trivial || !merged[l]) && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.categories.errors++; continue; }
         const { error } = await supabaseAdmin.from("categories").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.categories.errors++; else report.categories.translated++;
@@ -303,18 +328,19 @@ export const syncTranslations = createServerFn({ method: "POST" })
 
     // ---------- COUNTRIES ----------
     const { data: ctys } = await supabaseAdmin.from("countries").select("id, name, name_i18n");
-    const ctysNeeding = (ctys ?? []).filter((c) => missingLangs((c.name_i18n as Record<string, string> | null) ?? {}, {}).length > 0).slice(0, MAX_PER_TABLE);
+    const ctysNeeding = (ctys ?? []).filter((c) => langsNeedingTranslation((c.name_i18n as Record<string, string> | null) ?? {}).length > 0).slice(0, MAX_PER_TABLE);
     report.countries.skipped = (ctys?.length ?? 0) - ctysNeeding.length;
     for (const c of ctysNeeding) {
       try {
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
-        const targets = missingLangs(merged, {});
+        const trivial = looksUntranslated(merged);
+        const targets = langsNeedingTranslation(merged);
         if (targets.length === 0) continue;
         const sources: Partial<Record<Lang, string>> = {};
-        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        if (!trivial) for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
         const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if ((trivial || !merged[l]) && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.countries.errors++; continue; }
         const { error } = await supabaseAdmin.from("countries").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.countries.errors++; else report.countries.translated++;
