@@ -46,7 +46,22 @@ const vendorsSearchSchema = z.object({
   page: fallback(z.number().int().min(1).max(10_000), 1).default(1),
   q: fallback(z.string().max(200), "").default(""),
   status: fallback(z.enum(["all", ...VENDOR_STATUSES]), "all").default("all"),
+  sort: fallback(z.enum(["created_at", "shop_name", "vendor_status"]), "created_at").default("created_at"),
+  dir: fallback(z.enum(["asc", "desc"]), "desc").default("desc"),
 });
+
+// Map UI column keys to server-sortable DB columns
+const SERVER_SORT_BY_COL = {
+  shop: "shop_name",
+  signup: "created_at",
+  status: "vendor_status",
+} as const;
+type ServerSortCol = keyof typeof SERVER_SORT_BY_COL;
+const DB_TO_COL: Record<(typeof SERVER_SORT_BY_COL)[ServerSortCol], ServerSortCol> = {
+  shop_name: "shop",
+  created_at: "signup",
+  vendor_status: "status",
+};
 
 export const Route = createFileRoute("/admin/vendors")({
   validateSearch: zodValidator(vendorsSearchSchema),
