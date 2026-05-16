@@ -24,6 +24,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
+import { useServerFn } from "@tanstack/react-start";
+import { removeVendorAccount } from "@/lib/vendor-offboarding.functions";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
