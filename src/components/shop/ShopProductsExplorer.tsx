@@ -29,10 +29,10 @@ export type ShopProduct = {
   name: string;
   name_i18n?: unknown;
   price: number;
-  code?: string | null;
+  code: string;
   category_id: string | null;
   created_at?: string;
-  product_images?: { url: string }[];
+  product_images: { url: string }[] | null;
   product_variants?: Variant[];
 };
 
