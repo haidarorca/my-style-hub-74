@@ -350,7 +350,7 @@ export function SearchAutocomplete() {
                         <Store className="h-3 w-3" /> {t("search.tab_shops")}
                       </div>
                       <ul>
-                        {shops.map((s) => (
+                        {(shops as Array<{ id: string; shop_name: string | null; shop_logo_url: string | null }>).map((s) => (
                           <li key={s.id}>
                             <button
                               type="button"
