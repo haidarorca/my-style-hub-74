@@ -305,20 +305,21 @@ export const syncTranslations = createServerFn({ method: "POST" })
       .limit(MAX_PER_TABLE * 3);
     const catsNeeding = (cats ?? []).filter((c) => {
       const i18n = (c.name_i18n as Record<string, string> | null) ?? {};
-      return missingLangs(i18n, {}).length > 0;
+      return langsNeedingTranslation(i18n).length > 0;
     }).slice(0, MAX_PER_TABLE);
     report.categories.skipped = (cats?.length ?? 0) - catsNeeding.length;
 
     for (const c of catsNeeding) {
       try {
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
-        const targets = missingLangs(merged, {});
+        const trivial = looksUntranslated(merged);
+        const targets = langsNeedingTranslation(merged);
         if (targets.length === 0) continue;
         const sources: Partial<Record<Lang, string>> = {};
-        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        if (!trivial) for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
         const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if ((trivial || !merged[l]) && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.categories.errors++; continue; }
         const { error } = await supabaseAdmin.from("categories").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.categories.errors++; else report.categories.translated++;
