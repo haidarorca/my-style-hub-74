@@ -265,14 +265,17 @@ async function syncHashTable(
 async function syncShops(report: Report, apiKey: string, budget: { left: number }) {
   if (budget.left <= 0) return;
   // Shops use missing-lang detection across shop_description + shop_hours.
+  let offset = 0;
   while (budget.left > 0) {
     const limit = Math.min(BATCH, budget.left);
+    const pageSize = limit * 4; // overscan since many rows are already-complete
     const { data } = await supabaseAdmin
       .from("profiles")
       .select("id, shop_description, shop_description_i18n, shop_hours, shop_hours_i18n")
-      .or("shop_description.not.is.null,shop_hours.not.is.null")
-      .limit(limit * 4); // overscan since many rows will be already-complete
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
     if (!data || data.length === 0) break;
+    offset += data.length;
 
     let touched = 0;
     for (const s of data) {
