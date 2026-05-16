@@ -536,11 +536,11 @@ function FilterableHead({
   label, colKey, colF, updateColF, sortBy, setSortBy, kind = "text",
 }: {
   label: string;
-  colKey: _ColKey;
-  colF: Record<_ColKey, { search?: string; startsWith?: string }>;
-  updateColF: (k: _ColKey, v: { search?: string; startsWith?: string }) => void;
-  sortBy: { col: _ColKey; dir: "asc" | "desc" } | null;
-  setSortBy: (s: { col: _ColKey; dir: "asc" | "desc" } | null) => void;
+  colKey: ColKey;
+  colF: Record<ColKey, { search?: string; startsWith?: string }>;
+  updateColF: (k: ColKey, v: { search?: string; startsWith?: string }) => void;
+  sortBy: { col: ColKey; dir: "asc" | "desc" } | null;
+  setSortBy: (s: { col: ColKey; dir: "asc" | "desc" } | null) => void;
   kind?: ColFKind;
 }) {
   const f = colF[colKey] ?? {};
