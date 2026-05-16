@@ -48,6 +48,7 @@ interface AuthContextValue {
   isSuperAdmin: boolean;
   isVendor: boolean;
   isSuspended: boolean;
+  isEmailVerified: boolean;
   permissions: AdminPermission[];
   can: (perm: AdminPermission) => boolean;
   loading: boolean;
