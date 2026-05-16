@@ -39,6 +39,7 @@ import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
@@ -206,6 +207,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
@@ -310,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -404,6 +412,7 @@ export interface FileRoutesById {
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -454,6 +463,7 @@ export interface FileRouteTypes {
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -500,6 +510,7 @@ export interface FileRouteTypes {
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/orders'
     | '/admin/reports'
     | '/admin/reviews'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -807,6 +819,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/customers': {
       id: '/admin/customers'
       path: '/customers'
@@ -969,6 +988,7 @@ interface AdminRouteChildren {
   AdminCommissionsRoute: typeof AdminCommissionsRouteWithChildren
   AdminCountriesRoute: typeof AdminCountriesRoute
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminReportsRoute: typeof AdminReportsRoute
@@ -986,6 +1006,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCommissionsRoute: AdminCommissionsRouteWithChildren,
   AdminCountriesRoute: AdminCountriesRoute,
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
+  AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminReportsRoute: AdminReportsRoute,
