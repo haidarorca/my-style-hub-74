@@ -328,18 +328,19 @@ export const syncTranslations = createServerFn({ method: "POST" })
 
     // ---------- COUNTRIES ----------
     const { data: ctys } = await supabaseAdmin.from("countries").select("id, name, name_i18n");
-    const ctysNeeding = (ctys ?? []).filter((c) => missingLangs((c.name_i18n as Record<string, string> | null) ?? {}, {}).length > 0).slice(0, MAX_PER_TABLE);
+    const ctysNeeding = (ctys ?? []).filter((c) => langsNeedingTranslation((c.name_i18n as Record<string, string> | null) ?? {}).length > 0).slice(0, MAX_PER_TABLE);
     report.countries.skipped = (ctys?.length ?? 0) - ctysNeeding.length;
     for (const c of ctysNeeding) {
       try {
         const merged = { ...((c.name_i18n as Record<string, string>) ?? {}) };
-        const targets = missingLangs(merged, {});
+        const trivial = looksUntranslated(merged);
+        const targets = langsNeedingTranslation(merged);
         if (targets.length === 0) continue;
         const sources: Partial<Record<Lang, string>> = {};
-        for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
+        if (!trivial) for (const l of LANGS) if (merged[l]) sources[l] = merged[l];
         const res = await translateShort(c.name ?? "", sources, targets, apiKey);
         let changed = false;
-        for (const l of targets) if (!merged[l] && res[l]) { merged[l] = res[l]!; changed = true; }
+        for (const l of targets) if ((trivial || !merged[l]) && res[l]) { merged[l] = res[l]!; changed = true; }
         if (!changed) { report.countries.errors++; continue; }
         const { error } = await supabaseAdmin.from("countries").update({ name_i18n: merged }).eq("id", c.id);
         if (error) report.countries.errors++; else report.countries.translated++;
