@@ -33,14 +33,11 @@ function LoginPage() {
     e.preventDefault();
     e.stopPropagation();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       toast.error(error.message);
       return;
-    }
-    if (!data.user?.email_confirmed_at) {
-      toast.warning("Votre email n'est pas encore vérifié. Allez dans votre compte pour renvoyer le lien de confirmation.");
     }
     toast.success(t("auth.signed_in_toast"));
     navigate({ to: "/" });

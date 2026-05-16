@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
+import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -71,7 +71,7 @@ const emptyForm = {
 };
 
 function AccountPage() {
-  const { user, profile, loading, isAdmin, isVendor, isEmailVerified } = useAuth();
+  const { user, profile, loading, isAdmin, isVendor } = useAuth();
   const { t, dir } = useI18n();
   const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -84,7 +84,6 @@ function AccountPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const { data: countriesList } = useCountries({ onlyEnabled: true });
   const labelOfCountry = useCountryLabel();
   const { countryId: deliveryCountryId, setCountryId: setDeliveryCountryId } = useDeliveryCountry();
@@ -285,23 +284,6 @@ function AccountPage() {
     await refresh();
   };
 
-  const handleResendVerification = async () => {
-    if (!user?.email) return;
-    setResendCooldown(60);
-    const { error } = await supabase.auth.resend({ type: "signup", email: user.email });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Email de vérification renvoyé. Vérifiez votre boîte de réception.");
-    }
-  };
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setInterval(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearInterval(t);
-  }, [resendCooldown]);
-
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
@@ -317,21 +299,6 @@ function AccountPage() {
         <div className="mb-3">
           <BackButton fallbackTo="/" />
         </div>
-
-        {!isEmailVerified && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-amber-800">Email non vérifié</p>
-                <p className="text-xs text-amber-700">Vérifiez votre boîte mail ou cliquez ci-dessous pour renvoyer le lien.</p>
-                <Button onClick={handleResendVerification} disabled={resendCooldown > 0} size="sm" className="mt-2">
-                  {resendCooldown > 0 ? `Réessayer dans ${resendCooldown}s` : "Renvoyer l'email de vérification"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="mb-4 space-y-2">
           <Link
@@ -360,18 +327,6 @@ function AccountPage() {
               <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Link>
           )}
-          <Link
-            to="/verify-email"
-            className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Mail className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-semibold">Vérifier mon email</span>
-            </span>
-            <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
-          </Link>
         </div>
 
         <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft">

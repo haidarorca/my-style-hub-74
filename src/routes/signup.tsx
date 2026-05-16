@@ -28,7 +28,6 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
 
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
@@ -93,13 +92,10 @@ function SignupPage() {
     setLoading(false);
     if (profErr) {
       toast.error("Compte créé, mais profil incomplet : " + profErr.message);
-    }
-    if (!data.user.email_confirmed_at) {
-      setSignupSuccess(true);
     } else {
       toast.success("Compte créé !");
-      navigate({ to: "/" });
     }
+    navigate({ to: "/" });
   };
 
   return (
@@ -119,17 +115,6 @@ function SignupPage() {
         <h1 className="mt-4 text-2xl font-bold">Créer un compte</h1>
         <p className="mt-1 text-sm text-muted-foreground">Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.</p>
 
-        {signupSuccess ? (
-          <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 p-4 text-center">
-            <p className="text-sm font-semibold text-primary">Vérifiez votre email</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Un lien de confirmation a été envoyé à <strong>{email}</strong>. Cliquez sur le lien pour activer votre compte.
-            </p>
-            <Button onClick={() => setSignupSuccess(false)} variant="outline" className="mt-3 w-full">
-              Créer un autre compte
-            </Button>
-          </div>
-        ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="fullName">Nom complet</Label>
@@ -185,14 +170,11 @@ function SignupPage() {
             {loading ? "Création…" : <EditableLabel uiKey="signup.submit" defaultLabel="Créer mon compte" defaultSize="md" />}
           </Button>
         </form>
-        )}
 
-        {!signupSuccess && (
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Déjà un compte ?{" "}
-            <Link to="/login" className="font-semibold text-primary">Se connecter</Link>
-          </p>
-        )}
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Déjà un compte ?{" "}
+          <Link to="/login" className="font-semibold text-primary">Se connecter</Link>
+        </p>
       </div>
     </div>
   );
