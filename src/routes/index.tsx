@@ -31,6 +31,7 @@ function Home() {
   const settings = useSiteSettings();
   const { data: banners } = useHomeBanners();
   const { t, lang } = useI18n();
+  const { data: catCountsMap } = useCategoryProductCounts();
 
   const { data: universes } = useQuery({
     queryKey: ["categories", "level1"],
