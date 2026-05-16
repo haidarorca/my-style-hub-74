@@ -38,6 +38,7 @@ import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
+import { Route as AdminCommissionOrdersRouteImport } from './routes/admin.commission-orders'
 import { Route as AdminCategoryRequestsRouteImport } from './routes/admin.category-requests'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
@@ -194,6 +195,11 @@ const AdminCommissionsRoute = AdminCommissionsRouteImport.update({
   path: '/commissions',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCommissionOrdersRoute = AdminCommissionOrdersRouteImport.update({
+  id: '/commission-orders',
+  path: '/commission-orders',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoryRequestsRoute = AdminCategoryRequestsRouteImport.update({
   id: '/category-requests',
   path: '/category-requests',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -341,6 +349,7 @@ export interface FileRoutesById {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
+  '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -384,6 +393,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/orders'
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/orders'
@@ -463,6 +474,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
+    | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
     | '/admin/orders'
@@ -712,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommissionsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/commission-orders': {
+      id: '/admin/commission-orders'
+      path: '/commission-orders'
+      fullPath: '/admin/commission-orders'
+      preLoaderRoute: typeof AdminCommissionOrdersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/category-requests': {
       id: '/admin/category-requests'
       path: '/category-requests'
@@ -816,6 +835,7 @@ interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryRequestsRoute: typeof AdminCategoryRequestsRoute
+  AdminCommissionOrdersRoute: typeof AdminCommissionOrdersRoute
   AdminCommissionsRoute: typeof AdminCommissionsRouteWithChildren
   AdminCountriesRoute: typeof AdminCountriesRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -831,6 +851,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAdminsRoute: AdminAdminsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryRequestsRoute: AdminCategoryRequestsRoute,
+  AdminCommissionOrdersRoute: AdminCommissionOrdersRoute,
   AdminCommissionsRoute: AdminCommissionsRouteWithChildren,
   AdminCountriesRoute: AdminCountriesRoute,
   AdminOrdersRoute: AdminOrdersRoute,

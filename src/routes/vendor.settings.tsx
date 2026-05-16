@@ -218,45 +218,26 @@ function VendorSettings() {
         )}
 
         <div className="pt-2 space-y-2">
-          <Label className="text-base font-semibold">Mode commission *</Label>
-          <p className="text-[11px] text-muted-foreground">
-            Définit si vos prix incluent une commission de la plateforme.
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Label
-              htmlFor="vmode-nc"
-              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
-            >
-              <input
-                id="vmode-nc"
-                type="radio"
-                name="vendor-mode"
-                className="mt-1"
-                checked={vendorMode === "no_commission"}
-                onChange={() => setVendorMode("no_commission")}
-              />
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold">Sans commission</span>
-                <span className="text-[11px] text-muted-foreground">Vente directe, aucune commission appliquée.</span>
+          <Label className="text-base font-semibold">Mode commission</Label>
+          <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {vendorMode === "commission" ? "Avec commission" : "Sans commission"}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {vendorMode === "commission"
+                    ? "Les commandes sont reçues et gérées par la plateforme. Vous n'avez pas accès aux infos client : l'admin vous transmet la préparation par WhatsApp."
+                    : "Vous recevez vos commandes directement et gérez la livraison vous-même."}
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${vendorMode === "commission" ? "bg-primary/15 text-primary" : "bg-emerald-500/15 text-emerald-700"}`}>
+                {vendorMode === "commission" ? "Plateforme" : "Direct"}
               </span>
-            </Label>
-            <Label
-              htmlFor="vmode-c"
-              className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-accent"
-            >
-              <input
-                id="vmode-c"
-                type="radio"
-                name="vendor-mode"
-                className="mt-1"
-                checked={vendorMode === "commission"}
-                onChange={() => setVendorMode("commission")}
-              />
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold">Avec commission</span>
-                <span className="text-[11px] text-muted-foreground">Le prix affiché inclut la commission selon le pays de livraison.</span>
-              </span>
-            </Label>
+            </div>
+            <p className="mt-2 text-[11px] italic text-muted-foreground">
+              Ce mode est défini par l'administration et ne peut pas être modifié ici.
+            </p>
           </div>
         </div>
       </div>

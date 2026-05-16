@@ -604,7 +604,9 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           destination_country_id: string | null
+          forwarded_to_vendor_at: string | null
           id: string
+          is_commission: boolean
           note: string | null
           status: string
           total: number
@@ -617,7 +619,9 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           destination_country_id?: string | null
+          forwarded_to_vendor_at?: string | null
           id?: string
+          is_commission?: boolean
           note?: string | null
           status?: string
           total?: number
@@ -630,7 +634,9 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           destination_country_id?: string | null
+          forwarded_to_vendor_at?: string | null
           id?: string
+          is_commission?: boolean
           note?: string | null
           status?: string
           total?: number
@@ -1060,6 +1066,7 @@ export type Database = {
       site_settings: {
         Row: {
           accent_color: string
+          commission_whatsapp_number: string | null
           created_at: string
           footer_text: string | null
           footer_text_i18n: Json | null
@@ -1082,6 +1089,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string
+          commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
           footer_text_i18n?: Json | null
@@ -1104,6 +1112,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string
+          commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
           footer_text_i18n?: Json | null
