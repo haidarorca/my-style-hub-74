@@ -1,93 +1,83 @@
-# Phase 2 — Optimisations frontend & backend
+# Phase 3 — Pagination admin, recherche, images, lazy routes
 
-Continuation du plan global. Exécuté en une seule passe, par bloc cohérent. Aucun changement de design ni de fonctionnalités.
+## Contexte
+- Erreur runtime corrigée (`@tanstack/zod-adapter` installé).
+- Pattern de pagination déjà éprouvé sur `admin.customers` (URL state + zod + debounce + memo + `PaginationBar`). On le réplique.
 
-## 1. Pagination serveur sur listings admin
+## 1. Pagination serveur — Vendeurs (`admin.vendors`)
+**Backend** : nouveau `listVendors({ page, pageSize=25, q, status, mode, country_id, ships })` dans `src/lib/admin-vendors.functions.ts`
+- `profiles` jointure `user_roles` (role='vendeur') + comptage produits/commandes via sous-requêtes
+- `ilike` sur `shop_name`, `full_name`, `email`
+- Filtres SQL : `vendor_status`, `vendor_mode`, `source_country_id`, `ships_internationally`
+- `range(from,to)` + `count: 'exact'`
 
-Refactor des 4 listings lourds avec `LIMIT/OFFSET + COUNT(*)`, page size 25 par défaut, état dans l'URL (`?page=&q=&status=`) pour partage / retour navigateur.
+**Frontend** : refonte `src/routes/admin.vendors.tsx`
+- `validateSearch` zod (page, q, status, mode, country, ships)
+- `useDebouncedValue(q, 300)`
+- Lignes mémo + `PaginationBar`
+- Conserve les actions existantes (créer/éditer/suspendre)
 
-- `getAdminCustomers` → ajoute `page`, `pageSize`, `q`, `status` ; renvoie `{ rows, total, page, pageSize }`.
-- `getAdminVendors` (créer ou refactor existant) → idem + filtre `vendor_status`.
-- `getAdminOrders` → idem + filtre `status`, `is_commission`.
-- `getAdminProducts` → idem + filtre `status`, `category_id`.
-- Index DB déjà posés en phase 1, aucun ajout nécessaire.
-- Frontend : `validateSearch` (zod) sur chaque route, `useSearch` + `navigate` pour piloter, composant `<Pagination>` réutilisable.
+## 2. Pagination serveur — Commandes (`admin.orders`)
+**Backend** : `listOrders({ page, pageSize=25, q, status, country_id, date_from, date_to, is_commission })` dans `src/lib/admin-orders.functions.ts`
+- `orders` + `order_items(count)` agrégé
+- `ilike` sur `customer_name`, `customer_phone`, `id::text`
+- Filtres : statut, pays destination, période, commission
+- Tri par `created_at desc`
 
-## 2. Dashboards admin via cache
+**Frontend** : `src/routes/admin.orders.tsx`
+- URL state + filtres + debounce
+- Vue desktop (table) + mobile (cartes)
+- Statut éditable inline conservé
 
-- `admin.index.tsx` lit `getAdminStats()` (table `admin_stats_cache` créée en phase 1) — déjà rapide.
-- Branchement effectif des cartes du dashboard sur ces valeurs (revenus, vendeurs actifs, clients, commandes, en-attente).
-- Job Inngest `refresh-admin-stats` (15 min) déjà en place pour repeupler le cache.
-- Fallback : si cache vide → calcul à la volée + écriture (lazy hydration), pour première visite.
+## 3. Pagination serveur — Produits (`admin.products`)
+**Backend** : `listAdminProducts({ page, pageSize=25, q, status, category_id, vendor_id })` dans `src/lib/admin-products.functions.ts`
+- `products` jointures `categories`, `profiles(shop_name)`, `product_images(url limit 1)`
+- `ilike` sur `name`, `code`, `designation`
+- Filtres : `status` (pending/approved/rejected), catégorie, vendeur
 
-## 3. Mémoisation ciblée
+**Frontend** : `src/routes/admin.products.tsx`
+- URL state + debounce
+- Grille de cartes paginée
+- Boutons valider/refuser conservés (mutations + invalidation ciblée)
 
-- `React.memo` sur les rangées (`CustomerRow`, `VendorRow`, `OrderRow`, `ProductRow`).
-- `useMemo` sur dérivations coûteuses (formatage prix, tri local, listes options).
-- `useCallback` sur handlers passés en props aux rangées.
-- Pas de mémo abusif — uniquement où le profiling justifie.
+## 4. Recherche avancée (catalogue)
+**Backend** : `searchProducts({ q, page=1, pageSize=24, category_id, min_price, max_price, country_id, sort })` dans `src/lib/search.functions.ts`
+- `ilike` sur `name`, `code`, `designation`, `description` + i18n via `name_i18n->>lang`
+- Pré-jointure `profiles` filtrée (`is_verified`, `vendor_status='active'`)
+- Tri : pertinence (similarity si dispo), prix asc/desc, nouveauté
 
-## 4. Lazy-loading des routes admin
+**Frontend** : `src/routes/search.tsx`
+- URL state zod (q, category, min/max, sort, page)
+- `useDebouncedValue(q, 300)`
+- `keepPreviousData` + `staleTime: 30_000`
+- Skeleton ProductCard pendant `isFetching`
 
-TanStack Router fait déjà du code-splitting par route. Renfort :
-- Conversion explicite des routes admin lourdes en `createLazyFileRoute` quand pertinent (admins, settings, commissions hub, reports).
-- Imports dynamiques pour gros composants tiers (charts, éditeurs riches) avec `React.lazy` + `Suspense`.
-- Vérifier `bundle` : aucune route admin importée par le shell public.
+## 5. Optimisation images
+- `ProductCard` : déjà OK (`loading="lazy"` + `decoding="async"`)
+- Ajout `width`/`height` explicites sur les `<img>` listings admin/banners pour éviter CLS
+- Bannières d'accueil : 1ère image = `fetchpriority="high"` + `preload` via `head()` de `routes/index.tsx`
+- Audit rapide `BannerEditorDialog`, `AppHeader` (logo), `SimilarProducts` : ajout lazy/async/width/height systématiques
 
-## 5. Mobile
-
-- Tableaux admin → vue carte sur `<sm` (déjà partiellement présent), grilles fluides.
-- Boutons d'action min 44×44 tap target.
-- `overflow-x-auto` + sticky header sur tables larges.
-- Audit rapide des pages clés (catalogue, panier, fiche produit) — ajustements layout uniquement.
-
-## 6. Images
-
-- `loading="lazy"` + `decoding="async"` sur toutes les `<img>` non-LCP (produits cartes, avatars, logos catégorie).
-- `width` / `height` explicites pour éviter CLS.
-- `fetchpriority="high"` + `preload` sur l'image LCP de la home + fiche produit.
-- Pas de transformer custom (Supabase Storage sert déjà les fichiers).
-
-## 7. Recherche produits
-
-- `getSearchResults({ q, page, pageSize, category, vendor, country })` côté serveur, `ilike` ou `tsvector` sur `name`/`designation` (+ i18n via `name_i18n` GIN).
-- Debounce 300 ms côté input.
-- `staleTime: 30_000`, `placeholderData: keepPreviousData` pour UX fluide.
-- Limite 25 résultats / page, scroll infini optionnel plus tard.
-
-## 8. Filtres catalogue / catégories
-
-- Filtres dans l'URL (zod `validateSearch`) → SSR-friendly, partageable.
-- `getCategoryProductCounts()` déjà cachée côté DB ; lecture via `useSuspenseQuery` avec `staleTime: 5min`.
-- Filtres groupés (prix, pays, vendeur, en-stock) appliqués en un seul appel server-side.
-
-## 9. Cache frontend / backend
-
-Frontend (TanStack Query) :
-- `defaultPreloadStaleTime: 0` (Router cède le contrôle à Query) — vérifier.
-- `staleTime` raisonné par domaine : stats 60 s, listings 30 s, fiche produit 2 min, catégories 5 min.
-- `gcTime` 10 min par défaut.
-
-Backend :
-- Table `admin_stats_cache` (déjà créée) — usage généralisé pour tout chiffre agrégé.
-- Headers `Cache-Control: public, max-age=60, s-maxage=300` sur endpoints publics read-only (catalogue, catégories).
-- Inngest planifie le refresh.
+## 6. Lazy-loading routes admin
+- Conversion en `createLazyFileRoute` des routes lourdes :
+  - `admin.vendors`, `admin.orders`, `admin.products`, `admin.commissions.hub`, `admin.commissions.view`, `admin.commission-orders`, `admin.reports`, `admin.reviews`, `admin.settings`, `admin.categories`, `admin.category-requests`, `admin.countries`, `admin.customers.$userId`, `admin.products.$productId.edit`
+- Pattern : split en `route.tsx` (createFileRoute config) + `route.lazy.tsx` (composant) — ou utilisation de `Route.lazy(() => import(...))` selon version TanStack
+- Layout `admin.tsx` + dashboard `admin.index` restent eager (entrée admin)
+- Vérification bundle : routes admin sortent du chunk principal
 
 ## Ordre d'exécution
+1. Lazy routes admin (gain bundle immédiat, faible risque)
+2. Pagination vendeurs + commandes + produits (3 backends + 3 frontends, pattern dupliqué)
+3. Recherche avancée catalogue
+4. Audit images (lazy/width/height/preload LCP)
+5. Vérif build + linter + test à ~500 lignes par listing
 
-1. Refactor `getAdminCustomers/Vendors/Orders/Products` + frontend listings (pagination + filtres URL).
-2. Branchement dashboard admin sur `getAdminStats` (cache + fallback).
-3. Mémoisation rangées + lazy routes admin lourdes.
-4. Audit mobile + images (lazy, dimensions, LCP preload).
-5. Recherche + filtres catalogue avec debounce + URL state.
-6. Réglages `staleTime`/`gcTime` globaux et headers cache.
-7. Vérification : `bun run build`, linter Supabase, test pagination ~500 lignes.
+## Détails techniques
+- Pas de nouvelles tables (réutilise `products`, `profiles`, `orders`)
+- Pas d'index supplémentaires nécessaires (déjà créés en phase 1)
+- Toutes les server fns utilisent `requireSupabaseAuth` + check rôle admin
+- `PaginationBar` et `useDebouncedValue` réutilisés tels quels
 
-## Sortie attendue
-
-- Listings admin paginés, partageables par URL, < 200 ms p95.
-- Dashboard admin instantané (lecture cache).
-- Routes admin chargées à la demande → bundle public ~inchangé.
-- Recherche fluide avec debounce et keepPreviousData.
-- Mobile responsive sur toutes les vues admin.
-- Aucune régression fonctionnelle.
+## Hors scope
+- Recherche full-text Postgres (`tsvector`) — ferait l'objet d'une phase ultérieure si volumes >10k produits
+- Virtualisation des longues listes (react-virtual) — pas nécessaire avec pagination 25/page
