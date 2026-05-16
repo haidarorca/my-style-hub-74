@@ -512,6 +512,16 @@ function VendorsPage() {
             </div>
           )}
         </CardContent>
+        <div className="border-t">
+          <PaginationBar
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onPageChange={(next) =>
+              navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) })
+            }
+          />
+        </div>
       </Card>
 
       <EditVendorDialog
