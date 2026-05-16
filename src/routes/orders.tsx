@@ -538,16 +538,34 @@ function OrdersPage() {
                               </div>
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                             </Link>
-                            {wa && (
-                              <a
-                                href={buildWa(wa, openOrder.id, v.shop_name)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                              >
-                                <MessageCircle className="h-3 w-3" /> WhatsApp
-                              </a>
-                            )}
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {wa && (
+                                <a
+                                  href={buildWa(wa, openOrder.id, v.shop_name)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                                >
+                                  <MessageCircle className="h-3 w-3" /> WhatsApp
+                                </a>
+                              )}
+                              {canReview && (
+                                <button
+                                  onClick={() =>
+                                    setReportTarget({
+                                      type: "vendor",
+                                      vendorId: v.id,
+                                      orderId: openOrder.id,
+                                      name: v.shop_name ?? v.full_name ?? "Boutique",
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+                                  title="Signaler ce vendeur"
+                                >
+                                  <Flag className="h-3 w-3" /> Signaler
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <ul>
                             {vendorItems.map((it: any) => (
