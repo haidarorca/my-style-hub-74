@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Eye, EyeOff, Home, ShieldCheck } from "lucide-react";
 import { BackButton } from "@/components/layout/BackButton";
-import { checkPasswordStrength, PasswordStrengthMeter } from "@/components/auth/PasswordStrength";
+
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,
@@ -38,14 +38,8 @@ function ResetPasswordPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const strength = checkPasswordStrength(password);
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!strength.ok) {
-      toast.error("Mot de passe trop faible");
-      return;
-    }
     if (password !== confirm) {
       toast.error("Les mots de passe ne correspondent pas");
       return;
@@ -119,7 +113,6 @@ function ResetPasswordPage() {
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <PasswordStrengthMeter password={password} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pw2">Confirmer</Label>
@@ -135,7 +128,7 @@ function ResetPasswordPage() {
                 <p className="text-xs text-destructive">Les mots de passe ne correspondent pas</p>
               )}
             </div>
-            <Button type="submit" disabled={loading || !strength.ok} className="w-full" size="lg">
+            <Button type="submit" disabled={loading} className="w-full" size="lg">
               {loading ? "Mise à jour…" : "Mettre à jour le mot de passe"}
             </Button>
           </form>
