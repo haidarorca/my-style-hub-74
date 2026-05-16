@@ -131,10 +131,11 @@ function VendorsPage() {
 
   const PAGE_SIZE = 25;
 
-  const { data: pageData, isLoading } = useQuery({
+  const { data: pageData, isLoading, error: listError, refetch } = useQuery({
     queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir }],
     queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir } }),
     placeholderData: keepPreviousData,
+    retry: false,
   });
 
   const vendors = pageData?.rows;
@@ -373,6 +374,18 @@ function VendorsPage() {
       {/* Filters toolbar */}
       <Card>
         <CardContent className="space-y-3 p-3">
+          {(query || fStatus !== "all" || fMode !== "all" || fCountry !== "all" || fSignupFrom || fSignupTo || fEndFrom || fEndTo || colF.shop.search || colF.vendor.search || colF.email.search) && (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
+                setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
+                setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
+                setColF({ shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {} });
+                navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
+              }}>
+                <X className="mr-1 h-3 w-3" /> Effacer les filtres
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -427,7 +440,22 @@ function VendorsPage() {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Liste des vendeurs</CardTitle></CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {listError ? (
+            <div className="space-y-2 p-4">
+              <p className="text-sm text-destructive">
+                Impossible de charger les vendeurs : {(listError as Error).message}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Votre session a peut-être expiré. Reconnectez-vous puis réessayez.
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => refetch()}>Réessayer</Button>
+                <Button size="sm" variant="outline" asChild>
+                  <Link to="/login">Se reconnecter</Link>
+                </Button>
+              </div>
+            </div>
+          ) : isLoading ? (
             <p className="p-4 text-sm text-muted-foreground">Chargement…</p>
           ) : (
             <div className="overflow-x-auto">
