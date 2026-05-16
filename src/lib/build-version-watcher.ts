@@ -17,13 +17,19 @@ let started = false;
 let notified = false;
 let initialFingerprint: string | null = null;
 
+function isHashedAsset(url: string): boolean {
+  return url.includes("/assets/") || url.includes("/_build/");
+}
+
 function currentFingerprint(): string {
   if (typeof document === "undefined") return "";
   const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]"))
     .map((s) => s.getAttribute("src") || "")
-    .filter((src) => src.includes("/assets/") || src.includes("/_build/"))
-    .sort();
-  return scripts.join("|");
+    .filter(isHashedAsset);
+  const styles = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]'))
+    .map((l) => l.getAttribute("href") || "")
+    .filter(isHashedAsset);
+  return [...scripts, ...styles].sort().join("|");
 }
 
 async function remoteFingerprint(): Promise<string | null> {
@@ -35,13 +41,16 @@ async function remoteFingerprint(): Promise<string | null> {
     });
     if (!res.ok) return null;
     const html = await res.text();
-    const matches = Array.from(
-      html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi),
-    )
+    const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi))
       .map((m) => m[1])
-      .filter((src) => src.includes("/assets/") || src.includes("/_build/"))
-      .sort();
-    return matches.join("|");
+      .filter(isHashedAsset);
+    const styles = Array.from(html.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/gi))
+      .map((m) => m[1])
+      .filter(isHashedAsset);
+    const styles2 = Array.from(html.matchAll(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']stylesheet["']/gi))
+      .map((m) => m[1])
+      .filter(isHashedAsset);
+    return [...scripts, ...styles, ...styles2].sort().join("|");
   } catch {
     return null;
   }
