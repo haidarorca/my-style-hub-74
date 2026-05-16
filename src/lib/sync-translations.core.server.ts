@@ -35,26 +35,36 @@ export type Report = {
 const LANGS = ["fr", "en", "ar"] as const;
 type Lang = (typeof LANGS)[number];
 
-const BATCH = 25;
-const HARD_CAP_PER_RUN = 300; // total items processed per invocation
+const BATCH = 6;               // items processed in parallel per round
+const HARD_CAP_PER_RUN = 40;   // total items processed per invocation (safe vs Worker timeout)
+const WALL_CLOCK_MS = 22_000;  // stop scheduling new work after this many ms
+const AI_TIMEOUT_MS = 12_000;  // abort any single AI call after this many ms
 const MAX_ERROR_SAMPLES = 10;
 
 function emptyBucket(): BucketReport {
   return { translated: 0, skipped: 0, errors: 0, pending: 0 };
 }
 
+type Budget = { left: number; deadline: number };
+const timeUp = (b: Budget) => Date.now() >= b.deadline || b.left <= 0;
+
 async function callGateway(prompt: string, apiKey: string): Promise<string | null> {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return json.choices?.[0]?.message?.content?.trim() ?? null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return json.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null; // timeout / network → caller treats as no translation
+  }
 }
 
 function stripFences(raw: string): string {
