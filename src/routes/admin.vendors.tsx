@@ -174,10 +174,50 @@ function VendorsPage() {
           const end = new Date(fEndTo); end.setHours(23, 59, 59, 999);
           if (!p.access_ends_at || new Date(p.access_ends_at) > end) return false;
         }
+        // Per-column text filters (Excel-like)
+        const statusLabel = STATUS_META[(p.vendor_status ?? "pending") as AccountStatus]?.label ?? "";
+        const typeLabel = p.vendor_mode === "commission" ? "Avec commission" : "Sans commission";
+        const accessors: Record<ColKey, string> = {
+          shop: p.shop_name ?? "",
+          vendor: p.full_name ?? "",
+          email: p.email ?? "",
+          location: `${countryName(p.source_country_id)} ${p.address ?? ""}`,
+          status: statusLabel,
+          type: typeLabel,
+          signup: p.created_at ?? "",
+          endAccess: p.access_ends_at ?? "",
+        };
+        for (const k of Object.keys(colF) as ColKey[]) {
+          const f = colF[k];
+          const val = (accessors[k] ?? "").toString().toLowerCase().trim();
+          if (f.search && !val.includes(f.search.toLowerCase().trim())) return false;
+          if (f.startsWith && !val.startsWith(f.startsWith.toLowerCase().trim())) return false;
+        }
         return true;
       })
-      .sort((a, b) => new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime());
-  }, [vendors, query, fStatus, fMode, fCountry, fSignupFrom, fSignupTo, fEndFrom, fEndTo]);
+      .sort((a, b) => {
+        if (sortBy) {
+          const pa = a.profiles, pb = b.profiles;
+          const getVal = (p: typeof pa): string | number => {
+            if (!p) return "";
+            switch (sortBy.col) {
+              case "shop": return (p.shop_name ?? "").toLowerCase();
+              case "vendor": return (p.full_name ?? "").toLowerCase();
+              case "email": return (p.email ?? "").toLowerCase();
+              case "location": return `${countryName(p.source_country_id)} ${p.address ?? ""}`.toLowerCase();
+              case "status": return (STATUS_META[(p.vendor_status ?? "pending") as AccountStatus]?.label ?? "").toLowerCase();
+              case "type": return p.vendor_mode === "commission" ? "1" : "0";
+              case "signup": return new Date(p.created_at ?? 0).getTime();
+              case "endAccess": return p.access_ends_at ? new Date(p.access_ends_at).getTime() : 0;
+            }
+          };
+          const va = getVal(pa), vb = getVal(pb);
+          const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+          return sortBy.dir === "asc" ? cmp : -cmp;
+        }
+        return new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime();
+      });
+  }, [vendors, query, fStatus, fMode, fCountry, fSignupFrom, fSignupTo, fEndFrom, fEndTo, colF, sortBy, countries]);
 
   // Create dialog
   const [open, setOpen] = useState(false);
