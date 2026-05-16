@@ -92,6 +92,7 @@ function safeParseJson(raw: string): Record<string, unknown> | null {
  * Returns a partial map per language. Empty strings are dropped.
  */
 export const translateProductFields = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => productSchema.parse(input))
   .handler(async ({ data }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
