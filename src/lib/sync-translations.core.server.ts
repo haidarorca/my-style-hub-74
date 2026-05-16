@@ -305,7 +305,7 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
           if (changed) patch.shop_hours_i18n = merged;
         }
         if (Object.keys(patch).length === 0) { report.shops.errors++; continue; }
-        const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", row.id);
+        const { error } = await supabaseAdmin.from("profiles").update(patch as never).eq("id", row.id);
         if (error) { report.shops.errors++; pushError(report.errorSamples, `boutique ${row.id.slice(0, 8)}: ${error.message}`); }
         else report.shops.translated++;
       } catch (e) {
@@ -359,7 +359,7 @@ async function syncBanners(report: Report, apiKey: string, budget: { left: numbe
       }
       if (!needs) { report.banners.skipped++; continue; }
       if (Object.keys(patch).length === 0) { report.banners.errors++; continue; }
-      const { error } = await supabaseAdmin.from("home_banners").update(patch).eq("id", row.id);
+      const { error } = await supabaseAdmin.from("home_banners").update(patch as never).eq("id", row.id);
       if (error) { report.banners.errors++; pushError(report.errorSamples, `bannière ${row.id.slice(0, 8)}: ${error.message}`); }
       else report.banners.translated++;
     } catch (e) {
@@ -411,7 +411,7 @@ async function syncSettings(report: Report, apiKey: string, budget: { left: numb
     }
     if (!needs) { report.settings.skipped++; return; }
     if (Object.keys(patch).length === 0) { report.settings.errors++; return; }
-    const { error } = await supabaseAdmin.from("site_settings").update(patch).eq("id", "main");
+    const { error } = await supabaseAdmin.from("site_settings").update(patch as never).eq("id", "main");
     if (error) { report.settings.errors++; pushError(report.errorSamples, `paramètres: ${error.message}`); }
     else report.settings.translated++;
   } catch (e) {
