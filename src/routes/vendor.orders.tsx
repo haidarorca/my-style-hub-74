@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { useEffect, useState } from "react";
 import {
   Package, ImageIcon, Phone, MapPin, Search, MessageCircle, Clock, CheckCircle2,
-  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History, Download, ExternalLink,
+  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History, Download, ExternalLink, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
