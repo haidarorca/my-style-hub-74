@@ -316,8 +316,8 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
         pushError(report.errorSamples, `boutique: ${e instanceof Error ? e.message : "erreur"}`);
       }
     }
-    if (touched === 0) break; // no candidates in this page
-    if (data.length < limit * 4) break;
+    if (data.length < pageSize) break; // last page reached
+    void touched;
   }
 }
 
