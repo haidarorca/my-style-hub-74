@@ -1422,6 +1422,7 @@ export type Database = {
           comment: string | null
           created_at: string | null
           id: string | null
+          is_verified: boolean | null
           photos: string[] | null
           product_id: string | null
           rating: number | null
@@ -1433,6 +1434,7 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           id?: string | null
+          is_verified?: never
           photos?: string[] | null
           product_id?: string | null
           rating?: number | null
@@ -1444,6 +1446,7 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           id?: string | null
+          is_verified?: never
           photos?: string[] | null
           product_id?: string | null
           rating?: number | null
