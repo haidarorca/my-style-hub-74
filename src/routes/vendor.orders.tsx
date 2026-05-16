@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { useEffect, useState } from "react";
 import {
   Package, ImageIcon, Phone, MapPin, Search, MessageCircle, Clock, CheckCircle2,
-  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History,
+  ChefHat, Truck, PackageCheck, Ban, RotateCcw, History, Download, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -375,9 +375,39 @@ function VendorOrders() {
           {zoomImg && (
             <div className="space-y-3">
               <img src={zoomImg} alt="" className="max-h-[70vh] w-full object-contain" />
-              <a href={zoomImg} target="_blank" rel="noreferrer">
-                <Button variant="outline" className="w-full">Ouvrir dans un nouvel onglet</Button>
-              </a>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  variant="default"
+                  className="w-full gap-2"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(zoomImg, { mode: "cors" });
+                      if (!res.ok) throw new Error();
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      const ext = (blob.type.split("/")[1] || "jpg").split("+")[0];
+                      a.download = `personnalisation-${Date.now()}.${ext}`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      // Fallback: open in new tab so user can long-press / save-as
+                      window.open(zoomImg, "_blank", "noopener,noreferrer");
+                      toast.message("Téléchargement direct impossible — ouvert dans un nouvel onglet");
+                    }
+                  }}
+                >
+                  <Download className="h-4 w-4" /> Télécharger l'image
+                </Button>
+                <a href={zoomImg} target="_blank" rel="noreferrer">
+                  <Button variant="outline" className="w-full gap-2">
+                    <ExternalLink className="h-4 w-4" /> Ouvrir dans un nouvel onglet
+                  </Button>
+                </a>
+              </div>
             </div>
           )}
         </DialogContent>
