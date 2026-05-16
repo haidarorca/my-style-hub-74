@@ -35,6 +35,7 @@ async function callGateway(prompt: string, apiKey: string): Promise<string | nul
  * Translate a short piece of e-commerce text via Lovable AI Gateway.
  */
 export const translateText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => inputSchema.parse(input))
   .handler(async ({ data }) => {
     if (data.from === data.to) return { text: data.text };
