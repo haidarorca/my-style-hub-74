@@ -126,7 +126,19 @@ function VendorOrders() {
     },
   });
 
-  const updateStatus = async (orderId: string, status: OrderStatus) => {
+  const LOCKED_STATUSES: OrderStatus[] = ["cancelled", "refunded", "delivered"];
+  const isLocked = (s: string) => LOCKED_STATUSES.includes(s as OrderStatus);
+
+  const updateStatus = async (orderId: string, status: OrderStatus, currentStatus: string) => {
+    if (isLocked(currentStatus)) {
+      return toast.error(
+        currentStatus === "cancelled"
+          ? "Commande annulée par le client — modification impossible"
+          : currentStatus === "refunded"
+            ? "Commande remboursée — modification impossible"
+            : "Commande livrée — modification impossible",
+      );
+    }
     const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
     if (error) return toast.error(error.message);
     toast.success("Statut mis à jour");
@@ -215,16 +227,22 @@ function VendorOrders() {
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistoryOrderId(o.id)} aria-label="Historique">
                       <History className="h-3.5 w-3.5" />
                     </Button>
-                    <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v as OrderStatus)}>
-                      <SelectTrigger className="h-7 w-[140px] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUS_FLOW.map((v) => (
-                          <SelectItem key={v} value={v}>{STATUS_META[v].label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isLocked(o.status) ? (
+                      <Badge variant="outline" className="h-7 gap-1 border-dashed text-[11px] text-muted-foreground">
+                        {o.status === "cancelled" ? "Annulée par le client" : o.status === "refunded" ? "Remboursée" : "Livrée"}
+                      </Badge>
+                    ) : (
+                      <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v as OrderStatus, o.status)}>
+                        <SelectTrigger className="h-7 w-[140px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_FLOW.map((v) => (
+                            <SelectItem key={v} value={v}>{STATUS_META[v].label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </header>
 
