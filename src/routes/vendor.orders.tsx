@@ -169,6 +169,20 @@ function VendorOrders() {
         <span className="text-xs text-muted-foreground">{total} résultat{total > 1 ? "s" : ""}{isFetching && !isLoading ? " · …" : ""}</span>
       </div>
 
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
+          <span className="text-sm font-semibold text-primary">{selected.size} sélectionnée(s)</span>
+          <Button asChild size="sm" className="ml-auto">
+            <Link to="/vendor/preparation" search={{ ids: Array.from(selected).join(",") }}>
+              <ClipboardList className="h-4 w-4" /> Préparation groupée
+            </Link>
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
