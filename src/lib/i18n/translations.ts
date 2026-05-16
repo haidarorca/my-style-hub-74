@@ -294,6 +294,8 @@ const fr: Dict = {
   "vendor.orders": "Commandes",
   "vendor.orders.empty": "Aucune commande à traiter",
   "vendor.notifications": "Notifications",
+  "vendor.reviews": "Avis",
+  "vendor.reports": "Signalements",
   "vendor.messages": "Messages clients",
   "vendor.settings": "Paramètres boutique",
   "vendor.settings.shop_name": "Nom de la boutique",
