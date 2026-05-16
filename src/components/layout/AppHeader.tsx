@@ -58,33 +58,7 @@ export function AppHeader() {
         {pathname === "/search" || pathname === "/account" || pathname === "/cart" ? (
           <div aria-hidden className="h-10" />
         ) : (
-          <form
-            onSubmit={submitSearch}
-            className="mx-auto flex h-9 w-full max-w-[130px] items-center gap-1 rounded-full border border-border bg-muted pl-0.5 pr-0.5 shadow-sm transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/30 sm:max-w-md"
-          >
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("common.search_placeholder")}
-              inputMode="search"
-              enterKeyHint="search"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground sm:text-sm"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label={t("search.clear")}
-                className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-            <button type="submit" aria-label={t("common.search")} className="shrink-0 rounded-full p-1.5 text-primary hover:text-foreground">
-              <Search className="h-4 w-4" />
-            </button>
-          </form>
+          <SearchAutocomplete />
         )}
 
         <div className="flex items-center gap-1 sm:gap-1.5">
