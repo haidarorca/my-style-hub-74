@@ -531,7 +531,82 @@ function DateRangeMini({ label, value, onChange }: { label: string; value?: Date
   );
 }
 
-function ReasonDialog({
+type ColFKind = "text" | "date";
+type _ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+function FilterableHead({
+  label, colKey, colF, updateColF, sortBy, setSortBy, kind = "text",
+}: {
+  label: string;
+  colKey: _ColKey;
+  colF: Record<_ColKey, { search?: string; startsWith?: string }>;
+  updateColF: (k: _ColKey, v: { search?: string; startsWith?: string }) => void;
+  sortBy: { col: _ColKey; dir: "asc" | "desc" } | null;
+  setSortBy: (s: { col: _ColKey; dir: "asc" | "desc" } | null) => void;
+  kind?: ColFKind;
+}) {
+  const f = colF[colKey] ?? {};
+  const isActive = !!(f.search || f.startsWith) || sortBy?.col === colKey;
+  const SortIcon = sortBy?.col === colKey
+    ? (sortBy.dir === "asc" ? ArrowUp : ArrowDown)
+    : ArrowUpDown;
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      {label}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-5 w-5 p-0", isActive && "text-primary")}
+            aria-label={`Filtrer ${label}`}
+          >
+            <SortIcon className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-2 space-y-1" align="start">
+          <Button variant="ghost" size="sm" className="w-full justify-start h-8"
+            onClick={() => setSortBy({ col: colKey, dir: "asc" })}>
+            <ArrowUp className="mr-2 h-3 w-3" />
+            {kind === "date" ? "Plus ancien → récent" : "Trier A → Z"}
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start h-8"
+            onClick={() => setSortBy({ col: colKey, dir: "desc" })}>
+            <ArrowDown className="mr-2 h-3 w-3" />
+            {kind === "date" ? "Plus récent → ancien" : "Trier Z → A"}
+          </Button>
+          {kind === "text" && (
+            <>
+              <div className="pt-1">
+                <Label className="text-[10px] text-muted-foreground">Rechercher</Label>
+                <Input
+                  placeholder="Mot précis…"
+                  value={f.search ?? ""}
+                  onChange={(e) => updateColF(colKey, { ...f, search: e.target.value })}
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Commence par</Label>
+                <Input
+                  placeholder="ex: M"
+                  maxLength={3}
+                  value={f.startsWith ?? ""}
+                  onChange={(e) => updateColF(colKey, { ...f, startsWith: e.target.value })}
+                  className="h-8 mt-1"
+                />
+              </div>
+            </>
+          )}
+          <Button variant="ghost" size="sm" className="w-full h-8"
+            onClick={() => { updateColF(colKey, {}); if (sortBy?.col === colKey) setSortBy(null); }}>
+            <X className="mr-2 h-3 w-3" /> Réinitialiser
+          </Button>
+        </PopoverContent>
+      </Popover>
+    </span>
+  );
+}
+
   state, onClose, onConfirm,
 }: {
   state: { vendor: VendorRow; status: "suspended" | "blocked" } | null;
