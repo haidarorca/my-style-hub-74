@@ -28,7 +28,7 @@ function VendorPreparation() {
   const mark = useServerFn(markOrdersInPreparation);
 
   const orderIds = useMemo(
-    () => ids.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)),
+    () => ids.split(",").map((s: string) => s.trim()).filter((s: string) => /^[0-9a-f-]{36}$/i.test(s)),
     [ids],
   );
 

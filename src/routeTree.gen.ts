@@ -27,6 +27,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as VendorSettingsRouteImport } from './routes/vendor.settings'
 import { Route as VendorReviewsRouteImport } from './routes/vendor.reviews'
 import { Route as VendorReportsRouteImport } from './routes/vendor.reports'
+import { Route as VendorPreparationRouteImport } from './routes/vendor.preparation'
 import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
 import { Route as VendorNotificationsRouteImport } from './routes/vendor.notifications'
 import { Route as VendorMessagesRouteImport } from './routes/vendor.messages'
@@ -145,6 +146,11 @@ const VendorReviewsRoute = VendorReviewsRouteImport.update({
 const VendorReportsRoute = VendorReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorPreparationRoute = VendorPreparationRouteImport.update({
+  id: '/preparation',
+  path: '/preparation',
   getParentRoute: () => VendorRoute,
 } as any)
 const VendorOrdersRoute = VendorOrdersRouteImport.update({
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -425,6 +433,7 @@ export interface FileRoutesById {
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
+  '/vendor/preparation': typeof VendorPreparationRoute
   '/vendor/reports': typeof VendorReportsRoute
   '/vendor/reviews': typeof VendorReviewsRoute
   '/vendor/settings': typeof VendorSettingsRoute
@@ -476,6 +485,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -571,6 +582,7 @@ export interface FileRouteTypes {
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
+    | '/vendor/preparation'
     | '/vendor/reports'
     | '/vendor/reviews'
     | '/vendor/settings'
@@ -733,6 +745,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/vendor/reports'
       preLoaderRoute: typeof VendorReportsRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/preparation': {
+      id: '/vendor/preparation'
+      path: '/preparation'
+      fullPath: '/vendor/preparation'
+      preLoaderRoute: typeof VendorPreparationRouteImport
       parentRoute: typeof VendorRoute
     }
     '/vendor/orders': {
@@ -1022,6 +1041,7 @@ interface VendorRouteChildren {
   VendorMessagesRoute: typeof VendorMessagesRoute
   VendorNotificationsRoute: typeof VendorNotificationsRoute
   VendorOrdersRoute: typeof VendorOrdersRoute
+  VendorPreparationRoute: typeof VendorPreparationRoute
   VendorReportsRoute: typeof VendorReportsRoute
   VendorReviewsRoute: typeof VendorReviewsRoute
   VendorSettingsRoute: typeof VendorSettingsRoute
@@ -1035,6 +1055,7 @@ const VendorRouteChildren: VendorRouteChildren = {
   VendorMessagesRoute: VendorMessagesRoute,
   VendorNotificationsRoute: VendorNotificationsRoute,
   VendorOrdersRoute: VendorOrdersRoute,
+  VendorPreparationRoute: VendorPreparationRoute,
   VendorReportsRoute: VendorReportsRoute,
   VendorReviewsRoute: VendorReviewsRoute,
   VendorSettingsRoute: VendorSettingsRoute,
