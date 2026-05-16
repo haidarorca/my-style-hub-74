@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Briefcase, Phone, MapPin, Search, MessageCircle, Send, Clock, CheckCircle2,
-  ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck,
+  ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,9 +51,31 @@ function CommissionOrders() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter]);
+
+  // Vendors that have at least one commission order item
+  const { data: vendorsList } = useQuery({
+    queryKey: ["admin-commission-orders", "vendors"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: ords } = await supabase
+        .from("orders").select("id").eq("is_commission", true).limit(2000);
+      const ids = (ords ?? []).map((o: any) => o.id);
+      if (ids.length === 0) return [] as { id: string; name: string }[];
+      const { data: its } = await supabase
+        .from("order_items").select("vendor_id").in("order_id", ids);
+      const vIds = Array.from(new Set((its ?? []).map((i: any) => i.vendor_id))).filter(Boolean);
+      if (vIds.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles").select("id, shop_name, full_name").in("id", vIds);
+      return (profs ?? [])
+        .map((p: any) => ({ id: p.id, name: p.shop_name || p.full_name || "Boutique" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleOne = (id: string) =>
@@ -77,16 +99,27 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
+
+      // If a vendor is selected, restrict to order_ids that have an item from this vendor
+      let restrictIds: string[] | null = null;
+      if (vendorFilter !== "all") {
+        const { data: vIts } = await supabase
+          .from("order_items").select("order_id").eq("vendor_id", vendorFilter);
+        restrictIds = Array.from(new Set((vIts ?? []).map((i: any) => i.order_id)));
+        if (restrictIds.length === 0) return { orders: [], total: 0 };
+      }
+
       let oq = supabase
         .from("orders")
         .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (restrictIds) oq = oq.in("id", restrictIds);
       if (q) {
         const esc = q.replace(/[%,()]/g, " ");
         oq = oq.or(`customer_name.ilike.%${esc}%,customer_phone.ilike.%${esc}%,address.ilike.%${esc}%,city.ilike.%${esc}%,id.eq.${/^[0-9a-f-]{8,}$/i.test(q) ? q : "00000000-0000-0000-0000-000000000000"}`);
@@ -113,14 +146,22 @@ function CommissionOrders() {
         : { data: [] as any[] };
       const vendorMap = new Map<string, any>((vendors ?? []).map((v: any) => [v.id, v]));
 
-      return {
-        orders: (ords ?? []).map((o: any) => ({
-          ...o,
-          items: (items ?? []).filter((i: any) => i.order_id === o.id),
-          vendorMap,
-        })),
-        total: count ?? 0,
-      };
+      const enriched = (ords ?? []).map((o: any) => {
+        const oItems = (items ?? []).filter((i: any) => i.order_id === o.id);
+        const primaryVendorId = oItems[0]?.vendor_id ?? null;
+        const primaryVendor = primaryVendorId ? vendorMap.get(primaryVendorId) : null;
+        const primaryVendorName = primaryVendor?.shop_name || primaryVendor?.full_name || "—";
+        return { ...o, items: oItems, vendorMap, primaryVendorId, primaryVendorName };
+      });
+
+      // Sort: group by vendor name, then by created_at desc within each vendor
+      enriched.sort((a: any, b: any) => {
+        const n = a.primaryVendorName.localeCompare(b.primaryVendorName);
+        if (n !== 0) return n;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      return { orders: enriched, total: count ?? 0 };
     },
   });
 
@@ -248,10 +289,15 @@ function CommissionOrders() {
       {selected.size > 0 && (
         <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
           <span className="text-sm font-semibold text-primary">
-            {selected.size} commande{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}
+            {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
           </span>
-          <Button size="sm" className="ml-auto gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
-            <SendIcon className="h-4 w-4" /> Envoyer groupé aux vendeurs
+          <Button asChild size="sm" className="ml-auto gap-1">
+            <Link to="/admin/preparation" search={{ ids: Array.from(selected).join(",") }}>
+              <ClipboardList className="h-4 w-4" /> Préparation groupée
+            </Link>
+          </Button>
+          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
+            <SendIcon className="h-4 w-4" /> Envoyer aux vendeurs
           </Button>
           <Button size="sm" variant="ghost" onClick={clearSelection}>
             <X className="h-4 w-4" />
@@ -259,14 +305,28 @@ function CommissionOrders() {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher client, téléphone, ville, n° commande…"
-          className="pl-8"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher client, téléphone, ville, n° commande…"
+            className="pl-8"
+          />
+        </div>
+        <Select value={vendorFilter} onValueChange={setVendorFilter}>
+          <SelectTrigger className="sm:w-[220px]">
+            <Store className="h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Tous les vendeurs" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les vendeurs</SelectItem>
+            {(vendorsList ?? []).map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="-mx-3 overflow-x-auto px-3">
