@@ -318,6 +318,21 @@ function AccountPage() {
           <BackButton fallbackTo="/" />
         </div>
 
+        {!isEmailVerified && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">Email non vérifié</p>
+                <p className="text-xs text-amber-700">Vérifiez votre boîte mail ou cliquez ci-dessous pour renvoyer le lien.</p>
+                <Button onClick={handleResendVerification} disabled={resendCooldown > 0} size="sm" className="mt-2">
+                  {resendCooldown > 0 ? `Réessayer dans ${resendCooldown}s` : "Renvoyer l'email de vérification"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-4 space-y-2">
           <Link
             to="/orders"
