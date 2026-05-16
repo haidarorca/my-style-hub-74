@@ -245,6 +245,20 @@ function CommissionOrders() {
         Ces commandes proviennent de vendeurs <strong>avec commission</strong>. Vous traitez le client et transmettez la préparation au vendeur par WhatsApp (sans partager les coordonnées du client).
       </p>
 
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-primary/10 px-3 py-2 shadow-md backdrop-blur">
+          <span className="text-sm font-semibold text-primary">
+            {selected.size} commande{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}
+          </span>
+          <Button size="sm" className="ml-auto gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
+            <SendIcon className="h-4 w-4" /> Envoyer groupé aux vendeurs
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
