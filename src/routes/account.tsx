@@ -355,7 +355,7 @@ function AccountPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Pays de livraison</p>
               <p className="text-xs text-muted-foreground">
-                Les prix affichés et la commission s'adaptent au pays choisi.
+                Sélectionnez le pays où vous voulez être livré.
               </p>
             </div>
           </div>
