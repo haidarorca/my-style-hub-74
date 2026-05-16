@@ -377,6 +377,141 @@ function VendorOrders() {
         </div>
       )}
 
+      {/* Order details dialog */}
+      <Dialog open={!!detailsOrder} onOpenChange={(o) => !o && setDetailsOrder(null)}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Commande #{detailsOrder?.id?.slice(0, 8)}
+            </DialogTitle>
+          </DialogHeader>
+          {detailsOrder && (() => {
+            const o = detailsOrder;
+            const isComm = !!o.is_commission;
+            const meta = STATUS_META[o.status as OrderStatus] ?? STATUS_META.new;
+            const myItemsTotal = (o.items ?? []).reduce(
+              (s: number, i: any) => s + Number(i.unit_price) * i.quantity, 0,
+            );
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={cn("gap-1 border", meta.cls)}>
+                    <meta.icon className="h-3 w-3" />{meta.label}
+                  </Badge>
+                  {isComm && (
+                    <Badge variant="outline" className="gap-1 border-primary/40 bg-primary/10 text-primary">
+                      💼 Plateforme
+                    </Badge>
+                  )}
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {new Date(o.created_at).toLocaleString(locale)}
+                  </span>
+                </div>
+
+                {isComm ? (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+                    <div className="font-semibold text-primary">Commande plateforme</div>
+                    <div className="mt-1 text-muted-foreground">
+                      Les coordonnées du client sont gérées par l'administration. Préparez les produits ci-dessous, l'admin vous contactera via WhatsApp pour la suite.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/20 p-3 text-xs">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Client</div>
+                    <div className="mt-1 font-semibold">{o.customer_name ?? "—"}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+                      {o.customer_phone && (
+                        <a href={`tel:${o.customer_phone}`} className="inline-flex items-center gap-1 hover:text-primary">
+                          <Phone className="h-3 w-3" /> {o.customer_phone}
+                        </a>
+                      )}
+                      {(o.address || o.city) && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {[o.address, o.city].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
+                  </div>
+                )}
+
+                <div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Articles ({o.items?.length ?? 0})
+                  </div>
+                  <ul className="space-y-2">
+                    {(o.items ?? []).map((it: any) => {
+                      const c = it.customization || {};
+                      return (
+                        <li key={it.id} className="flex gap-3 rounded-lg border bg-card p-2">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+                            {it.product_image_url && (
+                              <img src={it.product_image_url} alt={it.product_name} className="h-full w-full object-cover" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="font-semibold">{it.product_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Code {it.product_code} · Qté {it.quantity} ·{" "}
+                              {Number(it.unit_price).toLocaleString(locale)} FCFA
+                            </div>
+                            {(it.size || it.color) && (
+                              <div className="text-xs text-muted-foreground">
+                                {it.size && <>Taille : {it.size}</>}
+                                {it.size && it.color && " · "}
+                                {it.color && <>Couleur : {it.color}</>}
+                              </div>
+                            )}
+                            {(c.text || c.image_url) && (
+                              <div className="mt-1 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
+                                <div className="mb-1 font-semibold text-primary">Personnalisation</div>
+                                {c.text && (
+                                  <div className="space-y-1">
+                                    <div>Texte : <span className="font-medium">{c.text}</span></div>
+                                    {c.font && <div>Police : <span className="font-medium">{c.font}</span></div>}
+                                    {c.color && (
+                                      <div className="flex items-center gap-1">
+                                        Couleur :
+                                        <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: c.color }} />
+                                        <span className="font-mono">{c.color}</span>
+                                      </div>
+                                    )}
+                                    <div className="mt-1 rounded bg-background p-2 text-base"
+                                         style={{ fontFamily: c.font || undefined, color: c.color || undefined }}>
+                                      {c.text}
+                                    </div>
+                                  </div>
+                                )}
+                                {c.image_url && (
+                                  <button onClick={() => setZoomImg(c.image_url)}
+                                          className="mt-2 block h-24 w-24 overflow-hidden rounded border bg-muted">
+                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-muted/10 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    {isAdmin ? "Total commande" : "Sous-total mes articles"}
+                  </span>
+                  <span className="font-bold text-primary">
+                    {(isAdmin ? Number(o.total) : myItemsTotal).toLocaleString(locale)} FCFA
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* Status history dialog */}
       <Dialog open={!!historyOrderId} onOpenChange={(o) => !o && setHistoryOrderId(null)}>
         <DialogContent className="max-w-md">
