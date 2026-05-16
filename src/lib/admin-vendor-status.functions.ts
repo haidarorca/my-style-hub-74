@@ -3,7 +3,18 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function assertAdmin(supabase: ReturnType<typeof requireSupabaseAuth> extends never ? never : any, userId: string) {
+type ProfilePatch = Partial<{
+  vendor_status: "active" | "pending" | "suspended" | "expired" | "blocked";
+  access_starts_at: string | null;
+  access_ends_at: string | null;
+  suspended_at: string | null;
+  suspended_reason: string | null;
+  blocked_at: string | null;
+  blocked_reason: string | null;
+  is_verified: boolean;
+}>;
+
+async function assertAdmin(supabase: { from: (t: string) => { select: (c: string) => { eq: (col: string, val: string) => { eq: (col: string, val: string) => { maybeSingle: () => Promise<{ data: unknown }> } } } } }, userId: string) {
   const { data } = await supabase
     .from("user_roles").select("role")
     .eq("user_id", userId).eq("role", "admin").maybeSingle();
@@ -20,8 +31,8 @@ export const setVendorStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => StatusSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
-    const patch: Record<string, unknown> = { vendor_status: data.status };
+    await assertAdmin(context.supabase as never, context.userId);
+    const patch: ProfilePatch = { vendor_status: data.status };
     const now = new Date().toISOString();
     if (data.status === "suspended") {
       patch.suspended_at = now;
@@ -52,13 +63,10 @@ export const setVendorAccessWindow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => AccessSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
-    const patch: Record<string, unknown> = {
-      access_ends_at: data.access_ends_at,
-    };
+    await assertAdmin(context.supabase as never, context.userId);
+    const patch: ProfilePatch = { access_ends_at: data.access_ends_at };
     if (data.access_starts_at !== undefined) patch.access_starts_at = data.access_starts_at;
 
-    // If extending into the future and currently expired/active, reactivate to active
     if (data.access_ends_at === null || new Date(data.access_ends_at) > new Date()) {
       const { data: prof } = await supabaseAdmin
         .from("profiles").select("vendor_status").eq("id", data.user_id).maybeSingle();
