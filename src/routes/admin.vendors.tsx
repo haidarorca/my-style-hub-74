@@ -184,7 +184,7 @@ function VendorsPage() {
   });
   // Sort state: URL drives server-sortable cols (shop/signup/status); other cols stay local
   const [localSortBy, setLocalSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
-  const urlSortCol = DB_TO_COL[urlSort];
+  const urlSortCol = DB_TO_COL[urlSort as keyof typeof DB_TO_COL];
   const sortBy: { col: ColKey; dir: "asc" | "desc" } | null = localSortBy ?? { col: urlSortCol, dir: urlDir };
   const setSortBy = (s: { col: ColKey; dir: "asc" | "desc" } | null) => {
     if (s && (s.col in SERVER_SORT_BY_COL)) {
