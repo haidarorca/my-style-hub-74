@@ -309,7 +309,7 @@ function CartPage() {
   const submitOrder = async () => {
     if (items.length === 0) return;
     if (!destinationCountryId) {
-      toast.error("Sélectionnez le pays de livraison.");
+      toast.error(t("checkout.country_required"));
       return;
     }
     setSubmitting(true);
@@ -323,9 +323,7 @@ function CartPage() {
         addr.destination_country_id !== destinationCountryId
       ) {
         setSubmitting(false);
-        toast.error(
-          "Le pays de livraison choisi ne correspond pas au pays enregistré dans cette adresse. Choisissez une adresse du même pays ou modifiez l'adresse.",
-        );
+        toast.error(t("checkout.country_mismatch"));
         return;
       }
 
