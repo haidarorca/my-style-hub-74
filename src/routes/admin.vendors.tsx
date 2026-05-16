@@ -155,7 +155,7 @@ function VendorsPage() {
   // Additional client-only filters (applied to current page)
   const fStatus = urlStatus;
   const setFStatus = (s: AccountStatus | "all") =>
-    navigate({ search: (prev) => ({ ...prev, status: s, page: 1 }), replace: true });
+    navigate({ search: (prev: SearchState) => ({ ...prev, status: s, page: 1 }), replace: true });
   const [fMode, setFMode] = useState<"all" | "commission" | "no_commission">("all");
   const [fCountry, setFCountry] = useState<string | "all">("all");
   const [fSignupFrom, setFSignupFrom] = useState<Date | undefined>();
