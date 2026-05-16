@@ -451,6 +451,8 @@ function AccountPage() {
         <div className="mt-6">
           <ChangePasswordCard />
         </div>
+
+        {isVendor && !isAdmin && <RemoveVendorCard />}
       </main>
 
       <Dialog open={open} onOpenChange={setOpen}>
