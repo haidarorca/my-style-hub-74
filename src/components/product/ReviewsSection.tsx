@@ -12,9 +12,9 @@ interface Review {
   rating: number;
   comment: string | null;
   created_at: string;
-  user_id: string;
-  order_id: string | null;
-  profiles?: { full_name: string | null; email: string | null } | null;
+  is_verified: boolean;
+  is_own: boolean;
+  author_name: string;
 }
 
 function StarRow({ value, onChange, size = 16 }: { value: number; onChange?: (v: number) => void; size?: number }) {
