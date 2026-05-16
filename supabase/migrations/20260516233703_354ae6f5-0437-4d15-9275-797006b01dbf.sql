@@ -1,0 +1,1 @@
+GRANT SELECT ON public.public_vendor_profiles TO anon, authenticated;
