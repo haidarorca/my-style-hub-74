@@ -530,7 +530,8 @@ function DateRangeMini({ label, value, onChange }: { label: string; value?: Date
 }
 
 type ColFKind = "text" | "date";
-type _ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+type ColF = { search?: string; startsWith?: string };
 function FilterableHead({
   label, colKey, colF, updateColF, sortBy, setSortBy, kind = "text",
 }: {
