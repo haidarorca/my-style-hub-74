@@ -233,10 +233,11 @@ export const listReportedProducts = createServerFn({ method: "POST" })
 
     const countMap = new Map<string, number>();
     for (const c of countsRes.data ?? []) {
+      if (!c.product_id) continue;
       countMap.set(c.product_id, (countMap.get(c.product_id) ?? 0) + 1);
     }
 
-    const totals = { open: 0, resolved: 0, dismissed: 0 };
+    const totals = { open: 0, reviewed: 0, dismissed: 0 };
     for (const r of totalsRes.data ?? []) {
       const s = String(r.status ?? "open") as keyof typeof totals;
       if (s in totals) totals[s] += 1;
