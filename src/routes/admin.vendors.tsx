@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Store, Pencil, X, MoreHorizontal, CheckCircle2, PauseCircle,
   Ban, Clock, AlertTriangle, CalendarClock, Eye, ShoppingBag, Search,
+  ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
