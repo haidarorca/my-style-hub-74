@@ -57,4 +57,7 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettier,
+  {
+    rules: { "prettier/prettier": "warn" },
+  },
 );
