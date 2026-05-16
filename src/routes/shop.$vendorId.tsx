@@ -23,7 +23,7 @@ function ShopPage() {
   const { data: vendor } = useQuery({
     queryKey: ["vendor", vendorId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("public_vendor_profiles")
         .select("*")
         .eq("id", vendorId)
