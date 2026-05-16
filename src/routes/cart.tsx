@@ -27,6 +27,15 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { useSiteSettings } from "@/hooks/use-site-settings";
+
+interface DispatchGroup {
+  id: string;
+  label: string;
+  whatsappNumber: string | null;
+  message: string;
+  isAdmin: boolean;
+}
 
 const newAddressSchema = z.object({
   label: z.string().trim().min(1, "Libellé requis").max(50),
