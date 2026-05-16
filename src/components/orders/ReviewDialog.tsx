@@ -84,17 +84,14 @@ export function ReviewDialog({
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.from("product_reviews").upsert(
-      {
-        product_id: productId,
-        user_id: userId,
-        order_id: orderId,
-        rating,
-        comment: comment.trim() || null,
-        photos,
-      },
-      { onConflict: "product_id,user_id" },
-    );
+    const { error } = await supabase.from("product_reviews").insert({
+      product_id: productId,
+      user_id: userId,
+      order_id: orderId,
+      rating,
+      comment: comment.trim() || null,
+      photos,
+    } as any);
     setSubmitting(false);
     if (error) {
       toast.error(error.message);
