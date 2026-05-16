@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trash2, Plus, Upload, ArrowUp, ArrowDown } from "lucide-react";
+import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SiteSettings, HomeBanner } from "@/hooks/use-site-settings";
+import type { SiteSettings } from "@/hooks/use-site-settings";
+import { BannersManager } from "@/components/admin/BannersManager";
 
 export const Route = createFileRoute("/admin/settings")({
   component: () => <PermissionGate superOnly><SettingsPage /></PermissionGate>,
@@ -226,114 +227,5 @@ function SettingsPage() {
   );
 }
 
-function BannersManager() {
-  const qc = useQueryClient();
-  const { data: banners } = useQuery({
-    queryKey: ["admin", "home_banners"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("home_banners" as never)
-        .select("*")
-        .order("position");
-      if (error) throw error;
-      return (data ?? []) as unknown as HomeBanner[];
-    },
-  });
 
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ["admin", "home_banners"] });
-    qc.invalidateQueries({ queryKey: ["home_banners"] });
-  };
 
-  async function addBanner(file: File) {
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `banner-${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("site-assets").upload(path, file);
-    if (upErr) { toast.error(upErr.message); return; }
-    const { data: pub } = supabase.storage.from("site-assets").getPublicUrl(path);
-    const nextPos = (banners?.length ?? 0);
-    const { error } = await supabase.from("home_banners" as never).insert({
-      image_url: pub.publicUrl, position: nextPos, enabled: true,
-    } as never);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Bannière ajoutée");
-    refresh();
-  }
-
-  async function update(id: string, patch: Partial<HomeBanner>) {
-    const { error } = await supabase.from("home_banners" as never).update(patch as never).eq("id", id);
-    if (error) toast.error(error.message); else refresh();
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Supprimer cette bannière ?")) return;
-    const { error } = await supabase.from("home_banners" as never).delete().eq("id", id);
-    if (error) toast.error(error.message); else { toast.success("Supprimée"); refresh(); }
-  }
-
-  async function move(id: string, dir: -1 | 1) {
-    if (!banners) return;
-    const idx = banners.findIndex((b) => b.id === id);
-    const swap = banners[idx + dir];
-    if (!swap) return;
-    await update(id, { position: swap.position });
-    await update(swap.id, { position: banners[idx].position });
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-base">Bannières d'accueil (carrousel)</CardTitle>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:opacity-90">
-          <Plus className="h-4 w-4" /> Ajouter
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && addBanner(e.target.files[0])} />
-        </label>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">📐 Taille recommandée de la bannière</p>
-          <ul className="mt-1 space-y-0.5">
-            <li>• <strong>Idéale&nbsp;:</strong> 2400 × 900 px (ratio 24:9, desktop large)</li>
-            <li>• <strong>Minimum&nbsp;:</strong> 1600 × 600 px</li>
-            <li>• <strong>Format&nbsp;:</strong> JPG ou WebP, &lt; 500 Ko</li>
-            <li>• <strong>Astuce&nbsp;:</strong> placez le texte/visuel important au <em>centre</em> (les bords sont rognés sur mobile en 16:9)</li>
-          </ul>
-        </div>
-        {!banners || banners.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune bannière. Ajoute-en pour activer le carrousel.</p>
-        ) : (
-          <ul className="space-y-2">
-            {banners.map((b, i) => (
-              <li key={b.id} className="flex items-center gap-3 rounded-md border p-2">
-                <img src={b.image_url} alt="" className="h-14 w-24 rounded object-cover" />
-                <div className="flex-1 space-y-1">
-                  <Input
-                    placeholder="Lien (optionnel)"
-                    value={b.link_url ?? ""}
-                    onBlur={(e) => e.target.value !== (b.link_url ?? "") && update(b.id, { link_url: e.target.value || null })}
-                    onChange={(e) => { (b as HomeBanner).link_url = e.target.value; }}
-                  />
-                  <div className="flex items-center gap-2 text-xs">
-                    <Switch checked={b.enabled} onCheckedChange={(v) => update(b.id, { enabled: v })} />
-                    <span>{b.enabled ? "Visible" : "Masquée"}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => move(b.id, -1)} disabled={i === 0}>
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => move(b.id, 1)} disabled={i === banners.length - 1}>
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => remove(b.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}

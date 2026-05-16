@@ -20,6 +20,11 @@ export interface SiteSettings {
   footer_text: string | null;
   auth_sender_email: string | null;
   auth_sender_name: string | null;
+  banner_autoplay: boolean;
+  banner_interval_ms: number;
+  banner_transition: "slide" | "fade";
+  banner_show_arrows: boolean;
+  banner_show_dots: boolean;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -40,6 +45,11 @@ const DEFAULTS: SiteSettings = {
   footer_text: "",
   auth_sender_email: "haidarorca@gmail.com",
   auth_sender_name: "KawZone",
+  banner_autoplay: true,
+  banner_interval_ms: 4500,
+  banner_transition: "slide",
+  banner_show_arrows: true,
+  banner_show_dots: true,
 };
 
 // Mutable global so non-React code (whatsapp.ts) can read latest WhatsApp number
@@ -89,11 +99,47 @@ export function useSiteSettings() {
 export interface HomeBanner {
   id: string;
   image_url: string;
+  image_url_mobile: string | null;
+  image_url_tablet: string | null;
   link_url: string | null;
   title: string | null;
+  subtitle: string | null;
+  cta_label: string | null;
+  text_align: "left" | "center" | "right";
+  text_color: string;
+  overlay_opacity: number;
+  height_mobile: number;
+  height_tablet: number;
+  height_desktop: number;
+  object_fit: "cover" | "contain" | "fill";
+  focal_x: number;
+  focal_y: number;
+  zoom: number;
+  rotation: number;
   position: number;
   enabled: boolean;
 }
+
+export const BANNER_DEFAULTS: Omit<HomeBanner, "id" | "image_url" | "position"> = {
+  image_url_mobile: null,
+  image_url_tablet: null,
+  link_url: null,
+  title: null,
+  subtitle: null,
+  cta_label: null,
+  text_align: "left",
+  text_color: "#ffffff",
+  overlay_opacity: 0.35,
+  height_mobile: 220,
+  height_tablet: 320,
+  height_desktop: 480,
+  object_fit: "cover",
+  focal_x: 0.5,
+  focal_y: 0.5,
+  zoom: 1,
+  rotation: 0,
+  enabled: true,
+};
 
 export function useHomeBanners() {
   return useQuery({

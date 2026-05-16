@@ -464,36 +464,87 @@ export type Database = {
       home_banners: {
         Row: {
           created_at: string
+          cta_label: string | null
+          cta_label_i18n: Json | null
           enabled: boolean
+          focal_x: number
+          focal_y: number
+          height_desktop: number
+          height_mobile: number
+          height_tablet: number
           id: string
           image_url: string
+          image_url_mobile: string | null
+          image_url_tablet: string | null
           link_url: string | null
+          object_fit: string
+          overlay_opacity: number
           position: number
+          rotation: number
+          subtitle: string | null
+          subtitle_i18n: Json | null
+          text_align: string
+          text_color: string
           title: string | null
           title_i18n: Json | null
           updated_at: string
+          zoom: number
         }
         Insert: {
           created_at?: string
+          cta_label?: string | null
+          cta_label_i18n?: Json | null
           enabled?: boolean
+          focal_x?: number
+          focal_y?: number
+          height_desktop?: number
+          height_mobile?: number
+          height_tablet?: number
           id?: string
           image_url: string
+          image_url_mobile?: string | null
+          image_url_tablet?: string | null
           link_url?: string | null
+          object_fit?: string
+          overlay_opacity?: number
           position?: number
+          rotation?: number
+          subtitle?: string | null
+          subtitle_i18n?: Json | null
+          text_align?: string
+          text_color?: string
           title?: string | null
           title_i18n?: Json | null
           updated_at?: string
+          zoom?: number
         }
         Update: {
           created_at?: string
+          cta_label?: string | null
+          cta_label_i18n?: Json | null
           enabled?: boolean
+          focal_x?: number
+          focal_y?: number
+          height_desktop?: number
+          height_mobile?: number
+          height_tablet?: number
           id?: string
           image_url?: string
+          image_url_mobile?: string | null
+          image_url_tablet?: string | null
           link_url?: string | null
+          object_fit?: string
+          overlay_opacity?: number
           position?: number
+          rotation?: number
+          subtitle?: string | null
+          subtitle_i18n?: Json | null
+          text_align?: string
+          text_color?: string
           title?: string | null
           title_i18n?: Json | null
           updated_at?: string
+          zoom?: number
         }
         Relationships: []
       }
@@ -1149,6 +1200,11 @@ export type Database = {
           accent_color: string
           auth_sender_email: string | null
           auth_sender_name: string | null
+          banner_autoplay: boolean
+          banner_interval_ms: number
+          banner_show_arrows: boolean
+          banner_show_dots: boolean
+          banner_transition: string
           commission_whatsapp_number: string | null
           created_at: string
           footer_text: string | null
@@ -1174,6 +1230,11 @@ export type Database = {
           accent_color?: string
           auth_sender_email?: string | null
           auth_sender_name?: string | null
+          banner_autoplay?: boolean
+          banner_interval_ms?: number
+          banner_show_arrows?: boolean
+          banner_show_dots?: boolean
+          banner_transition?: string
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
@@ -1199,6 +1260,11 @@ export type Database = {
           accent_color?: string
           auth_sender_email?: string | null
           auth_sender_name?: string | null
+          banner_autoplay?: boolean
+          banner_interval_ms?: number
+          banner_show_arrows?: boolean
+          banner_show_dots?: boolean
+          banner_transition?: string
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
