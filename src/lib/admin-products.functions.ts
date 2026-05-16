@@ -300,7 +300,7 @@ export const setReportStatus = createServerFn({ method: "POST" })
     z
       .object({
         report_id: z.string().uuid(),
-        status: z.enum(["open", "reviewing", "resolved", "dismissed"]),
+        status: z.enum(["open", "reviewed", "dismissed"]),
       })
       .parse(input),
   )
