@@ -4,6 +4,7 @@ import { ProductCard } from "./ProductCard";
 import { ProductPricesProvider } from "./ProductPricesProvider";
 import { QuickAddSheet } from "./QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export function SimilarProducts({
   productId,
@@ -13,9 +14,11 @@ export function SimilarProducts({
   categoryId: string | null;
 }) {
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
+  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
 
   const { data: products } = useQuery({
-    queryKey: ["similar", productId, categoryId],
+    queryKey: ["similar", productId, categoryId, countryId, deliverableVendorIds],
+    enabled: !countryId || deliverableVendorIds !== null,
     queryFn: async () => {
       let q = supabase
         .from("products")
@@ -24,6 +27,10 @@ export function SimilarProducts({
         .neq("id", productId)
         .limit(10);
       if (categoryId) q = q.eq("category_id", categoryId);
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        q = q.in("vendor_id", deliverableVendorIds);
+      }
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

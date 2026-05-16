@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 function SearchPriceTag({ productId, fallback }: { productId: string; fallback: number }) {
   const dp = useProductDisplayPrice(productId);
@@ -75,7 +76,7 @@ function SearchPage() {
   const { q: initialQ } = Route.useSearch();
   const navigate = useNavigate();
   const { lang, t } = useI18n();
-  
+  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
     setQ(initialQ ?? "");
@@ -97,22 +98,28 @@ function SearchPage() {
 
   // Trending: latest approved products (cheap proxy for popular)
   const { data: trending } = useQuery({
-    queryKey: ["search", "trending"],
+    queryKey: ["search", "trending", countryId, deliverableVendorIds],
+    enabled: !countryId || deliverableVendorIds !== null,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("products")
         .select("id, name, name_i18n")
         .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(6);
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        q = q.in("vendor_id", deliverableVendorIds);
+      }
+      const { data } = await q;
       return data ?? [];
     },
   });
 
   // Products
   const { data: products, isFetching: pLoading } = useQuery({
-    queryKey: ["search", "products", debounced, filters],
-    enabled: debounced.length >= 1,
+    queryKey: ["search", "products", debounced, filters, countryId, deliverableVendorIds],
+    enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
@@ -126,6 +133,10 @@ function SearchPage() {
         .limit(40);
       if (filters.minPrice) q1 = q1.gte("price", Number(filters.minPrice));
       if (filters.maxPrice) q1 = q1.lte("price", Number(filters.maxPrice));
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        q1 = q1.in("vendor_id", deliverableVendorIds);
+      }
       const { data } = await q1;
       let rows = data ?? [];
       if (filters.size) {
@@ -172,17 +183,22 @@ function SearchPage() {
 
   // Shops (vendor profiles) — match substring OR same first letter
   const { data: shops } = useQuery({
-    queryKey: ["search", "shops", debounced],
-    enabled: debounced.length >= 1,
+    queryKey: ["search", "shops", debounced, countryId, deliverableVendorIds],
+    enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
-      const { data } = await supabase
+      let qs = supabase
         .from("profiles")
         .select("id, shop_name, shop_logo_url, address")
         .not("shop_name", "is", null)
         .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
         .limit(20);
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        qs = qs.in("id", deliverableVendorIds);
+      }
+      const { data } = await qs;
       const rows = data ?? [];
       rows.sort((a, b) => {
         const ai = (a.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
