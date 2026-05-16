@@ -103,6 +103,7 @@ function VendorsPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/admin/vendors" });
   const { page, q: urlQuery, status: urlStatus } = search;
+  type SearchState = typeof search;
 
   // Local debounced search input
   const [query, setQuery] = useState(urlQuery);
@@ -110,7 +111,7 @@ function VendorsPage() {
   const debouncedQuery = useDebouncedValue(query, 300);
   useEffect(() => {
     if (debouncedQuery === urlQuery) return;
-    navigate({ search: (prev) => ({ ...prev, q: debouncedQuery, page: 1 }), replace: true });
+    navigate({ search: (prev: SearchState) => ({ ...prev, q: debouncedQuery, page: 1 }), replace: true });
   }, [debouncedQuery, urlQuery, navigate]);
 
   const PAGE_SIZE = 25;
