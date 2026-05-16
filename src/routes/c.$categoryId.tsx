@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 
 export const Route = createFileRoute("/c/$categoryId")({
   component: CategoryPage,
