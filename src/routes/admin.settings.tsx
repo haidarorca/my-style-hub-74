@@ -119,8 +119,20 @@ function SettingsPage() {
         <CardHeader><CardTitle className="text-base">WhatsApp</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Numéro (format international, ex: 221776533606)</Label>
+            <Label>Numéro principal (format international, ex: 221776533606)</Label>
             <Input value={form.whatsapp_number ?? ""} onChange={(e) => set("whatsapp_number", e.target.value)} />
+            <p className="mt-1 text-[11px] text-muted-foreground">Utilisé pour le bouton WhatsApp général du site et pour les commandes sans commission.</p>
+          </div>
+          <div>
+            <Label>Numéro WhatsApp commission (admin)</Label>
+            <Input
+              value={form.commission_whatsapp_number ?? ""}
+              onChange={(e) => set("commission_whatsapp_number", e.target.value)}
+              placeholder="Ex: 221770000000"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Numéro dédié à la réception des commandes des vendeurs <strong>avec commission</strong>. Modifiable à tout moment. Si vide, le numéro principal sera utilisé.
+            </p>
           </div>
           <div>
             <Label>Message par défaut</Label>
