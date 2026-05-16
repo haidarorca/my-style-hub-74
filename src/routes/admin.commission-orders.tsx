@@ -99,16 +99,27 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
+
+      // If a vendor is selected, restrict to order_ids that have an item from this vendor
+      let restrictIds: string[] | null = null;
+      if (vendorFilter !== "all") {
+        const { data: vIts } = await supabase
+          .from("order_items").select("order_id").eq("vendor_id", vendorFilter);
+        restrictIds = Array.from(new Set((vIts ?? []).map((i: any) => i.order_id)));
+        if (restrictIds.length === 0) return { orders: [], total: 0 };
+      }
+
       let oq = supabase
         .from("orders")
         .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (restrictIds) oq = oq.in("id", restrictIds);
       if (q) {
         const esc = q.replace(/[%,()]/g, " ");
         oq = oq.or(`customer_name.ilike.%${esc}%,customer_phone.ilike.%${esc}%,address.ilike.%${esc}%,city.ilike.%${esc}%,id.eq.${/^[0-9a-f-]{8,}$/i.test(q) ? q : "00000000-0000-0000-0000-000000000000"}`);
@@ -135,14 +146,22 @@ function CommissionOrders() {
         : { data: [] as any[] };
       const vendorMap = new Map<string, any>((vendors ?? []).map((v: any) => [v.id, v]));
 
-      return {
-        orders: (ords ?? []).map((o: any) => ({
-          ...o,
-          items: (items ?? []).filter((i: any) => i.order_id === o.id),
-          vendorMap,
-        })),
-        total: count ?? 0,
-      };
+      const enriched = (ords ?? []).map((o: any) => {
+        const oItems = (items ?? []).filter((i: any) => i.order_id === o.id);
+        const primaryVendorId = oItems[0]?.vendor_id ?? null;
+        const primaryVendor = primaryVendorId ? vendorMap.get(primaryVendorId) : null;
+        const primaryVendorName = primaryVendor?.shop_name || primaryVendor?.full_name || "—";
+        return { ...o, items: oItems, vendorMap, primaryVendorId, primaryVendorName };
+      });
+
+      // Sort: group by vendor name, then by created_at desc within each vendor
+      enriched.sort((a: any, b: any) => {
+        const n = a.primaryVendorName.localeCompare(b.primaryVendorName);
+        if (n !== 0) return n;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      return { orders: enriched, total: count ?? 0 };
     },
   });
 
