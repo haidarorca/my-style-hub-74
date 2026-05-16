@@ -1341,6 +1341,8 @@ const ar: Dict = {
   "vendor.orders": "الطلبات",
   "vendor.orders.empty": "لا توجد طلبات للمعالجة",
   "vendor.notifications": "الإشعارات",
+  "vendor.reviews": "التقييمات",
+  "vendor.reports": "البلاغات",
   "vendor.messages": "رسائل العملاء",
   "vendor.settings": "إعدادات المتجر",
   "vendor.settings.shop_name": "اسم المتجر",
