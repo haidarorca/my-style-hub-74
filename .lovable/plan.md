@@ -1,53 +1,89 @@
+# Refonte de la page Admin → Vendeurs
 
-## Objectif
-
-Le mode commission devient une décision admin. Les commandes contenant des produits commission ne vont plus au WhatsApp du vendeur mais à un WhatsApp admin dédié. L'admin gère ensuite ces commandes dans un nouveau dashboard et peut "forwarder" la préparation au vendeur par WhatsApp, sans exposer l'identité du client.
+Améliorer `src/routes/admin.vendors.tsx` (pas de nouvelle page) avec un tableau pro, filtres, statuts de compte, et gestion flexible de la durée d'accès.
 
 ## 1. Base de données (migration)
 
-- `site_settings` : ajouter `commission_whatsapp_number TEXT` (numéro admin dédié aux commandes commission, modifiable n'importe quand).
-- `orders` : ajouter `is_commission BOOLEAN DEFAULT false` + `forwarded_to_vendor_at TIMESTAMPTZ`.
-- Trigger `set_order_is_commission` après insert/update sur `order_items` : marque `orders.is_commission = true` si au moins un item a `commission_amount > 0`.
-- RLS `orders_vendor_read` et `oi_read` inchangées (le vendeur a besoin de voir la commande pour la préparer), mais masquage des champs PII fait au niveau UI vendeur (`customer_name`, `customer_phone`, `address`, `city`, `note`) quand `is_commission = true`.
+Ajouter sur `profiles` (le profil vendeur) :
+- `vendor_status` : enum `vendor_account_status` = `active | pending | suspended | expired | blocked`
+- `access_starts_at` : timestamptz (date de début d'accès)
+- `access_ends_at` : timestamptz null (date de fin ; null = illimité)
+- `access_started_at`, `blocked_at`, `suspended_at` : timestamptz pour l'historique
+- `blocked_reason`, `suspended_reason` : text
 
-## 2. Vendeur — retrait du choix commission
+Logique :
+- Trigger BEFORE INSERT/UPDATE qui met `vendor_status = 'expired'` si `access_ends_at < now()` et que statut courant est `active`.
+- Cron `pg_cron` toutes les heures : `UPDATE profiles SET vendor_status='expired' WHERE access_ends_at < now() AND vendor_status='active'`.
+- RLS produits déjà existante (`is_verified` + status approved). On ajoute condition : le vendeur doit être `vendor_status IN ('active')` pour que ses produits/boutique soient publics. Idem `profiles_public_shop_read`.
+- Politique INSERT produits : bloquer si `vendor_status != 'active'` (via fonction `can_vendor_operate(uid)`).
+- Politique INSERT orders/order_items côté vendeur : bloquer nouvelles commandes si vendeur non-actif (via vérification dans `can_insert_order_item` ou trigger sur `order_items`).
 
-- `src/routes/vendor.settings.tsx` : supprimer entièrement le bloc "Mode commission" (champ `vendor_mode`). Le vendeur garde seulement le pays d'origine. `vendor_mode` reste affichable en lecture seule sous forme de badge informatif ("Mode : Sans commission" / "Avec commission — géré par la plateforme").
-- `src/routes/vendor.orders.tsx` : pour chaque commande où `is_commission = true` :
-  - masquer nom, téléphone, adresse, ville, note → afficher seulement `#numéro de commande` + produits + variantes + personnalisation.
-  - cacher le bouton WhatsApp client.
-  - afficher un badge "Commande plateforme — infos client gérées par l'admin".
+Backfill : tous les vendeurs vérifiés → `active`, non vérifiés → `pending`.
 
-## 3. Admin — paramètres
+## 2. Server functions
 
-- `src/routes/admin.settings.tsx` : ajouter un champ "Numéro WhatsApp commission" (avec sélecteur pays comme les autres). Sauvegardé dans `site_settings.commission_whatsapp_number`.
-- `src/routes/admin.vendors.tsx` : ajouter un toggle "Mode commission" par vendeur (déjà partiellement présent ? sinon ajout d'un Switch qui update `profiles.vendor_mode`).
+`src/lib/admin-vendor-status.functions.ts` :
+- `setVendorStatus({ user_id, status, reason? })` — admin-only (`requireSupabaseAuth` + check role admin)
+- `extendVendorAccess({ user_id, ends_at })` — set fin d'accès
+- `setVendorAccessWindow({ user_id, starts_at, ends_at })`
+- Toutes via `supabaseAdmin` après vérification du rôle admin.
 
-## 4. Admin — nouveau dashboard `/admin/commission-orders`
+## 3. UI — `src/routes/admin.vendors.tsx`
 
-Nouveau fichier `src/routes/admin.commission-orders.tsx` :
-- Liste paginée serveur des commandes avec `is_commission = true`.
-- Filtres : statut, recherche (numéro, nom client, téléphone, produit).
-- Pour chaque commande : infos client complètes + items + montant commission total.
-- Boutons d'action :
-  - **WhatsApp client** (avec le numéro client).
-  - **Envoyer au vendeur** : ouvre WhatsApp du vendeur avec un message contenant uniquement `#numéro commande + produits + quantités + variantes + personnalisation` (zéro PII client). Met à jour `forwarded_to_vendor_at`.
-  - Changement de statut (admin a tous les droits via RLS existante).
-- Badge "Envoyé au vendeur le …" quand `forwarded_to_vendor_at` est rempli.
-- Ajout au menu admin (`src/routes/admin.tsx`).
+Remplacer la liste actuelle par un **tableau responsive** (shadcn `Table`) avec colonnes :
+Boutique · Vendeur · Email · Téléphone · Pays/Ville · Statut · Type · Inscrit le · Fin d'accès · Produits · Commandes · Actions
 
-## 5. Routage WhatsApp à la commande
+**Toolbar de filtres** (au-dessus du tableau) :
+- Recherche texte (email, nom boutique)
+- Select pays (depuis `useCountries`)
+- Select statut (les 5)
+- Select type (commission / sans / tous)
+- Range dates inscription (popover calendar)
+- Range dates fin d'accès
 
-- `src/routes/cart.tsx` (checkout) : avant de générer l'URL WhatsApp, détecter si au moins un item du panier est commission (via `get_display_prices` qui retourne `commission_amount`). Si oui → router vers `site_settings.commission_whatsapp_number` au lieu du numéro vendeur/site. Sinon comportement actuel.
-- Helper dans `src/lib/whatsapp.ts` : nouveau `whatsappUrlForOrder(message, { isCommission })` qui choisit le bon numéro.
+Filtrage côté client sur la liste chargée (tri par date_inscription desc par défaut).
 
-## 6. Notifications
+**Counts** : query agrégée
+- `products` count par vendor_id (status='approved' uniquement, ou total ? → total)
+- `orders` count via `order_items` distincts order_id par vendor_id
 
-- Trigger DB existant `notify_vendor_on_*` : inchangé pour les avis. Pour les nouvelles commandes commission, ajouter une notif admin (réutilise `notifications` table avec link `/admin/commission-orders`).
+Une seule requête `select` enrichie + 2 RPC/views légères, ou simple post-fetch agrégé.
 
-## Technique
+**Actions par ligne** (DropdownMenu) :
+- Activer / Réactiver (status → active, set access_ends_at si vide = +30j ou null)
+- Suspendre (modal raison)
+- Bloquer (modal raison)
+- Modifier (réutilise `EditVendorDialog` existant)
+- Voir les produits → `/admin/products?vendor=:id`
+- Voir les commandes → `/admin/orders?vendor=:id`
+- Supprimer (confirmation)
+- **Prolonger l'accès** (modal dédié)
 
-- Migration unique pour : nouvelle colonne `site_settings`, colonnes `orders`, trigger.
-- Pas de changement de types côté front (autogenéré après migration).
-- Masquage PII = pure logique React côté `vendor.orders.tsx` (pas de risque de leak car la donnée n'est pas affichée, et la priorité utilisateur est UX/logique, pas zero-trust).
-- Pour le forward WhatsApp vendeur : on lit `profiles.shop_whatsapp` du vendeur de chaque item, on construit le message sans PII et on ouvre `wa.me/...`.
+**Modal "Prolonger l'accès"** :
+- Date début (DatePicker) — readonly si déjà set, sinon now
+- Mode : "Durée prédéfinie" (7j / 30j / 90j / 6 mois / 1 an / illimité) OU "Durée personnalisée" (input number + unité jours) OU "Date de fin précise" (DatePicker)
+- Bouton "Appliquer"
+
+Badges de statut colorés :
+- Actif vert, En attente ambre, Suspendu orange, Expiré gris, Bloqué rouge
+
+## 4. Effets côté boutique publique
+
+Mise à jour de `profiles_public_shop_read` et `products_public_read_approved` pour exiger `vendor_status = 'active'`. Le vendeur lui-même voit toujours ses produits dans son dashboard, avec bandeau "Compte expiré/suspendu/bloqué — contacter l'admin".
+
+`src/routes/vendor.index.tsx` : ajouter bandeau si statut ≠ active (réutiliser le bandeau "en attente" existant, le généraliser).
+
+## 5. Fichiers touchés
+
+Migration :
+- `supabase/migrations/..._vendor_account_status.sql`
+
+Code :
+- `src/lib/admin-vendor-status.functions.ts` (nouveau)
+- `src/routes/admin.vendors.tsx` (refonte)
+- `src/routes/vendor.index.tsx` (bandeau généralisé)
+- `src/integrations/supabase/types.ts` (régénéré auto)
+
+## Notes
+- L'admin existant peut déjà créer/éditer/supprimer ; je conserve `createVendor` / `updateVendor` / `deleteVendor`.
+- Le bouton "Valider/Retirer" (`is_verified`) reste mais devient un raccourci vers "Activer" si on veut unifier — je le garde séparé : `is_verified` = boutique visible publiquement, `vendor_status` = état du compte. Les deux conditions doivent être vraies pour apparaître sur le site.
