@@ -17,6 +17,8 @@ const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?:
   { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
   { to: "/vendor/products", labelKey: "vendor.products", icon: Package, exact: true },
   { to: "/vendor/products/new", labelKey: "vendor.products.new_title", icon: Plus },
+  { to: "/vendor/reviews", labelKey: "vendor.reviews", icon: Star },
+  { to: "/vendor/reports", labelKey: "vendor.reports", icon: Flag },
   { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },
   { to: "/vendor/messages", labelKey: "vendor.messages", icon: MessageSquare },
   { to: "/vendor/settings", labelKey: "vendor.settings", icon: Settings },
