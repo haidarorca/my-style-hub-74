@@ -125,7 +125,7 @@ export function SearchAutocomplete() {
       const term = debounced;
       const first = term.charAt(0);
       let q = supabase
-        .from("profiles")
+        .from("public_vendor_profiles")
         .select("id, shop_name, shop_logo_url")
         .not("shop_name", "is", null)
         .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
