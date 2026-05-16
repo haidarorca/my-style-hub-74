@@ -92,7 +92,7 @@ function CustomersPage() {
   // Sync debounced text input back to the URL.
   useMemo(() => {
     if (debouncedQ !== search.q) {
-      navigate({ search: (prev) => ({ ...prev, q: debouncedQ, page: 1 }), replace: true });
+      navigate({ search: (prev: SearchState) => ({ ...prev, q: debouncedQ, page: 1 }), replace: true });
     }
     return null;
   }, [debouncedQ, navigate, search.q]);
@@ -163,7 +163,7 @@ function CustomersPage() {
   }, [confirmDelete, del, qc]);
 
   const onPage = useCallback((next: number) => {
-    navigate({ search: (prev) => ({ ...prev, page: next }) });
+    navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) });
   }, [navigate]);
 
   const onResetFilters = useCallback(() => {
@@ -206,7 +206,7 @@ function CustomersPage() {
             </div>
             <Select
               value={search.status}
-              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, status: v as "all" | "active" | "blocked", page: 1 }) })}
+              onValueChange={(v) => navigate({ search: (prev: SearchState) => ({ ...prev, status: v as "all" | "active" | "blocked", page: 1 }) })}
             >
               <SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger>
               <SelectContent>
@@ -217,7 +217,7 @@ function CustomersPage() {
             </Select>
             <Select
               value={search.country}
-              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, country: v, page: 1 }) })}
+              onValueChange={(v) => navigate({ search: (prev: SearchState) => ({ ...prev, country: v, page: 1 }) })}
             >
               <SelectTrigger><SelectValue placeholder="Pays" /></SelectTrigger>
               <SelectContent>
@@ -231,7 +231,7 @@ function CustomersPage() {
             </Select>
             <Select
               value={search.has_orders}
-              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, has_orders: v as "all" | "with" | "without", page: 1 }) })}
+              onValueChange={(v) => navigate({ search: (prev: SearchState) => ({ ...prev, has_orders: v as "all" | "with" | "without", page: 1 }) })}
             >
               <SelectTrigger><SelectValue placeholder="Commandes" /></SelectTrigger>
               <SelectContent>
