@@ -1151,6 +1151,13 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      get_category_product_counts: {
+        Args: never
+        Returns: {
+          category_id: string
+          product_count: number
+        }[]
+      }
       get_display_prices: {
         Args: { _destination_country_id?: string; _product_ids: string[] }
         Returns: {
