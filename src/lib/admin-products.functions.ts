@@ -283,7 +283,7 @@ export const setProductStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
-    const payload: { status: string; rejection_reason?: string | null; is_edit?: boolean } = {
+    const payload: { status: "approved" | "rejected" | "pending"; rejection_reason?: string | null; is_edit?: boolean } = {
       status: data.status,
     };
     if (data.status === "rejected") payload.rejection_reason = data.rejection_reason || "Non conforme";
