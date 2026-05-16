@@ -306,7 +306,7 @@ function VendorsPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold">Vendeurs</h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} sur {vendors?.length ?? 0}</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} affichés · {total} au total</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
