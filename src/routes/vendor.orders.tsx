@@ -399,6 +399,7 @@ function VendorOrders() {
             );
           })}
         </ul>
+        </>
       )}
 
       {totalPages > 1 && (
