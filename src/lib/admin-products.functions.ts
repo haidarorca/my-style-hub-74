@@ -165,7 +165,7 @@ export type AdminReportsPage = {
   total: number;
   page: number;
   pageSize: number;
-  totals: { open: number; resolved: number; dismissed: number };
+  totals: { open: number; reviewed: number; dismissed: number };
 };
 
 export const listReportedProducts = createServerFn({ method: "POST" })
