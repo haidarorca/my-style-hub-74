@@ -554,12 +554,12 @@ function CartPage() {
           </DialogHeader>
 
           <div className="space-y-1.5">
-            <Label>Pays de livraison *</Label>
+            <Label>{t("checkout.delivery_country")} *</Label>
             <CountrySelect
               value={destinationCountryId}
               onChange={setDestinationCountryId}
               onlyEnabled
-              placeholder="Choisir le pays de livraison"
+              placeholder={t("checkout.choose_delivery_country")}
             />
           </div>
 
