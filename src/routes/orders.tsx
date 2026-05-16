@@ -19,6 +19,7 @@ import {
   ExternalLink,
   StickyNote,
   X,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -45,6 +46,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { cn } from "@/lib/utils";
+import { ReviewDialog } from "@/components/orders/ReviewDialog";
+import { ReportDialog } from "@/components/orders/ReportDialog";
 
 export const Route = createFileRoute("/orders")({
   component: OrdersPage,
@@ -171,6 +174,12 @@ function OrdersPage() {
   const [openOrder, setOpenOrder] = useState<any | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     null | { kind: "cancel" | "received"; orderId: string }
+  >(null);
+  const [reviewTarget, setReviewTarget] = useState<null | { productId: string; productName: string; orderId: string }>(null);
+  const [reportTarget, setReportTarget] = useState<
+    null
+    | { type: "product"; productId: string; orderId: string; name: string }
+    | { type: "vendor"; vendorId: string; orderId: string; name: string }
   >(null);
 
   const { data: orders, isLoading } = useQuery({
