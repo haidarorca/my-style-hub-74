@@ -1417,6 +1417,50 @@ export type Database = {
       }
     }
     Views: {
+      public_product_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          id: string | null
+          photos: string[] | null
+          product_id: string | null
+          rating: number | null
+          updated_at: string | null
+          vendor_response: string | null
+          vendor_response_at: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string | null
+          photos?: string[] | null
+          product_id?: string | null
+          rating?: number | null
+          updated_at?: string | null
+          vendor_response?: string | null
+          vendor_response_at?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string | null
+          photos?: string[] | null
+          product_id?: string | null
+          rating?: number | null
+          updated_at?: string | null
+          vendor_response?: string | null
+          vendor_response_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_vendor_profiles: {
         Row: {
           access_ends_at: string | null
