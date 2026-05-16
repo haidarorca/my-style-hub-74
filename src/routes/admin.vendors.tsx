@@ -134,8 +134,6 @@ function VendorsPage() {
   const [fEndTo, setFEndTo] = useState<Date | undefined>();
 
   // Per-column filters (Excel-like)
-  type ColF = { search?: string; startsWith?: string };
-  type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
   const [colF, setColF] = useState<Record<ColKey, ColF>>({
     shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
   });
@@ -198,9 +196,10 @@ function VendorsPage() {
       .sort((a, b) => {
         if (sortBy) {
           const pa = a.profiles, pb = b.profiles;
+          const sb = sortBy;
           const getVal = (p: typeof pa): string | number => {
             if (!p) return "";
-            switch (sortBy.col) {
+            switch (sb.col) {
               case "shop": return (p.shop_name ?? "").toLowerCase();
               case "vendor": return (p.full_name ?? "").toLowerCase();
               case "email": return (p.email ?? "").toLowerCase();
@@ -209,11 +208,12 @@ function VendorsPage() {
               case "type": return p.vendor_mode === "commission" ? "1" : "0";
               case "signup": return new Date(p.created_at ?? 0).getTime();
               case "endAccess": return p.access_ends_at ? new Date(p.access_ends_at).getTime() : 0;
+              default: return "";
             }
           };
           const va = getVal(pa), vb = getVal(pb);
           const cmp = va < vb ? -1 : va > vb ? 1 : 0;
-          return sortBy.dir === "asc" ? cmp : -cmp;
+          return sb.dir === "asc" ? cmp : -cmp;
         }
         return new Date(b.profiles?.created_at ?? 0).getTime() - new Date(a.profiles?.created_at ?? 0).getTime();
       });
@@ -532,16 +532,17 @@ function DateRangeMini({ label, value, onChange }: { label: string; value?: Date
 }
 
 type ColFKind = "text" | "date";
-type _ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+type ColF = { search?: string; startsWith?: string };
 function FilterableHead({
   label, colKey, colF, updateColF, sortBy, setSortBy, kind = "text",
 }: {
   label: string;
-  colKey: _ColKey;
-  colF: Record<_ColKey, { search?: string; startsWith?: string }>;
-  updateColF: (k: _ColKey, v: { search?: string; startsWith?: string }) => void;
-  sortBy: { col: _ColKey; dir: "asc" | "desc" } | null;
-  setSortBy: (s: { col: _ColKey; dir: "asc" | "desc" } | null) => void;
+  colKey: ColKey;
+  colF: Record<ColKey, { search?: string; startsWith?: string }>;
+  updateColF: (k: ColKey, v: { search?: string; startsWith?: string }) => void;
+  sortBy: { col: ColKey; dir: "asc" | "desc" } | null;
+  setSortBy: (s: { col: ColKey; dir: "asc" | "desc" } | null) => void;
   kind?: ColFKind;
 }) {
   const f = colF[colKey] ?? {};
