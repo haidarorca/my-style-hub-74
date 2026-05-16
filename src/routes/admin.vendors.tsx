@@ -117,7 +117,7 @@ function VendorsPage() {
   // URL state (page, q, status)
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/admin/vendors" });
-  const { page, q: urlQuery, status: urlStatus } = search;
+  const { page, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir } = search;
   type SearchState = typeof search;
 
   // Local debounced search input
@@ -132,8 +132,8 @@ function VendorsPage() {
   const PAGE_SIZE = 25;
 
   const { data: pageData, isLoading } = useQuery({
-    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus }],
-    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus } }),
+    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir }],
+    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus, sort: urlSort, dir: urlDir } }),
     placeholderData: keepPreviousData,
   });
 
