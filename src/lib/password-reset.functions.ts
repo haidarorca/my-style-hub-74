@@ -1,16 +1,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { createHash, randomInt } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_mail/gmail/v1";
+const CODE_TTL_MINUTES = 15;
+const MAX_ATTEMPTS = 5;
+const RESEND_COOLDOWN_SECONDS = 60;
 
-const InputSchema = z.object({
+const SendSchema = z.object({
   email: z.string().email().max(255),
-  redirectTo: z.string().url().max(500),
 });
 
+const VerifySchema = z.object({
+  email: z.string().email().max(255),
+  code: z.string().regex(/^\d{4}$/),
+  newPassword: z.string().min(1).max(200),
+});
+
+function hashCode(email: string, code: string): string {
+  return createHash("sha256").update(`${email.toLowerCase()}|${code}`).digest("hex");
+}
+
 function toBase64Url(s: string): string {
-  // btoa for utf-8: encode as binary string first
   const bytes = new TextEncoder().encode(s);
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
@@ -53,8 +65,12 @@ function buildRawEmail(opts: {
   return toBase64Url(msg);
 }
 
-export const sendPasswordResetEmail = createServerFn({ method: "POST" })
-  .inputValidator((input) => InputSchema.parse(input))
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export const sendPasswordResetCode = createServerFn({ method: "POST" })
+  .inputValidator((input) => SendSchema.parse(input))
   .handler(async ({ data }) => {
     const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
     const GOOGLE_MAIL_API_KEY = process.env.GOOGLE_MAIL_API_KEY;
@@ -63,18 +79,51 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
 
     const email = data.email.trim().toLowerCase();
 
-    // Always return success to avoid email enumeration. Only proceed if user exists.
+    // Cooldown: refuse if a code was created within the last 60s
+    const { data: recent } = await supabaseAdmin
+      .from("password_reset_codes")
+      .select("created_at")
+      .eq("email", email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent?.created_at) {
+      const ageSec = (Date.now() - new Date(recent.created_at).getTime()) / 1000;
+      if (ageSec < RESEND_COOLDOWN_SECONDS) {
+        // Don't reveal cooldown precisely — but block silently with success.
+        return { ok: true };
+      }
+    }
+
+    // Only send if user exists (silently succeed otherwise to avoid enumeration)
     const { data: userRow } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("email", email)
       .maybeSingle();
+    if (!userRow) return { ok: true };
 
-    if (!userRow) {
-      return { ok: true };
+    // Generate 4-digit code
+    const code = String(randomInt(0, 10000)).padStart(4, "0");
+    const code_hash = hashCode(email, code);
+    const expires_at = new Date(Date.now() + CODE_TTL_MINUTES * 60_000).toISOString();
+
+    // Invalidate any previous unused codes for this email
+    await supabaseAdmin
+      .from("password_reset_codes")
+      .update({ used: true })
+      .eq("email", email)
+      .eq("used", false);
+
+    const { error: insErr } = await supabaseAdmin
+      .from("password_reset_codes")
+      .insert({ email, code_hash, expires_at });
+    if (insErr) {
+      console.error("insert code failed", insErr);
+      throw new Error("Erreur interne");
     }
 
-    // Load site settings for sender + branding
+    // Load settings for branding/sender
     const { data: settings } = await supabaseAdmin
       .from("site_settings")
       .select("site_name, auth_sender_email, auth_sender_name")
@@ -90,28 +139,16 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
     const siteName =
       ((settings as { site_name?: string | null } | null)?.site_name ?? "").trim() || "KawZone";
 
-    // Generate recovery link via admin API
-    const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: { redirectTo: data.redirectTo },
-    });
-    if (linkErr || !linkData?.properties?.action_link) {
-      console.error("generateLink failed:", linkErr);
-      throw new Error("Impossible de générer le lien de réinitialisation");
-    }
-    const actionLink = linkData.properties.action_link;
-
-    const subject = `${siteName} — Réinitialisation de votre mot de passe`;
+    const subject = `${siteName} — Code de vérification : ${code}`;
     const text = [
       `Bonjour,`,
       ``,
-      `Vous avez demandé à réinitialiser votre mot de passe sur ${siteName}.`,
+      `Votre code de vérification pour réinitialiser votre mot de passe sur ${siteName} est :`,
       ``,
-      `Cliquez sur ce lien sécurisé pour choisir un nouveau mot de passe :`,
-      actionLink,
+      `    ${code}`,
       ``,
-      `Ce lien expirera prochainement pour votre sécurité. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
+      `Ce code expire dans ${CODE_TTL_MINUTES} minutes.`,
+      `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
       ``,
       `— ${siteName}`,
     ].join("\n");
@@ -119,17 +156,16 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
     const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:24px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;padding:32px 24px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px 24px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
         <tr><td>
-          <h1 style="margin:0 0 8px;color:#111;font-size:22px;">Réinitialisation du mot de passe</h1>
-          <p style="margin:0 0 20px;color:#555;font-size:15px;line-height:1.5;">Vous avez demandé à réinitialiser votre mot de passe sur <strong>${escapeHtml(siteName)}</strong>. Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.</p>
-          <p style="margin:24px 0;text-align:center;">
-            <a href="${escapeAttr(actionLink)}" style="display:inline-block;background:#e85d3a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;">Réinitialiser mon mot de passe</a>
-          </p>
-          <p style="margin:0 0 8px;color:#777;font-size:13px;">Ou copiez ce lien dans votre navigateur :</p>
-          <p style="margin:0 0 24px;color:#444;font-size:12px;word-break:break-all;">${escapeHtml(actionLink)}</p>
+          <h1 style="margin:0 0 8px;color:#111;font-size:22px;">Code de vérification</h1>
+          <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.5;">Voici votre code pour réinitialiser votre mot de passe sur <strong>${escapeHtml(siteName)}</strong> :</p>
+          <div style="margin:0 0 24px;text-align:center;">
+            <div style="display:inline-block;padding:18px 28px;background:#f7f4f1;border:2px dashed #e85d3a;border-radius:10px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:38px;font-weight:700;letter-spacing:14px;color:#111;">${code}</div>
+          </div>
+          <p style="margin:0 0 8px;color:#555;font-size:14px;">Ce code expire dans <strong>${CODE_TTL_MINUTES} minutes</strong>.</p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
-          <p style="margin:0;color:#999;font-size:12px;line-height:1.5;">Ce lien expirera prochainement. Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email — votre mot de passe restera inchangé.</p>
+          <p style="margin:0;color:#999;font-size:12px;line-height:1.5;">Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email — votre mot de passe restera inchangé.</p>
         </td></tr>
       </table>
       <p style="margin:16px 0 0;color:#999;font-size:12px;">— ${escapeHtml(siteName)}</p>
@@ -165,9 +201,59 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-function escapeAttr(s: string): string {
-  return escapeHtml(s).replace(/"/g, "&quot;");
-}
+export const verifyPasswordResetCode = createServerFn({ method: "POST" })
+  .inputValidator((input) => VerifySchema.parse(input))
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const code_hash = hashCode(email, data.code);
+
+    const { data: row } = await supabaseAdmin
+      .from("password_reset_codes")
+      .select("id, code_hash, expires_at, used, attempts")
+      .eq("email", email)
+      .eq("used", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!row) {
+      throw new Error("Aucun code en cours. Demandez un nouveau code.");
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      await supabaseAdmin.from("password_reset_codes").update({ used: true }).eq("id", row.id);
+      throw new Error("Code expiré. Demandez un nouveau code.");
+    }
+    if (row.attempts >= MAX_ATTEMPTS) {
+      await supabaseAdmin.from("password_reset_codes").update({ used: true }).eq("id", row.id);
+      throw new Error("Trop de tentatives. Demandez un nouveau code.");
+    }
+    if (row.code_hash !== code_hash) {
+      await supabaseAdmin
+        .from("password_reset_codes")
+        .update({ attempts: row.attempts + 1 })
+        .eq("id", row.id);
+      throw new Error("Code incorrect.");
+    }
+
+    // Find user id
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    if (!profile) {
+      throw new Error("Compte introuvable.");
+    }
+
+    const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+      password: data.newPassword,
+    });
+    if (updErr) {
+      console.error("updateUserById failed", updErr);
+      throw new Error("Mise à jour du mot de passe échouée.");
+    }
+
+    await supabaseAdmin.from("password_reset_codes").update({ used: true }).eq("id", row.id);
+
+    return { ok: true };
+  });
