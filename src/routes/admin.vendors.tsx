@@ -95,6 +95,14 @@ function VendorsPage() {
     } catch (e) { toast.error((e as Error).message); }
   }
 
+  async function toggleVerified(v: VendorRow) {
+    const next = !v.profiles?.is_verified;
+    const { error } = await supabase.from("profiles").update({ is_verified: next }).eq("id", v.user_id);
+    if (error) return toast.error(error.message);
+    toast.success(next ? "Boutique validée" : "Validation retirée");
+    qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
