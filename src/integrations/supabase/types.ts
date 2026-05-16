@@ -1691,6 +1691,7 @@ export type Database = {
         }
       }
       vendor_is_active: { Args: { _user_id: string }; Returns: boolean }
+      vendor_publicly_visible: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       admin_permission:
