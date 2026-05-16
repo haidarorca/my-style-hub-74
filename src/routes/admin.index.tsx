@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent } from "lucide-react";
+import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
@@ -90,6 +91,8 @@ function Dashboard() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
+
+      <TranslationSyncCard />
 
       <div className="space-y-1">
         <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
