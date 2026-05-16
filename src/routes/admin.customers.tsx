@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { memo, useCallback, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -16,7 +18,6 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -28,21 +29,29 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+
+const searchSchema = z.object({
+  page: fallback(z.number().int().min(1), 1).default(1),
+  q: fallback(z.string(), "").default(""),
+  status: fallback(z.enum(["all", "active", "blocked"]), "all").default("all"),
+  country: fallback(z.string(), "all").default("all"),
+  has_orders: fallback(z.enum(["all", "with", "without"]), "all").default("all"),
+});
+
+const PAGE_SIZE = 25;
 
 export const Route = createFileRoute("/admin/customers")({
+  validateSearch: zodValidator(searchSchema),
   component: () => (
     <PermissionGate perm="customers">
       <CustomersPage />
     </PermissionGate>
   ),
 });
-
-type StatusFilter = "all" | "active" | "blocked";
-type OrdersFilter = "all" | "with" | "without";
 
 function StatusBadge({ status }: { status: "active" | "blocked" }) {
   if (status === "blocked") {
@@ -67,86 +76,64 @@ function fmtMoney(n: number) {
   return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " FCFA";
 }
 
-function DateMini({ label, value, onChange }: { label: string; value?: Date; onChange: (d?: Date) => void }) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 w-full justify-start text-xs">
-          {value ? format(value, "dd/MM/yyyy") : label}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={value} onSelect={onChange} initialFocus />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function CustomersPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate({ from: "/admin/customers" });
+  const search = Route.useSearch();
+
   const fetchList = useServerFn(listCustomers);
   const setBlocked = useServerFn(setCustomerBlocked);
   const del = useServerFn(deleteCustomer);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin", "customers"],
-    queryFn: () => fetchList(),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
+  const [queryInput, setQueryInput] = useState(search.q);
+  const debouncedQ = useDebouncedValue(queryInput, 300);
+
+  // Sync debounced text input back to the URL.
+  useMemo(() => {
+    if (debouncedQ !== search.q) {
+      navigate({ search: (prev) => ({ ...prev, q: debouncedQ, page: 1 }), replace: true });
+    }
+    return null;
+  }, [debouncedQ, navigate, search.q]);
+
+  const queryParams = useMemo(
+    () => ({
+      page: search.page,
+      pageSize: PAGE_SIZE,
+      q: search.q,
+      status: search.status,
+      country_id: search.country === "all" ? null : search.country,
+      has_orders: search.has_orders,
+    }),
+    [search.page, search.q, search.status, search.country, search.has_orders],
+  );
+
+  const { data, isFetching, isLoading } = useQuery({
+    queryKey: ["admin", "customers", queryParams],
+    queryFn: () => fetchList({ data: queryParams }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   const { data: countries } = useCountries({ onlyEnabled: true });
   const labelOf = useCountryLabel();
-  const countryName = (id: string | null) => {
-    if (!id) return "—";
-    const c = countries?.find((x) => x.id === id);
-    return c ? `${c.flag_emoji ?? ""} ${labelOf(c)}` : "—";
-  };
+  const countryName = useCallback(
+    (id: string | null) => {
+      if (!id) return "—";
+      const c = countries?.find((x) => x.id === id);
+      return c ? `${c.flag_emoji ?? ""} ${labelOf(c)}` : "—";
+    },
+    [countries, labelOf],
+  );
 
-  const [query, setQuery] = useState("");
-  const [fStatus, setFStatus] = useState<StatusFilter>("all");
-  const [fCountry, setFCountry] = useState<string>("all");
-  const [fOrders, setFOrders] = useState<OrdersFilter>("all");
-  const [fFrom, setFFrom] = useState<Date | undefined>();
-  const [fTo, setFTo] = useState<Date | undefined>();
-
-  const filtered = useMemo(() => {
-    const list = data ?? [];
-    const q = query.trim().toLowerCase();
-    return list
-      .filter((c) => {
-        if (q) {
-          const hay = `${c.email ?? ""} ${c.full_name ?? ""} ${c.phone ?? ""}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        if (fStatus !== "all" && c.status !== fStatus) return false;
-        if (fCountry !== "all" && c.default_country_id !== fCountry) return false;
-        if (fOrders === "with" && c.orders_count === 0) return false;
-        if (fOrders === "without" && c.orders_count > 0) return false;
-        if (fFrom && new Date(c.created_at) < fFrom) return false;
-        if (fTo) {
-          const e = new Date(fTo); e.setHours(23, 59, 59, 999);
-          if (new Date(c.created_at) > e) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [data, query, fStatus, fCountry, fOrders, fFrom, fTo]);
-
-  const stats = useMemo(() => {
-    const list = data ?? [];
-    return {
-      total: list.length,
-      active: list.filter((c) => c.status === "active").length,
-      blocked: list.filter((c) => c.status === "blocked").length,
-      revenue: list.reduce((s, c) => s + c.total_spent, 0),
-    };
-  }, [data]);
+  const rows = data?.rows ?? [];
+  const totals = data?.totals ?? { active: 0, blocked: 0, revenue: 0 };
+  const total = data?.total ?? 0;
 
   const [confirmDelete, setConfirmDelete] = useState<CustomerListRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function toggleBlock(c: CustomerListRow) {
+  const toggleBlock = useCallback(async (c: CustomerListRow) => {
     setBusyId(c.user_id);
     try {
       await setBlocked({ data: { user_id: c.user_id, blocked: c.status !== "blocked" } });
@@ -157,9 +144,9 @@ function CustomersPage() {
     } finally {
       setBusyId(null);
     }
-  }
+  }, [qc, setBlocked]);
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (!confirmDelete) return;
     setBusyId(confirmDelete.user_id);
     try {
@@ -172,10 +159,19 @@ function CustomersPage() {
     } finally {
       setBusyId(null);
     }
-  }
+  }, [confirmDelete, del, qc]);
+
+  const onPage = useCallback((next: number) => {
+    navigate({ search: (prev) => ({ ...prev, page: next }) });
+  }, [navigate]);
+
+  const onResetFilters = useCallback(() => {
+    setQueryInput("");
+    navigate({ search: { page: 1, q: "", status: "all", country: "all", has_orders: "all" } });
+  }, [navigate]);
 
   const filtersActive =
-    query || fStatus !== "all" || fCountry !== "all" || fOrders !== "all" || fFrom || fTo;
+    search.q || search.status !== "all" || search.country !== "all" || search.has_orders !== "all";
 
   return (
     <div className="space-y-4">
@@ -183,16 +179,16 @@ function CustomersPage() {
         <div>
           <h1 className="text-xl font-bold">Clients</h1>
           <p className="text-xs text-muted-foreground">
-            {filtered.length} sur {data?.length ?? 0}
+            {total} client{total > 1 ? "s" : ""}{isFetching ? " · …" : ""}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <StatTile label="Clients" value={stats.total} icon={Users} color="text-primary" />
-        <StatTile label="Actifs" value={stats.active} icon={UserCheck} color="text-emerald-600" />
-        <StatTile label="Bloqués" value={stats.blocked} icon={UserX} color="text-destructive" />
-        <StatTile label="Revenu total" value={fmtMoney(stats.revenue)} icon={Wallet} color="text-amber-600" />
+        <StatTile label="Clients" value={total} icon={Users} color="text-primary" />
+        <StatTile label="Actifs" value={totals.active} icon={UserCheck} color="text-emerald-600" />
+        <StatTile label="Bloqués" value={totals.blocked} icon={UserX} color="text-destructive" />
+        <StatTile label="Page" value={`${search.page} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`} icon={Wallet} color="text-amber-600" />
       </div>
 
       <Card>
@@ -203,11 +199,14 @@ function CustomersPage() {
               <Input
                 placeholder="Nom, email, téléphone…"
                 className="pl-8"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
               />
             </div>
-            <Select value={fStatus} onValueChange={(v) => setFStatus(v as StatusFilter)}>
+            <Select
+              value={search.status}
+              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, status: v as "all" | "active" | "blocked", page: 1 }) })}
+            >
               <SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
@@ -215,7 +214,10 @@ function CustomersPage() {
                 <SelectItem value="blocked">Bloqué</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={fCountry} onValueChange={setFCountry}>
+            <Select
+              value={search.country}
+              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, country: v, page: 1 }) })}
+            >
               <SelectTrigger><SelectValue placeholder="Pays" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les pays</SelectItem>
@@ -226,7 +228,10 @@ function CustomersPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={fOrders} onValueChange={(v) => setFOrders(v as OrdersFilter)}>
+            <Select
+              value={search.has_orders}
+              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, has_orders: v as "all" | "with" | "without", page: 1 }) })}
+            >
               <SelectTrigger><SelectValue placeholder="Commandes" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Avec ou sans commande</SelectItem>
@@ -235,29 +240,11 @@ function CustomersPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <div>
-              <Label className="text-[10px] text-muted-foreground">Inscrit depuis</Label>
-              <DateMini label="Depuis" value={fFrom} onChange={setFFrom} />
-            </div>
-            <div>
-              <Label className="text-[10px] text-muted-foreground">Inscrit jusqu'à</Label>
-              <DateMini label="Jusqu'à" value={fTo} onChange={setFTo} />
-            </div>
-          </div>
-          {filtersActive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => {
-                setQuery(""); setFStatus("all"); setFCountry("all");
-                setFOrders("all"); setFFrom(undefined); setFTo(undefined);
-              }}
-            >
+          {filtersActive ? (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onResetFilters}>
               <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
             </Button>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
@@ -270,51 +257,24 @@ function CustomersPage() {
           <div className="space-y-2 p-3 md:hidden">
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Chargement…</p>
-            ) : filtered.length === 0 ? (
+            ) : rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aucun client trouvé.</p>
             ) : (
-              filtered.map((c) => (
-                <div key={c.user_id} className="rounded-lg border bg-card p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">
-                        {c.full_name || c.email || "Sans nom"}
-                      </div>
-                      <div className="truncate text-xs text-muted-foreground">{c.email ?? "—"}</div>
-                      <div className="truncate text-xs text-muted-foreground">{c.phone ?? "—"}</div>
-                    </div>
-                    <StatusBadge status={c.status} />
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                    <div><div className="text-muted-foreground">Pays</div><div className="font-medium">{countryName(c.default_country_id)}</div></div>
-                    <div><div className="text-muted-foreground">Cmd</div><div className="font-medium">{c.orders_count}</div></div>
-                    <div><div className="text-muted-foreground">Dépensé</div><div className="font-medium">{fmtMoney(c.total_spent)}</div></div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="text-[10px] text-muted-foreground">
-                      Inscrit {fmtDate(c.created_at)} · Dernière connexion {fmtDate(c.last_sign_in_at)}
-                    </div>
-                    <div className="flex gap-1">
-                      <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
-                        <Link to="/admin/customers/$userId" params={{ userId: c.user_id }}>
-                          <Eye className="mr-1 h-3 w-3" /> Voir
-                        </Link>
-                      </Button>
-                      <RowActions
-                        row={c}
-                        busy={busyId === c.user_id}
-                        onToggleBlock={() => toggleBlock(c)}
-                        onDelete={() => setConfirmDelete(c)}
-                      />
-                    </div>
-                  </div>
-                </div>
+              rows.map((c) => (
+                <CustomerCardMobile
+                  key={c.user_id}
+                  row={c}
+                  countryName={countryName(c.default_country_id)}
+                  busy={busyId === c.user_id}
+                  onToggleBlock={toggleBlock}
+                  onDelete={setConfirmDelete}
+                />
               ))
             )}
           </div>
 
           {/* Desktop table */}
-          <div className="hidden md:block">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -332,49 +292,23 @@ function CustomersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground">Chargement…</TableCell></TableRow>
-                ) : filtered.length === 0 ? (
+                ) : rows.length === 0 ? (
                   <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground">Aucun client.</TableCell></TableRow>
-                ) : filtered.map((c) => (
-                  <TableRow key={c.user_id}>
-                    <TableCell>
-                      <div className="font-medium">{c.full_name || "—"}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{c.user_id.slice(0, 8)}…</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-xs">{c.email ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">{c.phone ?? "—"}</div>
-                    </TableCell>
-                    <TableCell className="text-xs">{countryName(c.default_country_id)}</TableCell>
-                    <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell>
-                      <div className="inline-flex items-center gap-1 text-xs">
-                        <ShoppingBag className="h-3 w-3 text-muted-foreground" />
-                        {c.orders_count}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-medium">{fmtMoney(c.total_spent)}</TableCell>
-                    <TableCell className="text-xs">{fmtDate(c.created_at)}</TableCell>
-                    <TableCell className="text-xs">{fmtDate(c.last_sign_in_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="inline-flex gap-1">
-                        <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
-                          <Link to="/admin/customers/$userId" params={{ userId: c.user_id }}>
-                            <Eye className="mr-1 h-3 w-3" /> Détail
-                          </Link>
-                        </Button>
-                        <RowActions
-                          row={c}
-                          busy={busyId === c.user_id}
-                          onToggleBlock={() => toggleBlock(c)}
-                          onDelete={() => setConfirmDelete(c)}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                ) : rows.map((c) => (
+                  <CustomerRowDesktop
+                    key={c.user_id}
+                    row={c}
+                    countryName={countryName(c.default_country_id)}
+                    busy={busyId === c.user_id}
+                    onToggleBlock={toggleBlock}
+                    onDelete={setConfirmDelete}
+                  />
                 ))}
               </TableBody>
             </Table>
           </div>
+
+          <PaginationBar page={search.page} pageSize={PAGE_SIZE} total={total} onPageChange={onPage} className="border-t" />
         </CardContent>
       </Card>
 
@@ -403,7 +337,7 @@ function CustomersPage() {
   );
 }
 
-function StatTile({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: typeof Users; color: string }) {
+const StatTile = memo(function StatTile({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: typeof Users; color: string }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
@@ -415,7 +349,86 @@ function StatTile({ label, value, icon: Icon, color }: { label: string; value: n
       </CardContent>
     </Card>
   );
-}
+});
+
+type RowProps = {
+  row: CustomerListRow;
+  countryName: string;
+  busy: boolean;
+  onToggleBlock: (c: CustomerListRow) => void;
+  onDelete: (c: CustomerListRow) => void;
+};
+
+const CustomerRowDesktop = memo(function CustomerRowDesktop({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="font-medium">{row.full_name || "—"}</div>
+        <div className="text-xs text-muted-foreground font-mono">{row.user_id.slice(0, 8)}…</div>
+      </TableCell>
+      <TableCell>
+        <div className="text-xs">{row.email ?? "—"}</div>
+        <div className="text-xs text-muted-foreground">{row.phone ?? "—"}</div>
+      </TableCell>
+      <TableCell className="text-xs">{countryName}</TableCell>
+      <TableCell><StatusBadge status={row.status} /></TableCell>
+      <TableCell>
+        <div className="inline-flex items-center gap-1 text-xs">
+          <ShoppingBag className="h-3 w-3 text-muted-foreground" />
+          {row.orders_count}
+        </div>
+      </TableCell>
+      <TableCell className="text-xs font-medium">{fmtMoney(row.total_spent)}</TableCell>
+      <TableCell className="text-xs">{fmtDate(row.created_at)}</TableCell>
+      <TableCell className="text-xs">{fmtDate(row.last_sign_in_at)}</TableCell>
+      <TableCell className="text-right">
+        <div className="inline-flex gap-1">
+          <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
+            <Link to="/admin/customers/$userId" params={{ userId: row.user_id }}>
+              <Eye className="mr-1 h-3 w-3" /> Détail
+            </Link>
+          </Button>
+          <RowActions row={row} busy={busy} onToggleBlock={() => onToggleBlock(row)} onDelete={() => onDelete(row)} />
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+const CustomerCardMobile = memo(function CustomerCardMobile({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">
+            {row.full_name || row.email || "Sans nom"}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">{row.email ?? "—"}</div>
+          <div className="truncate text-xs text-muted-foreground">{row.phone ?? "—"}</div>
+        </div>
+        <StatusBadge status={row.status} />
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+        <div><div className="text-muted-foreground">Pays</div><div className="font-medium">{countryName}</div></div>
+        <div><div className="text-muted-foreground">Cmd</div><div className="font-medium">{row.orders_count}</div></div>
+        <div><div className="text-muted-foreground">Dépensé</div><div className="font-medium">{fmtMoney(row.total_spent)}</div></div>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-[10px] text-muted-foreground">
+          Inscrit {fmtDate(row.created_at)} · {fmtDate(row.last_sign_in_at)}
+        </div>
+        <div className="flex gap-1">
+          <Button asChild size="sm" variant="outline" className="h-8 px-2 text-xs">
+            <Link to="/admin/customers/$userId" params={{ userId: row.user_id }}>
+              <Eye className="mr-1 h-3 w-3" /> Voir
+            </Link>
+          </Button>
+          <RowActions row={row} busy={busy} onToggleBlock={() => onToggleBlock(row)} onDelete={() => onDelete(row)} />
+        </div>
+      </div>
+    </div>
+  );
+});
 
 function RowActions({
   row, busy, onToggleBlock, onDelete,
@@ -428,7 +441,7 @@ function RowActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={busy}>
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={busy}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
