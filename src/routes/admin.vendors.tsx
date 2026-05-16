@@ -182,7 +182,22 @@ function VendorsPage() {
   const [colF, setColF] = useState<Record<ColKey, ColF>>({
     shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
   });
-  const [sortBy, setSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  // Sort state: URL drives server-sortable cols (shop/signup/status); other cols stay local
+  const [localSortBy, setLocalSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  const urlSortCol = DB_TO_COL[urlSort];
+  const sortBy: { col: ColKey; dir: "asc" | "desc" } | null = localSortBy ?? { col: urlSortCol, dir: urlDir };
+  const setSortBy = (s: { col: ColKey; dir: "asc" | "desc" } | null) => {
+    if (s && (s.col in SERVER_SORT_BY_COL)) {
+      const dbCol = SERVER_SORT_BY_COL[s.col as ServerSortCol];
+      setLocalSortBy(null);
+      navigate({
+        search: (prev: SearchState) => ({ ...prev, sort: dbCol, dir: s.dir, page: 1 }),
+        replace: true,
+      });
+    } else {
+      setLocalSortBy(s);
+    }
+  };
   const updateColF = (k: ColKey, v: ColF) => setColF((s) => ({ ...s, [k]: v }));
 
   const { data: countries } = useCountries({ onlyEnabled: true });
