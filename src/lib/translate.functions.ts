@@ -150,6 +150,7 @@ const categorySchema = z.object({ name: z.string().min(1).max(200) });
  * Translate a category name into EN + AR in a single AI call.
  */
 export const translateCategoryName = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => categorySchema.parse(input))
   .handler(async ({ data }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
