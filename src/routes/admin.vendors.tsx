@@ -385,6 +385,7 @@ function VendorsPage() {
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
               setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
               setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
+              navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
             }}>
               <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
             </Button>
