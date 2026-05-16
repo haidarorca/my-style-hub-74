@@ -183,17 +183,22 @@ function SearchPage() {
 
   // Shops (vendor profiles) — match substring OR same first letter
   const { data: shops } = useQuery({
-    queryKey: ["search", "shops", debounced],
-    enabled: debounced.length >= 1,
+    queryKey: ["search", "shops", debounced, countryId, deliverableVendorIds],
+    enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
-      const { data } = await supabase
+      let qs = supabase
         .from("profiles")
         .select("id, shop_name, shop_logo_url, address")
         .not("shop_name", "is", null)
         .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
         .limit(20);
+      if (deliverableVendorIds) {
+        if (deliverableVendorIds.length === 0) return [];
+        qs = qs.in("id", deliverableVendorIds);
+      }
+      const { data } = await qs;
       const rows = data ?? [];
       rows.sort((a, b) => {
         const ai = (a.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
