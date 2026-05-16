@@ -492,9 +492,9 @@ function CartPage() {
           {dispatch ? (
             <>
               <DialogHeader>
-                <DialogTitle>Envoyer votre commande sur WhatsApp</DialogTitle>
+                <DialogTitle>{t("checkout.dispatch_title")}</DialogTitle>
                 <DialogDescription>
-                  Votre commande #{dispatch.orderId.slice(0, 8)} est enregistrée. Envoyez-la maintenant à chaque destinataire ci-dessous.
+                  {t("checkout.dispatch_desc_prefix")} #{dispatch.orderId.slice(0, 8)} {t("checkout.dispatch_desc_suffix")}
                 </DialogDescription>
               </DialogHeader>
               <ul className="mt-2 space-y-2">
@@ -511,10 +511,10 @@ function CartPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">{g.label}</p>
                           {g.isAdmin && (
-                            <p className="text-[11px] text-muted-foreground">Articles avec commission — gérés par la plateforme.</p>
+                            <p className="text-[11px] text-muted-foreground">{t("checkout.admin_group_note")}</p>
                           )}
                           {!g.whatsappNumber && (
-                            <p className="text-[11px] text-destructive">Numéro WhatsApp non configuré — message envoyé sur le numéro du site.</p>
+                            <p className="text-[11px] text-destructive">{t("checkout.no_whatsapp_warning")}</p>
                           )}
                         </div>
                       </div>
@@ -529,9 +529,9 @@ function CartPage() {
                         )}
                       >
                         {sent ? (
-                          <><Check className="h-4 w-4" /> Envoyé · renvoyer</>
+                          <><Check className="h-4 w-4" /> {t("checkout.sent_resend")}</>
                         ) : (
-                          <><MessageCircle className="h-4 w-4" /> Envoyer sur WhatsApp</>
+                          <><MessageCircle className="h-4 w-4" /> {t("checkout.send_whatsapp")}</>
                         )}
                       </Button>
                     </li>
@@ -540,7 +540,7 @@ function CartPage() {
               </ul>
               <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
                 <Button onClick={finishDispatch} variant="outline" className="w-full">
-                  Terminer
+                  {t("checkout.finish")}
                 </Button>
               </div>
             </>
