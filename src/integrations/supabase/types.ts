@@ -1066,6 +1066,8 @@ export type Database = {
       site_settings: {
         Row: {
           accent_color: string
+          auth_sender_email: string | null
+          auth_sender_name: string | null
           commission_whatsapp_number: string | null
           created_at: string
           footer_text: string | null
@@ -1089,6 +1091,8 @@ export type Database = {
         }
         Insert: {
           accent_color?: string
+          auth_sender_email?: string | null
+          auth_sender_name?: string | null
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
@@ -1112,6 +1116,8 @@ export type Database = {
         }
         Update: {
           accent_color?: string
+          auth_sender_email?: string | null
+          auth_sender_name?: string | null
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
