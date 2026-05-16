@@ -166,16 +166,15 @@ function pushError(samples: string[], msg: string) {
 
 // ---------- Per-table runners ----------
 
-async function syncProducts(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
-  const { data: pendingHead, count } = await supabaseAdmin
+async function syncProducts(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
+  const { count } = await supabaseAdmin
     .from("products")
     .select("id", { count: "exact", head: true })
     .or("translated_hash.is.null,translated_hash.neq.content_hash");
-  void pendingHead;
   report.products.pending = count ?? 0;
 
-  while (budget.left > 0) {
+  while (!timeUp(budget)) {
     const limit = Math.min(BATCH, budget.left);
     const { data } = await supabaseAdmin
       .from("products")
@@ -185,8 +184,8 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
       .limit(limit);
     if (!data || data.length === 0) break;
 
-    for (const p of data) {
-      budget.left--;
+    budget.left -= data.length;
+    await Promise.all(data.map(async (p) => {
       try {
         const row = p as {
           id: string; name: string; designation: string | null; description: string | null;
@@ -200,10 +199,16 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
           { name: row.name ?? "", designation: row.designation ?? "", description: row.description ?? "" },
           apiKey,
         );
+        let got = false;
         for (const l of LANGS) {
-          if (res[l].name) nameI18n[l] = res[l].name!;
-          if (res[l].designation !== undefined) desigI18n[l] = res[l].designation ?? "";
-          if (res[l].description !== undefined) descI18n[l] = res[l].description ?? "";
+          if (res[l].name) { nameI18n[l] = res[l].name!; got = true; }
+          if (res[l].designation !== undefined) { desigI18n[l] = res[l].designation ?? ""; got = true; }
+          if (res[l].description !== undefined) { descI18n[l] = res[l].description ?? ""; got = true; }
+        }
+        if (!got) {
+          report.products.errors++;
+          pushError(report.errorSamples, `produit ${row.id.slice(0, 8)}: pas de réponse IA`);
+          return;
         }
         const { error } = await supabaseAdmin
           .from("products")
@@ -220,8 +225,58 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
         report.products.errors++;
         pushError(report.errorSamples, `produit: ${e instanceof Error ? e.message : "erreur"}`);
       }
-      if (budget.left <= 0) break;
-    }
+    }));
+    if (data.length < limit) break;
+  }
+}
+
+async function syncHashTable(
+  table: "categories" | "countries",
+  bucket: BucketReport,
+  report: Report,
+  apiKey: string,
+  budget: Budget,
+) {
+  if (timeUp(budget)) return;
+  const { count } = await supabaseAdmin
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .or("translated_hash.is.null,translated_hash.neq.content_hash");
+  bucket.pending = count ?? 0;
+
+  while (!timeUp(budget)) {
+    const limit = Math.min(BATCH, budget.left);
+    const { data } = await supabaseAdmin
+      .from(table)
+      .select("id, name, name_i18n, content_hash, translated_hash")
+      .or("translated_hash.is.null,translated_hash.neq.content_hash")
+      .limit(limit);
+    if (!data || data.length === 0) break;
+
+    budget.left -= data.length;
+    await Promise.all(data.map(async (c) => {
+      try {
+        const row = c as { id: string; name: string; name_i18n: Record<string, string> | null; content_hash: string };
+        const merged: Record<string, string> = { ...(row.name_i18n ?? {}) };
+        const res = await translateShort(row.name ?? "", [...LANGS], apiKey);
+        let got = false;
+        for (const l of LANGS) if (res[l]) { merged[l] = res[l]!; got = true; }
+        if (!got) {
+          bucket.errors++;
+          pushError(report.errorSamples, `${table} ${row.id.slice(0, 8)}: pas de réponse IA`);
+          return;
+        }
+        const { error } = await supabaseAdmin
+          .from(table)
+          .update({ name_i18n: merged, translated_hash: row.content_hash })
+          .eq("id", row.id);
+        if (error) { bucket.errors++; pushError(report.errorSamples, `${table} ${row.id.slice(0, 8)}: ${error.message}`); }
+        else bucket.translated++;
+      } catch (e) {
+        bucket.errors++;
+        pushError(report.errorSamples, `${table}: ${e instanceof Error ? e.message : "erreur"}`);
+      }
+    }));
     if (data.length < limit) break;
   }
 }
