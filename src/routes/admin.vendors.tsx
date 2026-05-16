@@ -424,15 +424,6 @@ function VendorsPage() {
             <DateRangeMini label="Fin d'accès depuis" value={fEndFrom} onChange={setFEndFrom} />
             <DateRangeMini label="Fin d'accès jusqu'à" value={fEndTo} onChange={setFEndTo} />
           </div>
-          {(query || fStatus !== "all" || fMode !== "all" || fCountry !== "all" || fSignupFrom || fSignupTo || fEndFrom || fEndTo) && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
-              setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
-              setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
-              navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
-            }}>
-              <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
-            </Button>
-          )}
         </CardContent>
       </Card>
 
