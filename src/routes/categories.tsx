@@ -6,6 +6,8 @@ import { BackButton } from "@/components/layout/BackButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
+import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
