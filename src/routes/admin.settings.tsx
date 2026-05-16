@@ -189,6 +189,34 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle className="text-base">Emails (réinitialisation de mot de passe)</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">📧 Compte expéditeur</p>
+            <p className="mt-1">Les emails de réinitialisation de mot de passe sont envoyés via le compte Gmail connecté à Lovable (<strong>haidarorca@gmail.com</strong>). Vous pouvez personnaliser ci-dessous l'adresse et le nom affichés comme expéditeur.</p>
+          </div>
+          <div>
+            <Label>Email expéditeur</Label>
+            <Input
+              type="email"
+              value={form.auth_sender_email ?? ""}
+              onChange={(e) => set("auth_sender_email", e.target.value)}
+              placeholder="haidarorca@gmail.com"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Doit correspondre (ou être un alias) du compte Gmail connecté, sinon Gmail réécrira l'expéditeur.</p>
+          </div>
+          <div>
+            <Label>Nom expéditeur</Label>
+            <Input
+              value={form.auth_sender_name ?? ""}
+              onChange={(e) => set("auth_sender_name", e.target.value)}
+              placeholder="KawZone"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <BannersManager />
 
       <div className="flex justify-end">

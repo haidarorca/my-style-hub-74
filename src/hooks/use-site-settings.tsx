@@ -18,6 +18,8 @@ export interface SiteSettings {
   hero_title: string | null;
   hero_subtitle: string | null;
   footer_text: string | null;
+  auth_sender_email: string | null;
+  auth_sender_name: string | null;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -36,6 +38,8 @@ const DEFAULTS: SiteSettings = {
   hero_title: "",
   hero_subtitle: "",
   footer_text: "",
+  auth_sender_email: "haidarorca@gmail.com",
+  auth_sender_name: "KawZone",
 };
 
 // Mutable global so non-React code (whatsapp.ts) can read latest WhatsApp number
