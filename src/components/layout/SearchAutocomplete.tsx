@@ -124,7 +124,7 @@ export function SearchAutocomplete() {
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
-      let q = supabase
+      let q = (supabase as any)
         .from("public_vendor_profiles")
         .select("id, shop_name, shop_logo_url")
         .not("shop_name", "is", null)
