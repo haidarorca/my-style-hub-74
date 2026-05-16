@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Eye, EyeOff, Home, ShieldCheck } from "lucide-react";
 import { BackButton } from "@/components/layout/BackButton";
-import { checkPasswordStrength, PasswordStrengthMeter } from "@/components/auth/PasswordStrength";
+
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,

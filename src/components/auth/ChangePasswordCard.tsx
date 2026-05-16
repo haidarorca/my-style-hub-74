@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { checkPasswordStrength, PasswordStrengthMeter } from "./PasswordStrength";
+
 
 export function ChangePasswordCard() {
   const { user } = useAuth();
