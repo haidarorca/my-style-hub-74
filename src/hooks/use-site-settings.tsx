@@ -38,6 +38,8 @@ const DEFAULTS: SiteSettings = {
   hero_title: "",
   hero_subtitle: "",
   footer_text: "",
+  auth_sender_email: "haidarorca@gmail.com",
+  auth_sender_name: "KawZone",
 };
 
 // Mutable global so non-React code (whatsapp.ts) can read latest WhatsApp number
