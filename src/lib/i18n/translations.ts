@@ -740,6 +740,8 @@ const en: Dict = {
   "checkout.order_saved_pending": "Order saved — Pending validation",
   "checkout.order_save_error": "Error while saving the order",
   "checkout.address_save_error": "Error while saving the address",
+  "checkout.delivery_country": "Delivery country",
+  "checkout.choose_delivery_country": "Choose the delivery country",
 
   "account.title": "My account",
   "account.profile": "Profile",
