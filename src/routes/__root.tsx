@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { installGlobalErrorLogger } from "@/lib/error-logger";
 import { runPwaCleanup } from "@/lib/pwa-cleanup";
+import { startBuildVersionWatcher } from "@/lib/build-version-watcher";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SiteSettingsProvider } from "@/hooks/use-site-settings";
 import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
@@ -143,7 +144,7 @@ function AuthInvalidator() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  useEffect(() => { installGlobalErrorLogger(); runPwaCleanup(); }, []);
+  useEffect(() => { installGlobalErrorLogger(); runPwaCleanup(); startBuildVersionWatcher(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
