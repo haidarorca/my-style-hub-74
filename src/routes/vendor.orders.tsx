@@ -231,6 +231,9 @@ function VendorOrders() {
                     <Badge variant="outline" className={cn("gap-1 border", meta.cls)}>
                       <meta.icon className="h-3 w-3" />{meta.label}
                     </Badge>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDetailsOrder(o)} aria-label="Détails">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistoryOrderId(o.id)} aria-label="Historique">
                       <History className="h-3.5 w-3.5" />
                     </Button>
