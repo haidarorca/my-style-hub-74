@@ -40,7 +40,16 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 
+const VENDOR_STATUSES = ["active", "pending", "suspended", "expired", "blocked"] as const;
+
+const vendorsSearchSchema = z.object({
+  page: fallback(z.number().int().min(1).max(10_000), 1).default(1),
+  q: fallback(z.string().max(200), "").default(""),
+  status: fallback(z.enum(["all", ...VENDOR_STATUSES]), "all").default("all"),
+});
+
 export const Route = createFileRoute("/admin/vendors")({
+  validateSearch: zodValidator(vendorsSearchSchema),
   component: () => <PermissionGate perm="vendors"><VendorsPage /></PermissionGate>,
 });
 
