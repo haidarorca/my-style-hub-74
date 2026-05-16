@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeSchedule, summarizeSchedule, isOpenNow, type ScheduleLabels } from "@/lib/shop-hours";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
@@ -37,9 +38,14 @@ function ShopPage() {
     },
   });
 
+  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+  const vendorDeliverable = !countryId || !deliverableVendorIds || deliverableVendorIds.includes(vendorId);
+
   const { data: products } = useQuery({
-    queryKey: ["vendor-products", vendorId],
+    queryKey: ["vendor-products", vendorId, countryId, vendorDeliverable],
+    enabled: !countryId || deliverableVendorIds !== null,
     queryFn: async () => {
+      if (!vendorDeliverable) return [];
       const { data, error } = await supabase
         .from("products")
         .select("id, name, name_i18n, price, code, category_id, product_images(url)")
