@@ -51,9 +51,31 @@ function CommissionOrders() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter]);
+
+  // Vendors that have at least one commission order item
+  const { data: vendorsList } = useQuery({
+    queryKey: ["admin-commission-orders", "vendors"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: ords } = await supabase
+        .from("orders").select("id").eq("is_commission", true).limit(2000);
+      const ids = (ords ?? []).map((o: any) => o.id);
+      if (ids.length === 0) return [] as { id: string; name: string }[];
+      const { data: its } = await supabase
+        .from("order_items").select("vendor_id").in("order_id", ids);
+      const vIds = Array.from(new Set((its ?? []).map((i: any) => i.vendor_id))).filter(Boolean);
+      if (vIds.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles").select("id, shop_name, full_name").in("id", vIds);
+      return (profs ?? [])
+        .map((p: any) => ({ id: p.id, name: p.shop_name || p.full_name || "Boutique" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleOne = (id: string) =>
