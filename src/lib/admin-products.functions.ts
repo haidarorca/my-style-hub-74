@@ -140,7 +140,7 @@ const ReportedInput = z.object({
   page: z.number().int().min(1).max(10_000).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   q: z.string().trim().max(200).default(""),
-  status: z.enum(["all", "open", "reviewing", "resolved", "dismissed"]).default("open"),
+  status: z.enum(["all", "open", "reviewed", "dismissed"]).default("open"),
   reason: z.string().trim().max(100).default("all"),
 });
 
