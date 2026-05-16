@@ -199,7 +199,7 @@ function SearchPage() {
         qs = qs.in("id", deliverableVendorIds);
       }
       const { data } = await qs;
-      const rows = data ?? [];
+      const rows = (data ?? []) as Array<{ id: string; shop_name: string | null; shop_logo_url: string | null; address: string | null }>;
       rows.sort((a, b) => {
         const ai = (a.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
         const bi = (b.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
