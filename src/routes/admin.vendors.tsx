@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { listAdminVendors } from "@/lib/admin-vendors.functions";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Store, Pencil, X, MoreHorizontal, CheckCircle2, PauseCircle,
@@ -35,7 +40,16 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 
+const VENDOR_STATUSES = ["active", "pending", "suspended", "expired", "blocked"] as const;
+
+const vendorsSearchSchema = z.object({
+  page: fallback(z.number().int().min(1).max(10_000), 1).default(1),
+  q: fallback(z.string().max(200), "").default(""),
+  status: fallback(z.enum(["all", ...VENDOR_STATUSES]), "all").default("all"),
+});
+
 export const Route = createFileRoute("/admin/vendors")({
+  validateSearch: zodValidator(vendorsSearchSchema),
   component: () => <PermissionGate perm="vendors"><VendorsPage /></PermissionGate>,
 });
 
@@ -83,18 +97,33 @@ function VendorsPage() {
   const update = useServerFn(updateVendor);
   const del = useServerFn(deleteVendor);
   const setStatus = useServerFn(setVendorStatus);
+  const fetchVendors = useServerFn(listAdminVendors);
 
-  const { data: vendors, isLoading } = useQuery({
-    queryKey: ["admin", "vendors"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids, is_verified, vendor_status, access_starts_at, access_ends_at, address, created_at)")
-        .eq("role", "vendeur");
-      if (error) throw error;
-      return (data ?? []) as unknown as VendorRow[];
-    },
+  // URL state (page, q, status)
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/admin/vendors" });
+  const { page, q: urlQuery, status: urlStatus } = search;
+  type SearchState = typeof search;
+
+  // Local debounced search input
+  const [query, setQuery] = useState(urlQuery);
+  useEffect(() => { setQuery(urlQuery); }, [urlQuery]);
+  const debouncedQuery = useDebouncedValue(query, 300);
+  useEffect(() => {
+    if (debouncedQuery === urlQuery) return;
+    navigate({ search: (prev: SearchState) => ({ ...prev, q: debouncedQuery, page: 1 }), replace: true });
+  }, [debouncedQuery, urlQuery, navigate]);
+
+  const PAGE_SIZE = 25;
+
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus }],
+    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus } }),
+    placeholderData: keepPreviousData,
   });
+
+  const vendors = pageData?.rows;
+  const total = pageData?.total ?? 0;
 
   const vendorIds = useMemo(() => (vendors ?? []).map((v) => v.user_id), [vendors]);
 
@@ -123,9 +152,10 @@ function VendorsPage() {
     },
   });
 
-  // Filters
-  const [query, setQuery] = useState("");
-  const [fStatus, setFStatus] = useState<AccountStatus | "all">("all");
+  // Additional client-only filters (applied to current page)
+  const fStatus = urlStatus;
+  const setFStatus = (s: AccountStatus | "all") =>
+    navigate({ search: (prev: SearchState) => ({ ...prev, status: s, page: 1 }), replace: true });
   const [fMode, setFMode] = useState<"all" | "commission" | "no_commission">("all");
   const [fCountry, setFCountry] = useState<string | "all">("all");
   const [fSignupFrom, setFSignupFrom] = useState<Date | undefined>();
@@ -276,7 +306,7 @@ function VendorsPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold">Vendeurs</h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} sur {vendors?.length ?? 0}</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} affichés · {total} au total</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -355,6 +385,7 @@ function VendorsPage() {
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
               setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
               setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
+              navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
             }}>
               <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
             </Button>
@@ -481,6 +512,16 @@ function VendorsPage() {
             </div>
           )}
         </CardContent>
+        <div className="border-t">
+          <PaginationBar
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onPageChange={(next) =>
+              navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) })
+            }
+          />
+        </div>
       </Card>
 
       <EditVendorDialog
