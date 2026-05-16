@@ -37,14 +37,15 @@ interface DispatchGroup {
   isAdmin: boolean;
 }
 
-const newAddressSchema = z.object({
-  label: z.string().trim().min(1, "Libellé requis").max(50),
-  full_name: z.string().trim().min(2, "Nom trop court").max(100),
-  phone: z.string().trim().min(7, "Numéro invalide").max(20).regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
-  address: z.string().trim().min(3, "Adresse requise").max(300),
-  city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
-  note: z.string().trim().max(500).optional().or(z.literal("")),
-});
+const buildAddressSchema = (t: (k: string) => string) =>
+  z.object({
+    label: z.string().trim().min(1, t("checkout.label_required")).max(50),
+    full_name: z.string().trim().min(2, t("checkout.name_too_short")).max(100),
+    phone: z.string().trim().min(7, t("checkout.phone_invalid")).max(20).regex(/^[+0-9 ()-]+$/, t("checkout.phone_invalid")),
+    address: z.string().trim().min(3, t("checkout.address_required")).max(300),
+    city: z.string().trim().min(2, t("checkout.city_required")).max(100),
+    note: z.string().trim().max(500).optional().or(z.literal("")),
+  });
 
 interface Address {
   id: string;
@@ -80,7 +81,7 @@ function CartPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"saved" | "new">("saved");
   const [newForm, setNewForm] = useState({
-    label: "Domicile",
+    label: t("checkout.default_label_home"),
     full_name: "",
     phone: "",
     address: "",
@@ -90,6 +91,7 @@ function CartPage() {
     longitude: null as number | null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const newAddressSchema = useMemo(() => buildAddressSchema(t), [t]);
   const [locating, setLocating] = useState(false);
   const priceLines = useMemo(
     () => items
@@ -295,7 +297,7 @@ function CartPage() {
       });
       groups.push({
         id: "admin-commission",
-        label: "Administration (commande plateforme)",
+        label: t("checkout.admin_group_label"),
         whatsappNumber: settings.commission_whatsapp_number ?? null,
         message: msg,
         isAdmin: true,
@@ -307,7 +309,7 @@ function CartPage() {
   const submitOrder = async () => {
     if (items.length === 0) return;
     if (!destinationCountryId) {
-      toast.error("Sélectionnez le pays de livraison.");
+      toast.error(t("checkout.country_required"));
       return;
     }
     setSubmitting(true);
@@ -321,9 +323,7 @@ function CartPage() {
         addr.destination_country_id !== destinationCountryId
       ) {
         setSubmitting(false);
-        toast.error(
-          "Le pays de livraison choisi ne correspond pas au pays enregistré dans cette adresse. Choisissez une adresse du même pays ou modifiez l'adresse.",
-        );
+        toast.error(t("checkout.country_mismatch"));
         return;
       }
 
@@ -492,9 +492,9 @@ function CartPage() {
           {dispatch ? (
             <>
               <DialogHeader>
-                <DialogTitle>Envoyer votre commande sur WhatsApp</DialogTitle>
+                <DialogTitle>{t("checkout.dispatch_title")}</DialogTitle>
                 <DialogDescription>
-                  Votre commande #{dispatch.orderId.slice(0, 8)} est enregistrée. Envoyez-la maintenant à chaque destinataire ci-dessous.
+                  {t("checkout.dispatch_desc_prefix")} #{dispatch.orderId.slice(0, 8)} {t("checkout.dispatch_desc_suffix")}
                 </DialogDescription>
               </DialogHeader>
               <ul className="mt-2 space-y-2">
@@ -511,10 +511,10 @@ function CartPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">{g.label}</p>
                           {g.isAdmin && (
-                            <p className="text-[11px] text-muted-foreground">Articles avec commission — gérés par la plateforme.</p>
+                            <p className="text-[11px] text-muted-foreground">{t("checkout.admin_group_note")}</p>
                           )}
                           {!g.whatsappNumber && (
-                            <p className="text-[11px] text-destructive">Numéro WhatsApp non configuré — message envoyé sur le numéro du site.</p>
+                            <p className="text-[11px] text-destructive">{t("checkout.no_whatsapp_warning")}</p>
                           )}
                         </div>
                       </div>
@@ -529,9 +529,9 @@ function CartPage() {
                         )}
                       >
                         {sent ? (
-                          <><Check className="h-4 w-4" /> Envoyé · renvoyer</>
+                          <><Check className="h-4 w-4" /> {t("checkout.sent_resend")}</>
                         ) : (
-                          <><MessageCircle className="h-4 w-4" /> Envoyer sur WhatsApp</>
+                          <><MessageCircle className="h-4 w-4" /> {t("checkout.send_whatsapp")}</>
                         )}
                       </Button>
                     </li>
@@ -540,7 +540,7 @@ function CartPage() {
               </ul>
               <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
                 <Button onClick={finishDispatch} variant="outline" className="w-full">
-                  Terminer
+                  {t("checkout.finish")}
                 </Button>
               </div>
             </>
