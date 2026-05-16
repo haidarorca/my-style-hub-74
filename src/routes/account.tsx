@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight } from "lucide-react";
+import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
