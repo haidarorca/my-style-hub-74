@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VendorRouteImport } from './routes/vendor'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SearchRouteImport } from './routes/search'
@@ -52,6 +53,11 @@ import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissi
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
 
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VendorRoute = VendorRouteImport.update({
   id: '/vendor',
   path: '/vendor',
@@ -278,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
+  '/verify-email': typeof VerifyEmailRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/vendor': typeof VendorRouteWithChildren
+  '/verify-email': typeof VerifyEmailRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/signup'
     | '/vendor'
+    | '/verify-email'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/signup'
+    | '/verify-email'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
@@ -495,6 +506,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/signup'
     | '/vendor'
+    | '/verify-email'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
@@ -540,6 +552,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SignupRoute: typeof SignupRoute
   VendorRoute: typeof VendorRouteWithChildren
+  VerifyEmailRoute: typeof VerifyEmailRoute
   CCategoryIdRoute: typeof CCategoryIdRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
   ShopVendorIdRoute: typeof ShopVendorIdRoute
@@ -547,6 +560,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vendor': {
       id: '/vendor'
       path: '/vendor'
@@ -947,6 +967,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SignupRoute: SignupRoute,
   VendorRoute: VendorRouteWithChildren,
+  VerifyEmailRoute: VerifyEmailRoute,
   CCategoryIdRoute: CCategoryIdRoute,
   ProductProductIdRoute: ProductProductIdRoute,
   ShopVendorIdRoute: ShopVendorIdRoute,
