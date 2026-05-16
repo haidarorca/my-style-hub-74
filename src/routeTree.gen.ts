@@ -39,6 +39,7 @@ import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
 import { Route as AdminCommissionOrdersRouteImport } from './routes/admin.commission-orders'
@@ -48,6 +49,7 @@ import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as VendorProductsIndexRouteImport } from './routes/vendor.products.index'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
+import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.customers.$userId'
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
@@ -203,6 +205,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCustomersRoute = AdminCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCountriesRoute = AdminCountriesRouteImport.update({
   id: '/countries',
   path: '/countries',
@@ -248,6 +255,11 @@ const VendorProductsNewRoute = VendorProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => VendorRoute,
 } as any)
+const AdminCustomersUserIdRoute = AdminCustomersUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => AdminCustomersRoute,
+} as any)
 const AdminCommissionsViewRoute = AdminCommissionsViewRouteImport.update({
   id: '/view',
   path: '/view',
@@ -291,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -310,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/vendor/': typeof VendorIndexRoute
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
+  '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -334,6 +348,7 @@ export interface FileRoutesByTo {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
@@ -352,6 +367,7 @@ export interface FileRoutesByTo {
   '/vendor': typeof VendorIndexRoute
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
+  '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products': typeof AdminProductsIndexRoute
   '/vendor/products': typeof VendorProductsIndexRoute
@@ -379,6 +395,7 @@ export interface FileRoutesById {
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
   '/admin/countries': typeof AdminCountriesRoute
+  '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRouteWithChildren
   '/admin/reports': typeof AdminReportsRoute
@@ -398,6 +415,7 @@ export interface FileRoutesById {
   '/vendor/': typeof VendorIndexRoute
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
+  '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -426,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -445,6 +464,7 @@ export interface FileRouteTypes {
     | '/vendor/'
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
+    | '/admin/customers/$userId'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -469,6 +489,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/reports'
     | '/admin/reviews'
@@ -487,6 +508,7 @@ export interface FileRouteTypes {
     | '/vendor'
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
+    | '/admin/customers/$userId'
     | '/vendor/products/new'
     | '/admin/products'
     | '/vendor/products'
@@ -513,6 +535,7 @@ export interface FileRouteTypes {
     | '/admin/commission-orders'
     | '/admin/commissions'
     | '/admin/countries'
+    | '/admin/customers'
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reports'
@@ -532,6 +555,7 @@ export interface FileRouteTypes {
     | '/vendor/'
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
+    | '/admin/customers/$userId'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -770,6 +794,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/customers': {
+      id: '/admin/customers'
+      path: '/customers'
+      fullPath: '/admin/customers'
+      preLoaderRoute: typeof AdminCustomersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/countries': {
       id: '/admin/countries'
       path: '/countries'
@@ -833,6 +864,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorProductsNewRouteImport
       parentRoute: typeof VendorRoute
     }
+    '/admin/customers/$userId': {
+      id: '/admin/customers/$userId'
+      path: '/$userId'
+      fullPath: '/admin/customers/$userId'
+      preLoaderRoute: typeof AdminCustomersUserIdRouteImport
+      parentRoute: typeof AdminCustomersRoute
+    }
     '/admin/commissions/view': {
       id: '/admin/commissions/view'
       path: '/view'
@@ -877,6 +915,18 @@ const AdminCommissionsRouteChildren: AdminCommissionsRouteChildren = {
 const AdminCommissionsRouteWithChildren =
   AdminCommissionsRoute._addFileChildren(AdminCommissionsRouteChildren)
 
+interface AdminCustomersRouteChildren {
+  AdminCustomersUserIdRoute: typeof AdminCustomersUserIdRoute
+}
+
+const AdminCustomersRouteChildren: AdminCustomersRouteChildren = {
+  AdminCustomersUserIdRoute: AdminCustomersUserIdRoute,
+}
+
+const AdminCustomersRouteWithChildren = AdminCustomersRoute._addFileChildren(
+  AdminCustomersRouteChildren,
+)
+
 interface AdminProductsRouteChildren {
   AdminProductsIndexRoute: typeof AdminProductsIndexRoute
   AdminProductsProductIdEditRoute: typeof AdminProductsProductIdEditRoute
@@ -898,6 +948,7 @@ interface AdminRouteChildren {
   AdminCommissionOrdersRoute: typeof AdminCommissionOrdersRoute
   AdminCommissionsRoute: typeof AdminCommissionsRouteWithChildren
   AdminCountriesRoute: typeof AdminCountriesRoute
+  AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRouteWithChildren
   AdminReportsRoute: typeof AdminReportsRoute
@@ -914,6 +965,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCommissionOrdersRoute: AdminCommissionOrdersRoute,
   AdminCommissionsRoute: AdminCommissionsRouteWithChildren,
   AdminCountriesRoute: AdminCountriesRoute,
+  AdminCustomersRoute: AdminCustomersRouteWithChildren,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRouteWithChildren,
   AdminReportsRoute: AdminReportsRoute,

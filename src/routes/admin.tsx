@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag, Settings, Inbox, ShieldCheck, Percent, Briefcase,
+  LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag, Settings, Inbox, ShieldCheck, Percent, Briefcase, Users,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
   { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
   { to: "/admin/vendors", label: "Vendeurs", icon: Store, perm: "vendors" },
+  { to: "/admin/customers", label: "Clients", icon: Users, perm: "customers" },
   { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
   { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
   { to: "/admin/commission-orders", label: "Commandes commission", icon: Briefcase, perm: "orders" },
