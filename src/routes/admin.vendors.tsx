@@ -133,6 +133,15 @@ function VendorsPage() {
   const [fEndFrom, setFEndFrom] = useState<Date | undefined>();
   const [fEndTo, setFEndTo] = useState<Date | undefined>();
 
+  // Per-column filters (Excel-like)
+  type ColF = { search?: string; startsWith?: string };
+  type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
+  const [colF, setColF] = useState<Record<ColKey, ColF>>({
+    shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
+  });
+  const [sortBy, setSortBy] = useState<{ col: ColKey; dir: "asc" | "desc" } | null>(null);
+  const updateColF = (k: ColKey, v: ColF) => setColF((s) => ({ ...s, [k]: v }));
+
   const { data: countries } = useCountries({ onlyEnabled: true });
   const labelOf = useCountryLabel();
   const countryName = (id: string | null) => {
