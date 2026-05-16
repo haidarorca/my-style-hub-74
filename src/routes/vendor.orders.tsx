@@ -57,6 +57,17 @@ function VendorOrders() {
 
   useEffect(() => { setPage(0); }, [search, statusFilter]);
 
+  // Bulk selection for preparation
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const clearSelection = () => setSelected(new Set());
+
   // Counts per status (HEAD requests, scoped to vendor via orders join)
   const { data: counts } = useQuery({
     queryKey: ["vendor-orders", "counts", user?.id],
