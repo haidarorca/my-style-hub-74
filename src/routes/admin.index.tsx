@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getAdminStats } from "@/lib/admin-stats.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent } from "lucide-react";
+import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag } from "lucide-react";
 import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 
 export const Route = createFileRoute("/admin/")({
@@ -21,34 +23,36 @@ function useCount(table: string, filter?: { col: string; val: string }) {
       if (error) throw error;
       return count ?? 0;
     },
+    staleTime: 60_000,
   });
 }
 
 function Dashboard() {
   const { isSuperAdmin } = useAuth();
-  const products = useCount("products");
-  const pending = useCount("products", { col: "status", val: "pending" });
-  const categories = useCount("categories");
-  const reports = useCount("product_reports", { col: "status", val: "open" });
-  const pendingCats = useCount("category_requests", { col: "status", val: "pending" });
-  const vendors = useQuery({
-    queryKey: ["count-vendors"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("user_roles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "vendeur");
-      if (error) throw error;
-      return count ?? 0;
-    },
+  const fetchStats = useServerFn(getAdminStats);
+
+  // Aggregated stats from the cached overview (15-min Inngest refresh + lazy compute).
+  const stats = useQuery({
+    queryKey: ["admin", "stats", "overview"],
+    queryFn: () => fetchStats(),
+    staleTime: 60_000,
   });
 
+  // Validation queues stay live (counts on small filtered subsets, cheap).
+  const pending = useCount("products", { col: "status", val: "pending" });
+  const reports = useCount("product_reports", { col: "status", val: "open" });
+  const pendingCats = useCount("category_requests", { col: "status", val: "pending" });
+  const categories = useCount("categories");
+
   const tiles = [
-    { label: "Produits", value: products.data, icon: Package, color: "text-primary" },
+    { label: "Clients", value: stats.data?.customers.total, icon: Users, color: "text-primary" },
+    { label: "Vendeurs actifs", value: stats.data?.vendors.active, icon: Users, color: "text-emerald-600" },
+    { label: "Commandes", value: stats.data?.orders.total, icon: ShoppingBag, color: "text-blue-600" },
+    { label: "Revenu 30j (FCFA)", value: stats.data ? new Intl.NumberFormat("fr-FR").format(stats.data.orders.revenue_30d) : undefined, icon: Wallet, color: "text-amber-600" },
     { label: "À valider", value: pending.data, icon: Clock, color: "text-amber-600" },
     { label: "Catégories", value: categories.data, icon: FolderTree, color: "text-blue-600" },
-    { label: "Vendeurs", value: vendors.data, icon: Users, color: "text-emerald-600" },
     { label: "Signalements ouverts", value: reports.data, icon: Flag, color: "text-destructive" },
+    { label: "Cmd en attente", value: stats.data?.orders.pending, icon: Package, color: "text-amber-600" },
   ];
 
   const vendorStats = useQuery({
