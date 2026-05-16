@@ -158,7 +158,9 @@ export function useCart() {
       return true;
     }
 
-    // Look for an existing identical line
+    // Look for an existing identical line.
+    // Use limit(1) instead of maybeSingle() so legacy duplicate rows
+    // don't trigger PGRST116 and silently swallow the result.
     let existingQuery = supabase
       .from("cart_items")
       .select("id, quantity")
@@ -167,7 +169,11 @@ export function useCart() {
     existingQuery = input.variantId
       ? existingQuery.eq("variant_id", input.variantId)
       : existingQuery.is("variant_id", null);
-    const { data: existing } = await existingQuery.maybeSingle();
+    const { data: existingRows, error: existingErr } = await existingQuery.limit(1);
+    if (existingErr) {
+      console.error("[cart] lookup failed", existingErr);
+    }
+    const existing = (existingRows ?? [])[0] ?? null;
 
     if (existing && !input.customization) {
       const { error } = await supabase
@@ -175,6 +181,7 @@ export function useCart() {
         .update({ quantity: existing.quantity + qty })
         .eq("id", existing.id);
       if (error) {
+        console.error("[cart] update failed", error);
         toast.error(error.message);
         return false;
       }
@@ -187,12 +194,14 @@ export function useCart() {
         customization: (input.customization ?? null) as never,
       });
       if (error) {
+        console.error("[cart] insert failed", error);
         toast.error(error.message);
         return false;
       }
     }
     toast.success(t("product.added_to_cart"));
-    refresh();
+    await qc.invalidateQueries({ queryKey: ["cart"] });
+    await qc.refetchQueries({ queryKey, exact: true });
     return true;
   };
 
