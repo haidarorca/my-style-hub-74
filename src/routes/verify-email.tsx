@@ -36,6 +36,8 @@ function VerifyEmailPage() {
     return () => clearInterval(t);
   }, [resendCooldown]);
 
+  const [isPolling, setIsPolling] = useState(false);
+
   const handleResend = async () => {
     if (!email) return;
     setResendCooldown(60);
@@ -45,8 +47,24 @@ function VerifyEmailPage() {
       setResendCooldown(0);
     } else {
       toast.success("Email de vérification renvoyé. Vérifiez votre boîte de réception.");
+      setIsPolling(true);
     }
   };
+
+  useEffect(() => {
+    if (!isPolling || verified) return;
+    const check = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user?.email_confirmed_at) {
+        setVerified(true);
+        setIsPolling(false);
+        toast.success("Email vérifié !");
+      }
+    };
+    check();
+    const t = setInterval(check, 5000);
+    return () => clearInterval(t);
+  }, [isPolling, verified]);
 
   if (loading) {
     return (
