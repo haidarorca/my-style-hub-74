@@ -262,6 +262,15 @@ function BannersManager() {
         </label>
       </CardHeader>
       <CardContent>
+        <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <p className="font-semibold text-foreground">📐 Taille recommandée de la bannière</p>
+          <ul className="mt-1 space-y-0.5">
+            <li>• <strong>Idéale&nbsp;:</strong> 2400 × 900 px (ratio 24:9, desktop large)</li>
+            <li>• <strong>Minimum&nbsp;:</strong> 1600 × 600 px</li>
+            <li>• <strong>Format&nbsp;:</strong> JPG ou WebP, &lt; 500 Ko</li>
+            <li>• <strong>Astuce&nbsp;:</strong> placez le texte/visuel important au <em>centre</em> (les bords sont rognés sur mobile en 16:9)</li>
+          </ul>
+        </div>
         {!banners || banners.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune bannière. Ajoute-en pour activer le carrousel.</p>
         ) : (
