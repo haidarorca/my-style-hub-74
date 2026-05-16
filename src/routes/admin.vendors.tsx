@@ -44,7 +44,7 @@ function VendorsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids)")
+        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids, is_verified)")
         .eq("role", "vendeur");
       if (error) throw error;
       return (data ?? []) as unknown as VendorRow[];
