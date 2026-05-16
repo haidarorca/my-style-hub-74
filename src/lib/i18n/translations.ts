@@ -206,6 +206,8 @@ const fr: Dict = {
   "checkout.order_saved_pending": "Commande enregistrée — En attente de validation",
   "checkout.order_save_error": "Erreur lors de l’enregistrement de la commande",
   "checkout.address_save_error": "Erreur lors de l’enregistrement de l’adresse",
+  "checkout.delivery_country": "Pays de livraison",
+  "checkout.choose_delivery_country": "Choisir le pays de livraison",
 
   // Account
   "account.title": "Mon compte",
