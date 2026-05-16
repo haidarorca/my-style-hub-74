@@ -4,13 +4,36 @@ import { syncTranslations } from "@/lib/sync-translations.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Languages, Loader2, CheckCircle2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Languages, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 type Report = Awaited<ReturnType<typeof syncTranslations>>;
 
+type Scope = "all" | "products" | "categories" | "countries" | "shops" | "banners" | "settings";
+
+const SCOPES: Array<{ id: Scope; label: string }> = [
+  { id: "all", label: "Tout" },
+  { id: "products", label: "Produits" },
+  { id: "categories", label: "Catégories" },
+  { id: "countries", label: "Pays" },
+  { id: "shops", label: "Boutiques" },
+  { id: "banners", label: "Bannières" },
+  { id: "settings", label: "Paramètres" },
+];
+
+const BUCKETS: Array<{ key: keyof Pick<Report, "products" | "categories" | "countries" | "shops" | "banners" | "settings">; label: string }> = [
+  { key: "products", label: "Produits" },
+  { key: "categories", label: "Catégories" },
+  { key: "countries", label: "Pays" },
+  { key: "shops", label: "Boutiques" },
+  { key: "banners", label: "Bannières" },
+  { key: "settings", label: "Paramètres du site" },
+];
+
 export function TranslationSyncCard() {
   const sync = useServerFn(syncTranslations);
+  const [scope, setScope] = useState<Scope>("all");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<Report | null>(null);
@@ -19,17 +42,28 @@ export function TranslationSyncCard() {
     setRunning(true);
     setReport(null);
     setProgress(8);
-    // Smooth fake progress while the batch runs
     const tick = setInterval(() => {
       setProgress((p) => (p < 90 ? p + Math.max(1, Math.round((90 - p) / 12)) : p));
     }, 600);
     try {
-      const r = await sync();
+      const r = await sync({ data: { scope } });
       setReport(r);
-      const total = r.products.translated + r.categories.translated + r.countries.translated + r.shops.translated;
-      toast.success("Synchronisation et traductions terminées avec succès", {
-        description: `${total} élément${total > 1 ? "s" : ""} traduit${total > 1 ? "s" : ""}`,
-      });
+      const total = BUCKETS.reduce((acc, b) => acc + r[b.key].translated, 0);
+      const errors = BUCKETS.reduce((acc, b) => acc + r[b.key].errors, 0);
+      const pending = BUCKETS.reduce((acc, b) => acc + r[b.key].pending, 0);
+      if (errors > 0) {
+        toast.warning(`Synchronisation terminée avec ${errors} erreur${errors > 1 ? "s" : ""}`, {
+          description: `${total} élément${total > 1 ? "s" : ""} traduit${total > 1 ? "s" : ""}${pending > 0 ? ` · ${pending} en attente` : ""}`,
+        });
+      } else if (total === 0) {
+        toast.success("Tout est déjà à jour", {
+          description: "Aucun nouvel élément à traduire",
+        });
+      } else {
+        toast.success("Traductions mises à jour", {
+          description: `${total} élément${total > 1 ? "s" : ""} traduit${total > 1 ? "s" : ""}${pending > 0 ? ` · ${pending} en attente — relancez pour finir` : ""}`,
+        });
+      }
     } catch (e) {
       toast.error("Échec de la synchronisation", {
         description: e instanceof Error ? e.message : "Erreur inconnue",
@@ -42,6 +76,9 @@ export function TranslationSyncCard() {
     }
   };
 
+  const totalErrors = report ? BUCKETS.reduce((a, b) => a + report[b.key].errors, 0) : 0;
+  const totalPending = report ? BUCKETS.reduce((a, b) => a + report[b.key].pending, 0) : 0;
+
   return (
     <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5">
       <CardContent className="space-y-3 p-4">
@@ -50,9 +87,9 @@ export function TranslationSyncCard() {
             <Languages className="h-6 w-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold">Synchronisation multilingue</div>
+            <div className="text-sm font-semibold">Centre de traduction multilingue</div>
             <div className="text-xs text-muted-foreground">
-              Traduit automatiquement les nouveaux produits, catégories, pays et boutiques en EN et AR
+              FR · EN · AR — détecte automatiquement les nouveaux contenus et corrige ceux non traduits
             </div>
           </div>
           <Button size="sm" onClick={onClick} disabled={running}>
@@ -61,42 +98,89 @@ export function TranslationSyncCard() {
           </Button>
         </div>
 
-        {(running || progress > 0) && (
-          <Progress value={progress} className="h-2" />
-        )}
+        <div className="flex flex-wrap gap-1.5">
+          {SCOPES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setScope(s.id)}
+              disabled={running}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                scope === s.id
+                  ? "border-violet-500 bg-violet-500 text-white"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {(running || progress > 0) && <Progress value={progress} className="h-2" />}
 
         {report && (
           <div className="space-y-2 rounded-md border bg-card/50 p-3 text-xs">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-              Traductions mises à jour avec succès
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                {totalErrors > 0 ? (
+                  <><AlertTriangle className="h-4 w-4 text-amber-600" /> Synchronisation terminée avec avertissements</>
+                ) : (
+                  <><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Synchronisation terminée</>
+                )}
+              </div>
+              <div className="text-muted-foreground">
+                Portée : <Badge variant="secondary" className="ml-1">{SCOPES.find((s) => s.id === report.scope)?.label ?? report.scope}</Badge>
+              </div>
             </div>
-            <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
-              <ReportRow label="Produits traduits" value={report.products.translated} />
-              <ReportRow label="Produits déjà à jour" value={report.products.skipped} />
-              <ReportRow label="Catégories traduites" value={report.categories.translated} />
-              <ReportRow label="Catégories déjà à jour" value={report.categories.skipped} />
-              <ReportRow label="Pays traduits" value={report.countries.translated} />
-              <ReportRow label="Boutiques traduites" value={report.shops.translated} />
-              <ReportRow
-                label="Erreurs"
-                value={report.products.errors + report.categories.errors + report.countries.errors + report.shops.errors}
-                muted={false}
-              />
-              <ReportRow label="Durée" value={`${Math.round(report.durationMs / 100) / 10}s`} />
-            </ul>
+
+            <div className="overflow-hidden rounded-md border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-1 text-left font-medium">Type</th>
+                    <th className="px-2 py-1 text-right font-medium">Traduits</th>
+                    <th className="px-2 py-1 text-right font-medium">À jour</th>
+                    <th className="px-2 py-1 text-right font-medium">Erreurs</th>
+                    <th className="px-2 py-1 text-right font-medium">En attente</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {BUCKETS.map((b) => {
+                    const v = report[b.key];
+                    return (
+                      <tr key={b.key}>
+                        <td className="px-2 py-1">{b.label}</td>
+                        <td className="px-2 py-1 text-right font-semibold tabular-nums">{v.translated}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{v.skipped}</td>
+                        <td className={`px-2 py-1 text-right tabular-nums ${v.errors > 0 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{v.errors}</td>
+                        <td className={`px-2 py-1 text-right tabular-nums ${v.pending > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>{v.pending}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Durée : {(report.durationMs / 1000).toFixed(1)}s</span>
+              {totalPending > 0 && (
+                <span className="text-amber-600">Relancez pour traiter les {totalPending} élément{totalPending > 1 ? "s" : ""} restant{totalPending > 1 ? "s" : ""}</span>
+              )}
+            </div>
+
+            {report.errorSamples.length > 0 && (
+              <details className="rounded-md border bg-destructive/5 p-2">
+                <summary className="cursor-pointer text-xs font-semibold text-destructive">
+                  {report.errorSamples.length} erreur{report.errorSamples.length > 1 ? "s" : ""} (extrait)
+                </summary>
+                <ul className="mt-1.5 space-y-0.5 pl-2 text-[11px] text-destructive">
+                  {report.errorSamples.map((m, i) => <li key={i}>• {m}</li>)}
+                </ul>
+              </details>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function ReportRow({ label, value, muted = true }: { label: string; value: number | string; muted?: boolean }) {
-  return (
-    <li className="flex items-center justify-between gap-2">
-      <span className={muted ? "text-muted-foreground" : ""}>{label}</span>
-      <span className="font-semibold tabular-nums">{value}</span>
-    </li>
   );
 }
