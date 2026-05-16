@@ -4,7 +4,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
-const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/product"];
+const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/product", "/cart"];
 
 export function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
