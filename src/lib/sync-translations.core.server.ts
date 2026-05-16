@@ -35,26 +35,36 @@ export type Report = {
 const LANGS = ["fr", "en", "ar"] as const;
 type Lang = (typeof LANGS)[number];
 
-const BATCH = 25;
-const HARD_CAP_PER_RUN = 300; // total items processed per invocation
+const BATCH = 6;               // items processed in parallel per round
+const HARD_CAP_PER_RUN = 40;   // total items processed per invocation (safe vs Worker timeout)
+const WALL_CLOCK_MS = 22_000;  // stop scheduling new work after this many ms
+const AI_TIMEOUT_MS = 12_000;  // abort any single AI call after this many ms
 const MAX_ERROR_SAMPLES = 10;
 
 function emptyBucket(): BucketReport {
   return { translated: 0, skipped: 0, errors: 0, pending: 0 };
 }
 
+type Budget = { left: number; deadline: number };
+const timeUp = (b: Budget) => Date.now() >= b.deadline || b.left <= 0;
+
 async function callGateway(prompt: string, apiKey: string): Promise<string | null> {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return json.choices?.[0]?.message?.content?.trim() ?? null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return json.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null; // timeout / network → caller treats as no translation
+  }
 }
 
 function stripFences(raw: string): string {
@@ -156,16 +166,15 @@ function pushError(samples: string[], msg: string) {
 
 // ---------- Per-table runners ----------
 
-async function syncProducts(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
-  const { data: pendingHead, count } = await supabaseAdmin
+async function syncProducts(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
+  const { count } = await supabaseAdmin
     .from("products")
     .select("id", { count: "exact", head: true })
     .or("translated_hash.is.null,translated_hash.neq.content_hash");
-  void pendingHead;
   report.products.pending = count ?? 0;
 
-  while (budget.left > 0) {
+  while (!timeUp(budget)) {
     const limit = Math.min(BATCH, budget.left);
     const { data } = await supabaseAdmin
       .from("products")
@@ -175,8 +184,8 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
       .limit(limit);
     if (!data || data.length === 0) break;
 
-    for (const p of data) {
-      budget.left--;
+    budget.left -= data.length;
+    await Promise.all(data.map(async (p) => {
       try {
         const row = p as {
           id: string; name: string; designation: string | null; description: string | null;
@@ -190,10 +199,16 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
           { name: row.name ?? "", designation: row.designation ?? "", description: row.description ?? "" },
           apiKey,
         );
+        let got = false;
         for (const l of LANGS) {
-          if (res[l].name) nameI18n[l] = res[l].name!;
-          if (res[l].designation !== undefined) desigI18n[l] = res[l].designation ?? "";
-          if (res[l].description !== undefined) descI18n[l] = res[l].description ?? "";
+          if (res[l].name) { nameI18n[l] = res[l].name!; got = true; }
+          if (res[l].designation !== undefined) { desigI18n[l] = res[l].designation ?? ""; got = true; }
+          if (res[l].description !== undefined) { descI18n[l] = res[l].description ?? ""; got = true; }
+        }
+        if (!got) {
+          report.products.errors++;
+          pushError(report.errorSamples, `produit ${row.id.slice(0, 8)}: pas de réponse IA`);
+          return;
         }
         const { error } = await supabaseAdmin
           .from("products")
@@ -210,8 +225,7 @@ async function syncProducts(report: Report, apiKey: string, budget: { left: numb
         report.products.errors++;
         pushError(report.errorSamples, `produit: ${e instanceof Error ? e.message : "erreur"}`);
       }
-      if (budget.left <= 0) break;
-    }
+    }));
     if (data.length < limit) break;
   }
 }
@@ -221,16 +235,16 @@ async function syncHashTable(
   bucket: BucketReport,
   report: Report,
   apiKey: string,
-  budget: { left: number },
+  budget: Budget,
 ) {
-  if (budget.left <= 0) return;
+  if (timeUp(budget)) return;
   const { count } = await supabaseAdmin
     .from(table)
     .select("id", { count: "exact", head: true })
     .or("translated_hash.is.null,translated_hash.neq.content_hash");
   bucket.pending = count ?? 0;
 
-  while (budget.left > 0) {
+  while (!timeUp(budget)) {
     const limit = Math.min(BATCH, budget.left);
     const { data } = await supabaseAdmin
       .from(table)
@@ -239,13 +253,19 @@ async function syncHashTable(
       .limit(limit);
     if (!data || data.length === 0) break;
 
-    for (const c of data) {
-      budget.left--;
+    budget.left -= data.length;
+    await Promise.all(data.map(async (c) => {
       try {
         const row = c as { id: string; name: string; name_i18n: Record<string, string> | null; content_hash: string };
         const merged: Record<string, string> = { ...(row.name_i18n ?? {}) };
         const res = await translateShort(row.name ?? "", [...LANGS], apiKey);
-        for (const l of LANGS) if (res[l]) merged[l] = res[l]!;
+        let got = false;
+        for (const l of LANGS) if (res[l]) { merged[l] = res[l]!; got = true; }
+        if (!got) {
+          bucket.errors++;
+          pushError(report.errorSamples, `${table} ${row.id.slice(0, 8)}: pas de réponse IA`);
+          return;
+        }
         const { error } = await supabaseAdmin
           .from(table)
           .update({ name_i18n: merged, translated_hash: row.content_hash })
@@ -256,17 +276,15 @@ async function syncHashTable(
         bucket.errors++;
         pushError(report.errorSamples, `${table}: ${e instanceof Error ? e.message : "erreur"}`);
       }
-      if (budget.left <= 0) break;
-    }
+    }));
     if (data.length < limit) break;
   }
 }
-
-async function syncShops(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncShops(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   // Shops use missing-lang detection across shop_description + shop_hours.
   let offset = 0;
-  while (budget.left > 0) {
+  while (!timeUp(budget)) {
     const limit = Math.min(BATCH, budget.left);
     const pageSize = limit * 4; // overscan since many rows are already-complete
     const { data } = await supabaseAdmin
@@ -279,7 +297,7 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
 
     let touched = 0;
     for (const s of data) {
-      if (budget.left <= 0) break;
+      if (timeUp(budget)) break;
       const row = s as {
         id: string;
         shop_description: string | null; shop_description_i18n: Record<string, string> | null;
@@ -321,15 +339,15 @@ async function syncShops(report: Report, apiKey: string, budget: { left: number 
   }
 }
 
-async function syncBanners(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncBanners(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   const { data } = await supabaseAdmin
     .from("home_banners")
     .select("id, title, subtitle, cta_label, title_i18n, subtitle_i18n, cta_label_i18n");
   if (!data) return;
 
   for (const b of data) {
-    if (budget.left <= 0) break;
+    if (timeUp(budget)) break;
     const row = b as {
       id: string;
       title: string | null; subtitle: string | null; cta_label: string | null;
@@ -350,7 +368,7 @@ async function syncBanners(report: Report, apiKey: string, budget: { left: numbe
         const miss = missingLangs(f.i18n);
         if (miss.length === 0) continue;
         needs = true;
-        if (budget.left <= 0) break;
+        if (timeUp(budget)) break;
         budget.left--;
         const res = f.long
           ? await translateLong(f.src, miss, apiKey)
@@ -372,8 +390,8 @@ async function syncBanners(report: Report, apiKey: string, budget: { left: numbe
   }
 }
 
-async function syncSettings(report: Report, apiKey: string, budget: { left: number }) {
-  if (budget.left <= 0) return;
+async function syncSettings(report: Report, apiKey: string, budget: Budget) {
+  if (timeUp(budget)) return;
   const { data } = await supabaseAdmin
     .from("site_settings")
     .select("id, hero_title, hero_subtitle, footer_text, promo_bar_text, hero_title_i18n, hero_subtitle_i18n, footer_text_i18n, promo_bar_text_i18n")
@@ -402,7 +420,7 @@ async function syncSettings(report: Report, apiKey: string, budget: { left: numb
       const miss = missingLangs(f.i18n);
       if (miss.length === 0) continue;
       needs = true;
-      if (budget.left <= 0) break;
+      if (timeUp(budget)) break;
       budget.left--;
       const res = f.long
         ? await translateLong(f.src, miss, apiKey)
@@ -446,7 +464,7 @@ export async function runTranslationSync(scope: Scope = "all"): Promise<Report> 
     durationMs: 0,
   };
 
-  const budget = { left: HARD_CAP_PER_RUN };
+  const budget: Budget = { left: HARD_CAP_PER_RUN, deadline: start + WALL_CLOCK_MS };
   const runAll = scope === "all";
 
   if (runAll || scope === "products") await syncProducts(report, apiKey, budget);
