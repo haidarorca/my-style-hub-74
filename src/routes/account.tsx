@@ -285,6 +285,23 @@ function AccountPage() {
     await refresh();
   };
 
+  const handleResendVerification = async () => {
+    if (!user?.email) return;
+    setResendCooldown(60);
+    const { error } = await supabase.auth.resend({ type: "signup", email: user.email });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Email de vérification renvoyé. Vérifiez votre boîte de réception.");
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
+
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
