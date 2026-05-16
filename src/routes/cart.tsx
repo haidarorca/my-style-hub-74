@@ -554,12 +554,12 @@ function CartPage() {
           </DialogHeader>
 
           <div className="space-y-1.5">
-            <Label>Pays de livraison *</Label>
+            <Label>{t("checkout.delivery_country")} *</Label>
             <CountrySelect
               value={destinationCountryId}
               onChange={setDestinationCountryId}
               onlyEnabled
-              placeholder="Choisir le pays de livraison"
+              placeholder={t("checkout.choose_delivery_country")}
             />
           </div>
 
@@ -669,7 +669,7 @@ function CartPage() {
 
           <div className="sticky bottom-0 -mx-6 mt-4 border-t border-border bg-background px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
             <Button onClick={() => submitOrder()} disabled={submitting} className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5a]">
-              {submitting ? t("checkout.submitting") : <EditableLabel uiKey="cart.confirm_whatsapp" defaultLabel={t("checkout.confirm_whatsapp")} defaultSize="md" />}
+              {submitting ? t("checkout.submitting") : t("checkout.confirm_whatsapp")}
             </Button>
           </div>
           </>

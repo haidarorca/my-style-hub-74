@@ -206,6 +206,8 @@ const fr: Dict = {
   "checkout.order_saved_pending": "Commande enregistrée — En attente de validation",
   "checkout.order_save_error": "Erreur lors de l’enregistrement de la commande",
   "checkout.address_save_error": "Erreur lors de l’enregistrement de l’adresse",
+  "checkout.delivery_country": "Pays de livraison",
+  "checkout.choose_delivery_country": "Choisir le pays de livraison",
 
   // Account
   "account.title": "Mon compte",
@@ -738,6 +740,8 @@ const en: Dict = {
   "checkout.order_saved_pending": "Order saved — Pending validation",
   "checkout.order_save_error": "Error while saving the order",
   "checkout.address_save_error": "Error while saving the address",
+  "checkout.delivery_country": "Delivery country",
+  "checkout.choose_delivery_country": "Choose the delivery country",
 
   "account.title": "My account",
   "account.profile": "Profile",
@@ -1257,6 +1261,8 @@ const ar: Dict = {
   "checkout.order_saved_pending": "تم حفظ الطلب — بانتظار التحقق",
   "checkout.order_save_error": "حدث خطأ أثناء حفظ الطلب",
   "checkout.address_save_error": "حدث خطأ أثناء حفظ العنوان",
+  "checkout.delivery_country": "بلد التوصيل",
+  "checkout.choose_delivery_country": "اختر بلد التوصيل",
 
   "account.title": "حسابي",
   "account.profile": "الملف الشخصي",
