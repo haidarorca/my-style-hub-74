@@ -71,6 +71,24 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_stats_cache: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -125,6 +143,7 @@ export type Database = {
       }
       categories: {
         Row: {
+          content_hash: string | null
           created_at: string
           id: string
           level: number
@@ -134,8 +153,10 @@ export type Database = {
           parent_id: string | null
           position: number | null
           slug: string
+          translated_hash: string | null
         }
         Insert: {
+          content_hash?: string | null
           created_at?: string
           id?: string
           level: number
@@ -145,8 +166,10 @@ export type Database = {
           parent_id?: string | null
           position?: number | null
           slug: string
+          translated_hash?: string | null
         }
         Update: {
+          content_hash?: string | null
           created_at?: string
           id?: string
           level?: number
@@ -156,6 +179,7 @@ export type Database = {
           parent_id?: string | null
           position?: number | null
           slug?: string
+          translated_hash?: string | null
         }
         Relationships: [
           {
@@ -333,6 +357,7 @@ export type Database = {
       countries: {
         Row: {
           code: string
+          content_hash: string | null
           created_at: string
           flag_emoji: string | null
           id: string
@@ -340,10 +365,12 @@ export type Database = {
           name: string
           name_i18n: Json
           position: number
+          translated_hash: string | null
           updated_at: string
         }
         Insert: {
           code: string
+          content_hash?: string | null
           created_at?: string
           flag_emoji?: string | null
           id?: string
@@ -351,10 +378,12 @@ export type Database = {
           name: string
           name_i18n?: Json
           position?: number
+          translated_hash?: string | null
           updated_at?: string
         }
         Update: {
           code?: string
+          content_hash?: string | null
           created_at?: string
           flag_emoji?: string | null
           id?: string
@@ -362,6 +391,7 @@ export type Database = {
           name?: string
           name_i18n?: Json
           position?: number
+          translated_hash?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -997,6 +1027,7 @@ export type Database = {
         Row: {
           category_id: string | null
           code: string
+          content_hash: string | null
           created_at: string
           description: string | null
           description_i18n: Json | null
@@ -1010,12 +1041,14 @@ export type Database = {
           price: number
           rejection_reason: string | null
           status: Database["public"]["Enums"]["product_status"]
+          translated_hash: string | null
           updated_at: string
           vendor_id: string
         }
         Insert: {
           category_id?: string | null
           code: string
+          content_hash?: string | null
           created_at?: string
           description?: string | null
           description_i18n?: Json | null
@@ -1029,12 +1062,14 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          translated_hash?: string | null
           updated_at?: string
           vendor_id: string
         }
         Update: {
           category_id?: string | null
           code?: string
+          content_hash?: string | null
           created_at?: string
           description?: string | null
           description_i18n?: Json | null
@@ -1048,6 +1083,7 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          translated_hash?: string | null
           updated_at?: string
           vendor_id?: string
         }
@@ -1353,6 +1389,11 @@ export type Database = {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
       }
+      compute_product_content_hash: {
+        Args: { _description: string; _designation: string; _name: string }
+        Returns: string
+      }
+      compute_text_hash: { Args: { _t: string }; Returns: string }
       current_user_has_permission: {
         Args: { _perm: Database["public"]["Enums"]["admin_permission"] }
         Returns: boolean

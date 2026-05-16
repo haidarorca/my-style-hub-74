@@ -49,6 +49,7 @@ import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as VendorProductsIndexRouteImport } from './routes/vendor.products.index'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
+import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.customers.$userId'
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
@@ -255,6 +256,11 @@ const VendorProductsNewRoute = VendorProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => VendorRoute,
 } as any)
+const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
+  id: '/api/public/inngest',
+  path: '/api/public/inngest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminCustomersUserIdRoute = AdminCustomersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -368,6 +375,7 @@ export interface FileRoutesByTo {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products': typeof AdminProductsIndexRoute
   '/vendor/products': typeof VendorProductsIndexRoute
@@ -416,6 +424,7 @@ export interface FileRoutesById {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -465,6 +474,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -509,6 +519,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products'
     | '/vendor/products'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -580,6 +592,7 @@ export interface RootRouteChildren {
   CCategoryIdRoute: typeof CCategoryIdRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
   ShopVendorIdRoute: typeof ShopVendorIdRoute
+  ApiPublicInngestRoute: typeof ApiPublicInngestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -864,6 +877,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorProductsNewRouteImport
       parentRoute: typeof VendorRoute
     }
+    '/api/public/inngest': {
+      id: '/api/public/inngest'
+      path: '/api/public/inngest'
+      fullPath: '/api/public/inngest'
+      preLoaderRoute: typeof ApiPublicInngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/customers/$userId': {
       id: '/admin/customers/$userId'
       path: '/$userId'
@@ -1023,6 +1043,7 @@ const rootRouteChildren: RootRouteChildren = {
   CCategoryIdRoute: CCategoryIdRoute,
   ProductProductIdRoute: ProductProductIdRoute,
   ShopVendorIdRoute: ShopVendorIdRoute,
+  ApiPublicInngestRoute: ApiPublicInngestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

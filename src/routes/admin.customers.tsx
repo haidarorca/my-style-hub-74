@@ -91,6 +91,8 @@ function CustomersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "customers"],
     queryFn: () => fetchList(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: countries } = useCountries({ onlyEnabled: true });
