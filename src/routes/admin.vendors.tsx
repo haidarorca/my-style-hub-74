@@ -97,18 +97,32 @@ function VendorsPage() {
   const update = useServerFn(updateVendor);
   const del = useServerFn(deleteVendor);
   const setStatus = useServerFn(setVendorStatus);
+  const fetchVendors = useServerFn(listAdminVendors);
 
-  const { data: vendors, isLoading } = useQuery({
-    queryKey: ["admin", "vendors"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, profiles:profiles!inner(email, full_name, shop_name, phone, source_country_id, vendor_mode, ships_internationally, allowed_destination_country_ids, is_verified, vendor_status, access_starts_at, access_ends_at, address, created_at)")
-        .eq("role", "vendeur");
-      if (error) throw error;
-      return (data ?? []) as unknown as VendorRow[];
-    },
+  // URL state (page, q, status)
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/admin/vendors" });
+  const { page, q: urlQuery, status: urlStatus } = search;
+
+  // Local debounced search input
+  const [query, setQuery] = useState(urlQuery);
+  useEffect(() => { setQuery(urlQuery); }, [urlQuery]);
+  const debouncedQuery = useDebouncedValue(query, 300);
+  useEffect(() => {
+    if (debouncedQuery === urlQuery) return;
+    navigate({ search: (prev) => ({ ...prev, q: debouncedQuery, page: 1 }), replace: true });
+  }, [debouncedQuery, urlQuery, navigate]);
+
+  const PAGE_SIZE = 25;
+
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ["admin", "vendors", "list", { page, q: urlQuery, status: urlStatus }],
+    queryFn: () => fetchVendors({ data: { page, pageSize: PAGE_SIZE, q: urlQuery, status: urlStatus } }),
+    placeholderData: keepPreviousData,
   });
+
+  const vendors = pageData?.rows;
+  const total = pageData?.total ?? 0;
 
   const vendorIds = useMemo(() => (vendors ?? []).map((v) => v.user_id), [vendors]);
 
@@ -137,9 +151,10 @@ function VendorsPage() {
     },
   });
 
-  // Filters
-  const [query, setQuery] = useState("");
-  const [fStatus, setFStatus] = useState<AccountStatus | "all">("all");
+  // Additional client-only filters (applied to current page)
+  const fStatus = urlStatus;
+  const setFStatus = (s: AccountStatus | "all") =>
+    navigate({ search: (prev) => ({ ...prev, status: s, page: 1 }), replace: true });
   const [fMode, setFMode] = useState<"all" | "commission" | "no_commission">("all");
   const [fCountry, setFCountry] = useState<string | "all">("all");
   const [fSignupFrom, setFSignupFrom] = useState<Date | undefined>();
