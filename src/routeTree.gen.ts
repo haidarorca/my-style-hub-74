@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as Char91indexChar93RouteImport } from './routes/[index]'
 import { Route as VendorRouteImport } from './routes/vendor'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SearchRouteImport } from './routes/search'
@@ -59,6 +60,11 @@ import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissi
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
 
+const Char91indexChar93Route = Char91indexChar93RouteImport.update({
+  id: '/index',
+  path: '/index',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VendorRoute = VendorRouteImport.update({
   id: '/vendor',
   path: '/vendor',
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/index': typeof Char91indexChar93Route
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -365,6 +372,7 @@ export interface FileRoutesByTo {
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/index': typeof Char91indexChar93Route
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/index': typeof Char91indexChar93Route
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/categories'
     | '/forgot-password'
+    | '/index'
     | '/login'
     | '/orders'
     | '/reset-password'
@@ -518,6 +528,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/categories'
     | '/forgot-password'
+    | '/index'
     | '/login'
     | '/orders'
     | '/reset-password'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/categories'
     | '/forgot-password'
+    | '/index'
     | '/login'
     | '/orders'
     | '/reset-password'
@@ -619,6 +631,7 @@ export interface RootRouteChildren {
   CartRoute: typeof CartRoute
   CategoriesRoute: typeof CategoriesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  Char91indexChar93Route: typeof Char91indexChar93Route
   LoginRoute: typeof LoginRoute
   OrdersRoute: typeof OrdersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -633,6 +646,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/index': {
+      id: '/index'
+      path: '/index'
+      fullPath: '/index'
+      preLoaderRoute: typeof Char91indexChar93RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vendor': {
       id: '/vendor'
       path: '/vendor'
@@ -1097,6 +1117,7 @@ const rootRouteChildren: RootRouteChildren = {
   CartRoute: CartRoute,
   CategoriesRoute: CategoriesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  Char91indexChar93Route: Char91indexChar93Route,
   LoginRoute: LoginRoute,
   OrdersRoute: OrdersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
@@ -1111,13 +1132,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
