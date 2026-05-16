@@ -371,6 +371,62 @@ function VendorsPage() {
         </Dialog>
       </div>
 
+      {/* Active filters preview */}
+      {(() => {
+        const chips: { key: string; label: string; clear: () => void }[] = [];
+        if (query) chips.push({ key: "q", label: `Recherche : ${query}`, clear: () => setQuery("") });
+        if (fStatus !== "all") chips.push({ key: "status", label: `Statut : ${STATUS_META[fStatus as AccountStatus]?.label ?? fStatus}`, clear: () => setFStatus("all") });
+        if (fMode !== "all") chips.push({ key: "mode", label: `Type : ${fMode === "commission" ? "Avec commission" : "Sans commission"}`, clear: () => setFMode("all") });
+        if (fCountry !== "all") {
+          const c = (countries ?? []).find((x) => x.id === fCountry);
+          chips.push({ key: "country", label: `Pays : ${c ? `${c.flag_emoji ?? ""} ${labelOf(c)}` : fCountry}`, clear: () => setFCountry("all") });
+        }
+        if (fSignupFrom) chips.push({ key: "sfrom", label: `Inscrit ≥ ${format(fSignupFrom, "dd/MM/yyyy")}`, clear: () => setFSignupFrom(undefined) });
+        if (fSignupTo) chips.push({ key: "sto", label: `Inscrit ≤ ${format(fSignupTo, "dd/MM/yyyy")}`, clear: () => setFSignupTo(undefined) });
+        if (fEndFrom) chips.push({ key: "efrom", label: `Fin accès ≥ ${format(fEndFrom, "dd/MM/yyyy")}`, clear: () => setFEndFrom(undefined) });
+        if (fEndTo) chips.push({ key: "eto", label: `Fin accès ≤ ${format(fEndTo, "dd/MM/yyyy")}`, clear: () => setFEndTo(undefined) });
+        if (colF.shop.search) chips.push({ key: "cshop", label: `Boutique : ${colF.shop.search}`, clear: () => setColF((p) => ({ ...p, shop: { ...p.shop, search: "" } })) });
+        if (colF.vendor.search) chips.push({ key: "cvendor", label: `Vendeur : ${colF.vendor.search}`, clear: () => setColF((p) => ({ ...p, vendor: { ...p.vendor, search: "" } })) });
+        if (colF.email.search) chips.push({ key: "cemail", label: `Email : ${colF.email.search}`, clear: () => setColF((p) => ({ ...p, email: { ...p.email, search: "" } })) });
+        if (chips.length === 0) return null;
+        return (
+          <Card>
+            <CardContent className="space-y-2 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-muted-foreground">Filtres actifs ({chips.length})</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
+                    setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
+                    setColF({ shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {} });
+                    navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
+                  }}
+                >
+                  Tout effacer
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.clear}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border bg-secondary px-2.5 py-1 text-xs text-secondary-foreground transition hover:bg-secondary/70"
+                    aria-label={`Retirer le filtre ${chip.label}`}
+                  >
+                    <span className="truncate">{chip.label}</span>
+                    <X className="h-3 w-3 shrink-0 opacity-70" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Filters toolbar */}
       <Card>
         <CardContent className="space-y-3 p-3">
