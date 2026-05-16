@@ -37,14 +37,15 @@ interface DispatchGroup {
   isAdmin: boolean;
 }
 
-const newAddressSchema = z.object({
-  label: z.string().trim().min(1, "Libellé requis").max(50),
-  full_name: z.string().trim().min(2, "Nom trop court").max(100),
-  phone: z.string().trim().min(7, "Numéro invalide").max(20).regex(/^[+0-9 ()-]+$/, "Numéro invalide"),
-  address: z.string().trim().min(3, "Adresse requise").max(300),
-  city: z.string().trim().min(2, "Quartier/Ville requis").max(100),
-  note: z.string().trim().max(500).optional().or(z.literal("")),
-});
+const buildAddressSchema = (t: (k: string) => string) =>
+  z.object({
+    label: z.string().trim().min(1, t("checkout.label_required")).max(50),
+    full_name: z.string().trim().min(2, t("checkout.name_too_short")).max(100),
+    phone: z.string().trim().min(7, t("checkout.phone_invalid")).max(20).regex(/^[+0-9 ()-]+$/, t("checkout.phone_invalid")),
+    address: z.string().trim().min(3, t("checkout.address_required")).max(300),
+    city: z.string().trim().min(2, t("checkout.city_required")).max(100),
+    note: z.string().trim().max(500).optional().or(z.literal("")),
+  });
 
 interface Address {
   id: string;
