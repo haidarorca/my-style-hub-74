@@ -272,7 +272,7 @@ function CartPage() {
     for (const [vid, vItems] of byVendor) {
       const first = vItems[0] as any;
       const shopName = first.products?.profiles?.shop_name || first.products?.profiles?.full_name || t("product.shop");
-      const wa = first.products?.profiles?.shop_whatsapp ?? null;
+      const wa = first.products?.profiles?.shop_whatsapp || first.products?.profiles?.phone || null;
       const msg = buildWhatsAppMessage(vItems.map(lineFor), {
         name: addr.full_name,
         phone: addr.phone,
