@@ -189,7 +189,7 @@ function SearchPage() {
       const term = debounced;
       const first = term.charAt(0);
       let qs = supabase
-        .from("profiles")
+        .from("public_vendor_profiles")
         .select("id, shop_name, shop_logo_url, address")
         .not("shop_name", "is", null)
         .or(`shop_name.ilike.%${term}%,shop_name.ilike.${first}%`)
