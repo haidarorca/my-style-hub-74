@@ -55,6 +55,11 @@ function CommissionOrders() {
 
   useEffect(() => { setPage(0); }, [search, statusFilter]);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clearSelection = () => setSelected(new Set());
+
   const { data: counts } = useQuery({
     queryKey: ["admin-commission-orders", "counts"],
     queryFn: async () => {
