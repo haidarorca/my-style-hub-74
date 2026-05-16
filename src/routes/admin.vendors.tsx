@@ -374,18 +374,27 @@ function VendorsPage() {
       {/* Filters toolbar */}
       <Card>
         <CardContent className="space-y-3 p-3">
-          {(query || fStatus !== "all" || fMode !== "all" || fCountry !== "all" || fSignupFrom || fSignupTo || fEndFrom || fEndTo || colF.shop.search || colF.vendor.search || colF.email.search) && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
-                setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
-                setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
-                setColF({ shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {} });
-                navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
-              }}>
-                <X className="mr-1 h-3 w-3" /> Effacer les filtres
-              </Button>
-            </div>
-          )}
+          {(() => {
+            const hasFilters = !!(query || fStatus !== "all" || fMode !== "all" || fCountry !== "all" || fSignupFrom || fSignupTo || fEndFrom || fEndTo || colF.shop.search || colF.vendor.search || colF.email.search);
+            return (
+              <div className="flex justify-stretch sm:justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!hasFilters}
+                  className="h-9 w-full text-xs sm:h-7 sm:w-auto"
+                  onClick={() => {
+                    setQuery(""); setFStatus("all"); setFMode("all"); setFCountry("all");
+                    setFSignupFrom(undefined); setFSignupTo(undefined); setFEndFrom(undefined); setFEndTo(undefined);
+                    setColF({ shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {} });
+                    navigate({ search: { page: 1, q: "", status: "all" }, replace: true });
+                  }}
+                >
+                  <X className="mr-1 h-3 w-3" /> Effacer les filtres et la recherche
+                </Button>
+              </div>
+            );
+          })()}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
