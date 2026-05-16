@@ -80,6 +80,11 @@ function LoginPage() {
               </button>
             </div>
           </div>
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <Button type="submit" disabled={loading} className="w-full" size="lg">
             {loading ? t("auth.signin_loading") : <EditableLabel uiKey="login.submit" defaultLabel={t("auth.signin")} defaultSize="md" />}
           </Button>
