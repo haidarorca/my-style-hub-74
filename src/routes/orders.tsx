@@ -614,6 +614,36 @@ function OrdersPage() {
                                       {fmtFcfa(Number(it.unit_price) * it.quantity)}
                                     </span>
                                   </div>
+                                  {canReview && (
+                                    <div className="mt-2 flex gap-1.5">
+                                      <button
+                                        onClick={() =>
+                                          setReviewTarget({
+                                            productId: it.product_id,
+                                            productName: it.product_name,
+                                            orderId: openOrder.id,
+                                          })
+                                        }
+                                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                                      >
+                                        <Star className="h-3 w-3" /> Laisser un avis
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          setReportTarget({
+                                            type: "product",
+                                            productId: it.product_id,
+                                            orderId: openOrder.id,
+                                            name: it.product_name,
+                                          })
+                                        }
+                                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:border-rose-500/40 hover:text-rose-600"
+                                        title="Signaler ce produit"
+                                      >
+                                        <Flag className="h-3 w-3" /> Signaler
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </li>
                             ))}
