@@ -360,6 +360,18 @@ function AccountPage() {
               <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
             </Link>
           )}
+          <Link
+            to="/verify-email"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Mail className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-semibold">Vérifier mon email</span>
+            </span>
+            <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
+          </Link>
         </div>
 
         <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft">
