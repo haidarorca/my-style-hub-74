@@ -134,8 +134,6 @@ function VendorsPage() {
   const [fEndTo, setFEndTo] = useState<Date | undefined>();
 
   // Per-column filters (Excel-like)
-  type ColF = { search?: string; startsWith?: string };
-  type ColKey = "shop" | "vendor" | "email" | "location" | "status" | "type" | "signup" | "endAccess";
   const [colF, setColF] = useState<Record<ColKey, ColF>>({
     shop: {}, vendor: {}, email: {}, location: {}, status: {}, type: {}, signup: {}, endAccess: {},
   });
