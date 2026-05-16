@@ -548,3 +548,76 @@ function AccountPage() {
     </div>
   );
 }
+
+function RemoveVendorCard() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const removeFn = useServerFn(removeVendorAccount);
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!email.trim() || !password) {
+      toast.error("Email et mot de passe requis");
+      return;
+    }
+    setLoading(true);
+    try {
+      await removeFn({ data: { email: email.trim(), password } });
+      toast.success("Votre compte vendeur a été supprimé.");
+      setOpen(false);
+      setPassword("");
+      router.invalidate();
+      router.navigate({ to: "/account" });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+      <h2 className="text-sm font-semibold text-destructive">Supprimer mon compte vendeur</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Votre boutique et le rôle vendeur seront retirés. Vos produits ne seront plus visibles.
+        Votre compte acheteur restera actif.
+      </p>
+      <Button
+        variant="destructive"
+        size="sm"
+        className="mt-3 rounded-full"
+        onClick={() => { setEmail(user?.email ?? ""); setOpen(true); }}
+      >
+        <Trash2 className="h-4 w-4" /> Supprimer mon compte vendeur
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer la suppression</DialogTitle>
+            <DialogDescription>
+              Confirmez avec votre email et mot de passe pour supprimer votre compte vendeur.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            </div>
+            <div>
+              <Label>Mot de passe</Label>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            </div>
+            <Button variant="destructive" onClick={submit} disabled={loading} className="w-full">
+              {loading ? "Suppression…" : "Confirmer la suppression"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
