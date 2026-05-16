@@ -71,7 +71,7 @@ const emptyForm = {
 };
 
 function AccountPage() {
-  const { user, profile, loading, isAdmin, isVendor } = useAuth();
+  const { user, profile, loading, isAdmin, isVendor, isEmailVerified } = useAuth();
   const { t, dir } = useI18n();
   const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
