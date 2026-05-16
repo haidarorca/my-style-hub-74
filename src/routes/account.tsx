@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
@@ -428,6 +429,10 @@ function AccountPage() {
             ))}
           </ul>
         )}
+
+        <div className="mt-6">
+          <ChangePasswordCard />
+        </div>
       </main>
 
       <Dialog open={open} onOpenChange={setOpen}>
