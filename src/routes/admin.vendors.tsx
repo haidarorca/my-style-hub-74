@@ -607,6 +607,7 @@ function FilterableHead({
   );
 }
 
+function ReasonDialog({
   state, onClose, onConfirm,
 }: {
   state: { vendor: VendorRow; status: "suspended" | "blocked" } | null;
