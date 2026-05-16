@@ -478,6 +478,7 @@ function CommissionOrders() {
             );
           })}
         </ul>
+        </>
       )}
 
       {totalPages > 1 && (
