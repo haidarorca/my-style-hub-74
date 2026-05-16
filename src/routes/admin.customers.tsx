@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -90,11 +90,10 @@ function CustomersPage() {
   const debouncedQ = useDebouncedValue(queryInput, 300);
 
   // Sync debounced text input back to the URL.
-  useMemo(() => {
+  useEffect(() => {
     if (debouncedQ !== search.q) {
       navigate({ search: (prev: SearchState) => ({ ...prev, q: debouncedQ, page: 1 }), replace: true });
     }
-    return null;
   }, [debouncedQ, navigate, search.q]);
 
   const queryParams = useMemo(
