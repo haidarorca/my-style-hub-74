@@ -25,6 +25,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/reviews", label: "Avis", icon: MessageSquare, perm: "support" },
   { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
   { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
+  { to: "/admin/notifications", label: "Notifications", icon: Bell },
 ];
 
 function AdminLayout() {
