@@ -560,6 +560,15 @@ const ProductCardMobile = memo(function ProductCardMobile({
           )}
         </div>
       )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onDelete}
+        disabled={busy}
+      >
+        <Trash2 className="mr-1 h-3 w-3" /> Supprimer le produit
+      </Button>
     </div>
   );
 });
