@@ -430,6 +430,33 @@ function NewAdminShopProductPage() {
   const toggleColor = (c: string) =>
     setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
+  async function generateAvailableProductCode(baseCode: string) {
+    const normalized = baseCode.trim().replace(/\s+/g, "-").toUpperCase() || "PRODUIT";
+    for (let i = 0; i < 8; i++) {
+      const candidate = `${normalized}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const { data, error } = await supabase
+        .from("products")
+        .select("id")
+        .eq("vendor_id", shopId)
+        .eq("code", candidate)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return candidate;
+    }
+    return `${normalized}-${Date.now().toString().slice(-6)}`;
+  }
+
+  function publicationErrorMessage(err: unknown, step: string) {
+    const raw = err instanceof Error ? err.message : "Erreur inconnue";
+    if (/row-level security|violates row-level security/i.test(raw)) {
+      return `Permission refusée pendant l'étape « ${step} ». Les accès admin ont été corrigés, reconnectez-vous puis réessayez.`;
+    }
+    if (/duplicate|unique/i.test(raw)) {
+      return "Ce code produit existe déjà dans cette boutique.";
+    }
+    return `Échec pendant l'étape « ${step} » : ${raw}`;
+  }
+
   // ── Source URL analyzer ──────────────────────────────────
   async function dataUrlToFile(dataUrl: string, idx: number): Promise<File | null> {
     try {
