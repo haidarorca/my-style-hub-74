@@ -159,6 +159,7 @@ interface VariantInput {
   source_currency: string;
   price_override: string;
   image_file: File | null;
+  image_original: File | null;
 }
 
 type Pick = string;
