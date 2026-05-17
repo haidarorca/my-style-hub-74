@@ -229,6 +229,7 @@ function NewAdminShopProductPage() {
   const [ocrResult, setOcrResult] = useState<Awaited<
     ReturnType<typeof analyzeVariantsFromImages>
   > | null>(null);
+  const [ocrSelected, setOcrSelected] = useState<Set<number>>(new Set());
 
   // Image preview pinned from a variant click (Taobao-like behaviour)
   const [previewedVariantIdx, setPreviewedVariantIdx] = useState<number | null>(null);
