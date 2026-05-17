@@ -291,6 +291,36 @@ export const setProductStatus = createServerFn({ method: "POST" })
     if (data.status === "approved") payload.is_edit = false;
     const { error } = await supabaseAdmin.from("products").update(payload).eq("id", data.product_id);
     if (error) throw new Error(error.message);
+
+    // Notify vendor about the new status
+    const { data: product } = await supabaseAdmin
+      .from("products")
+      .select("vendor_id, name, code")
+      .eq("id", data.product_id)
+      .maybeSingle();
+    if (product?.vendor_id) {
+      const reason = (data.rejection_reason || "").trim();
+      const label = product.name || product.code || "votre produit";
+      let title = "";
+      let message = "";
+      if (data.status === "approved") {
+        title = "✅ Produit approuvé";
+        message = `« ${label} » a été approuvé et publié${reason ? ` — Note admin : ${reason}` : ""}.`;
+      } else if (data.status === "rejected") {
+        title = "❌ Produit rejeté";
+        message = `« ${label} » a été rejeté. Motif : ${reason || "Non conforme"}`;
+      } else {
+        title = "⏳ Produit remis en attente";
+        message = `« ${label} » est de nouveau en attente de validation${reason ? ` — ${reason}` : ""}.`;
+      }
+      await supabaseAdmin.from("notifications").insert({
+        user_id: product.vendor_id,
+        title,
+        message,
+        link: "/vendor/products",
+      });
+    }
+
     return { ok: true };
   });
 
