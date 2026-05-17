@@ -1218,14 +1218,14 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         .filter(
           (v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
         )
-        .slice(0, 30);
+        .slice(0, 60);
     }
 
-    // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
+    // Download distinct variant images (cap to 30 distinct URLs)
     const variantUrlCache = new Map<string, string | null>();
     const distinctUrls = Array.from(
       new Set(interimVariants.map((v) => v.image_url).filter(Boolean)),
-    ).slice(0, 12);
+    ).slice(0, 30);
     for (const u of distinctUrls) {
       variantUrlCache.set(u, await downloadImageAsDataUrl(u));
     }
