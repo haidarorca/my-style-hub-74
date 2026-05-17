@@ -1080,7 +1080,7 @@ function NewAdminShopProductPage() {
                 {v.image_file ? (
                   <div className="relative h-14 w-14 overflow-hidden rounded border">
                     <img
-                      src={URL.createObjectURL(v.image_file)}
+                      src={variantImageUrls[i]}
                       alt=""
                       className="h-full w-full object-cover"
                     />
