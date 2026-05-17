@@ -218,6 +218,8 @@ function NewAdminShopProductPage() {
   const [ocrFiles, setOcrFiles] = useState<File[]>([]);
   const [ocrHint, setOcrHint] = useState("");
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrDisabled, setOcrDisabled] = useState(getOcrDisabled);
+  const [mobileSafeMode] = useState(isMobileSafeRuntime);
   const [ocrResult, setOcrResult] = useState<Awaited<
     ReturnType<typeof analyzeVariantsFromImages>
   > | null>(null);
@@ -244,6 +246,17 @@ function NewAdminShopProductPage() {
   const [allowAllColors, setAllowAllColors] = useState(false);
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const safePreviewVariant =
+    previewedVariantIdx !== null ? variants[previewedVariantIdx] ?? null : null;
+  const imageUrls = useObjectUrls(images);
+  const variantImageUrls = useObjectUrls(variants.map((v) => v.image_file));
+  const ocrFileUrls = useObjectUrls(ocrFiles);
+
+  useEffect(() => {
+    if (previewedVariantIdx !== null && !variants[previewedVariantIdx]?.image_file) {
+      setPreviewedVariantIdx(null);
+    }
+  }, [previewedVariantIdx, variants]);
 
   const { data: cats } = useQuery({
     queryKey: ["admin-shop-new", "cats"],
