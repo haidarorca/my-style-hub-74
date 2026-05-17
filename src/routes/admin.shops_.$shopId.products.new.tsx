@@ -487,7 +487,7 @@ function NewAdminShopProductPage() {
     setOcrLoading(true);
     setOcrResult(null);
     try {
-      const dataUrls = await Promise.all(ocrFiles.map((f) => fileToDataUrl(f)));
+      const dataUrls = await Promise.all(ocrFiles.map((f) => compressImageForOcr(f)));
       const r = await analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } });
       setOcrResult(r);
       if (r.variants.length === 0) {
