@@ -1427,7 +1427,7 @@ function NewAdminShopProductPage() {
             <div className="flex flex-wrap gap-2">
               {ocrFiles.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded border">
-                  <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+                  <img src={ocrFileUrls[i]} alt="" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
