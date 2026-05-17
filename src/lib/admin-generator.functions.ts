@@ -204,9 +204,15 @@ function extractUrlFromText(input: string): string | null {
   return m ? m[0] : null;
 }
 
-const MOBILE_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
-
+const MOBILE_UAS = [
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1",
+];
+const MOBILE_UA = MOBILE_UAS[0];
+function pickUA(): string {
+  return MOBILE_UAS[Math.floor(Math.random() * MOBILE_UAS.length)];
+}
 // Resolve Taobao/1688 mobile short links (e.tb.cn, m.tb.cn, s.click...) to their
 // final URL, and rewrite to the desktop canonical form when an item id is found.
 async function resolveShareUrl(rawUrl: string): Promise<string> {
@@ -216,7 +222,7 @@ async function resolveShareUrl(rawUrl: string): Promise<string> {
       method: "GET",
       redirect: "follow",
       headers: {
-        "User-Agent": MOBILE_UA,
+        "User-Agent": pickUA(),
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
       },
@@ -263,7 +269,7 @@ async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": MOBILE_UA,
+        "User-Agent": pickUA(),
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
       },
@@ -408,7 +414,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     try {
       scraped = await scrapeViaApify(resolvedUrl);
     } catch (e) {
-      partialReason = e instanceof Error ? e.message : "Scraping principal échoué";
+      // single light retry — Apify cold starts can return transient 5xx
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        scraped = await scrapeViaApify(resolvedUrl);
+      } catch (e2) {
+        partialReason = e2 instanceof Error ? e2.message : (e instanceof Error ? e.message : "Scraping principal échoué");
+      }
     }
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 60) || looksLikeLoginWall(scraped?.text ?? "")) {
       const fb = await scrapeViaDirectFetch(resolvedUrl);
@@ -439,13 +451,19 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       "You analyse a product listing scraped from Taobao/1688/AliExpress (may contain Chinese/English/mixed text and image URLs).",
       "Extract a clean French e-commerce product. Translate any Chinese/English to natural French.",
       "Rules:",
-      "- name_fr: short product title in French (max 80 chars). If you cannot determine it, return empty string.",
+      "- name_fr: short product title in French (max 80 chars). Empty if unknown.",
+      "- designation_fr: SHORT commercial tagline in French (max 90 chars), one descriptive line summarising the product type and key benefit. Example: 'Poupée anti-stress souple et amusante pour enfants'. Empty if unknown.",
       "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff. Empty if unknown.",
-      `- source_price: unit price as a number in ${currency} (no symbol). 0 if unknown.`,
-      "- image_urls: array of product image URLs from the text (http/https only, deduplicated, max 8)",
+      `- source_price: main unit price as a number in ${currency} (no symbol). 0 if unknown.`,
+      "- image_urls: array of MAIN product image URLs (http/https only, deduplicated, max 8). Exclude tiny thumbnails.",
       `- suggested_category: pick the BEST match from this list (return the exact string), or null: ${catNames}`,
-      "- suggested_variants: array of {size, color, color_hex, stock, image_url}. Return [] if none explicit.",
-      'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[]}',
+      "- suggested_variants: array of variants. Each item: {name, size, color, color_hex, stock, image_url, source_price}.",
+      "  · name: short French label combining model/color/size (e.g. 'Grand modèle - Rouge').",
+      "  · size, color, color_hex (#rrggbb or ''), stock (integer or 0).",
+      "  · image_url: HTTP(S) image that visually represents this specific variant (color swatch / model photo). Use one from image_urls if no dedicated variant photo.",
+      `  · source_price: per-variant unit price as a number in ${currency} (0 if same as main price or unknown).`,
+      "  Detect ALL variants you see (colors, models, sizes, packs). Up to 30. [] if none.",
+      'Return ONLY strict JSON: {"name_fr":"","designation_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[]}',
       "",
       "Input:",
       enrichedText,
@@ -519,29 +537,55 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       if (imageDataUrls.length >= 6) break;
     }
 
-    // 8) Clean variants
+    // 8) Clean variants (incl. per-variant image + price)
     const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
-    const cleanVariants = rawVariants
+    const interimVariants = rawVariants
       .map((v) => {
         if (!v || typeof v !== "object") return null;
         const o = v as Record<string, unknown>;
         const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
         const num = (k: string) => {
           const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
-          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+          return Number.isFinite(n) && n >= 0 ? n : 0;
         };
         const hex = str("color_hex");
+        const url = str("image_url");
+        const srcPrice = num("source_price");
         return {
+          name: str("name").slice(0, 90),
           size: str("size").slice(0, 40),
           color: str("color").slice(0, 60),
           color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
-          stock: num("stock"),
+          stock: Math.floor(num("stock")),
+          image_url: /^https?:\/\//.test(url) ? url : "",
+          source_price: srcPrice,
+          price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
         };
       })
-      .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
-      .slice(0, 20);
+      .filter((v): v is NonNullable<typeof v> =>
+        v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
+      )
+      .slice(0, 30);
+
+    // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
+    const variantUrlCache = new Map<string, string | null>();
+    const distinctUrls = Array.from(new Set(interimVariants.map((v) => v.image_url).filter(Boolean))).slice(0, 12);
+    for (const u of distinctUrls) {
+      variantUrlCache.set(u, await downloadImageAsDataUrl(u));
+    }
+    const cleanVariants = interimVariants.map((v) => ({
+      name: v.name,
+      size: v.size,
+      color: v.color,
+      color_hex: v.color_hex,
+      stock: v.stock,
+      source_price: v.source_price,
+      price_xof_detected: v.price_xof_detected,
+      image_data_url: v.image_url ? (variantUrlCache.get(v.image_url) ?? null) : null,
+    }));
 
     const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
+    const designationFr = typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
     // Mark as partial if AI couldn't deliver core fields
@@ -556,6 +600,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       source_price: sourcePrice,
       suggested_price_xof: suggestedPriceXof,
       name_fr: nameFr,
+      designation_fr: designationFr,
       description_fr: descFr,
       suggested_category_id: suggestedCategoryId,
       suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
