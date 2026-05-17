@@ -14,7 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-export const Route = createFileRoute("/admin/shops/$shopId/products/new")({
+export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
   component: NewAdminShopProductPage,
 });
 
