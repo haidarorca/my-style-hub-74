@@ -1804,3 +1804,41 @@ function CategoryLevel({
     </div>
   );
 }
+
+// Admin-only internal price note (CNY → FCFA estimate + margin).
+// Never rendered to the buyer — the buyer only sees `price_override`.
+function AdminPriceNote({
+  variant,
+  rate,
+}: {
+  variant: VariantInput;
+  rate: number;
+}) {
+  const src = Number(variant.source_price);
+  const cur = (variant.source_currency || "").toUpperCase();
+  const sale = Number(variant.price_override);
+  if (!Number.isFinite(src) || src <= 0) return null;
+  const inXof =
+    cur === "CNY" ? src * rate : cur === "XOF" || cur === "FCFA" ? src : null;
+  const margin =
+    Number.isFinite(sale) && sale > 0 && inXof !== null && inXof > 0
+      ? Math.round(((sale - inXof) / inXof) * 100)
+      : null;
+  return (
+    <div className="rounded border border-dashed border-amber-300/70 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      <span className="font-medium">Note interne admin :</span> fournisseur {src} {cur}
+      {inXof !== null && <> · ≈ {Math.round(inXof).toLocaleString("fr-FR")} FCFA</>}
+      {margin !== null && (
+        <>
+          {" "}
+          ·{" "}
+          <span className={margin >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}>
+            marge {margin >= 0 ? "+" : ""}
+            {margin}%
+          </span>
+        </>
+      )}
+      <span className="ml-1 text-muted-foreground">(jamais visible côté client)</span>
+    </div>
+  );
+}
