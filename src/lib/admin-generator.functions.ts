@@ -994,7 +994,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
 
     // 2) Try Apify, then fall back to direct HTML fetch
     let scraped: { text: string; images: string[]; html: string } | null = null;
-    let partialReason: string | null = null;
+    const partialReasons: string[] = [];
     try {
       scraped = await scrapeViaApify(resolvedUrl);
     } catch (e) {
@@ -1003,12 +1003,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         await new Promise((r) => setTimeout(r, 1500));
         scraped = await scrapeViaApify(resolvedUrl);
       } catch (e2) {
-        partialReason =
+        const msg =
           e2 instanceof Error
             ? e2.message
             : e instanceof Error
               ? e.message
               : "Scraping principal échoué";
+        partialReasons.push(msg);
       }
     }
     if (
@@ -1016,18 +1017,33 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       (scraped.images.length === 0 && scraped.text.trim().length < 60) ||
       looksLikeLoginWall(scraped?.text ?? "")
     ) {
-      const fb = await scrapeViaDirectFetch(resolvedUrl);
-      if (fb) {
-        scraped = fb;
-        if (!partialReason)
-          partialReason = "Page protégée — récupération partielle (titre + images uniquement).";
+      try {
+        const fb = await scrapeViaDirectFetch(resolvedUrl);
+        if (fb) {
+          scraped = fb;
+          partialReasons.push("Page protégée — récupération partielle (titre + images).");
+        }
+      } catch {
+        /* ignore */
       }
     }
+
+    // 2c) Ultimate fallback: if the page is fully blocked, use the raw share text
+    //     (Taobao mobile shares embed the Chinese product title before the link).
+    //     We still run the AI below to translate it into FR name/designation/description.
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
-      throw new Error(
-        "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
-          "Astuce : ouvrez le lien dans un navigateur, copiez l'URL finale depuis la barre d'adresse, puis réessayez.",
-      );
+      const shareText = data.url.trim();
+      if (shareText.length >= 4) {
+        scraped = { text: shareText, images: [], html: "" };
+        partialReasons.push(
+          "Page Taobao bloquée — analyse basée uniquement sur le texte du lien partagé.",
+        );
+      } else {
+        throw new Error(
+          "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
+            "Astuce : collez le texte de partage Taobao complet (avec le titre chinois) puis réessayez.",
+        );
+      }
     }
 
     // 2b) Parse embedded Taobao/1688 SKU JSON (skuMap, skuProps, itemImgs…) from raw HTML
