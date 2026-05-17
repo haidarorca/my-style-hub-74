@@ -3,7 +3,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Sparkles, RefreshCw, Send } from "lucide-react";
+import { ArrowLeft, Sparkles, RefreshCw, Send, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +52,19 @@ function GeneratorPage() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [fxRate, setFxRate] = useState<number | null>(null);
   const [fxFetchedAt, setFxFetchedAt] = useState<string | null>(null);
+
+  type VariantRow = {
+    size: string; color: string; color_hex: string;
+    stock: string; price_override: string; image_url: string;
+  };
+  const emptyVariant = (): VariantRow => ({
+    size: "", color: "", color_hex: "", stock: "0", price_override: "", image_url: "",
+  });
+  const [variants, setVariants] = useState<VariantRow[]>([]);
+  const addVariant = () => setVariants((v) => [...v, emptyVariant()]);
+  const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
+  const updateVariant = (i: number, patch: Partial<VariantRow>) =>
+    setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
   // Categories (flat list of level 3, with parents path)
   const { data: cats } = useQuery({
@@ -106,7 +119,21 @@ function GeneratorPage() {
       setSourcePrice(String(r.source_price));
       setImageUrls(r.image_urls.join("\n"));
       if (r.suggested_category_id) setCategoryId(r.suggested_category_id);
-      toast.success("Analyse terminée. Vérifiez et complétez.");
+      if (r.suggested_variants && r.suggested_variants.length > 0) {
+        setVariants(
+          r.suggested_variants.map((v) => ({
+            size: v.size ?? "",
+            color: v.color ?? "",
+            color_hex: v.color_hex ?? "",
+            stock: String(v.stock ?? 0),
+            price_override: "",
+            image_url: v.image_url ?? "",
+          })),
+        );
+      }
+      toast.success(
+        `Analyse terminée${r.suggested_variants.length > 0 ? ` · ${r.suggested_variants.length} variante(s) détectée(s)` : ""}.`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -119,6 +146,28 @@ function GeneratorPage() {
       if (!name.trim()) throw new Error("Nom requis.");
       if (urls.length === 0) throw new Error("Au moins une URL d'image.");
       if (!Number.isFinite(px) || px <= 0) throw new Error("Prix FCFA invalide.");
+
+      const cleanVariants = variants
+        .map((v) => {
+          const size = v.size.trim();
+          const color = v.color.trim();
+          if (!size && !color) return null;
+          const hex = v.color_hex.trim();
+          const validHex = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "";
+          const stockNum = Number(v.stock);
+          const priceNum = v.price_override.trim() ? Number(v.price_override) : null;
+          const img = v.image_url.trim();
+          return {
+            size,
+            color,
+            color_hex: validHex,
+            stock: Number.isFinite(stockNum) && stockNum >= 0 ? Math.floor(stockNum) : 0,
+            price_override: priceNum !== null && Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : null,
+            image_url: /^https?:\/\//.test(img) ? img : "",
+          };
+        })
+        .filter((v): v is NonNullable<typeof v> => v !== null);
+
       return publishFn({
         data: {
           shop_id: shopId,
@@ -128,6 +177,7 @@ function GeneratorPage() {
           price_xof: px,
           category_id: categoryId || null,
           image_urls: urls,
+          variants: cleanVariants,
         },
       });
     },
@@ -267,6 +317,94 @@ https://..."
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Variantes (taille / couleur)</span>
+            <Button type="button" size="sm" variant="outline" onClick={addVariant}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Ajouter
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {variants.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Aucune variante. Cliquez sur « Ajouter » ou laissez l'IA en détecter à partir du texte source.
+            </p>
+          ) : (
+            variants.map((v, i) => (
+              <div key={i} className="rounded-lg border p-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Variante #{i + 1}</span>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => removeVariant(i)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Taille</Label>
+                    <Input value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="M, 42, 10x15" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Couleur</Label>
+                    <Input value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder="Rouge" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Hex</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="color"
+                        className="h-9 w-12 p-1"
+                        value={v.color_hex || "#000000"}
+                        onChange={(e) => updateVariant(i, { color_hex: e.target.value })}
+                      />
+                      <Input
+                        value={v.color_hex}
+                        onChange={(e) => updateVariant(i, { color_hex: e.target.value })}
+                        placeholder="#ff0000"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Stock</Label>
+                    <Input
+                      type="number" min={0}
+                      value={v.stock}
+                      onChange={(e) => updateVariant(i, { stock: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Prix override (FCFA)</Label>
+                    <Input
+                      type="number" min={0}
+                      value={v.price_override}
+                      onChange={(e) => updateVariant(i, { price_override: e.target.value })}
+                      placeholder="(optionnel)"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Image (URL)</Label>
+                    <Input
+                      value={v.image_url}
+                      onChange={(e) => updateVariant(i, { image_url: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                {v.image_url && /^https?:\/\//.test(v.image_url) && (
+                  <img
+                    src={v.image_url}
+                    alt=""
+                    className="h-16 w-16 rounded border object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                  />
+                )}
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

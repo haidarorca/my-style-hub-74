@@ -108,8 +108,8 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       `- source_price: extract the unit price as a number in ${data.source_currency} (no currency symbol). If multiple prices, pick the most plausible retail unit price.`,
       "- image_urls: array of image URLs found in the text (http/https only, deduplicated)",
       `- suggested_category: pick the BEST match from this list (return the exact string), or null if none fits: ${catNames}`,
-      "- suggested_variants: array of {size?, color?} if obvious from the text, else []",
-      'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[]}',
+      "- suggested_variants: array of {size, color, color_hex, stock, image_url} extracted from the text. Conventions: size = clothing/shoe size or dimension as a short string (e.g. 'S', 'M', 'L', '42', '10x15cm') or empty string if none. color = French color name (e.g. 'Rouge', 'Bleu marine') or empty string. color_hex = matching 6-digit hex like '#1e3a8a' or empty string. stock = integer estimate or 0 if unknown. image_url = http(s) image URL for this variant from the text or empty string. Deduplicate. Return [] if no variants are explicit.",
+      'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[{"size":"","color":"","color_hex":"","stock":0,"image_url":""}]}',
       "",
       "Input:",
       data.raw_text,
@@ -141,6 +141,29 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       suggestedCategoryId = match?.id ?? null;
     }
 
+    const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+    const cleanVariants = rawVariants
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+        };
+        const hex = str("color_hex");
+        const url = str("image_url");
+        return {
+          size: str("size").slice(0, 40),
+          color: str("color").slice(0, 60),
+          color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
+          stock: num("stock"),
+          image_url: /^https?:\/\//.test(url) ? url : "",
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
+      .slice(0, 30);
+
     return {
       name_fr: typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "",
       description_fr: typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "",
@@ -150,13 +173,22 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
         : [],
       suggested_category_id: suggestedCategoryId,
       suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
-      suggested_variants: Array.isArray(parsed.suggested_variants) ? parsed.suggested_variants : [],
+      suggested_variants: cleanVariants,
     };
   });
 
 // ───────────────────────────────────────────────────────────
 // 3) Publish generated product into an admin shop
 // ───────────────────────────────────────────────────────────
+
+const VariantSchema = z.object({
+  size: z.string().trim().max(40).optional().default(""),
+  color: z.string().trim().max(60).optional().default(""),
+  color_hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().or(z.literal("")).default(""),
+  stock: z.number().int().min(0).max(1_000_000).default(0),
+  price_override: z.number().min(0).max(50_000_000).nullable().optional(),
+  image_url: z.string().url().optional().or(z.literal("")).default(""),
+});
 
 const PublishSchema = z.object({
   shop_id: z.string().uuid(),
@@ -166,6 +198,7 @@ const PublishSchema = z.object({
   price_xof: z.number().min(0).max(50_000_000),
   category_id: z.string().uuid().nullable(),
   image_urls: z.array(z.string().url()).min(1).max(10),
+  variants: z.array(VariantSchema).max(50).default([]),
 });
 
 export const publishGeneratedProduct = createServerFn({ method: "POST" })
@@ -210,6 +243,20 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
     const imageRows = data.image_urls.map((url, i) => ({ product_id: productId, url, position: i }));
     const { error: iErr } = await supabaseAdmin.from("product_images").insert(imageRows);
     if (iErr) throw new Error(`Images : ${iErr.message}`);
+
+    if (data.variants.length > 0) {
+      const variantRows = data.variants.map((v) => ({
+        product_id: productId,
+        size: v.size?.trim() || null,
+        color: v.color?.trim() || null,
+        color_hex: v.color_hex && v.color_hex.length > 0 ? v.color_hex : null,
+        stock: v.stock ?? 0,
+        price_override: v.price_override ?? null,
+        image_url: v.image_url && v.image_url.length > 0 ? v.image_url : null,
+      }));
+      const { error: vErr } = await supabaseAdmin.from("product_variants").insert(variantRows);
+      if (vErr) throw new Error(`Variantes : ${vErr.message}`);
+    }
 
     return { id: productId };
   });
