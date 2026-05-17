@@ -231,8 +231,8 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
             </Link>
           </Button>
           <Button asChild size="sm" variant="default" className="flex-1">
-            <Link to="/admin/shops/$shopId/generator" params={{ shopId: row.id }}>
-              <Sparkles className="mr-1 h-3.5 w-3.5" /> Générateur
+            <Link to="/admin/shops/$shopId/products/new" params={{ shopId: row.id }}>
+              <PackagePlus className="mr-1 h-3.5 w-3.5" /> Nouveau produit
             </Link>
           </Button>
           <Button size="sm" variant="outline" onClick={onEdit}>
