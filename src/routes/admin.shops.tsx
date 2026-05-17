@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -231,8 +231,8 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
             </Link>
           </Button>
           <Button asChild size="sm" variant="default" className="flex-1">
-            <Link to="/admin/shops/$shopId/generator" params={{ shopId: row.id }}>
-              <Sparkles className="mr-1 h-3.5 w-3.5" /> Générateur
+            <Link to="/admin/shops/$shopId/products/new" params={{ shopId: row.id }}>
+              <PackagePlus className="mr-1 h-3.5 w-3.5" /> Nouveau produit
             </Link>
           </Button>
           <Button size="sm" variant="outline" onClick={onEdit}>

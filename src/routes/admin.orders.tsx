@@ -353,6 +353,22 @@ const OrderCard = memo(function OrderCard({ order: o, onStatus, onZoom }: OrderC
                     {it.color && <>Couleur : {it.color}</>}
                   </div>
                 )}
+                {it.source_url && (
+                  <div className="mt-1 flex items-center gap-1 text-xs">
+                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
+                      Source admin
+                    </span>
+                    <a
+                      href={it.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate text-primary underline"
+                      title={it.source_url}
+                    >
+                      {it.source_url}
+                    </a>
+                  </div>
+                )}
                 {(c.text || c.image_url) && (
                   <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
                     <div className="mb-1 font-semibold text-primary">Personnalisation</div>
