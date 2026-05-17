@@ -195,10 +195,11 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
     setSaving(true);
     try {
       const img = new Image();
-      img.src = src;
       await new Promise<void>((res, rej) => {
         img.onload = () => res();
-        img.onerror = () => rej(new Error("image"));
+        img.onerror = () => rej(new Error("image-load"));
+        img.src = src;
+        if (img.complete && img.naturalWidth > 0) res();
       });
       const c = crop ?? { x: 0, y: 0, w: 100, h: 100 };
       const cx = (c.x / 100) * nat.w;
@@ -253,8 +254,10 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
       onSave(out);
       toast.success("Image enregistrée.");
       onClose();
-    } catch {
-      toast.error("Impossible d'enregistrer l'image. L'originale est conservée.");
+    } catch (err) {
+      console.error("[VariantImageEditor] save failed", err);
+      const msg = err instanceof Error ? err.message : "inconnu";
+      toast.error(`Impossible d'enregistrer (${msg}). L'originale est conservée.`);
     } finally {
       setSaving(false);
     }
