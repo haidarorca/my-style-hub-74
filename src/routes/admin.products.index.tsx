@@ -7,10 +7,10 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
-  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye,
+  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2,
 } from "lucide-react";
 import {
-  listAdminProducts, listReportedProducts, setProductStatus, setReportStatus,
+  listAdminProducts, listReportedProducts, setProductStatus, setReportStatus, deleteOrArchiveProduct,
   type AdminProductRow, type AdminReportRow,
 } from "@/lib/admin-products.functions";
 import { PermissionGate } from "@/components/admin/PermissionGate";
@@ -24,6 +24,10 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
