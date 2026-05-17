@@ -673,7 +673,7 @@ function NewAdminShopProductPage() {
       });
       disableOcrAfterCrash();
       if (getOcrDisabled()) setOcrDisabled(true);
-      toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
+      toast.error(humanizeOcrError(err));
     } finally {
       setOcrLoading(false);
     }
