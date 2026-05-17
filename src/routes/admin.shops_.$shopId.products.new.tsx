@@ -542,34 +542,8 @@ function NewAdminShopProductPage() {
     setImages((prev) => [...prev, ...files].slice(0, 25));
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
-  async function applyVariants() {
-    if (!analysis?.suggested_variants?.length) return;
-    const rows: VariantInput[] = [];
-    for (let i = 0; i < analysis.suggested_variants.length; i++) {
-      const v = analysis.suggested_variants[i];
-      let image_file: File | null = null;
-      if (v.image_data_url) {
-        image_file = await dataUrlToFile(v.image_data_url, i);
-      }
-      rows.push({
-        size: v.size,
-        color: v.color || v.name,
-        color_hex: v.color_hex,
-        stock: 0,
-        source_price: v.source_price > 0 ? String(v.source_price) : "",
-        source_currency: analysis.source_currency,
-        price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
-        image_file,
-        image_original: image_file,
-      });
-    }
-    setVariants((prev) => [...prev, ...rows]);
-    const withImg = rows.filter((r) => r.image_file).length;
-    const withPrice = rows.filter((r) => r.price_override).length;
-    toast.success(
-      `${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`,
-    );
-  }
+  // NOTE: l'import par lien ne génère plus de variantes automatiquement.
+  // Les variantes restent saisies via le formulaire intelligent (manuel ou OCR captures).
 
   // ── OCR variants from screenshots ────────────────────────
   function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1587,56 +1561,9 @@ function NewAdminShopProductPage() {
                 </div>
               )}
 
-              {analysis.suggested_variants.length > 0 && (
-                <div className="space-y-2 border-t border-border/60 pt-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase text-muted-foreground">
-                        Variantes détectées
-                      </div>
-                      <div className="text-xs">
-                        {analysis.suggested_variants.length} variante(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.image_data_url).length}{" "}
-                        image(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length}{" "}
-                        prix
-                      </div>
-                    </div>
-                    <Button type="button" size="sm" onClick={applyVariants}>
-                      Importer les variantes
-                    </Button>
-                  </div>
-                  <div className="flex gap-1 overflow-x-auto py-1">
-                    {analysis.suggested_variants.slice(0, 10).map((v, i) => (
-                      <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-0.5">
-                        {v.image_data_url ? (
-                          <img
-                            src={v.image_data_url}
-                            alt=""
-                            loading="lazy"
-                            className="h-12 w-12 rounded object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[9px] text-muted-foreground">
-                            —
-                          </div>
-                        )}
-                        <div
-                          className="w-full truncate text-center text-[9px]"
-                          title={v.name || `${v.color} ${v.size}`}
-                        >
-                          {v.name || `${v.color} ${v.size}`.trim() || "?"}
-                        </div>
-                        {v.price_xof_detected > 0 && (
-                          <div className="text-[9px] font-semibold text-primary">
-                            {v.price_xof_detected.toLocaleString("fr-FR")}F
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Import par lien Taobao = texte produit uniquement.
+                  Les variantes restent gérées exclusivement dans le formulaire
+                  intelligent ci-dessous (saisie manuelle ou OCR à partir de captures). */}
 
               {analysis.suggested_category_name && (
                 <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
