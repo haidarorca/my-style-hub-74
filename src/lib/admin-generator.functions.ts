@@ -244,5 +244,19 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
     const { error: iErr } = await supabaseAdmin.from("product_images").insert(imageRows);
     if (iErr) throw new Error(`Images : ${iErr.message}`);
 
+    if (data.variants.length > 0) {
+      const variantRows = data.variants.map((v) => ({
+        product_id: productId,
+        size: v.size?.trim() || null,
+        color: v.color?.trim() || null,
+        color_hex: v.color_hex && v.color_hex.length > 0 ? v.color_hex : null,
+        stock: v.stock ?? 0,
+        price_override: v.price_override ?? null,
+        image_url: v.image_url && v.image_url.length > 0 ? v.image_url : null,
+      }));
+      const { error: vErr } = await supabaseAdmin.from("product_variants").insert(variantRows);
+      if (vErr) throw new Error(`Variantes : ${vErr.message}`);
+    }
+
     return { id: productId };
   });
