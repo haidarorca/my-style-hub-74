@@ -25,6 +25,7 @@ export interface SiteSettings {
   banner_transition: "slide" | "fade";
   banner_show_arrows: boolean;
   banner_show_dots: boolean;
+  cny_to_xof_rate: number;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -50,6 +51,7 @@ const DEFAULTS: SiteSettings = {
   banner_transition: "slide",
   banner_show_arrows: true,
   banner_show_dots: true,
+  cny_to_xof_rate: 85,
 };
 
 // Mutable global so non-React code (whatsapp.ts) can read latest WhatsApp number

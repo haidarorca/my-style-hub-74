@@ -16,9 +16,13 @@ import {
   Wand2,
   Camera,
   Eye,
+  Pencil,
+  Undo2,
 } from "lucide-react";
 import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
 import { cleanProductImage } from "@/lib/image-clean";
+import { VariantImageEditor } from "@/components/admin/VariantImageEditor";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import {
   Dialog,
   DialogContent,
@@ -155,6 +159,7 @@ interface VariantInput {
   source_currency: string;
   price_override: string;
   image_file: File | null;
+  image_original: File | null;
 }
 
 type Pick = string;
@@ -227,6 +232,9 @@ function NewAdminShopProductPage() {
 
   // Image preview pinned from a variant click (Taobao-like behaviour)
   const [previewedVariantIdx, setPreviewedVariantIdx] = useState<number | null>(null);
+  // Manual image editor (admin-only)
+  const [editingVariantIdx, setEditingVariantIdx] = useState<number | null>(null);
+  const siteSettings = useSiteSettings();
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -410,6 +418,7 @@ function NewAdminShopProductPage() {
         source_currency: "",
         price_override: "",
         image_file: null,
+        image_original: null,
       },
     ]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
@@ -519,6 +528,7 @@ function NewAdminShopProductPage() {
         source_currency: analysis.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file,
+        image_original: image_file,
       });
     }
     setVariants((prev) => [...prev, ...rows]);
@@ -682,6 +692,7 @@ function NewAdminShopProductPage() {
         source_currency: ocrResult.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file: cleanedFile,
+        image_original: cleanedFile,
       };
     });
 
@@ -1207,7 +1218,7 @@ function NewAdminShopProductPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => updateVariant(i, { image_file: null })}
+                      onClick={() => updateVariant(i, { image_file: null, image_original: null })}
                       className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
                     >
                       <X className="h-3 w-3" />
@@ -1220,14 +1231,42 @@ function NewAdminShopProductPage() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) =>
-                        updateVariant(i, { image_file: e.target.files?.[0] ?? null })
-                      }
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        updateVariant(i, { image_file: f, image_original: f });
+                      }}
                     />
                   </label>
                 )}
-                <p className="text-[11px] text-muted-foreground">{t("vendor.new.v_image_help")}</p>
+                <div className="flex flex-col gap-1">
+                  {v.image_file && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setEditingVariantIdx(i)}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" /> Modifier l'image
+                    </Button>
+                  )}
+                  {v.image_original && v.image_file && v.image_file !== v.image_original && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => updateVariant(i, { image_file: v.image_original })}
+                    >
+                      <Undo2 className="mr-1 h-3 w-3" /> Originale
+                    </Button>
+                  )}
+                </div>
               </div>
+              <AdminPriceNote
+                variant={v}
+                rate={siteSettings.cny_to_xof_rate || 85}
+              />
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={addVariant}>
@@ -1235,6 +1274,21 @@ function NewAdminShopProductPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <VariantImageEditor
+        open={editingVariantIdx !== null}
+        file={editingVariantIdx !== null ? variants[editingVariantIdx]?.image_file ?? null : null}
+        onClose={() => setEditingVariantIdx(null)}
+        onSave={(file) => {
+          if (editingVariantIdx === null) return;
+          const cur = variants[editingVariantIdx];
+          if (!cur) return;
+          updateVariant(editingVariantIdx, {
+            image_file: file,
+            image_original: cur.image_original ?? cur.image_file,
+          });
+        }}
+      />
 
       <Card>
         <CardHeader>
@@ -1747,6 +1801,44 @@ function CategoryLevel({
           </SelectContent>
         </Select>
       )}
+    </div>
+  );
+}
+
+// Admin-only internal price note (CNY → FCFA estimate + margin).
+// Never rendered to the buyer — the buyer only sees `price_override`.
+function AdminPriceNote({
+  variant,
+  rate,
+}: {
+  variant: VariantInput;
+  rate: number;
+}) {
+  const src = Number(variant.source_price);
+  const cur = (variant.source_currency || "").toUpperCase();
+  const sale = Number(variant.price_override);
+  if (!Number.isFinite(src) || src <= 0) return null;
+  const inXof =
+    cur === "CNY" ? src * rate : cur === "XOF" || cur === "FCFA" ? src : null;
+  const margin =
+    Number.isFinite(sale) && sale > 0 && inXof !== null && inXof > 0
+      ? Math.round(((sale - inXof) / inXof) * 100)
+      : null;
+  return (
+    <div className="rounded border border-dashed border-amber-300/70 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      <span className="font-medium">Note interne admin :</span> fournisseur {src} {cur}
+      {inXof !== null && <> · ≈ {Math.round(inXof).toLocaleString("fr-FR")} FCFA</>}
+      {margin !== null && (
+        <>
+          {" "}
+          ·{" "}
+          <span className={margin >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}>
+            marge {margin >= 0 ? "+" : ""}
+            {margin}%
+          </span>
+        </>
+      )}
+      <span className="ml-1 text-muted-foreground">(jamais visible côté client)</span>
     </div>
   );
 }
