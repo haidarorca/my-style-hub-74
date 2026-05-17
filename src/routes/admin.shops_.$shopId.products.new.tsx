@@ -1323,6 +1323,208 @@ function NewAdminShopProductPage() {
           {submitting ? t("vendor.new.submitting") : "Publier le produit"}
         </Button>
       </div>
+      <Dialog open={imgOpen} onOpenChange={setImgOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Importer variantes depuis image</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Envoyez 1 à 6 captures du panneau de variantes (couleur, taille…). L'IA lit
+              les noms, prix et combinaisons. Vous validez avant import.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Devise source</Label>
+              <Select
+                value={imgCurrency}
+                onValueChange={(v) => setImgCurrency(v as "CNY" | "USD")}
+              >
+                <SelectTrigger className="h-8 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CNY">CNY ¥</SelectItem>
+                  <SelectItem value="USD">USD $</SelectItem>
+                </SelectContent>
+              </Select>
+              {imgFxRate > 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  1 {imgCurrency} ≈ {imgFxRate.toFixed(2)} F
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {imgShots.map((s, i) => (
+                <div key={i} className="relative rounded border p-1">
+                  <img
+                    src={s.data_url}
+                    alt=""
+                    className="h-24 w-full rounded object-cover"
+                  />
+                  <Input
+                    className="mt-1 h-7 text-[11px]"
+                    placeholder="Étiquette (ex: couleurs, taille M)"
+                    value={s.label}
+                    onChange={(e) => updateShotLabel(i, e.target.value)}
+                    maxLength={60}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeShot(i)}
+                    className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {imgShots.length < 6 && (
+                <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-xs text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                  Ajouter
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={onPickImgShots}
+                  />
+                </label>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              onClick={runImageAnalysis}
+              disabled={imgAnalyzing || imgShots.length === 0}
+            >
+              {imgAnalyzing ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Analyse en cours…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1 h-4 w-4" /> Analyser les captures
+                </>
+              )}
+            </Button>
+
+            {imgRows.length > 0 && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
+                <div className="text-[11px] font-semibold uppercase text-muted-foreground">
+                  Aperçu — {imgRows.length} variante(s)
+                </div>
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  {imgRows.map((r, i) => (
+                    <div
+                      key={i}
+                      className="space-y-1 rounded border bg-background p-2"
+                    >
+                      <div className="grid grid-cols-12 gap-1">
+                        <Input
+                          className="col-span-4 h-8 text-xs"
+                          placeholder="Couleur"
+                          value={r.color}
+                          onChange={(e) => updateImgRow(i, { color: e.target.value })}
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          placeholder="Taille"
+                          value={r.size}
+                          onChange={(e) => updateImgRow(i, { size: e.target.value })}
+                        />
+                        <input
+                          type="color"
+                          className="col-span-1 h-8 w-full rounded border"
+                          value={r.color_hex || "#000000"}
+                          onChange={(e) => updateImgRow(i, { color_hex: e.target.value })}
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          type="number"
+                          placeholder={imgCurrency}
+                          value={r.source_price || ""}
+                          onChange={(e) =>
+                            updateImgRow(i, { source_price: Number(e.target.value) || 0 })
+                          }
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          type="number"
+                          placeholder="FCFA"
+                          value={r.price_xof_estimated || ""}
+                          onChange={(e) =>
+                            updateImgRow(i, {
+                              price_xof_estimated: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="col-span-1 h-8 w-8"
+                          onClick={() => removeImgRow(i)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {r.image_file ? (
+                          <div className="relative h-10 w-10 overflow-hidden rounded border">
+                            <img
+                              src={URL.createObjectURL(r.image_file)}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => pickImgRowImage(i, null)}
+                              className="absolute right-0 top-0 bg-background/80 p-0.5"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex h-10 w-10 cursor-pointer items-center justify-center rounded border-2 border-dashed text-muted-foreground">
+                            <Upload className="h-3.5 w-3.5" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) =>
+                                pickImgRowImage(i, e.target.files?.[0] ?? null)
+                              }
+                            />
+                          </label>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          Image variante (optionnelle)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setImgOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={applyImgVariants}
+              disabled={imgRows.length === 0}
+            >
+              Importer {imgRows.length > 0 ? `(${imgRows.length})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
