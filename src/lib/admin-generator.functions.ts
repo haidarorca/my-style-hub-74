@@ -525,29 +525,55 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       if (imageDataUrls.length >= 6) break;
     }
 
-    // 8) Clean variants
+    // 8) Clean variants (incl. per-variant image + price)
     const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
-    const cleanVariants = rawVariants
+    const interimVariants = rawVariants
       .map((v) => {
         if (!v || typeof v !== "object") return null;
         const o = v as Record<string, unknown>;
         const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
         const num = (k: string) => {
           const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
-          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+          return Number.isFinite(n) && n >= 0 ? n : 0;
         };
         const hex = str("color_hex");
+        const url = str("image_url");
+        const srcPrice = num("source_price");
         return {
+          name: str("name").slice(0, 90),
           size: str("size").slice(0, 40),
           color: str("color").slice(0, 60),
           color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
-          stock: num("stock"),
+          stock: Math.floor(num("stock")),
+          image_url: /^https?:\/\//.test(url) ? url : "",
+          source_price: srcPrice,
+          price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
         };
       })
-      .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
-      .slice(0, 20);
+      .filter((v): v is NonNullable<typeof v> =>
+        v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
+      )
+      .slice(0, 30);
+
+    // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
+    const variantUrlCache = new Map<string, string | null>();
+    const distinctUrls = Array.from(new Set(interimVariants.map((v) => v.image_url).filter(Boolean))).slice(0, 12);
+    for (const u of distinctUrls) {
+      variantUrlCache.set(u, await downloadImageAsDataUrl(u));
+    }
+    const cleanVariants = interimVariants.map((v) => ({
+      name: v.name,
+      size: v.size,
+      color: v.color,
+      color_hex: v.color_hex,
+      stock: v.stock,
+      source_price: v.source_price,
+      price_xof_detected: v.price_xof_detected,
+      image_data_url: v.image_url ? (variantUrlCache.get(v.image_url) ?? null) : null,
+    }));
 
     const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
+    const designationFr = typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
     // Mark as partial if AI couldn't deliver core fields
@@ -562,6 +588,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       source_price: sourcePrice,
       suggested_price_xof: suggestedPriceXof,
       name_fr: nameFr,
+      designation_fr: designationFr,
       description_fr: descFr,
       suggested_category_id: suggestedCategoryId,
       suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
