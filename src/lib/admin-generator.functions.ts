@@ -1375,9 +1375,13 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
 // 4) OCR Vision — extract variants from uploaded screenshots
 // ───────────────────────────────────────────────────────────
 
+const MAX_OCR_IMAGES = 10;
 const VariantOcrSchema = z.object({
-  // base64 data URLs of screenshots (max 8, each <= ~4MB after base64)
-  images: z.array(z.string().min(20).max(8_000_000)).min(1).max(8),
+  // base64 data URLs of screenshots (max 10, each <= ~4MB after base64)
+  images: z
+    .array(z.string().min(20).max(8_000_000))
+    .min(1, { message: `Ajoutez au moins une capture.` })
+    .max(MAX_OCR_IMAGES, { message: `Maximum ${MAX_OCR_IMAGES} images autorisées.` }),
   hint: z.string().trim().max(500).optional().default(""),
 });
 
