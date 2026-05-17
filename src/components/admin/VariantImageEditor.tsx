@@ -69,6 +69,8 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
       setMasks([]);
       setTexts([]);
       setSelected(null);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
     };
     img.src = url;
     return () => URL.revokeObjectURL(url);
