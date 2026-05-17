@@ -73,7 +73,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = t.relnamespace
     WHERE n.nspname = 'public' AND t.relname = 'products'
       AND c.contype = 'u'
-      AND ARRAY(SELECT attname FROM pg_attribute WHERE attrelid = t.oid AND attnum = ANY (c.conkey)) = ARRAY['code']
+      AND ARRAY(SELECT attname::text FROM pg_attribute WHERE attrelid = t.oid AND attnum = ANY (c.conkey)) = ARRAY['code']::text[]
   ) THEN
     RAISE EXCEPTION '❌ ÉCHEC : contrainte UNIQUE résiduelle sur la colonne "code" seule';
   END IF;
