@@ -448,6 +448,7 @@ function NewAdminShopProductPage() {
 
   function publicationErrorMessage(err: unknown, step: string) {
     const raw = err instanceof Error ? err.message : "Erreur inconnue";
+    if (raw.includes("Ce code produit existe déjà")) return raw;
     if (/row-level security|violates row-level security/i.test(raw)) {
       return `Permission refusée pendant l'étape « ${step} ». Les accès admin ont été corrigés, reconnectez-vous puis réessayez.`;
     }
@@ -774,6 +775,7 @@ function NewAdminShopProductPage() {
 
     setSubmitting(true);
     let createdProductId: string | null = null;
+    const uploadedPaths: string[] = [];
     let currentStep = "vérification du code produit";
     try {
       const cleanCode = code.trim();
@@ -827,6 +829,7 @@ function NewAdminShopProductPage() {
         const path = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`;
         const { error: upErr } = await supabase.storage.from("product-images").upload(path, file);
         if (upErr) throw upErr;
+        uploadedPaths.push(path);
         const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
         imageRows.push({ product_id: productId, url: pub.publicUrl, position: i });
       }
@@ -854,6 +857,7 @@ function NewAdminShopProductPage() {
               .from("product-images")
               .upload(path, v.image_file);
             if (upErr) throw upErr;
+            uploadedPaths.push(path);
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
           variantRows.push({
@@ -923,7 +927,14 @@ function NewAdminShopProductPage() {
       router.navigate({ to: "/admin/shops" });
     } catch (err) {
       if (createdProductId) {
+        await supabase.from("product_admin_metadata").delete().eq("product_id", createdProductId);
+        await supabase.from("product_customizations").delete().eq("product_id", createdProductId);
+        await supabase.from("product_variants").delete().eq("product_id", createdProductId);
+        await supabase.from("product_images").delete().eq("product_id", createdProductId);
         await supabase.from("products").delete().eq("id", createdProductId);
+      }
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from("product-images").remove(uploadedPaths);
       }
       toast.error(publicationErrorMessage(err, currentStep));
     } finally {
