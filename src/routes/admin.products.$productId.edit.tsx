@@ -455,7 +455,7 @@ function AdminEditProductPage() {
         category_id: finalCategoryId,
         pending_category_request_id: finalPendingCategoryRequestId,
         vendor_id: vendorId,
-        status,
+        status: (["pending","approved","rejected"].includes(status) ? status : "pending"),
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
       };
       if (status === "approved") updatePayload.is_edit = false;
