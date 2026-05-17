@@ -230,8 +230,8 @@ function ModeratePage() {
             {p.description && (
               <Field label="Description"><span className="whitespace-pre-wrap">{p.description}</span></Field>
             )}
-            {product.product.categories && (
-              <Field label="Catégorie">{(product.product.categories as { name: string }).name}</Field>
+            {product.category && (
+              <Field label="Catégorie">{product.category.name}</Field>
             )}
 
             <div>
