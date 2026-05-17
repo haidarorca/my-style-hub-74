@@ -992,24 +992,15 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     const resolvedUrl = await resolveShareUrl(extracted);
     const currency = detectCurrencyFromUrl(resolvedUrl);
 
-    // 2) Try Apify, then fall back to direct HTML fetch
+    // 2) FAST scrape (cheerio, ~10-20s). Heavy SKU extraction is deferred to
+    //    loadProductVariants — keeps initial analysis well under the 60s
+    //    upstream timeout.
     let scraped: { text: string; images: string[]; html: string } | null = null;
     let partialReason: string | null = null;
     try {
-      scraped = await scrapeViaApify(resolvedUrl);
+      scraped = await scrapeViaApify(resolvedUrl, "fast");
     } catch (e) {
-      // single light retry — Apify cold starts can return transient 5xx
-      try {
-        await new Promise((r) => setTimeout(r, 1500));
-        scraped = await scrapeViaApify(resolvedUrl);
-      } catch (e2) {
-        partialReason =
-          e2 instanceof Error
-            ? e2.message
-            : e instanceof Error
-              ? e.message
-              : "Scraping principal échoué";
-      }
+      partialReason = e instanceof Error ? e.message : "Scraping principal échoué";
     }
     if (
       !scraped ||
