@@ -772,35 +772,53 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       if (imageDataUrls.length >= 6) break;
     }
 
-    // 8) Clean variants (incl. per-variant image + price)
-    const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
-    const interimVariants = rawVariants
-      .map((v) => {
-        if (!v || typeof v !== "object") return null;
-        const o = v as Record<string, unknown>;
-        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
-        const num = (k: string) => {
-          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
-          return Number.isFinite(n) && n >= 0 ? n : 0;
-        };
-        const hex = str("color_hex");
-        const url = str("image_url");
-        const srcPrice = num("source_price");
-        return {
-          name: str("name").slice(0, 90),
-          size: str("size").slice(0, 40),
-          color: str("color").slice(0, 60),
-          color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
-          stock: Math.floor(num("stock")),
-          image_url: /^https?:\/\//.test(url) ? url : "",
-          source_price: srcPrice,
-          price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
-        };
-      })
-      .filter((v): v is NonNullable<typeof v> =>
-        v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
-      )
-      .slice(0, 30);
+    // 8) Build variants. Structured (skuMap/skuProps) takes priority — guarantees
+    //    correct name ↔ image ↔ price. AI variants only fill gaps when no structured data.
+    type Interim = {
+      name: string; size: string; color: string; color_hex: string;
+      stock: number; image_url: string; source_price: number; price_xof_detected: number;
+    };
+    let interimVariants: Interim[] = [];
+    if (structured.variants.length > 0) {
+      interimVariants = structured.variants.map((v) => ({
+        name: v.name.slice(0, 90),
+        size: "",
+        color: v.color.slice(0, 60),
+        color_hex: "",
+        stock: 0,
+        image_url: v.image_url,
+        source_price: v.source_price,
+        price_xof_detected: v.source_price > 0 ? Math.round(v.source_price * fxRate) : 0,
+      }));
+    } else {
+      const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+      interimVariants = rawVariants
+        .map((v): Interim | null => {
+          if (!v || typeof v !== "object") return null;
+          const o = v as Record<string, unknown>;
+          const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+          const num = (k: string) => {
+            const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+            return Number.isFinite(n) && n >= 0 ? n : 0;
+          };
+          const hex = str("color_hex");
+          const url = str("image_url");
+          const cleanUrl = /^https?:\/\//.test(url) && isLikelyProductImageUrl(url) ? upgradeAlicdnImage(url) : "";
+          const srcPrice = num("source_price");
+          return {
+            name: str("name").slice(0, 90),
+            size: str("size").slice(0, 40),
+            color: str("color").slice(0, 60),
+            color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
+            stock: Math.floor(num("stock")),
+            image_url: cleanUrl,
+            source_price: srcPrice,
+            price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
+          };
+        })
+        .filter((v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""))
+        .slice(0, 30);
+    }
 
     // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
     const variantUrlCache = new Map<string, string | null>();
