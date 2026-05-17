@@ -232,6 +232,9 @@ function NewAdminShopProductPage() {
 
   // Image preview pinned from a variant click (Taobao-like behaviour)
   const [previewedVariantIdx, setPreviewedVariantIdx] = useState<number | null>(null);
+  // Manual image editor (admin-only)
+  const [editingVariantIdx, setEditingVariantIdx] = useState<number | null>(null);
+  const siteSettings = useSiteSettings();
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
