@@ -292,7 +292,7 @@ function NewAdminShopProductPage() {
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    setImages((prev) => [...prev, ...files].slice(0, 8));
+    setImages((prev) => [...prev, ...files].slice(0, 25));
     e.target.value = "";
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
