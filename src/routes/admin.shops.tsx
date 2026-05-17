@@ -20,7 +20,12 @@ import { useCountries } from "@/hooks/use-countries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   listAdminShops, createAdminShop, updateAdminShop, deleteAdminShop, getAdminShop,
+  getAdminShopDeletionInfo,
   type AdminShopRow,
 } from "@/lib/admin-shops.functions";
 
