@@ -309,8 +309,8 @@ function AdminEditProductPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !data?.product) return;
-    if (!name.trim() || !price) {
-      toast.error("Nom et prix obligatoires.");
+    if (!name.trim() || !code.trim() || !price) {
+      toast.error("Nom, code et prix obligatoires.");
       return;
     }
     if (!vendorId) {
@@ -348,6 +348,19 @@ function AdminEditProductPage() {
     if (!user || !data?.product) return;
     setSubmitting(true);
     try {
+      const cleanCode = code.trim();
+      const { data: duplicate, error: duplicateErr } = await supabase
+        .from("products")
+        .select("id")
+        .eq("vendor_id", vendorId)
+        .eq("code", cleanCode)
+        .neq("id", productId)
+        .maybeSingle();
+      if (duplicateErr) throw duplicateErr;
+      if (duplicate) {
+        throw new Error("Ce code produit existe déjà dans cette boutique.");
+      }
+
       // Upload new images
       if (newImages.length > 0) {
         const rows: { product_id: string; url: string; position: number }[] = [];
@@ -435,7 +448,7 @@ function AdminEditProductPage() {
         is_edit?: boolean;
       } = {
         name: name.trim(),
-        code: code.trim(),
+        code: cleanCode,
         designation: designation.trim() || null,
         description: description.trim() || null,
         price: Number(price) || 0,

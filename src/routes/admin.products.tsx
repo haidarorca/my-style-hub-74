@@ -180,6 +180,20 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
   });
 
   async function setStatus(id: string, next: "approved" | "rejected") {
+    if (next === "approved") {
+      const current = items?.find((p) => p.id === id);
+      if (current) {
+        const { data: duplicate, error: duplicateErr } = await supabase
+          .from("products")
+          .select("id")
+          .eq("vendor_id", current.vendor_id)
+          .eq("code", current.code)
+          .neq("id", id)
+          .maybeSingle();
+        if (duplicateErr) return toast.error(duplicateErr.message);
+        if (duplicate) return toast.error("Ce code produit existe déjà dans cette boutique.");
+      }
+    }
     const payload: { status: "approved" | "rejected"; rejection_reason?: string | null; is_edit?: boolean } = { status: next };
     if (next === "rejected") payload.rejection_reason = reason[id] || "Non conforme";
     else payload.rejection_reason = null;

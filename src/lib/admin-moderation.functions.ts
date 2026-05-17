@@ -122,10 +122,22 @@ export const submitModerationDecision = createServerFn({ method: "POST" })
 
     const { data: product, error: prodErr } = await supabaseAdmin
       .from("products")
-      .select("id, name, vendor_id")
+      .select("id, name, code, vendor_id")
       .eq("id", data.product_id)
       .single();
     if (prodErr || !product) throw new Error(prodErr?.message || "Produit introuvable");
+
+    if (data.decision === "approved") {
+      const { data: duplicate, error: duplicateErr } = await supabaseAdmin
+        .from("products")
+        .select("id")
+        .eq("vendor_id", product.vendor_id)
+        .eq("code", product.code)
+        .neq("id", product.id)
+        .maybeSingle();
+      if (duplicateErr) throw new Error(duplicateErr.message);
+      if (duplicate) throw new Error("Ce code produit existe déjà dans cette boutique.");
+    }
 
     // Status mapping
     const nextStatus = data.decision === "approved" ? "approved" : data.decision === "rejected" ? "rejected" : "pending";

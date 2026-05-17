@@ -283,6 +283,25 @@ export const setProductStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    if (data.status === "approved") {
+      const { data: product, error: productErr } = await supabaseAdmin
+        .from("products")
+        .select("id, vendor_id, code")
+        .eq("id", data.product_id)
+        .maybeSingle();
+      if (productErr || !product) throw new Error(productErr?.message || "Produit introuvable");
+
+      const { data: duplicate, error: duplicateErr } = await supabaseAdmin
+        .from("products")
+        .select("id")
+        .eq("vendor_id", product.vendor_id)
+        .eq("code", product.code)
+        .neq("id", product.id)
+        .maybeSingle();
+      if (duplicateErr) throw new Error(duplicateErr.message);
+      if (duplicate) throw new Error("Ce code produit existe déjà dans cette boutique.");
+    }
+
     const payload: { status: "approved" | "rejected" | "pending"; rejection_reason?: string | null; is_edit?: boolean } = {
       status: data.status,
     };

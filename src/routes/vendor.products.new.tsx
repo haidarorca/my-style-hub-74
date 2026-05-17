@@ -240,12 +240,24 @@ function NewProductPage() {
 
     setSubmitting(true);
     try {
+      const cleanCode = code.trim();
+      const { data: duplicate, error: duplicateErr } = await supabase
+        .from("products")
+        .select("id")
+        .eq("vendor_id", user.id)
+        .eq("code", cleanCode)
+        .maybeSingle();
+      if (duplicateErr) throw duplicateErr;
+      if (duplicate) {
+        throw new Error("Ce code-barres existe déjà dans votre boutique.");
+      }
+
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
           vendor_id: user.id,
           name: name.trim(),
-          code: code.trim(),
+          code: cleanCode,
           designation: designation.trim() || null,
           description: description.trim() || null,
           price: priceNum,
