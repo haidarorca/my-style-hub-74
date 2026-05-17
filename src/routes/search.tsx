@@ -538,7 +538,7 @@ function SearchPage() {
                           <div className="p-2">
                             <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
                             <div className="mt-1 text-sm font-bold text-primary">
-                              <SearchPriceTag productId={p.id} fallback={Number(p.price)} /> {t("misc.currency")}
+                              <SearchPriceTag productId={p.id} currency={t("misc.currency")} />
                             </div>
                           </div>
                         </Link>
