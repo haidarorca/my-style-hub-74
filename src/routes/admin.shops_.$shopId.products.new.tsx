@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -45,10 +45,45 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { logError } from "@/lib/error-logger";
 
 export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
-  component: NewAdminShopProductPage,
+  component: AdminProductPageWithBoundary,
 });
+
+const OCR_DISABLED_KEY = "admin:ocr-disabled";
+const OCR_FAILURES_KEY = "admin:ocr-failures";
+
+function isMobileSafeRuntime() {
+  if (typeof window === "undefined") return false;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
+  return window.innerWidth < 640 || memory <= 3;
+}
+
+function getOcrDisabled() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(OCR_DISABLED_KEY) === "1";
+}
+
+function disableOcrAfterCrash() {
+  if (typeof window === "undefined") return;
+  try {
+    const failures = Number(localStorage.getItem(OCR_FAILURES_KEY) ?? "0") + 1;
+    localStorage.setItem(OCR_FAILURES_KEY, String(failures));
+    if (failures >= 2 || isMobileSafeRuntime()) localStorage.setItem(OCR_DISABLED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function AdminProductPageWithBoundary() {
+  return (
+    <ErrorBoundary label="Formulaire admin produit" onError={disableOcrAfterCrash}>
+      <NewAdminShopProductPage />
+    </ErrorBoundary>
+  );
+}
 
 const FONT_OPTIONS = [
   "Arial",
