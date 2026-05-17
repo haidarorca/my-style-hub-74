@@ -1261,14 +1261,21 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
-    // Mark as partial if AI couldn't deliver core fields
-    const partial = Boolean(partialReason) || (!nameFr && sourcePrice === 0);
+    // Add granular reasons for missing core fields so the UI shows
+    // actionable hints instead of a vague "données incomplètes".
+    if (sourcePrice === 0) partialReasons.push("Prix non détecté — saisissez-le manuellement.");
+    if (cleanVariants.length === 0)
+      partialReasons.push("Variantes non détectées — ajoutez-les manuellement si besoin.");
+    if (!nameFr) partialReasons.push("Nom non détecté — saisissez-le manuellement.");
+
+    const partial = partialReasons.length > 0 || (!nameFr && sourcePrice === 0);
+    const dedupedReasons = Array.from(new Set(partialReasons));
 
     return {
       resolved_url: resolvedUrl,
       partial,
       partial_reason: partial
-        ? (partialReason ?? "Données incomplètes — complétez manuellement.")
+        ? dedupedReasons.join(" · ") || "Données incomplètes — complétez manuellement."
         : null,
       source_currency: currency,
       fx_rate: fxRate,
