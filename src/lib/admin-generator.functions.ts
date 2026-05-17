@@ -642,6 +642,30 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   const variants: StructuredVariant[] = [];
   const roots: unknown[] = [];
   const direct = new Map<string, unknown[]>();
+
+  // Taobao mobile h5 ships its data as `window.__INIT_DATA__ = JSON.parse('…')`
+  // or `window.runParams = {…}`. Extract those root objects first so the recursive
+  // walker can find skuMap / propertyMemoMap / componentsVO inside.
+  for (const re of [
+    /window\.__INIT_DATA__\s*=\s*JSON\.parse\(['"]([\s\S]*?)['"]\)\s*;/g,
+    /window\.__INIT_DATA__\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+    /window\.runParams\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+    /g_config\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+  ]) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) {
+      try {
+        const decoded = m[1]
+          .replace(/\\\\/g, "\\")
+          .replace(/\\"/g, '"')
+          .replace(/\\u002F/gi, "/");
+        roots.push(JSON.parse(decoded));
+      } catch {
+        /* skip */
+      }
+    }
+  }
+
   for (const key of [
     "apiStack",
     "skuBase",
@@ -651,6 +675,12 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
     "props",
     "skuMap",
     "skuInfoMap",
+    "propertyMemoMap",
+    "valItemInfo",
+    "componentsVO",
+    "vertical",
+    "priceModule",
+    "skuItem",
     "itemImgs",
     "auctionImages",
     "images",
@@ -789,13 +819,17 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       ...collectByKey(root, "skuMap"),
       ...(direct.get("skuInfoMap") ?? []),
       ...collectByKey(root, "skuInfoMap"),
+      ...(direct.get("propertyMemoMap") ?? []),
+      ...collectByKey(root, "propertyMemoMap"),
       ...collectByKey(root, "sku2info"),
+      ...collectByKey(root, "priceInfo"),
     ])
       addEntryFromMap(map);
     for (const arr of [
       ...collectByKey(root, "skus"),
       ...collectByKey(root, "skuList"),
       ...collectByKey(root, "skuInfos"),
+      ...collectByKey(root, "skuItems"),
     ])
       addEntryFromArray(arr);
   }
@@ -844,17 +878,28 @@ async function scrapeViaApify(
   if (!token) throw new Error("APIFY_TOKEN non configuré");
 
   // apify/website-content-crawler — generic, returns markdown of a single page
-  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=90`;
+  // For Taobao/1688 SPA we MUST run a real Chromium with extra wait so client-side
+  // JSON (skuMap, propertyMemoMap, __INIT_DATA__…) is injected into the DOM.
+  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=120`;
+  const isAlibaba = /taobao\.com|tmall\.com|1688\.com|tb\.cn|tmall\.hk/i.test(url);
   const body = {
     startUrls: [{ url }],
-    crawlerType: "playwright:adaptive",
+    crawlerType: isAlibaba ? "playwright:firefox" : "playwright:adaptive",
     maxCrawlPages: 1,
     maxCrawlDepth: 0,
     saveMarkdown: true,
     saveHtml: true,
     saveScreenshots: false,
-    proxyConfiguration: { useApifyProxy: true },
-    requestTimeoutSecs: 60,
+    proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
+    requestTimeoutSecs: 90,
+    dynamicContentWaitSecs: isAlibaba ? 12 : 5,
+    maxScrollHeightPixels: 6000,
+    removeElementsCssSelector: "",
+    htmlTransformer: "none",
+    readableTextCharThreshold: 0,
+    initialCookies: isAlibaba
+      ? [{ name: "hng", value: "fr|FR|EUR", domain: ".taobao.com" }]
+      : [],
   };
   const res = await fetch(endpoint, {
     method: "POST",
