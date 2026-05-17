@@ -819,13 +819,17 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       ...collectByKey(root, "skuMap"),
       ...(direct.get("skuInfoMap") ?? []),
       ...collectByKey(root, "skuInfoMap"),
+      ...(direct.get("propertyMemoMap") ?? []),
+      ...collectByKey(root, "propertyMemoMap"),
       ...collectByKey(root, "sku2info"),
+      ...collectByKey(root, "priceInfo"),
     ])
       addEntryFromMap(map);
     for (const arr of [
       ...collectByKey(root, "skus"),
       ...collectByKey(root, "skuList"),
       ...collectByKey(root, "skuInfos"),
+      ...collectByKey(root, "skuItems"),
     ])
       addEntryFromArray(arr);
   }
