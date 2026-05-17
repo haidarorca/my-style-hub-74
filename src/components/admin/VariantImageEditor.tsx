@@ -432,7 +432,8 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
                   </div>
                 ))}
               </div>
-            </>
+            </div>
+          )}
           )}
         </div>
 
