@@ -482,11 +482,12 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
 });
 
 const ProductCardMobile = memo(function ProductCardMobile({
-  row, busy, reason, onReason, onAct,
+  row, busy, reason, onReason, onAct, onDelete,
 }: {
   row: AdminProductRow; busy: boolean; reason: string;
   onReason: (v: string) => void;
   onAct: (id: string, s: "approved" | "rejected") => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
