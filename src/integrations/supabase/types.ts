@@ -1778,6 +1778,10 @@ export type Database = {
         }
         Returns: string
       }
+      product_code_exists_in_shop: {
+        Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
+        Returns: boolean
+      }
       resolve_commission:
         | {
             Args: { _product_id: string }
