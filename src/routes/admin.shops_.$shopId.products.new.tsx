@@ -415,6 +415,7 @@ function NewAdminShopProductPage() {
         source_currency: "",
         price_override: "",
         image_file: null,
+        image_original: null,
       },
     ]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
