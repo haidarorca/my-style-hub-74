@@ -296,6 +296,7 @@ async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images
     return {
       text: `Titre: ${title}\n\nDescription: ${desc}`.slice(0, 4000),
       images,
+      html,
     };
   } catch {
     return null;
