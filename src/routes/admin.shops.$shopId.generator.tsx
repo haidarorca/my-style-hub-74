@@ -320,6 +320,94 @@ https://..."
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Variantes (taille / couleur)</span>
+            <Button type="button" size="sm" variant="outline" onClick={addVariant}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Ajouter
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {variants.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Aucune variante. Cliquez sur « Ajouter » ou laissez l'IA en détecter à partir du texte source.
+            </p>
+          ) : (
+            variants.map((v, i) => (
+              <div key={i} className="rounded-lg border p-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Variante #{i + 1}</span>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => removeVariant(i)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Taille</Label>
+                    <Input value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="M, 42, 10x15" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Couleur</Label>
+                    <Input value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder="Rouge" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Hex</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="color"
+                        className="h-9 w-12 p-1"
+                        value={v.color_hex || "#000000"}
+                        onChange={(e) => updateVariant(i, { color_hex: e.target.value })}
+                      />
+                      <Input
+                        value={v.color_hex}
+                        onChange={(e) => updateVariant(i, { color_hex: e.target.value })}
+                        placeholder="#ff0000"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Stock</Label>
+                    <Input
+                      type="number" min={0}
+                      value={v.stock}
+                      onChange={(e) => updateVariant(i, { stock: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Prix override (FCFA)</Label>
+                    <Input
+                      type="number" min={0}
+                      value={v.price_override}
+                      onChange={(e) => updateVariant(i, { price_override: e.target.value })}
+                      placeholder="(optionnel)"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Image (URL)</Label>
+                    <Input
+                      value={v.image_url}
+                      onChange={(e) => updateVariant(i, { image_url: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                {v.image_url && /^https?:\/\//.test(v.image_url) && (
+                  <img
+                    src={v.image_url}
+                    alt=""
+                    className="h-16 w-16 rounded border object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                  />
+                )}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       <Button
         type="button"
         className="w-full"
