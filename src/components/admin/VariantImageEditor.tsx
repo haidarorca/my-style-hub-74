@@ -254,8 +254,10 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
       onSave(out);
       toast.success("Image enregistrée.");
       onClose();
-    } catch {
-      toast.error("Impossible d'enregistrer l'image. L'originale est conservée.");
+    } catch (err) {
+      console.error("[VariantImageEditor] save failed", err);
+      const msg = err instanceof Error ? err.message : "inconnu";
+      toast.error(`Impossible d'enregistrer (${msg}). L'originale est conservée.`);
     } finally {
       setSaving(false);
     }
