@@ -34,9 +34,17 @@ async function fetchRates(base: string): Promise<RatePayload> {
   }
   const res = await fetch(`https://open.er-api.com/v6/latest/${base.toUpperCase()}`);
   if (!res.ok) throw new Error(`Erreur API devises (${res.status})`);
-  const json = (await res.json()) as { result?: string; base_code?: string; rates?: Record<string, number> };
+  const json = (await res.json()) as {
+    result?: string;
+    base_code?: string;
+    rates?: Record<string, number>;
+  };
   if (json.result !== "success" || !json.rates) throw new Error("Réponse devises invalide");
-  const payload: RatePayload = { base: json.base_code ?? base, rates: json.rates, fetched_at: new Date().toISOString() };
+  const payload: RatePayload = {
+    base: json.base_code ?? base,
+    rates: json.rates,
+    fetched_at: new Date().toISOString(),
+  };
   await supabaseAdmin
     .from("admin_stats_cache")
     .upsert({ key: cacheKey, value: payload as never, updated_at: new Date().toISOString() });
@@ -65,13 +73,20 @@ export const getExchangeRate = createServerFn({ method: "POST" })
 
 function safeParseJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
   try {
     return JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
     const m = cleaned.match(/\{[\s\S]*\}/);
     if (m) {
-      try { return JSON.parse(m[0]) as Record<string, unknown>; } catch { return null; }
+      try {
+        return JSON.parse(m[0]) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
     }
     return null;
   }
@@ -97,7 +112,10 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       .eq("level", 3)
       .order("position")
       .limit(200);
-    const catNames = (cats ?? []).map((c) => c.name).slice(0, 120).join(", ");
+    const catNames = (cats ?? [])
+      .map((c) => c.name)
+      .slice(0, 120)
+      .join(", ");
 
     const prompt = [
       "You analyse a product listing (often copy-pasted from Taobao/1688/AliExpress, may contain Chinese/English/mixed text and image URLs).",
@@ -125,7 +143,8 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
     });
     if (!res.ok) {
       if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
-      if (res.status === 402) throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres Lovable AI.");
+      if (res.status === 402)
+        throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres Lovable AI.");
       throw new Error(`Erreur IA (${res.status})`);
     }
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
@@ -141,7 +160,9 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       suggestedCategoryId = match?.id ?? null;
     }
 
-    const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+    const rawVariants = Array.isArray(parsed.suggested_variants)
+      ? (parsed.suggested_variants as unknown[])
+      : [];
     const cleanVariants = rawVariants
       .map((v) => {
         if (!v || typeof v !== "object") return null;
@@ -167,12 +188,18 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
     return {
       name_fr: typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "",
       description_fr: typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "",
-      source_price: typeof parsed.source_price === "number" ? parsed.source_price : Number(parsed.source_price) || 0,
+      source_price:
+        typeof parsed.source_price === "number"
+          ? parsed.source_price
+          : Number(parsed.source_price) || 0,
       image_urls: Array.isArray(parsed.image_urls)
-        ? (parsed.image_urls as unknown[]).filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
+        ? (parsed.image_urls as unknown[]).filter(
+            (u): u is string => typeof u === "string" && /^https?:\/\//.test(u),
+          )
         : [],
       suggested_category_id: suggestedCategoryId,
-      suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
+      suggested_category_name:
+        typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
       suggested_variants: cleanVariants,
     };
   });
@@ -184,9 +211,14 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
 function detectCurrencyFromUrl(url: string): "CNY" | "USD" {
   const u = url.toLowerCase();
   if (
-    u.includes("taobao.com") || u.includes("1688.com") || u.includes("tmall.com") ||
-    u.includes("jd.com") || u.includes("tb.cn") || u.includes("tmall.hk")
-  ) return "CNY";
+    u.includes("taobao.com") ||
+    u.includes("1688.com") ||
+    u.includes("tmall.com") ||
+    u.includes("jd.com") ||
+    u.includes("tb.cn") ||
+    u.includes("tmall.hk")
+  )
+    return "CNY";
   return "USD"; // aliexpress, amazon, etc.
 }
 
@@ -265,7 +297,9 @@ async function resolveShareUrl(rawUrl: string): Promise<string> {
 
 // Lightweight HTML fallback: fetch the page directly with a mobile UA and pull
 // title, OG image, JSON-LD images. Used when Apify fails or returns empty.
-async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images: string[]; html: string } | null> {
+async function scrapeViaDirectFetch(
+  url: string,
+): Promise<{ text: string; images: string[]; html: string } | null> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -280,12 +314,16 @@ async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images
     const html = (await res.text()).slice(0, 400_000);
     const titleM = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i);
     const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
-    const ogDesc = html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i);
+    const ogDesc = html.match(
+      /<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i,
+    );
     const ogImgs: string[] = [];
-    const imgRe = /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/gi;
+    const imgRe =
+      /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/gi;
     let m: RegExpExecArray | null;
     while ((m = imgRe.exec(html))) ogImgs.push(m[1]);
-    const linkImgRe = /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^"']*)?)["']/gi;
+    const linkImgRe =
+      /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^"']*)?)["']/gi;
     while ((m = linkImgRe.exec(html))) ogImgs.push(m[1]);
     const images = Array.from(new Set(ogImgs)).slice(0, 12);
 
@@ -307,9 +345,13 @@ async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images
 function looksLikeLoginWall(text: string): boolean {
   const s = text.toLowerCase();
   return (
-    s.includes("请登录") || s.includes("登录后") || s.includes("亲，请登录") ||
-    s.includes("sign in to continue") || /\bplease\s+log\s*in\b/.test(s) ||
-    s.includes("login.taobao.com") || s.includes("login.1688.com")
+    s.includes("请登录") ||
+    s.includes("登录后") ||
+    s.includes("亲，请登录") ||
+    s.includes("sign in to continue") ||
+    /\bplease\s+log\s*in\b/.test(s) ||
+    s.includes("login.taobao.com") ||
+    s.includes("login.1688.com")
   );
 }
 
@@ -323,12 +365,21 @@ function isLikelyProductImageUrl(url: string): boolean {
   const u = url.toLowerCase();
   // Reject obvious non-photo assets
   if (/\.svg(\?|$)/.test(u)) return false;
-  if (/(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar)/.test(u)) return false;
+  if (
+    /(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar)/.test(
+      u,
+    )
+  )
+    return false;
   // Allow Alibaba product CDNs only (covers Taobao / Tmall / 1688 / AliExpress)
-  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(u);
+  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(
+    u,
+  );
   if (!allowedHost) return false;
   // Filter out tiny resized thumbnails like _40x40, _60x60, _80x80q90
-  const sizeMatch = u.match(/_(\d{2,4})x(\d{2,4})(?:q\d+)?\.(?:jpg|jpeg|png|webp)(?:_\.webp)?(?:\?|$)/);
+  const sizeMatch = u.match(
+    /_(\d{2,4})x(\d{2,4})(?:q\d+)?\.(?:jpg|jpeg|png|webp)(?:_\.webp)?(?:\?|$)/,
+  );
   if (sizeMatch) {
     const w = parseInt(sizeMatch[1], 10);
     const h = parseInt(sizeMatch[2], 10);
@@ -359,12 +410,23 @@ function extractBalancedJsonAt(text: string, startIdx: number): string | null {
   for (let j = i; j < text.length; j++) {
     const ch = text[j];
     if (inStr) {
-      if (esc) { esc = false; continue; }
-      if (ch === "\\") { esc = true; continue; }
-      if (ch === '"') { inStr = false; }
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (ch === "\\") {
+        esc = true;
+        continue;
+      }
+      if (ch === '"') {
+        inStr = false;
+      }
       continue;
     }
-    if (ch === '"') { inStr = true; continue; }
+    if (ch === '"') {
+      inStr = true;
+      continue;
+    }
     if (ch === open) depth++;
     else if (ch === close) {
       depth--;
@@ -408,7 +470,13 @@ type StructuredSku = {
   variants: StructuredVariant[];
 };
 
-type SkuValue = { id: string; name: string; image: string; propName: string; kind: "color" | "size" | "model" };
+type SkuValue = {
+  id: string;
+  name: string;
+  image: string;
+  propName: string;
+  kind: "color" | "size" | "model";
+};
 type SkuEntry = { vids: string[]; names: string[]; price: number };
 
 function decodeEmbeddedJsonLike(text: string): string {
@@ -423,7 +491,9 @@ function decodeEmbeddedJsonLike(text: string): string {
 
 function normaliseProductImageUrl(raw: unknown): string {
   if (typeof raw !== "string") return "";
-  let u = decodeEmbeddedJsonLike(raw).trim().replace(/^['"]|['"]$/g, "");
+  let u = decodeEmbeddedJsonLike(raw)
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
   if (!u) return "";
   if (u.startsWith("//")) u = `https:${u}`;
   if (!/^https?:\/\//i.test(u)) return "";
@@ -439,7 +509,11 @@ function findJsonValuesByKey(html: string, key: string): unknown[] {
     while ((m = re.exec(source))) {
       const raw = extractBalancedJsonAt(source, m.index + m[0].length);
       if (!raw) continue;
-      try { out.push(JSON.parse(raw)); } catch { /* keep scanning */ }
+      try {
+        out.push(JSON.parse(raw));
+      } catch {
+        /* keep scanning */
+      }
     }
   }
   const single = findJsonByKey(html, key);
@@ -452,7 +526,11 @@ function collectByKey(value: unknown, key: string, out: unknown[] = [], depth = 
   if (typeof value === "string") {
     const s = decodeEmbeddedJsonLike(value.trim());
     if ((s.startsWith("{") || s.startsWith("[")) && s.includes(key)) {
-      try { collectByKey(JSON.parse(s), key, out, depth + 1); } catch { /* ignore */ }
+      try {
+        collectByKey(JSON.parse(s), key, out, depth + 1);
+      } catch {
+        /* ignore */
+      }
     }
     return out;
   }
@@ -476,12 +554,17 @@ function parseAnyEmbeddedJson(value: unknown): unknown[] {
     if (typeof v === "string") {
       const s = decodeEmbeddedJsonLike(v.trim());
       if (s.startsWith("{") || s.startsWith("[")) {
-        try { roots.push(JSON.parse(s)); } catch { return; }
+        try {
+          roots.push(JSON.parse(s));
+        } catch {
+          return;
+        }
       }
       return;
     }
     if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
-    else if (typeof v === "object") Object.values(v as Record<string, unknown>).forEach((x) => visit(x, depth + 1));
+    else if (typeof v === "object")
+      Object.values(v as Record<string, unknown>).forEach((x) => visit(x, depth + 1));
   };
   visit(value);
   return roots;
@@ -497,7 +580,7 @@ function priceFromUnknown(value: unknown, field = ""): number {
     const n = Number(cleaned);
     if (!Number.isFinite(n)) return 0;
     const looksLikeCents = /^\d{3,}$/.test(cleaned) && /price|money|cent|fen/i.test(field);
-    return ((/cent|fen|money/i.test(field) || looksLikeCents) && n >= 100) ? n / 100 : n;
+    return (/cent|fen|money/i.test(field) || looksLikeCents) && n >= 100 ? n / 100 : n;
   }
   return 0;
 }
@@ -505,7 +588,18 @@ function priceFromUnknown(value: unknown, field = ""): number {
 function extractPrice(obj: unknown, depth = 0): number {
   if (!obj || typeof obj !== "object" || depth > 4) return 0;
   const rec = obj as Record<string, unknown>;
-  const priority = ["promotionPrice", "activityPrice", "salePrice", "sellingPrice", "priceText", "price", "retailPrice", "discountPrice", "priceMoney", "cent"];
+  const priority = [
+    "promotionPrice",
+    "activityPrice",
+    "salePrice",
+    "sellingPrice",
+    "priceText",
+    "price",
+    "retailPrice",
+    "discountPrice",
+    "priceMoney",
+    "cent",
+  ];
   for (const k of priority) {
     const direct = priceFromUnknown(rec[k], k);
     if (direct > 0) return direct;
@@ -532,7 +626,12 @@ function classifySkuProp(propName: string): SkuValue["kind"] {
 function splitSkuNames(key: string): string[] {
   return decodeEmbeddedJsonLike(key)
     .split(/[;>&|,，]/)
-    .map((p) => p.replace(/^\d+:/, "").replace(/^[^:：]{1,12}[:：]/, "").trim())
+    .map((p) =>
+      p
+        .replace(/^\d+:/, "")
+        .replace(/^[^:：]{1,12}[:：]/, "")
+        .trim(),
+    )
     .filter((p) => p.length > 0 && !/^\d+$/.test(p))
     .slice(0, 4);
 }
@@ -543,7 +642,21 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   const variants: StructuredVariant[] = [];
   const roots: unknown[] = [];
   const direct = new Map<string, unknown[]>();
-  for (const key of ["apiStack", "skuBase", "skuCore", "skuModel", "skuProps", "props", "skuMap", "skuInfoMap", "itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
+  for (const key of [
+    "apiStack",
+    "skuBase",
+    "skuCore",
+    "skuModel",
+    "skuProps",
+    "props",
+    "skuMap",
+    "skuInfoMap",
+    "itemImgs",
+    "auctionImages",
+    "images",
+    "picsPath",
+    "itemImages",
+  ]) {
     for (const value of findJsonValuesByKey(html, key)) {
       direct.set(key, [...(direct.get(key) ?? []), value]);
       roots.push(value, ...parseAnyEmbeddedJson(value));
@@ -556,8 +669,23 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
     return img;
   };
 
-  for (const root of [...roots, ...(direct.get("itemImgs") ?? []), ...(direct.get("auctionImages") ?? []), ...(direct.get("images") ?? []), ...(direct.get("picsPath") ?? []), ...(direct.get("itemImages") ?? [])]) {
-    for (const key of ["itemImgs", "auctionImages", "images", "picsPath", "itemImages", "imageList", "mainImages"]) {
+  for (const root of [
+    ...roots,
+    ...(direct.get("itemImgs") ?? []),
+    ...(direct.get("auctionImages") ?? []),
+    ...(direct.get("images") ?? []),
+    ...(direct.get("picsPath") ?? []),
+    ...(direct.get("itemImages") ?? []),
+  ]) {
+    for (const key of [
+      "itemImgs",
+      "auctionImages",
+      "images",
+      "picsPath",
+      "itemImages",
+      "imageList",
+      "mainImages",
+    ]) {
       const galleries = [root, ...collectByKey(root, key)];
       for (const gallery of galleries) {
         const arr = Array.isArray(gallery) ? gallery : [gallery];
@@ -586,9 +714,13 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       for (const rawVal of values) {
         if (!rawVal || typeof rawVal !== "object") continue;
         const val = rawVal as Record<string, unknown>;
-        const id = String(val.vid ?? val.id ?? val.valueId ?? val.specId ?? val.skuPropertyValueId ?? "").trim();
+        const id = String(
+          val.vid ?? val.id ?? val.valueId ?? val.specId ?? val.skuPropertyValueId ?? "",
+        ).trim();
         const name = String(val.name ?? val.text ?? val.valueName ?? val.title ?? "").trim();
-        const image = addImage(val.image ?? val.imageUrl ?? val.imgUrl ?? val.picUrl ?? val.thumb ?? val.originalImage);
+        const image = addImage(
+          val.image ?? val.imageUrl ?? val.imgUrl ?? val.picUrl ?? val.thumb ?? val.originalImage,
+        );
         if (!name && !image) continue;
         const row: SkuValue = { id, name, image, propName, kind };
         if (id) vidMap.set(id, row);
@@ -603,7 +735,8 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       ...collectByKey(root, "skuProps"),
       ...(direct.get("props") ?? []),
       ...collectByKey(root, "props"),
-    ]) collectProps(props);
+    ])
+      collectProps(props);
   }
 
   const skuIdToVids = new Map<string, string[]>();
@@ -657,12 +790,14 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       ...(direct.get("skuInfoMap") ?? []),
       ...collectByKey(root, "skuInfoMap"),
       ...collectByKey(root, "sku2info"),
-    ]) addEntryFromMap(map);
+    ])
+      addEntryFromMap(map);
     for (const arr of [
       ...collectByKey(root, "skus"),
       ...collectByKey(root, "skuList"),
       ...collectByKey(root, "skuInfos"),
-    ]) addEntryFromArray(arr);
+    ])
+      addEntryFromArray(arr);
   }
 
   const variantByKey = new Map<string, StructuredVariant>();
@@ -676,7 +811,8 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       for (const n of entry.names) if (!names.includes(n)) names.push(n);
       if (names.length === 0) continue;
       const image = values.find((v) => v.image)?.image ?? "";
-      const color = values.find((v) => v.kind === "color")?.name ?? (values.find((v) => v.image)?.name ?? "");
+      const color =
+        values.find((v) => v.kind === "color")?.name ?? values.find((v) => v.image)?.name ?? "";
       const size = values.find((v) => v.kind === "size")?.name ?? "";
       const name = names.join(" - ").slice(0, 90);
       const key = `${name}|${image}|${entry.price || 0}`;
@@ -701,7 +837,9 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   return { images: Array.from(images).slice(0, 12), variants: variants.slice(0, 30) };
 }
 
-async function scrapeViaApify(url: string): Promise<{ text: string; images: string[]; html: string }> {
+async function scrapeViaApify(
+  url: string,
+): Promise<{ text: string; images: string[]; html: string }> {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error("APIFY_TOKEN non configuré");
 
@@ -744,7 +882,8 @@ async function scrapeViaApify(url: string): Promise<{ text: string; images: stri
   const md = it.markdown ?? it.text ?? "";
   const html = it.html ?? "";
   // Extract image URLs from markdown ![](url) and bare http(s) img links
-  const imgRe = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s")]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s")]*)?)/gi;
+  const imgRe =
+    /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s")]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s")]*)?)/gi;
   const set = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = imgRe.exec(md))) {
@@ -793,7 +932,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     // 0) Extract a URL from a Taobao share text if needed
     const extracted = extractUrlFromText(data.url);
     if (!extracted) {
-      throw new Error("Aucun lien détecté. Collez l'URL produit ou le texte de partage Taobao complet.");
+      throw new Error(
+        "Aucun lien détecté. Collez l'URL produit ou le texte de partage Taobao complet.",
+      );
     }
 
     // 1) Resolve mobile short links (e.tb.cn, m.tb.cn…) → canonical desktop URL
@@ -811,20 +952,30 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         await new Promise((r) => setTimeout(r, 1500));
         scraped = await scrapeViaApify(resolvedUrl);
       } catch (e2) {
-        partialReason = e2 instanceof Error ? e2.message : (e instanceof Error ? e.message : "Scraping principal échoué");
+        partialReason =
+          e2 instanceof Error
+            ? e2.message
+            : e instanceof Error
+              ? e.message
+              : "Scraping principal échoué";
       }
     }
-    if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 60) || looksLikeLoginWall(scraped?.text ?? "")) {
+    if (
+      !scraped ||
+      (scraped.images.length === 0 && scraped.text.trim().length < 60) ||
+      looksLikeLoginWall(scraped?.text ?? "")
+    ) {
       const fb = await scrapeViaDirectFetch(resolvedUrl);
       if (fb) {
         scraped = fb;
-        if (!partialReason) partialReason = "Page protégée — récupération partielle (titre + images uniquement).";
+        if (!partialReason)
+          partialReason = "Page protégée — récupération partielle (titre + images uniquement).";
       }
     }
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
       throw new Error(
         "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
-        "Astuce : ouvrez le lien dans un navigateur, copiez l'URL finale depuis la barre d'adresse, puis réessayez.",
+          "Astuce : ouvrez le lien dans un navigateur, copiez l'URL finale depuis la barre d'adresse, puis réessayez.",
       );
     }
 
@@ -847,7 +998,10 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       .eq("level", 3)
       .order("position")
       .limit(200);
-    const catNames = (cats ?? []).map((c) => c.name).slice(0, 120).join(", ");
+    const catNames = (cats ?? [])
+      .map((c) => c.name)
+      .slice(0, 120)
+      .join(", ");
 
     // 4) AI extraction (best-effort — never blocks fallback delivery)
     const enrichedText = scraped.text + "\n\nImages détectées:\n" + scraped.images.join("\n");
@@ -926,14 +1080,19 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       }
     }
     const sourcePrice =
-      typeof parsed.source_price === "number" ? parsed.source_price : Number(parsed.source_price) || 0;
+      typeof parsed.source_price === "number"
+        ? parsed.source_price
+        : Number(parsed.source_price) || 0;
     const suggestedPriceXof = Math.round(sourcePrice * fxRate);
 
     // 7) Build final image list. Priority: structured (JSON SKU/itemImgs) → filtered scraped → AI.
     //    All URLs pass through isLikelyProductImageUrl to drop UI/icon noise.
-    const aiImageUrls = (Array.isArray(parsed.image_urls)
-      ? (parsed.image_urls as unknown[]).filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
-      : []
+    const aiImageUrls = (
+      Array.isArray(parsed.image_urls)
+        ? (parsed.image_urls as unknown[]).filter(
+            (u): u is string => typeof u === "string" && /^https?:\/\//.test(u),
+          )
+        : []
     )
       .filter(isLikelyProductImageUrl)
       .map(upgradeAlicdnImage);
@@ -950,8 +1109,14 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     // 8) Build variants. Structured (skuMap/skuProps) takes priority — guarantees
     //    correct name ↔ image ↔ price. AI variants only fill gaps when no structured data.
     type Interim = {
-      name: string; size: string; color: string; color_hex: string;
-      stock: number; image_url: string; source_price: number; price_xof_detected: number;
+      name: string;
+      size: string;
+      color: string;
+      color_hex: string;
+      stock: number;
+      image_url: string;
+      source_price: number;
+      price_xof_detected: number;
     };
     let interimVariants: Interim[] = [];
     if (structured.variants.length > 0) {
@@ -966,7 +1131,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         price_xof_detected: v.source_price > 0 ? Math.round(v.source_price * fxRate) : 0,
       }));
     } else {
-      const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+      const rawVariants = Array.isArray(parsed.suggested_variants)
+        ? (parsed.suggested_variants as unknown[])
+        : [];
       interimVariants = rawVariants
         .map((v): Interim | null => {
           if (!v || typeof v !== "object") return null;
@@ -978,7 +1145,8 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
           };
           const hex = str("color_hex");
           const url = str("image_url");
-          const cleanUrl = /^https?:\/\//.test(url) && isLikelyProductImageUrl(url) ? upgradeAlicdnImage(url) : "";
+          const cleanUrl =
+            /^https?:\/\//.test(url) && isLikelyProductImageUrl(url) ? upgradeAlicdnImage(url) : "";
           const srcPrice = num("source_price");
           return {
             name: str("name").slice(0, 90),
@@ -991,13 +1159,17 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
             price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
           };
         })
-        .filter((v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""))
+        .filter(
+          (v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
+        )
         .slice(0, 30);
     }
 
     // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
     const variantUrlCache = new Map<string, string | null>();
-    const distinctUrls = Array.from(new Set(interimVariants.map((v) => v.image_url).filter(Boolean))).slice(0, 12);
+    const distinctUrls = Array.from(
+      new Set(interimVariants.map((v) => v.image_url).filter(Boolean)),
+    ).slice(0, 12);
     for (const u of distinctUrls) {
       variantUrlCache.set(u, await downloadImageAsDataUrl(u));
     }
@@ -1013,7 +1185,8 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     }));
 
     const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
-    const designationFr = typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
+    const designationFr =
+      typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
     // Mark as partial if AI couldn't deliver core fields
@@ -1022,7 +1195,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     return {
       resolved_url: resolvedUrl,
       partial,
-      partial_reason: partial ? (partialReason ?? "Données incomplètes — complétez manuellement.") : null,
+      partial_reason: partial
+        ? (partialReason ?? "Données incomplètes — complétez manuellement.")
+        : null,
       source_currency: currency,
       fx_rate: fxRate,
       source_price: sourcePrice,
@@ -1031,7 +1206,8 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       designation_fr: designationFr,
       description_fr: descFr,
       suggested_category_id: suggestedCategoryId,
-      suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
+      suggested_category_name:
+        typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
       suggested_variants: cleanVariants,
       images: imageDataUrls,
     };
@@ -1044,7 +1220,12 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
 const VariantSchema = z.object({
   size: z.string().trim().max(40).optional().default(""),
   color: z.string().trim().max(60).optional().default(""),
-  color_hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().or(z.literal("")).default(""),
+  color_hex: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional()
+    .or(z.literal(""))
+    .default(""),
   stock: z.number().int().min(0).max(1_000_000).default(0),
   price_override: z.number().min(0).max(50_000_000).nullable().optional(),
   image_url: z.string().url().optional().or(z.literal("")).default(""),
@@ -1109,7 +1290,11 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
     }
     const productId = prod.id as string;
 
-    const imageRows = data.image_urls.map((url, i) => ({ product_id: productId, url, position: i }));
+    const imageRows = data.image_urls.map((url, i) => ({
+      product_id: productId,
+      url,
+      position: i,
+    }));
     const { error: iErr } = await supabaseAdmin.from("product_images").insert(imageRows);
     if (iErr) throw new Error(`Images : ${iErr.message}`);
 
