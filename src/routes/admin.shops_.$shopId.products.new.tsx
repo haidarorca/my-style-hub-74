@@ -1660,7 +1660,7 @@ function NewAdminShopProductPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{ocrFiles.length} / {mobileSafeMode ? 10 : 25} image(s)</span>
+              <span>{ocrFiles.length} / 10 image(s)</span>
               {ocrFiles.length > 0 && (
                 <button
                   type="button"
