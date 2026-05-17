@@ -120,13 +120,16 @@ function AdminShopsPage() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    mutationFn: (input: { id: string; password: string }) => deleteFn({ data: input }),
     onSuccess: () => {
       toast.success("Boutique supprimée");
       qc.invalidateQueries({ queryKey: ["admin-shops"] });
+      setDeleteTarget(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const [deleteTarget, setDeleteTarget] = useState<AdminShopRow | null>(null);
 
   const rows = (data?.rows ?? []) as AdminShopRow[];
 
@@ -174,9 +177,7 @@ function AdminShopsPage() {
               key={s.id}
               row={s}
               onEdit={() => setEditingId(s.id)}
-              onDelete={() => {
-                if (confirm(`Supprimer définitivement "${s.shop_name}" ?`)) deleteMut.mutate(s.id);
-              }}
+              onDelete={() => setDeleteTarget(s)}
             />
           ))}
         </div>
@@ -191,7 +192,129 @@ function AdminShopsPage() {
           onClose={() => setEditingId(null)}
         />
       )}
+
+      {deleteTarget && (
+        <DeleteShopDialog
+          shop={deleteTarget}
+          submitting={deleteMut.isPending}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(password) => deleteMut.mutate({ id: deleteTarget.id, password })}
+        />
+      )}
     </div>
+  );
+}
+
+function DeleteShopDialog({
+  shop, submitting, onCancel, onConfirm,
+}: {
+  shop: AdminShopRow;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: (password: string) => void;
+}) {
+  const fetchInfo = useServerFn(getAdminShopDeletionInfo);
+  const { data: info, isLoading } = useQuery({
+    queryKey: ["admin-shop-deletion-info", shop.id],
+    queryFn: () => fetchInfo({ data: { id: shop.id } }),
+  });
+
+  const [step, setStep] = useState<1 | 2>(1);
+  const [password, setPassword] = useState("");
+
+  return (
+    <AlertDialog open onOpenChange={(o) => { if (!o && !submitting) onCancel(); }}>
+      <AlertDialogContent>
+        {step === 1 ? (
+          <>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">
+                Voulez-vous vraiment supprimer cette boutique ?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                      <Store className="h-4 w-4" /> {shop.shop_name}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-muted-foreground">Produits</div>
+                        <div className="font-semibold text-foreground">
+                          {isLoading ? "…" : info?.product_count ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Lignes de commande</div>
+                        <div className="font-semibold text-foreground">
+                          {isLoading ? "…" : info?.order_item_count ?? 0}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-destructive">
+                    ⚠️ Cette action est irréversible. La boutique et son compte interne seront supprimés définitivement.
+                  </p>
+                  {!isLoading && (info?.product_count ?? 0) > 0 && (
+                    <p className="text-xs text-amber-600">
+                      Cette boutique contient encore des produits. Supprimez-les d'abord avant de pouvoir supprimer la boutique.
+                    </p>
+                  )}
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting}>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); setStep(2); }}
+                disabled={isLoading || (info?.product_count ?? 0) > 0}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Continuer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </>
+        ) : (
+          <>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmation par mot de passe</AlertDialogTitle>
+              <AlertDialogDescription>
+                Pour confirmer la suppression de <span className="font-semibold text-foreground">{shop.shop_name}</span>,
+                entrez votre mot de passe administrateur.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 py-2">
+              <Label htmlFor="admin-pwd">Mot de passe admin</Label>
+              <Input
+                id="admin-pwd"
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={submitting}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && password.length > 0 && !submitting) {
+                    onConfirm(password);
+                  }
+                }}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting} onClick={() => setStep(1)}>Retour</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); onConfirm(password); }}
+                disabled={submitting || password.length === 0}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {submitting ? "Suppression…" : "Supprimer définitivement"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </>
+        )}
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
