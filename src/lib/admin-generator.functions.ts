@@ -1370,3 +1370,130 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
 
     return { id: productId };
   });
+
+// ───────────────────────────────────────────────────────────
+// 4) OCR Vision — extract variants from uploaded screenshots
+// ───────────────────────────────────────────────────────────
+
+const VariantOcrSchema = z.object({
+  // base64 data URLs of screenshots (max 8, each <= ~4MB after base64)
+  images: z.array(z.string().min(20).max(8_000_000)).min(1).max(8),
+  hint: z.string().trim().max(500).optional().default(""),
+});
+
+export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => VariantOcrSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("AI gateway non configuré");
+
+    // Validate data URLs
+    const dataUrls = data.images.filter((u) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u));
+    if (dataUrls.length === 0) throw new Error("Aucune image valide reçue.");
+
+    // Fetch FX rate (CNY→XOF) for suggested FCFA
+    let cnyToXof = 85;
+    try {
+      const { data: s } = await supabaseAdmin
+        .from("site_settings")
+        .select("cny_to_xof_rate")
+        .eq("id", "main")
+        .maybeSingle();
+      cnyToXof = Number((s as { cny_to_xof_rate?: number } | null)?.cny_to_xof_rate ?? 85);
+    } catch {
+      /* keep default */
+    }
+    let usdToXof = 600;
+    try {
+      const payload = await fetchRates("USD");
+      usdToXof = payload.rates["XOF"] ?? 600;
+    } catch {
+      /* keep default */
+    }
+
+    const prompt = [
+      "Tu reçois 1 à 8 captures d'écran de la page d'un produit Taobao/1688/AliExpress.",
+      "Elles montrent les VARIANTES (SKU) du produit : couleurs, tailles, modèles, packs, et leurs prix.",
+      "Tu dois fusionner toutes les captures pour reconstruire la liste COMPLÈTE des combinaisons disponibles.",
+      "Règles :",
+      "- Traduis tous les libellés chinois/anglais en FRANÇAIS naturel et court.",
+      "- Si une capture montre les couleurs et une autre les tailles, génère toutes les combinaisons possibles (Couleur × Taille). Si la capture indique qu'une combinaison n'existe PAS, ne la génère pas.",
+      "- Une ligne = UNE combinaison complète (ex: 'Noir + M', 'Beige + S', 'Rouge + L').",
+      "- N'invente JAMAIS de prix : si le prix n'est pas visible pour une combinaison, mets 0.",
+      "- N'extrais JAMAIS le stock fournisseur.",
+      "- Devise : 'CNY' (¥/￥/元), 'USD' ($) ou 'XOF'. Si aucun symbole, suppose CNY pour Taobao/1688.",
+      `Contexte utilisateur (optionnel): ${data.hint || "—"}`,
+      "Retourne UNIQUEMENT du JSON strict :",
+      '{"currency":"CNY","variants":[{"name":"Noir + M","color":"Noir","size":"M","source_price":0}]}',
+    ].join("\n");
+
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: prompt },
+          ...dataUrls.map((u) => ({
+            type: "image_url" as const,
+            image_url: { url: u },
+          })),
+        ],
+      },
+    ];
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "google/gemini-2.5-flash", messages }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
+      if (res.status === 402)
+        throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres Lovable AI.");
+      throw new Error(`Erreur IA vision (${res.status})`);
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = safeParseJson(raw);
+    if (!parsed || !Array.isArray(parsed.variants)) {
+      throw new Error("Réponse IA illisible. Réessayez avec des captures plus nettes.");
+    }
+
+    const currencyRaw = String(parsed.currency ?? "CNY").toUpperCase();
+    const currency: "CNY" | "USD" | "XOF" = ["CNY", "USD", "XOF"].includes(currencyRaw)
+      ? (currencyRaw as "CNY" | "USD" | "XOF")
+      : "CNY";
+    const fxRate = currency === "CNY" ? cnyToXof : currency === "USD" ? usdToXof : 1;
+
+    const cleanVariants = (parsed.variants as unknown[])
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? n : 0;
+        };
+        const name = str("name").slice(0, 90);
+        const color = str("color").slice(0, 60);
+        const size = str("size").slice(0, 40);
+        const srcPrice = num("source_price");
+        if (!name && !color && !size) return null;
+        return {
+          name: name || [color, size].filter(Boolean).join(" + "),
+          color,
+          size,
+          source_price: srcPrice,
+          price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .slice(0, 100);
+
+    return {
+      source_currency: currency,
+      fx_rate: fxRate,
+      variants: cleanVariants,
+    };
+  });
