@@ -181,7 +181,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
 
   async function setStatus(id: string, next: "approved" | "rejected") {
     if (next === "approved") {
-      const current = items.find((p) => p.id === id);
+      const current = items?.find((p) => p.id === id);
       if (current) {
         const { data: duplicate, error: duplicateErr } = await supabase
           .from("products")
