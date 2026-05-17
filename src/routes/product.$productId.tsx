@@ -114,8 +114,11 @@ function ProductPage() {
     },
   });
 
-  const variants = (data?.product_variants ?? []) as Variant[];
-  const images = (data?.product_images ?? []) as { url: string; position: number | null }[];
+  const variants = useMemo(() => (data?.product_variants ?? []) as Variant[], [data?.product_variants]);
+  const images = useMemo(
+    () => (data?.product_images ?? []) as { url: string; position: number | null }[],
+    [data?.product_images],
+  );
 
   // Fire-and-forget: increment the private view counter (visible only to shop owner)
   useEffect(() => {
