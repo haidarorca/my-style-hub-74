@@ -248,8 +248,9 @@ function NewAdminShopProductPage() {
   const [submitting, setSubmitting] = useState(false);
   const safePreviewVariant =
     previewedVariantIdx !== null ? variants[previewedVariantIdx] ?? null : null;
+  const variantFiles = useMemo(() => variants.map((v) => v.image_file), [variants]);
   const imageUrls = useObjectUrls(images);
-  const variantImageUrls = useObjectUrls(variants.map((v) => v.image_file));
+  const variantImageUrls = useObjectUrls(variantFiles);
   const ocrFileUrls = useObjectUrls(ocrFiles);
 
   useEffect(() => {
@@ -386,7 +387,7 @@ function NewAdminShopProductPage() {
   }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from(e.target.files ?? []).filter((file) => file.type.startsWith("image/"));
     setImages((prev) => [...prev, ...files].slice(0, 25));
     e.target.value = "";
   };
