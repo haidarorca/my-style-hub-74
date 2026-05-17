@@ -554,6 +554,8 @@ function NewAdminShopProductPage() {
     setImgShots([]);
     setImgRows([]);
   }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
     if (!name.trim() || !code.trim() || !price) {
