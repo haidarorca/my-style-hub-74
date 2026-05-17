@@ -96,7 +96,19 @@ export const listAdminOrders = createServerFn({ method: "POST" })
           "id, order_id, product_id, product_name, product_code, product_image_url, quantity, unit_price, size, color, customization, commission_amount",
         )
         .in("order_id", orderIds);
-      items = (it ?? []) as AdminOrderItem[];
+      const baseItems = (it ?? []) as Omit<AdminOrderItem, "source_url">[];
+
+      // Look up admin-only source URLs for products in this page
+      const productIds = Array.from(new Set(baseItems.map((i) => i.product_id)));
+      const sourceMap = new Map<string, string | null>();
+      if (productIds.length) {
+        const { data: pam } = await supabaseAdmin
+          .from("product_admin_metadata")
+          .select("product_id, source_url")
+          .in("product_id", productIds);
+        for (const row of pam ?? []) sourceMap.set(row.product_id, row.source_url ?? null);
+      }
+      items = baseItems.map((i) => ({ ...i, source_url: sourceMap.get(i.product_id) ?? null }));
     }
 
     // Aggregate totals (global, not just page) — cheap headcount only
