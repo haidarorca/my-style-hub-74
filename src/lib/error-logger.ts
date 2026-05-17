@@ -71,17 +71,6 @@ export function installGlobalErrorLogger() {
   if (installed || typeof window === "undefined") return;
   installed = true;
 
-  const maybeDisableAdminOcr = (message: string) => {
-    if (!/ocr|variant|createobjecturl|filereader|canvas|image/i.test(message)) return;
-    try {
-      const failures = Number(localStorage.getItem("admin:ocr-failures") ?? "0") + 1;
-      localStorage.setItem("admin:ocr-failures", String(failures));
-      if (failures >= 2 || window.innerWidth < 640) localStorage.setItem("admin:ocr-disabled", "1");
-    } catch {
-      /* ignore */
-    }
-  };
-
   window.addEventListener("error", (e) => {
     const message = e.message || String(e.error ?? "Unknown error");
     logError({
@@ -91,7 +80,6 @@ export function installGlobalErrorLogger() {
       source: e.filename,
       url: window.location.href,
     });
-    maybeDisableAdminOcr(message);
   });
 
   window.addEventListener("unhandledrejection", (e) => {
@@ -103,6 +91,5 @@ export function installGlobalErrorLogger() {
       stack: reason?.stack,
       url: window.location.href,
     });
-    maybeDisableAdminOcr(message);
   });
 }
