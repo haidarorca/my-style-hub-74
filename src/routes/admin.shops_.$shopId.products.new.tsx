@@ -137,10 +137,29 @@ function NewAdminShopProductPage() {
 
   // Analyzer state
   const analyze = useServerFn(analyzeSourceUrl);
+  const analyzeImgs = useServerFn(analyzeVariantImages);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
     null,
   );
+
+  // Variant-from-image extractor
+  type ImgShot = { file: File; data_url: string; label: string };
+  type ExtractedRow = {
+    name: string;
+    size: string;
+    color: string;
+    color_hex: string;
+    source_price: number;
+    price_xof_estimated: number;
+    image_file: File | null;
+  };
+  const [imgOpen, setImgOpen] = useState(false);
+  const [imgShots, setImgShots] = useState<ImgShot[]>([]);
+  const [imgCurrency, setImgCurrency] = useState<"CNY" | "USD">("CNY");
+  const [imgAnalyzing, setImgAnalyzing] = useState(false);
+  const [imgRows, setImgRows] = useState<ExtractedRow[]>([]);
+  const [imgFxRate, setImgFxRate] = useState<number>(0);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
