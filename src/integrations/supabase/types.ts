@@ -838,6 +838,35 @@ export type Database = {
         }
         Relationships: []
       }
+      product_admin_metadata: {
+        Row: {
+          created_at: string
+          product_id: string
+          source_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          source_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          source_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_admin_metadata_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_customizations: {
         Row: {
           allow_all_colors: boolean | null
