@@ -998,9 +998,19 @@ function NewAdminShopProductPage() {
               </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={addVariant}>
-            <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+              <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setImgOpen(true)}
+            >
+              <Camera className="mr-1 h-4 w-4" /> Importer variantes depuis image
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
