@@ -773,6 +773,8 @@ function NewAdminShopProductPage() {
     const pending_category_request_id = isReq(deepestPick) ? idOf(deepestPick) : null;
 
     setSubmitting(true);
+    let createdProductId: string | null = null;
+    let currentStep = "vérification du code produit";
     try {
       const cleanCode = code.trim();
       const { data: duplicate, error: duplicateErr } = await supabase
@@ -783,9 +785,13 @@ function NewAdminShopProductPage() {
         .maybeSingle();
       if (duplicateErr) throw duplicateErr;
       if (duplicate) {
+        const suggestion = await generateAvailableProductCode(cleanCode);
+        setCode(suggestion);
+        toast.error(`Ce code existe déjà. Nouveau code proposé : ${suggestion}`);
         throw new Error("Ce code produit existe déjà dans cette boutique.");
       }
 
+      currentStep = "création du produit";
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -803,12 +809,17 @@ function NewAdminShopProductPage() {
         .single();
       if (prodErr) {
         if (prodErr.message.includes("unique") || prodErr.message.includes("duplicate")) {
+          const suggestion = await generateAvailableProductCode(cleanCode);
+          setCode(suggestion);
+          toast.error(`Ce code existe déjà. Nouveau code proposé : ${suggestion}`);
           throw new Error("Ce code produit existe déjà dans cette boutique.");
         }
         throw prodErr;
       }
       const productId = prod.id as string;
+      createdProductId = productId;
 
+      currentStep = "enregistrement des images";
       const imageRows: { product_id: string; url: string; position: number }[] = [];
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
@@ -823,6 +834,7 @@ function NewAdminShopProductPage() {
       if (imgErr) throw imgErr;
 
       if (variants.length > 0) {
+        currentStep = "création des variantes et liaison des images";
         const variantRows: Array<{
           product_id: string;
           size: string | null;
@@ -885,12 +897,14 @@ function NewAdminShopProductPage() {
         });
       }
       if (customRows.length > 0) {
+        currentStep = "enregistrement des options de personnalisation";
         const { error: cErr } = await supabase.from("product_customizations").insert(customRows);
         if (cErr) throw cErr;
       }
 
       // Admin-only source URL (Taobao/1688/AliExpress/…)
       if (cleanSourceUrl) {
+        currentStep = "enregistrement des informations admin";
         const { error: pamErr } = await supabase
           .from("product_admin_metadata")
           .insert({ product_id: productId, source_url: cleanSourceUrl });
@@ -908,7 +922,10 @@ function NewAdminShopProductPage() {
       toast.success("Produit créé dans la boutique.");
       router.navigate({ to: "/admin/shops" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+      if (createdProductId) {
+        await supabase.from("products").delete().eq("id", createdProductId);
+      }
+      toast.error(publicationErrorMessage(err, currentStep));
     } finally {
       setSubmitting(false);
     }
