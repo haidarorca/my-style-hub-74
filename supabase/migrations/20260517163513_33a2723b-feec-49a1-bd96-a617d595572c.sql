@@ -1,0 +1,2 @@
+ALTER TABLE public.site_settings
+  ADD COLUMN IF NOT EXISTS cny_to_xof_rate NUMERIC NOT NULL DEFAULT 85;

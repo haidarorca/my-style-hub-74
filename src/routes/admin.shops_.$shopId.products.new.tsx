@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2, Loader2, Wand2 } from "lucide-react";
+import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
@@ -78,6 +80,11 @@ function NewAdminShopProductPage() {
 
   // Admin-only
   const [sourceUrl, setSourceUrl] = useState("");
+
+  // Analyzer state
+  const analyze = useServerFn(analyzeSourceUrl);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(null);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -222,6 +229,84 @@ function NewAdminShopProductPage() {
     setAllowedFonts((prev) => (checked ? [...prev, f] : prev.filter((x) => x !== f)));
   const toggleColor = (c: string) =>
     setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+
+  // ── Source URL analyzer ──────────────────────────────────
+  async function dataUrlToFile(dataUrl: string, idx: number): Promise<File | null> {
+    try {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+      if (!m) return null;
+      const mime = m[1];
+      const bin = atob(m[2]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const ext = mime.split("/")[1]?.split("+")[0] || "jpg";
+      return new File([arr], `source-${Date.now()}-${idx}.${ext}`, { type: mime });
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleAnalyze() {
+    const url = sourceUrl.trim();
+    if (!/^https?:\/\//.test(url)) {
+      toast.error("Entrez d'abord un lien Taobao / 1688 / AliExpress valide.");
+      return;
+    }
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const r = await analyze({ data: { url } });
+      setAnalysis(r);
+      toast.success("Analyse terminée — appliquez les sections souhaitées.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function applyName() {
+    if (!analysis?.name_fr) return;
+    setName(analysis.name_fr);
+    toast.success("Nom appliqué.");
+  }
+  function applyDescription() {
+    if (!analysis?.description_fr) return;
+    setDescription(analysis.description_fr);
+    toast.success("Description appliquée.");
+  }
+  function applyPrice() {
+    if (!analysis?.suggested_price_xof) return;
+    setPrice(String(analysis.suggested_price_xof));
+    toast.success(`Prix appliqué (${analysis.source_price} ${analysis.source_currency} × ${analysis.fx_rate}).`);
+  }
+  async function applyImages() {
+    if (!analysis?.images?.length) return;
+    const files: File[] = [];
+    for (let i = 0; i < analysis.images.length; i++) {
+      const f = await dataUrlToFile(analysis.images[i], i);
+      if (f) files.push(f);
+    }
+    if (files.length === 0) {
+      toast.error("Aucune image récupérée.");
+      return;
+    }
+    setImages((prev) => [...prev, ...files].slice(0, 8));
+    toast.success(`${files.length} image(s) ajoutée(s).`);
+  }
+  function applyVariants() {
+    if (!analysis?.suggested_variants?.length) return;
+    const rows: VariantInput[] = analysis.suggested_variants.map((v) => ({
+      size: v.size,
+      color: v.color,
+      color_hex: v.color_hex,
+      stock: v.stock,
+      price_override: "",
+      image_file: null,
+    }));
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -657,24 +742,108 @@ function NewAdminShopProductPage() {
         </CardContent>
       </Card>
 
-      {/* Admin-only extra field */}
+      {/* Admin-only: source URL + semi-automatic analyzer */}
       <Card className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Link2 className="h-4 w-4" /> Lien source du produit (admin uniquement)
+            <Link2 className="h-4 w-4" /> Import semi-automatique (admin uniquement)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Input
-            type="url"
-            value={sourceUrl}
-            onChange={(e) => setSourceUrl(e.target.value)}
-            placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
-          />
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={analyzing || !sourceUrl.trim()}
+              className="gap-2"
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {analyzing ? "Analyse…" : "Analyser le lien"}
+            </Button>
+          </div>
           <p className="text-[11px] text-muted-foreground">
-            Note interne. Visible uniquement par les administrateurs — jamais par les clients,
-            les vendeurs ni sur la fiche publique. Utile pour retrouver le fournisseur en dropshipping.
+            Lien interne : visible uniquement par les administrateurs. Jamais affiché aux clients ni aux vendeurs.
+            L'analyse récupère images, prix, variantes et génère un nom + description en français — vous validez ensuite chaque section.
           </p>
+
+          {analysis && (
+            <div className="space-y-2 rounded-md border border-border bg-background/60 p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground">
+                  Prix source : <span className="font-medium text-foreground">{analysis.source_price} {analysis.source_currency}</span>
+                  {" "}× {analysis.fx_rate} = <span className="font-medium text-foreground">{analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF</span>
+                </div>
+              </div>
+
+              {analysis.name_fr && (
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Nom</div>
+                    <div className="truncate">{analysis.name_fr}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyName}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.description_fr && (
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Description</div>
+                    <div className="line-clamp-2 text-xs">{analysis.description_fr}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyDescription}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.suggested_price_xof > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Prix suggéré (XOF)</div>
+                    <div>{analysis.suggested_price_xof.toLocaleString("fr-FR")} F</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyPrice}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.images.length > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Images</div>
+                    <div className="flex gap-1 overflow-x-auto py-1">
+                      {analysis.images.slice(0, 6).map((src, i) => (
+                        <img key={i} src={src} alt="" className="h-12 w-12 rounded object-cover" />
+                      ))}
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyImages}>Ajouter</Button>
+                </div>
+              )}
+
+              {analysis.suggested_variants.length > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Variantes</div>
+                    <div className="text-xs">{analysis.suggested_variants.length} détectée(s)</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyVariants}>Ajouter</Button>
+                </div>
+              )}
+
+              {analysis.suggested_category_name && (
+                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  Catégorie suggérée : <span className="text-foreground">{analysis.suggested_category_name}</span>
+                  {!analysis.suggested_category_id && " (non reconnue — sélectionnez manuellement)"}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
