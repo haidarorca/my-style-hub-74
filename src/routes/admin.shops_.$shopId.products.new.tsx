@@ -742,24 +742,108 @@ function NewAdminShopProductPage() {
         </CardContent>
       </Card>
 
-      {/* Admin-only extra field */}
+      {/* Admin-only: source URL + semi-automatic analyzer */}
       <Card className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Link2 className="h-4 w-4" /> Lien source du produit (admin uniquement)
+            <Link2 className="h-4 w-4" /> Import semi-automatique (admin uniquement)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Input
-            type="url"
-            value={sourceUrl}
-            onChange={(e) => setSourceUrl(e.target.value)}
-            placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
-          />
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={analyzing || !sourceUrl.trim()}
+              className="gap-2"
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {analyzing ? "Analyse…" : "Analyser le lien"}
+            </Button>
+          </div>
           <p className="text-[11px] text-muted-foreground">
-            Note interne. Visible uniquement par les administrateurs — jamais par les clients,
-            les vendeurs ni sur la fiche publique. Utile pour retrouver le fournisseur en dropshipping.
+            Lien interne : visible uniquement par les administrateurs. Jamais affiché aux clients ni aux vendeurs.
+            L'analyse récupère images, prix, variantes et génère un nom + description en français — vous validez ensuite chaque section.
           </p>
+
+          {analysis && (
+            <div className="space-y-2 rounded-md border border-border bg-background/60 p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground">
+                  Prix source : <span className="font-medium text-foreground">{analysis.source_price} {analysis.source_currency}</span>
+                  {" "}× {analysis.fx_rate} = <span className="font-medium text-foreground">{analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF</span>
+                </div>
+              </div>
+
+              {analysis.name_fr && (
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Nom</div>
+                    <div className="truncate">{analysis.name_fr}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyName}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.description_fr && (
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Description</div>
+                    <div className="line-clamp-2 text-xs">{analysis.description_fr}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyDescription}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.suggested_price_xof > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Prix suggéré (XOF)</div>
+                    <div>{analysis.suggested_price_xof.toLocaleString("fr-FR")} F</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyPrice}>Appliquer</Button>
+                </div>
+              )}
+
+              {analysis.images.length > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Images</div>
+                    <div className="flex gap-1 overflow-x-auto py-1">
+                      {analysis.images.slice(0, 6).map((src, i) => (
+                        <img key={i} src={src} alt="" className="h-12 w-12 rounded object-cover" />
+                      ))}
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyImages}>Ajouter</Button>
+                </div>
+              )}
+
+              {analysis.suggested_variants.length > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Variantes</div>
+                    <div className="text-xs">{analysis.suggested_variants.length} détectée(s)</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyVariants}>Ajouter</Button>
+                </div>
+              )}
+
+              {analysis.suggested_category_name && (
+                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  Catégorie suggérée : <span className="text-foreground">{analysis.suggested_category_name}</span>
+                  {!analysis.suggested_category_id && " (non reconnue — sélectionnez manuellement)"}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
