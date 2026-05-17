@@ -14,11 +14,12 @@ import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
+import { Skeleton } from "@/components/ui/skeleton";
 
-function SearchPriceTag({ productId, fallback }: { productId: string; fallback: number }) {
+function SearchPriceTag({ productId, currency }: { productId: string; currency: string }) {
   const dp = useProductDisplayPrice(productId);
-  const value = dp ? dp.final_price : fallback;
-  return <>{value.toLocaleString("fr-FR")}</>;
+  if (!dp) return <Skeleton className="inline-block h-3.5 w-16 align-middle" />;
+  return <>{dp.final_price.toLocaleString("fr-FR")} {currency}</>;
 }
 
 export const Route = createFileRoute("/search")({
@@ -537,7 +538,7 @@ function SearchPage() {
                           <div className="p-2">
                             <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
                             <div className="mt-1 text-sm font-bold text-primary">
-                              <SearchPriceTag productId={p.id} fallback={Number(p.price)} /> {t("misc.currency")}
+                              <SearchPriceTag productId={p.id} currency={t("misc.currency")} />
                             </div>
                           </div>
                         </Link>

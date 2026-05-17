@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 
 export interface ProductCardProduct {
@@ -23,7 +24,6 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
-  const displayPrice = dp ? dp.final_price : product.price;
   return (
     <div className="group relative overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
       <Link
@@ -49,9 +49,13 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           <p className="line-clamp-2 text-[clamp(11px,3.2vw,13px)] leading-snug text-foreground/90 min-h-[2.4em]">
             {displayName}
           </p>
-          <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-            {displayPrice.toLocaleString("fr-FR")} {t("misc.currency")}
-          </p>
+          {dp ? (
+            <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
+              {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
+            </p>
+          ) : (
+            <Skeleton className="mt-1.5 h-4 w-1/2" />
+          )}
         </div>
       </Link>
 

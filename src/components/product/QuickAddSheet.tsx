@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/use-cart";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { Skeleton } from "@/components/ui/skeleton";
 import { pickI18n } from "@/lib/i18n/localized";
 
 interface Variant {
@@ -97,7 +98,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const img = (data?.product_images as { url: string }[] | null)?.[0]?.url;
-  const price = displayPriceLines.get(priceKey)?.final_price ?? matchedVariant?.price_override ?? data?.price ?? 0;
+  const resolvedPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
   const productName = data ? pickI18n(data.name, (data as any).name_i18n, lang) : "";
 
   return (
@@ -115,9 +116,13 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
               </div>
               <div className="flex-1">
                 <p className="line-clamp-2 text-sm font-medium">{productName}</p>
-                <p className="mt-1 text-lg font-bold text-primary">
-                  {Number(price).toLocaleString("fr-FR")} {t("misc.currency")}
-                </p>
+                {resolvedPrice !== null ? (
+                  <p className="mt-1 text-lg font-bold text-primary">
+                    {Number(resolvedPrice).toLocaleString("fr-FR")} {t("misc.currency")}
+                  </p>
+                ) : (
+                  <Skeleton className="mt-1 h-6 w-24" />
+                )}
               </div>
             </div>
 

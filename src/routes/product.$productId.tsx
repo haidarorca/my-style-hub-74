@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
@@ -160,11 +161,7 @@ function ProductPage() {
   );
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
-  const price =
-    displayPriceLines.get(priceKey)?.final_price ??
-    matchedVariant?.price_override ??
-    data?.price ??
-    0;
+  const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;
@@ -288,9 +285,13 @@ function ProductPage() {
 
         <div className="space-y-4 px-4 py-3">
           <div>
-            <p className="text-xl font-extrabold text-primary">
-              {Number(price).toLocaleString("fr-FR")} FCFA
-            </p>
+            {resolvedFinalPrice !== null ? (
+              <p className="text-xl font-extrabold text-primary">
+                {Number(resolvedFinalPrice).toLocaleString("fr-FR")} FCFA
+              </p>
+            ) : (
+              <Skeleton className="h-7 w-32" />
+            )}
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
             <p className="text-xs text-muted-foreground">
               {t("product.code")} : {data.code}
