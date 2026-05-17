@@ -1113,16 +1113,16 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
         parsed = safeParseJson(json.choices?.[0]?.message?.content?.trim() ?? "");
       } else if (res.status === 429) {
-        partialReason = partialReason ?? "Limite IA atteinte — résultat partiel.";
+        partialReasons.push("Limite IA atteinte — résultat partiel.");
       } else if (res.status === 402) {
-        partialReason = partialReason ?? "Crédits IA épuisés — résultat partiel.";
+        partialReasons.push("Crédits IA épuisés — résultat partiel.");
       }
     } catch {
       // ignore — we'll fall back to raw extraction
     }
     if (!parsed) {
       parsed = {};
-      partialReason = partialReason ?? "Analyse IA indisponible — remplissez manuellement.";
+      partialReasons.push("Analyse IA indisponible — remplissez manuellement.");
     }
 
     // 5) Resolve category id
