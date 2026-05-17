@@ -624,6 +624,7 @@ function NewAdminShopProductPage() {
       toast.dismiss(progressToast);
       const safeVariants = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
       setOcrResult({ ...r, variants: safeVariants });
+      setOcrSelected(new Set(safeVariants.map((_, i) => i)));
       try {
         localStorage.removeItem(OCR_FAILURES_KEY);
       } catch {
