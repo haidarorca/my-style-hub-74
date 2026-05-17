@@ -181,18 +181,6 @@ function GeneratorPage() {
         },
       });
     },
-      return publishFn({
-        data: {
-          shop_id: shopId,
-          code: code.trim(),
-          name: name.trim(),
-          description: description.trim() || null,
-          price_xof: px,
-          category_id: categoryId || null,
-          image_urls: urls,
-        },
-      });
-    },
     onSuccess: () => {
       toast.success("Produit publié dans la boutique.");
       router.navigate({ to: "/admin/shops" });
