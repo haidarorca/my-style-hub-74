@@ -365,14 +365,15 @@ function isLikelyProductImageUrl(url: string): boolean {
   const u = url.toLowerCase();
   // Reject obvious non-photo assets
   if (/\.svg(\?|$)/.test(u)) return false;
+  if (/\.gif(\?|$)/.test(u)) return false;
   if (
-    /(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar)/.test(
+    /(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop-?banner|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar|arrow|chevron|close|share|wechat|weibo|alipay|jiathis|countdown|sale-tag|promo-tag|live-icon|video-cover|play-btn|sound|mute)/.test(
       u,
     )
   )
     return false;
   // Allow Alibaba product CDNs only (covers Taobao / Tmall / 1688 / AliExpress)
-  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(
+  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+|dscart\d?)\.alicdn\.com/.test(
     u,
   );
   if (!allowedHost) return false;
@@ -383,11 +384,61 @@ function isLikelyProductImageUrl(url: string): boolean {
   if (sizeMatch) {
     const w = parseInt(sizeMatch[1], 10);
     const h = parseInt(sizeMatch[2], 10);
-    if (w < 200 || h < 200) return false;
+    if (w < 240 || h < 240) return false;
   }
   // Reject common tiny UI/crop suffixes without explicit dimensions.
   if (/(?:\.sum\.|_\d+x\d+q\d+|_\.webp_\d+x\d+)/.test(u)) return false;
   return true;
+}
+
+// Extract lazy-loaded images and detail/description images from raw HTML.
+// Covers Taobao desktop, h5.m.taobao.com, 1688 mobile and PC, Tmall.
+function extractLazyAndDetailImages(html: string): string[] {
+  const out = new Set<string>();
+  const push = (raw: string | undefined | null) => {
+    if (!raw) return;
+    let u = raw.trim().replace(/^['"]|['"]$/g, "");
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (!/^https?:\/\//i.test(u)) return;
+    if (isLikelyProductImageUrl(u)) out.add(upgradeAlicdnImage(u));
+  };
+  // Lazy-load attributes commonly used by Alibaba pages
+  const lazyAttrs = [
+    "data-src",
+    "data-original",
+    "data-lazy-src",
+    "data-ks-lazyload",
+    "data-ks-lazyload-custom",
+    "data-img",
+    "data-image",
+    "data-bg",
+    "data-original-src",
+  ];
+  for (const attr of lazyAttrs) {
+    const re = new RegExp(`${attr}=["']([^"']+\\.(?:jpe?g|png|webp)(?:\\?[^"']*)?)["']`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) push(m[1]);
+  }
+  // <img src=…> direct
+  const imgSrc = /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = imgSrc.exec(html))) push(m[1]);
+  // CSS background-image
+  const bg = /background(?:-image)?\s*:\s*url\(['"]?(https?:\/\/[^'")]+\.(?:jpe?g|png|webp))/gi;
+  while ((m = bg.exec(html))) push(m[1]);
+  // descImages / detailImages / mobileDescription keys (string array)
+  for (const key of ["descImages", "detailImages", "mobileDescription", "richTextImgs", "descUrl"]) {
+    const re = new RegExp(`["']${key}["']\\s*:\\s*"([^"]+)"`, "gi");
+    while ((m = re.exec(html))) {
+      const val = m[1];
+      // Could be a comma-separated list or a single URL
+      val.split(/[,;\s]+/).forEach((v) => push(v));
+    }
+  }
+  // Any bare alicdn URL in scripts (last-resort)
+  const bare = /(https?:\\?\/\\?\/[a-z0-9.-]*alicdn\.com\/[^\s"'<>)]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>)]*)?)/gi;
+  while ((m = bare.exec(html))) push(m[1].replace(/\\\//g, "/"));
+  return Array.from(out);
 }
 
 // Strip alicdn resize suffix (_NNNxNNN.jpg) to get original/high-res image.
