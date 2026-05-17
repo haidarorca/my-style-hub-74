@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2, Loader2, Wand2 } from "lucide-react";
+import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
