@@ -104,7 +104,7 @@ function EditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
-    setStatus(p.status);
+    setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
     const drafts = data.variants.map(fromExisting);
     setVariants(drafts);
