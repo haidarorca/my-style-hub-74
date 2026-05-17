@@ -365,14 +365,15 @@ function isLikelyProductImageUrl(url: string): boolean {
   const u = url.toLowerCase();
   // Reject obvious non-photo assets
   if (/\.svg(\?|$)/.test(u)) return false;
+  if (/\.gif(\?|$)/.test(u)) return false;
   if (
-    /(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar)/.test(
+    /(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop-?banner|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar|arrow|chevron|close|share|wechat|weibo|alipay|jiathis|countdown|sale-tag|promo-tag|live-icon|video-cover|play-btn|sound|mute)/.test(
       u,
     )
   )
     return false;
   // Allow Alibaba product CDNs only (covers Taobao / Tmall / 1688 / AliExpress)
-  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(
+  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+|dscart\d?)\.alicdn\.com/.test(
     u,
   );
   if (!allowedHost) return false;
@@ -383,11 +384,61 @@ function isLikelyProductImageUrl(url: string): boolean {
   if (sizeMatch) {
     const w = parseInt(sizeMatch[1], 10);
     const h = parseInt(sizeMatch[2], 10);
-    if (w < 200 || h < 200) return false;
+    if (w < 240 || h < 240) return false;
   }
   // Reject common tiny UI/crop suffixes without explicit dimensions.
   if (/(?:\.sum\.|_\d+x\d+q\d+|_\.webp_\d+x\d+)/.test(u)) return false;
   return true;
+}
+
+// Extract lazy-loaded images and detail/description images from raw HTML.
+// Covers Taobao desktop, h5.m.taobao.com, 1688 mobile and PC, Tmall.
+function extractLazyAndDetailImages(html: string): string[] {
+  const out = new Set<string>();
+  const push = (raw: string | undefined | null) => {
+    if (!raw) return;
+    let u = raw.trim().replace(/^['"]|['"]$/g, "");
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (!/^https?:\/\//i.test(u)) return;
+    if (isLikelyProductImageUrl(u)) out.add(upgradeAlicdnImage(u));
+  };
+  // Lazy-load attributes commonly used by Alibaba pages
+  const lazyAttrs = [
+    "data-src",
+    "data-original",
+    "data-lazy-src",
+    "data-ks-lazyload",
+    "data-ks-lazyload-custom",
+    "data-img",
+    "data-image",
+    "data-bg",
+    "data-original-src",
+  ];
+  for (const attr of lazyAttrs) {
+    const re = new RegExp(`${attr}=["']([^"']+\\.(?:jpe?g|png|webp)(?:\\?[^"']*)?)["']`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) push(m[1]);
+  }
+  // <img src=…> direct
+  const imgSrc = /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = imgSrc.exec(html))) push(m[1]);
+  // CSS background-image
+  const bg = /background(?:-image)?\s*:\s*url\(['"]?(https?:\/\/[^'")]+\.(?:jpe?g|png|webp))/gi;
+  while ((m = bg.exec(html))) push(m[1]);
+  // descImages / detailImages / mobileDescription keys (string array)
+  for (const key of ["descImages", "detailImages", "mobileDescription", "richTextImgs", "descUrl"]) {
+    const re = new RegExp(`["']${key}["']\\s*:\\s*"([^"]+)"`, "gi");
+    while ((m = re.exec(html))) {
+      const val = m[1];
+      // Could be a comma-separated list or a single URL
+      val.split(/[,;\s]+/).forEach((v) => push(v));
+    }
+  }
+  // Any bare alicdn URL in scripts (last-resort)
+  const bare = /(https?:\\?\/\\?\/[a-z0-9.-]*alicdn\.com\/[^\s"'<>)]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>)]*)?)/gi;
+  while ((m = bare.exec(html))) push(m[1].replace(/\\\//g, "/"));
+  return Array.from(out);
 }
 
 // Strip alicdn resize suffix (_NNNxNNN.jpg) to get original/high-res image.
@@ -834,7 +885,7 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   }
 
   for (const v of variantByKey.values()) variants.push(v);
-  return { images: Array.from(images).slice(0, 12), variants: variants.slice(0, 30) };
+  return { images: Array.from(images).slice(0, 40), variants: variants.slice(0, 80) };
 }
 
 async function scrapeViaApify(
@@ -986,8 +1037,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         : { images: [], variants: [] };
 
     // Filter scraped/markdown images through CDN+size whitelist
+    // + ajout des images lazy-loaded et detail/description extraites du HTML brut
+    const lazyImgs = scraped.html ? extractLazyAndDetailImages(scraped.html) : [];
     const filteredScrapedImages = Array.from(
-      new Set(scraped.images.map((u) => (u.startsWith("//") ? `https:${u}` : u))),
+      new Set([
+        ...scraped.images.map((u) => (u.startsWith("//") ? `https:${u}` : u)),
+        ...lazyImgs,
+      ]),
     )
       .filter(isLikelyProductImageUrl)
       .map(upgradeAlicdnImage);
@@ -1098,12 +1154,12 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       .map(upgradeAlicdnImage);
     const allImageUrls = Array.from(
       new Set([...structured.images, ...filteredScrapedImages, ...aiImageUrls]),
-    ).slice(0, 8);
+    ).slice(0, 25);
     const imageDataUrls: string[] = [];
     for (const u of allImageUrls) {
       const d = await downloadImageAsDataUrl(u);
       if (d) imageDataUrls.push(d);
-      if (imageDataUrls.length >= 6) break;
+      if (imageDataUrls.length >= 25) break;
     }
 
     // 8) Build variants. Structured (skuMap/skuProps) takes priority — guarantees
@@ -1162,14 +1218,14 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         .filter(
           (v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
         )
-        .slice(0, 30);
+        .slice(0, 60);
     }
 
-    // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
+    // Download distinct variant images (cap to 30 distinct URLs)
     const variantUrlCache = new Map<string, string | null>();
     const distinctUrls = Array.from(
       new Set(interimVariants.map((v) => v.image_url).filter(Boolean)),
-    ).slice(0, 12);
+    ).slice(0, 30);
     for (const u of distinctUrls) {
       variantUrlCache.set(u, await downloadImageAsDataUrl(u));
     }
@@ -1313,4 +1369,131 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
     }
 
     return { id: productId };
+  });
+
+// ───────────────────────────────────────────────────────────
+// 4) OCR Vision — extract variants from uploaded screenshots
+// ───────────────────────────────────────────────────────────
+
+const VariantOcrSchema = z.object({
+  // base64 data URLs of screenshots (max 8, each <= ~4MB after base64)
+  images: z.array(z.string().min(20).max(8_000_000)).min(1).max(8),
+  hint: z.string().trim().max(500).optional().default(""),
+});
+
+export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => VariantOcrSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("AI gateway non configuré");
+
+    // Validate data URLs
+    const dataUrls = data.images.filter((u) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u));
+    if (dataUrls.length === 0) throw new Error("Aucune image valide reçue.");
+
+    // Fetch FX rate (CNY→XOF) for suggested FCFA
+    let cnyToXof = 85;
+    try {
+      const { data: s } = await supabaseAdmin
+        .from("site_settings")
+        .select("cny_to_xof_rate")
+        .eq("id", "main")
+        .maybeSingle();
+      cnyToXof = Number((s as { cny_to_xof_rate?: number } | null)?.cny_to_xof_rate ?? 85);
+    } catch {
+      /* keep default */
+    }
+    let usdToXof = 600;
+    try {
+      const payload = await fetchRates("USD");
+      usdToXof = payload.rates["XOF"] ?? 600;
+    } catch {
+      /* keep default */
+    }
+
+    const prompt = [
+      "Tu reçois 1 à 8 captures d'écran de la page d'un produit Taobao/1688/AliExpress.",
+      "Elles montrent les VARIANTES (SKU) du produit : couleurs, tailles, modèles, packs, et leurs prix.",
+      "Tu dois fusionner toutes les captures pour reconstruire la liste COMPLÈTE des combinaisons disponibles.",
+      "Règles :",
+      "- Traduis tous les libellés chinois/anglais en FRANÇAIS naturel et court.",
+      "- Si une capture montre les couleurs et une autre les tailles, génère toutes les combinaisons possibles (Couleur × Taille). Si la capture indique qu'une combinaison n'existe PAS, ne la génère pas.",
+      "- Une ligne = UNE combinaison complète (ex: 'Noir + M', 'Beige + S', 'Rouge + L').",
+      "- N'invente JAMAIS de prix : si le prix n'est pas visible pour une combinaison, mets 0.",
+      "- N'extrais JAMAIS le stock fournisseur.",
+      "- Devise : 'CNY' (¥/￥/元), 'USD' ($) ou 'XOF'. Si aucun symbole, suppose CNY pour Taobao/1688.",
+      `Contexte utilisateur (optionnel): ${data.hint || "—"}`,
+      "Retourne UNIQUEMENT du JSON strict :",
+      '{"currency":"CNY","variants":[{"name":"Noir + M","color":"Noir","size":"M","source_price":0}]}',
+    ].join("\n");
+
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: prompt },
+          ...dataUrls.map((u) => ({
+            type: "image_url" as const,
+            image_url: { url: u },
+          })),
+        ],
+      },
+    ];
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "google/gemini-2.5-flash", messages }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
+      if (res.status === 402)
+        throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres Lovable AI.");
+      throw new Error(`Erreur IA vision (${res.status})`);
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = safeParseJson(raw);
+    if (!parsed || !Array.isArray(parsed.variants)) {
+      throw new Error("Réponse IA illisible. Réessayez avec des captures plus nettes.");
+    }
+
+    const currencyRaw = String(parsed.currency ?? "CNY").toUpperCase();
+    const currency: "CNY" | "USD" | "XOF" = ["CNY", "USD", "XOF"].includes(currencyRaw)
+      ? (currencyRaw as "CNY" | "USD" | "XOF")
+      : "CNY";
+    const fxRate = currency === "CNY" ? cnyToXof : currency === "USD" ? usdToXof : 1;
+
+    const cleanVariants = (parsed.variants as unknown[])
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? n : 0;
+        };
+        const name = str("name").slice(0, 90);
+        const color = str("color").slice(0, 60);
+        const size = str("size").slice(0, 40);
+        const srcPrice = num("source_price");
+        if (!name && !color && !size) return null;
+        return {
+          name: name || [color, size].filter(Boolean).join(" + "),
+          color,
+          size,
+          source_price: srcPrice,
+          price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .slice(0, 100);
+
+    return {
+      source_currency: currency,
+      fx_rate: fxRate,
+      variants: cleanVariants,
+    };
   });

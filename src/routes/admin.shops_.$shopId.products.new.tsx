@@ -14,8 +14,17 @@ import {
   Link2,
   Loader2,
   Wand2,
+  Camera,
+  Eye,
 } from "lucide-react";
-import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
+import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
@@ -133,6 +142,19 @@ function NewAdminShopProductPage() {
   const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
     null,
   );
+
+  // OCR variants from images
+  const analyzeVariantsImg = useServerFn(analyzeVariantsFromImages);
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [ocrFiles, setOcrFiles] = useState<File[]>([]);
+  const [ocrHint, setOcrHint] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrResult, setOcrResult] = useState<Awaited<
+    ReturnType<typeof analyzeVariantsFromImages>
+  > | null>(null);
+
+  // Image preview pinned from a variant click (Taobao-like behaviour)
+  const [previewedVariantIdx, setPreviewedVariantIdx] = useState<number | null>(null);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -283,7 +305,7 @@ function NewAdminShopProductPage() {
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    setImages((prev) => [...prev, ...files].slice(0, 8));
+    setImages((prev) => [...prev, ...files].slice(0, 25));
     e.target.value = "";
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
@@ -387,7 +409,7 @@ function NewAdminShopProductPage() {
       toast.error("Aucune image récupérée.");
       return;
     }
-    setImages((prev) => [...prev, ...files].slice(0, 8));
+    setImages((prev) => [...prev, ...files].slice(0, 25));
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
   async function applyVariants() {
@@ -416,6 +438,62 @@ function NewAdminShopProductPage() {
     toast.success(
       `${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`,
     );
+  }
+
+  // ── OCR variants from screenshots ────────────────────────
+  function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setOcrFiles((prev) => [...prev, ...files].slice(0, 8));
+    e.target.value = "";
+  }
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error("Lecture image impossible"));
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.readAsDataURL(file);
+    });
+  }
+  async function handleOcrAnalyze() {
+    if (ocrFiles.length === 0) {
+      toast.error("Ajoutez au moins une capture.");
+      return;
+    }
+    setOcrLoading(true);
+    setOcrResult(null);
+    try {
+      const dataUrls = await Promise.all(ocrFiles.map((f) => fileToDataUrl(f)));
+      const r = await analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } });
+      setOcrResult(r);
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée. Réessayez avec d'autres captures.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+  function applyOcrVariants() {
+    if (!ocrResult) return;
+    const rows: VariantInput[] = ocrResult.variants.map((v) => ({
+      size: v.size,
+      color: v.color || v.name,
+      color_hex: "",
+      stock: 0,
+      source_price: v.source_price > 0 ? String(v.source_price) : "",
+      source_currency: ocrResult.source_currency,
+      price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+      image_file: null,
+    }));
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setOcrOpen(false);
+    setOcrFiles([]);
+    setOcrResult(null);
+    setOcrHint("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -607,7 +685,40 @@ function NewAdminShopProductPage() {
         <CardHeader>
           <CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {previewedVariantIdx !== null && variants[previewedVariantIdx]?.image_file && (
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2">
+              <img
+                src={URL.createObjectURL(variants[previewedVariantIdx].image_file as File)}
+                alt=""
+                className="h-32 w-32 rounded-lg object-cover"
+              />
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="text-[10px] uppercase text-muted-foreground">Variante affichée</div>
+                <div className="truncate font-medium">
+                  {[variants[previewedVariantIdx].color, variants[previewedVariantIdx].size]
+                    .filter(Boolean)
+                    .join(" + ") || "—"}
+                </div>
+                {variants[previewedVariantIdx].source_price && (
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Prix fournisseur :{" "}
+                    <span className="text-foreground">
+                      {variants[previewedVariantIdx].source_price}{" "}
+                      {variants[previewedVariantIdx].source_currency}
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewedVariantIdx(null)}
+                  className="mt-1 text-[11px] text-primary hover:underline"
+                >
+                  Retirer l'aperçu
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
@@ -633,6 +744,7 @@ function NewAdminShopProductPage() {
               />
             </label>
           </div>
+          <p className="text-[10px] text-muted-foreground">Jusqu'à 25 images.</p>
         </CardContent>
       </Card>
 
@@ -762,8 +874,18 @@ function NewAdminShopProductPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">{t("vendor.new.variants")}</CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setOcrOpen(true)}
+            className="gap-1"
+          >
+            <Camera className="h-4 w-4" />
+            Importer depuis images
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
@@ -1163,6 +1285,106 @@ function NewAdminShopProductPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={ocrOpen} onOpenChange={setOcrOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Importer les variantes depuis des images
+            </DialogTitle>
+            <DialogDescription>
+              Envoyez 1 à 8 captures d'écran (couleurs, tailles, prix). L'IA fusionne et reconstruit
+              les combinaisons en français.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {ocrFiles.map((f, i) => (
+                <div key={i} className="relative h-20 w-20 overflow-hidden rounded border">
+                  <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {ocrFiles.length < 8 && (
+                <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
+                  <Upload className="h-4 w-4" />
+                  Ajouter
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={onPickOcrFiles}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">Indice (optionnel)</Label>
+              <Input
+                value={ocrHint}
+                onChange={(e) => setOcrHint(e.target.value)}
+                placeholder="Ex. Couleurs en image 1, tailles en image 2"
+                className="h-8"
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleOcrAnalyze}
+              disabled={ocrLoading || ocrFiles.length === 0}
+              className="w-full gap-2"
+            >
+              {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {ocrLoading ? "Analyse…" : "Analyser les images"}
+            </Button>
+
+            {ocrResult && ocrResult.variants.length > 0 && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+                <div className="text-[11px] text-muted-foreground">
+                  {ocrResult.variants.length} variante(s) · devise détectée : {ocrResult.source_currency}
+                </div>
+                <div className="max-h-60 overflow-y-auto rounded border bg-background">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/60 text-left text-[10px] uppercase">
+                      <tr>
+                        <th className="p-1.5">Variante</th>
+                        <th className="p-1.5">Prix fournisseur</th>
+                        <th className="p-1.5">Estimé FCFA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ocrResult.variants.map((v, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-1.5">{v.name}</td>
+                          <td className="p-1.5">
+                            {v.source_price > 0
+                              ? `${v.source_price} ${ocrResult.source_currency}`
+                              : "—"}
+                          </td>
+                          <td className="p-1.5">
+                            {v.price_xof_detected > 0
+                              ? `${v.price_xof_detected.toLocaleString("fr-FR")} F`
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Button type="button" onClick={applyOcrVariants} className="w-full">
+                  Appliquer dans le formulaire
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div
         className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur"
