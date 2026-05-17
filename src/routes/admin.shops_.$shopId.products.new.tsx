@@ -622,20 +622,90 @@ function NewAdminShopProductPage() {
       setOcrLoading(false);
     }
   }
-  function applyOcrVariants() {
+  async function applyOcrVariants() {
     if (!ocrResult) return;
-    const rows: VariantInput[] = ocrResult.variants.map((v) => ({
-      size: v.size,
-      color: v.color || v.name,
-      color_hex: "",
-      stock: 0,
-      source_price: v.source_price > 0 ? String(v.source_price) : "",
-      source_currency: ocrResult.source_currency,
-      price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
-      image_file: null,
-    }));
+    const safeMode = mobileSafeMode || ocrDisabled;
+    const sourceFiles = ocrFiles.slice();
+
+    // Pre-clean every unique (sourceIndex, cropHint) combo ONCE, sequentially,
+    // so we don't fire 30 canvas operations in parallel on mobile.
+    type CleanKey = string;
+    const cleanedByKey = new Map<CleanKey, File>();
+    const keyFor = (idx: number | null, hint: { x: number; y: number; w: number; h: number } | null) =>
+      `${idx ?? "_"}|${hint ? `${hint.x},${hint.y},${hint.w},${hint.h}` : "_"}`;
+
+    const toClean: Array<{
+      key: CleanKey;
+      idx: number;
+      hint: { x: number; y: number; w: number; h: number } | null;
+    }> = [];
+    for (const v of ocrResult.variants) {
+      const idx = v.source_image_index;
+      if (idx === null || idx === undefined || !sourceFiles[idx]) continue;
+      const k = keyFor(idx, v.crop_hint ?? null);
+      if (cleanedByKey.has(k) || toClean.some((c) => c.key === k)) continue;
+      toClean.push({ key: k, idx, hint: v.crop_hint ?? null });
+    }
+
+    if (toClean.length > 0) {
+      const cleanToast = toast.loading(`Nettoyage de ${toClean.length} image(s)…`);
+      try {
+        for (const c of toClean) {
+          const file = sourceFiles[c.idx];
+          if (!file) continue;
+          const cleaned = safeMode
+            ? file
+            : await cleanProductImage(file, {
+                cropHint: c.hint ?? undefined,
+                maxSide: 1400,
+                quality: 0.82,
+                timeoutMs: 8000,
+              });
+          cleanedByKey.set(c.key, cleaned);
+        }
+      } finally {
+        toast.dismiss(cleanToast);
+      }
+    }
+
+    // Build variant rows, attaching the cleaned File when available.
+    const rows: VariantInput[] = ocrResult.variants.map((v) => {
+      const idx = v.source_image_index;
+      const k = idx === null || idx === undefined ? null : keyFor(idx, v.crop_hint ?? null);
+      const cleanedFile = k ? cleanedByKey.get(k) ?? null : null;
+      return {
+        size: v.size,
+        color: v.color || v.name,
+        color_hex: "",
+        stock: 0,
+        source_price: v.source_price > 0 ? String(v.source_price) : "",
+        source_currency: ocrResult.source_currency,
+        price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+        image_file: cleanedFile,
+      };
+    });
+
+    // Also push every distinct cleaned image into the main product gallery
+    // (so the buyer sees clean photos without manual reupload). Respect the 25-file cap.
+    setImages((prev) => {
+      const next = [...prev];
+      const existingKeys = new Set(next.map((f) => `${f.name}|${f.size}`));
+      for (const f of cleanedByKey.values()) {
+        if (next.length >= 25) break;
+        const k = `${f.name}|${f.size}`;
+        if (!existingKeys.has(k)) {
+          next.push(f);
+          existingKeys.add(k);
+        }
+      }
+      return next;
+    });
+
     setVariants((prev) => [...prev, ...rows]);
-    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    const withImg = rows.filter((r) => r.image_file).length;
+    toast.success(
+      `${rows.length} variante(s) ajoutée(s)${withImg > 0 ? ` · ${withImg} image(s) associée(s) automatiquement` : ""}.`,
+    );
     setOcrOpen(false);
     setOcrFiles([]);
     setOcrResult(null);
