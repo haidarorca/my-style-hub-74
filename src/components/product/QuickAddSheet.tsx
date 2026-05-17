@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/use-cart";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { Skeleton } from "@/components/ui/skeleton";
 import { pickI18n } from "@/lib/i18n/localized";
 
 interface Variant {
