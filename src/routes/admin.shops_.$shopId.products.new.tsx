@@ -445,7 +445,115 @@ function NewAdminShopProductPage() {
     );
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // ── Variant from image (vision OCR) ─────────────────────
+  async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(file);
+    });
+  }
+  async function onPickImgShots(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, 6 - imgShots.length);
+    e.target.value = "";
+    const next: ImgShot[] = [];
+    for (const f of files) {
+      if (f.size > 6 * 1024 * 1024) {
+        toast.error(`${f.name} dépasse 6 Mo`);
+        continue;
+      }
+      try {
+        const data_url = await fileToDataUrl(f);
+        next.push({ file: f, data_url, label: "" });
+      } catch {
+        toast.error(`Lecture impossible : ${f.name}`);
+      }
+    }
+    setImgShots((prev) => [...prev, ...next].slice(0, 6));
+  }
+  function updateShotLabel(i: number, label: string) {
+    setImgShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, label } : s)));
+  }
+  function removeShot(i: number) {
+    setImgShots((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  async function runImageAnalysis() {
+    if (imgShots.length === 0) {
+      toast.error("Ajoutez au moins une capture.");
+      return;
+    }
+    setImgAnalyzing(true);
+    setImgRows([]);
+    try {
+      const r = await analyzeImgs({
+        data: {
+          images: imgShots.map((s) => ({
+            data_url: s.data_url,
+            label: s.label.trim() || undefined,
+          })),
+          source_currency: imgCurrency,
+        },
+      });
+      setImgFxRate(r.fx_rate);
+      setImgRows(
+        r.variants.map((v) => ({
+          name: v.name,
+          size: v.size,
+          color: v.color,
+          color_hex: v.color_hex,
+          source_price: v.source_price,
+          price_xof_estimated: v.price_xof_estimated,
+          image_file: null,
+        })),
+      );
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée. Essayez d'autres captures plus nettes.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse image");
+    } finally {
+      setImgAnalyzing(false);
+    }
+  }
+  function updateImgRow(i: number, patch: Partial<ExtractedRow>) {
+    setImgRows((prev) =>
+      prev.map((r, idx) => {
+        if (idx !== i) return r;
+        const next = { ...r, ...patch };
+        if (patch.source_price !== undefined && imgFxRate > 0) {
+          next.price_xof_estimated = Math.round((Number(patch.source_price) || 0) * imgFxRate);
+        }
+        return next;
+      }),
+    );
+  }
+  function removeImgRow(i: number) {
+    setImgRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function pickImgRowImage(i: number, file: File | null) {
+    setImgRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, image_file: file } : r)));
+  }
+  function applyImgVariants() {
+    if (imgRows.length === 0) return;
+    const rows: VariantInput[] = imgRows.map((v) => ({
+      size: v.size,
+      color: v.color || v.name,
+      color_hex: v.color_hex,
+      stock: 0,
+      source_price: v.source_price > 0 ? String(v.source_price) : "",
+      source_currency: imgCurrency,
+      price_override: v.price_xof_estimated > 0 ? String(v.price_xof_estimated) : "",
+      image_file: v.image_file,
+    }));
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setImgOpen(false);
+    setImgShots([]);
+    setImgRows([]);
+  }
     e.preventDefault();
     if (!user) return;
     if (!name.trim() || !code.trim() || !price) {
