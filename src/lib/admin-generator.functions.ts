@@ -1330,16 +1330,24 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       image_data_url: v.image_url ? (variantUrlCache.get(v.image_url) ?? null) : null,
     }));
 
-    const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
-    const designationFr =
+    let nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
+    let designationFr =
       typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
-    const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
+    let descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
-    // Add granular reasons for missing core fields so the UI shows
-    // actionable hints instead of a vague "données incomplètes".
+    // Local heuristic fallback: if the AI didn't return anything usable but we
+    // have a Chinese share title, derive FR fields from keyword mappings so the
+    // form is never left empty.
+    if ((!nameFr || !designationFr || !descFr) && shareTitle) {
+      const h = heuristicFromChinese(shareTitle);
+      if (!nameFr && h.name) nameFr = h.name;
+      if (!designationFr && h.designation) designationFr = h.designation;
+      if (!descFr && h.description) descFr = h.description;
+    }
+
+    // Granular reasons for missing core fields. We intentionally do NOT warn
+    // about missing variants — variant entry is fully manual by design.
     if (sourcePrice === 0) partialReasons.push("Prix non détecté — saisissez-le manuellement.");
-    if (cleanVariants.length === 0)
-      partialReasons.push("Variantes non détectées — ajoutez-les manuellement si besoin.");
     if (!nameFr) partialReasons.push("Nom non détecté — saisissez-le manuellement.");
 
     const partial = partialReasons.length > 0 || (!nameFr && sourcePrice === 0);
