@@ -650,14 +650,21 @@ function NewAdminShopProductPage() {
       setOcrLoading(false);
     }
   }
-  async function applyOcrVariants() {
+  async function applyOcrVariants(onlySelected = false) {
     if (!ocrResult) return;
     const sourceFiles = ocrFiles.slice();
+    const allVariants = ocrResult.variants;
+    const picked = onlySelected
+      ? allVariants.filter((_, i) => ocrSelected.has(i))
+      : allVariants;
+    if (picked.length === 0) {
+      toast.error("Aucune variante sélectionnée.");
+      return;
+    }
 
-    // ⚡ No automatic canvas processing here — we just attach the raw source
-    // file to each variant. The admin can open the editor on demand for the
-    // few images that actually need a crop / mask. Fast & mobile-safe.
-    const rows: VariantInput[] = ocrResult.variants.map((v) => {
+    // ⚡ No automatic canvas processing — attach raw source files. Admin can
+    // open the editor on demand for the few images that need touch-ups.
+    const rows: VariantInput[] = picked.map((v) => {
       const idx = v.source_image_index;
       const file = idx !== null && idx !== undefined ? sourceFiles[idx] ?? null : null;
       return {
@@ -673,12 +680,12 @@ function NewAdminShopProductPage() {
       };
     });
 
-    // Push the unique source files referenced by variants into the gallery.
+    // Push referenced source files into the product gallery (cap 25).
     setImages((prev) => {
       const next = [...prev];
       const existingKeys = new Set(next.map((f) => `${f.name}|${f.size}`));
       const referenced = new Set<number>();
-      for (const v of ocrResult.variants) {
+      for (const v of picked) {
         if (v.source_image_index !== null && v.source_image_index !== undefined) {
           referenced.add(v.source_image_index);
         }
@@ -704,6 +711,7 @@ function NewAdminShopProductPage() {
     setOcrOpen(false);
     setOcrFiles([]);
     setOcrResult(null);
+    setOcrSelected(new Set());
     setOcrHint("");
   }
 
