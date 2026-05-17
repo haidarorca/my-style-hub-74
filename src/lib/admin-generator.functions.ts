@@ -754,11 +754,17 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       typeof parsed.source_price === "number" ? parsed.source_price : Number(parsed.source_price) || 0;
     const suggestedPriceXof = Math.round(sourcePrice * fxRate);
 
-    // 7) Download images server-side (bypass CORS) — limit to 6
-    const aiImageUrls = Array.isArray(parsed.image_urls)
+    // 7) Build final image list. Priority: structured (JSON SKU/itemImgs) → filtered scraped → AI.
+    //    All URLs pass through isLikelyProductImageUrl to drop UI/icon noise.
+    const aiImageUrls = (Array.isArray(parsed.image_urls)
       ? (parsed.image_urls as unknown[]).filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
-      : [];
-    const allImageUrls = Array.from(new Set([...aiImageUrls, ...scraped.images])).slice(0, 8);
+      : []
+    )
+      .filter(isLikelyProductImageUrl)
+      .map(upgradeAlicdnImage);
+    const allImageUrls = Array.from(
+      new Set([...structured.images, ...filteredScrapedImages, ...aiImageUrls]),
+    ).slice(0, 8);
     const imageDataUrls: string[] = [];
     for (const u of allImageUrls) {
       const d = await downloadImageAsDataUrl(u);
