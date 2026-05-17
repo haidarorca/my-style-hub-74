@@ -30,15 +30,17 @@ type Txt = {
 interface Props {
   open: boolean;
   file: File | null;
+  originalFile?: File | null;
   onClose: () => void;
   onSave: (file: File) => void;
+  onResetOriginal?: () => void;
 }
 
 const PALETTE = ["#ffffff", "#000000", "#e11d48", "#f59e0b", "#10b981", "#3b82f6"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
-export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
+export function VariantImageEditor({ open, file, originalFile, onClose, onSave, onResetOriginal }: Props) {
   const [src, setSrc] = useState<string>("");
   const [nat, setNat] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [crop, setCrop] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -46,6 +48,9 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
   const [texts, setTexts] = useState<Txt[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panDrag = useRef<{ startX: number; startY: number; orig: { x: number; y: number } } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
 
