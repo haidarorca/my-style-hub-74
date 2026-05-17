@@ -81,6 +81,11 @@ function NewAdminShopProductPage() {
   // Admin-only
   const [sourceUrl, setSourceUrl] = useState("");
 
+  // Analyzer state
+  const analyze = useServerFn(analyzeSourceUrl);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(null);
+
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
   const [pick2, setPick2] = useState<Pick>("");
