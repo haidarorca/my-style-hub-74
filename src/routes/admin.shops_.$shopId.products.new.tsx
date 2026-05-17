@@ -601,17 +601,26 @@ function NewAdminShopProductPage() {
     }
     setOcrLoading(true);
     setOcrResult(null);
+    const total = ocrFiles.length;
+    const progressToast = toast.loading(`Préparation 0/${total}…`);
     try {
-      const dataUrls = await withTimeout(
-        Promise.all(ocrFiles.map((f) => compressImageForOcr(f))),
-        18_000,
-        "Préparation des images OCR",
-      );
+      // Sequential compression with a yield between each — keeps mobile responsive
+      // and avoids the white-screen freeze caused by Promise.all on many images.
+      const dataUrls: string[] = [];
+      for (let i = 0; i < ocrFiles.length; i++) {
+        const url = await compressImageForOcr(ocrFiles[i]);
+        dataUrls.push(url);
+        toast.loading(`Préparation ${i + 1}/${total}…`, { id: progressToast });
+        // Yield to the event loop so the UI can repaint.
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      toast.loading(`Analyse IA en cours…`, { id: progressToast });
       const r = await withTimeout(
         analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } }),
         OCR_TIMEOUT_MS,
         "Analyse OCR",
       );
+      toast.dismiss(progressToast);
       const safeVariants = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
       setOcrResult({ ...r, variants: safeVariants });
       try {
