@@ -1083,27 +1083,14 @@ function NewAdminShopProductPage() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => {
-              if (ocrDisabled) {
-                toast.warning("OCR en mode sûr. Ajoutez les variantes manuellement.");
-                return;
-              }
-              setOcrOpen(true);
-            }}
-            disabled={ocrDisabled}
+            onClick={() => setOcrOpen(true)}
             className="gap-1"
           >
             <Camera className="h-4 w-4" />
-            {ocrDisabled ? "OCR désactivé" : "Importer depuis images"}
+            Importer depuis images
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {ocrDisabled && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-2 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              Mode sûr actif : l'OCR est désactivé pour éviter tout écran blanc. Le formulaire et les
-              variantes manuelles restent disponibles.
-            </div>
-          )}
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
