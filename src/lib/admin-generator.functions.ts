@@ -178,6 +178,229 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
   });
 
 // ───────────────────────────────────────────────────────────
+// 2b) Scrape a product URL via Apify, then run AI analysis
+// ───────────────────────────────────────────────────────────
+
+function detectCurrencyFromUrl(url: string): "CNY" | "USD" {
+  const u = url.toLowerCase();
+  if (u.includes("taobao.com") || u.includes("1688.com") || u.includes("tmall.com") || u.includes("jd.com")) return "CNY";
+  return "USD"; // aliexpress, amazon, etc.
+}
+
+async function scrapeViaApify(url: string): Promise<{ text: string; images: string[] }> {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error("APIFY_TOKEN non configuré");
+
+  // apify/website-content-crawler — generic, returns markdown of a single page
+  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=90`;
+  const body = {
+    startUrls: [{ url }],
+    crawlerType: "playwright:adaptive",
+    maxCrawlPages: 1,
+    maxCrawlDepth: 0,
+    saveMarkdown: true,
+    saveHtml: false,
+    saveScreenshots: false,
+    proxyConfiguration: { useApifyProxy: true },
+    requestTimeoutSecs: 60,
+  };
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Apify a refusé la requête (${res.status}). ${txt.slice(0, 200)}`);
+  }
+  const items = (await res.json()) as Array<{
+    markdown?: string;
+    text?: string;
+    url?: string;
+    metadata?: { title?: string; description?: string };
+    screenshotUrl?: string;
+  }>;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("Apify n'a rien retourné pour cette URL (peut-être bloquée).");
+  }
+  const it = items[0];
+  const title = it.metadata?.title ?? "";
+  const desc = it.metadata?.description ?? "";
+  const md = it.markdown ?? it.text ?? "";
+  // Extract image URLs from markdown ![](url) and bare http(s) img links
+  const imgRe = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s")]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s")]*)?)/gi;
+  const set = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = imgRe.exec(md))) {
+    const u = m[1] || m[2];
+    if (u) set.add(u);
+  }
+  return {
+    text: `Titre: ${title}\n\nDescription: ${desc}\n\n${md}`.slice(0, 18000),
+    images: Array.from(set).slice(0, 20),
+  };
+}
+
+async function downloadImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; KawZoneBot/1.0)" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "image/jpeg";
+    if (!ct.startsWith("image/")) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > 6 * 1024 * 1024) return null;
+    let bin = "";
+    for (let i = 0; i < buf.byteLength; i++) bin += String.fromCharCode(buf[i]);
+    const b64 = btoa(bin);
+    return `data:${ct};base64,${b64}`;
+  } catch {
+    return null;
+  }
+}
+
+const AnalyzeUrlSchema = z.object({
+  url: z.string().url().max(2000),
+});
+
+export const analyzeSourceUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => AnalyzeUrlSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("AI gateway non configuré");
+
+    const currency = detectCurrencyFromUrl(data.url);
+
+    // 1) Scrape page
+    const scraped = await scrapeViaApify(data.url);
+
+    // 2) Category guidance
+    const { data: cats } = await supabaseAdmin
+      .from("categories")
+      .select("id, name, level")
+      .eq("level", 3)
+      .order("position")
+      .limit(200);
+    const catNames = (cats ?? []).map((c) => c.name).slice(0, 120).join(", ");
+
+    // 3) AI extraction (same prompt as analyzeSourceProduct, augmented with scraped images)
+    const enrichedText = scraped.text + "\n\nImages détectées:\n" + scraped.images.join("\n");
+    const prompt = [
+      "You analyse a product listing scraped from Taobao/1688/AliExpress (may contain Chinese/English/mixed text and image URLs).",
+      "Extract a clean French e-commerce product. Translate any Chinese/English to natural French.",
+      "Rules:",
+      "- name_fr: short product title in French (max 80 chars)",
+      "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff",
+      `- source_price: unit price as a number in ${currency} (no symbol). If multiple, pick the most plausible retail unit price.`,
+      "- image_urls: array of product image URLs from the text (http/https only, deduplicated, max 8)",
+      `- suggested_category: pick the BEST match from this list (return the exact string), or null: ${catNames}`,
+      "- suggested_variants: array of {size, color, color_hex, stock, image_url}. size=clothing/shoe size or dimension. color=French color name. color_hex=6-digit hex or ''. stock=integer or 0. Return [] if none explicit.",
+      'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[]}',
+      "",
+      "Input:",
+      enrichedText,
+    ].join("\n");
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
+      if (res.status === 402) throw new Error("Crédits IA épuisés.");
+      throw new Error(`Erreur IA (${res.status})`);
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const parsed = safeParseJson(json.choices?.[0]?.message?.content?.trim() ?? "");
+    if (!parsed) throw new Error("Réponse IA illisible");
+
+    // 4) Resolve category id
+    let suggestedCategoryId: string | null = null;
+    if (typeof parsed.suggested_category === "string" && parsed.suggested_category.trim()) {
+      const match = (cats ?? []).find(
+        (c) => c.name.toLowerCase() === (parsed.suggested_category as string).toLowerCase().trim(),
+      );
+      suggestedCategoryId = match?.id ?? null;
+    }
+
+    // 5) FX rate
+    let fxRate = 1;
+    if (currency === "CNY") {
+      const { data: s } = await supabaseAdmin
+        .from("site_settings")
+        .select("cny_to_xof_rate")
+        .eq("id", "main")
+        .maybeSingle();
+      fxRate = Number((s as { cny_to_xof_rate?: number } | null)?.cny_to_xof_rate ?? 85);
+    } else if (currency === "USD") {
+      try {
+        const payload = await fetchRates("USD");
+        fxRate = payload.rates["XOF"] ?? 600;
+      } catch {
+        fxRate = 600;
+      }
+    }
+    const sourcePrice =
+      typeof parsed.source_price === "number" ? parsed.source_price : Number(parsed.source_price) || 0;
+    const suggestedPriceXof = Math.round(sourcePrice * fxRate);
+
+    // 6) Download images server-side (bypass CORS) — limit to 6 to keep payload small
+    const aiImageUrls = Array.isArray(parsed.image_urls)
+      ? (parsed.image_urls as unknown[]).filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
+      : [];
+    const allImageUrls = Array.from(new Set([...aiImageUrls, ...scraped.images])).slice(0, 6);
+    const imageDataUrls: string[] = [];
+    for (const u of allImageUrls) {
+      const d = await downloadImageAsDataUrl(u);
+      if (d) imageDataUrls.push(d);
+      if (imageDataUrls.length >= 6) break;
+    }
+
+    // 7) Clean variants
+    const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+    const cleanVariants = rawVariants
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+        };
+        const hex = str("color_hex");
+        return {
+          size: str("size").slice(0, 40),
+          color: str("color").slice(0, 60),
+          color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
+          stock: num("stock"),
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
+      .slice(0, 20);
+
+    return {
+      source_currency: currency,
+      fx_rate: fxRate,
+      source_price: sourcePrice,
+      suggested_price_xof: suggestedPriceXof,
+      name_fr: typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "",
+      description_fr: typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "",
+      suggested_category_id: suggestedCategoryId,
+      suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
+      suggested_variants: cleanVariants,
+      images: imageDataUrls, // data URLs ready to convert to File on the client
+    };
+  });
+
+// ───────────────────────────────────────────────────────────
 // 3) Publish generated product into an admin shop
 // ───────────────────────────────────────────────────────────
 
