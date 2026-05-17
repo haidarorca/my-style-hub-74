@@ -25,6 +25,7 @@ export interface SiteSettings {
   banner_transition: "slide" | "fade";
   banner_show_arrows: boolean;
   banner_show_dots: boolean;
+  cny_to_xof_rate: number;
 }
 
 const DEFAULTS: SiteSettings = {
