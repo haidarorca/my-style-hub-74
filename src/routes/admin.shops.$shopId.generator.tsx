@@ -138,49 +138,49 @@ function GeneratorPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const buildPublishPayload = () => {
+    const urls = imageUrls.split("\n").map((s) => s.trim()).filter(Boolean);
+    const px = Number(priceXof);
+    if (!code.trim()) throw new Error("Code produit requis.");
+    if (!name.trim()) throw new Error("Nom requis.");
+    if (urls.length === 0) throw new Error("Au moins une URL d'image.");
+    if (!Number.isFinite(px) || px <= 0) throw new Error("Prix FCFA invalide.");
+
+    const cleanVariants = variants
+      .map((v) => {
+        const size = v.size.trim();
+        const color = v.color.trim();
+        if (!size && !color) return null;
+        const hex = v.color_hex.trim();
+        const validHex = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "";
+        const stockNum = Number(v.stock);
+        const priceNum = v.price_override.trim() ? Number(v.price_override) : null;
+        const img = v.image_url.trim();
+        return {
+          size,
+          color,
+          color_hex: validHex,
+          stock: Number.isFinite(stockNum) && stockNum >= 0 ? Math.floor(stockNum) : 0,
+          price_override: priceNum !== null && Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : null,
+          image_url: /^https?:\/\//.test(img) ? img : "",
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+
+    return {
+      shop_id: shopId,
+      code: code.trim(),
+      name: name.trim(),
+      description: description.trim() || null,
+      price_xof: px,
+      category_id: categoryId || null,
+      image_urls: urls,
+      variants: cleanVariants,
+    };
+  };
+
   const publishMut = useMutation({
-    mutationFn: () => {
-      const urls = imageUrls.split("\n").map((s) => s.trim()).filter(Boolean);
-      const px = Number(priceXof);
-      if (!code.trim()) throw new Error("Code produit requis.");
-      if (!name.trim()) throw new Error("Nom requis.");
-      if (urls.length === 0) throw new Error("Au moins une URL d'image.");
-      if (!Number.isFinite(px) || px <= 0) throw new Error("Prix FCFA invalide.");
-
-      const cleanVariants = variants
-        .map((v) => {
-          const size = v.size.trim();
-          const color = v.color.trim();
-          if (!size && !color) return null;
-          const hex = v.color_hex.trim();
-          const validHex = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "";
-          const stockNum = Number(v.stock);
-          const priceNum = v.price_override.trim() ? Number(v.price_override) : null;
-          const img = v.image_url.trim();
-          return {
-            size,
-            color,
-            color_hex: validHex,
-            stock: Number.isFinite(stockNum) && stockNum >= 0 ? Math.floor(stockNum) : 0,
-            price_override: priceNum !== null && Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : null,
-            image_url: /^https?:\/\//.test(img) ? img : "",
-          };
-        })
-        .filter((v): v is NonNullable<typeof v> => v !== null);
-
-      return publishFn({
-        data: {
-          shop_id: shopId,
-          code: code.trim(),
-          name: name.trim(),
-          description: description.trim() || null,
-          price_xof: px,
-          category_id: categoryId || null,
-          image_urls: urls,
-          variants: cleanVariants,
-        },
-      });
-    },
+    mutationFn: async () => publishFn({ data: buildPublishPayload() }),
     onSuccess: () => {
       toast.success("Produit publié dans la boutique.");
       router.navigate({ to: "/admin/shops" });
