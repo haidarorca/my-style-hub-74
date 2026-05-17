@@ -99,7 +99,6 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const img = (data?.product_images as { url: string }[] | null)?.[0]?.url;
   const resolvedPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
-  const price = resolvedPrice ?? 0;
   const productName = data ? pickI18n(data.name, (data as any).name_i18n, lang) : "";
 
   return (
