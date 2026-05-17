@@ -1314,3 +1314,145 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
 
     return { id: productId };
   });
+
+// ───────────────────────────────────────────────────────────
+// 8) Visual variant extraction from screenshots (Taobao/1688 SKU panels)
+// ───────────────────────────────────────────────────────────
+
+const VariantImagesSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        data_url: z
+          .string()
+          .regex(/^data:image\/(png|jpe?g|webp);base64,/i, "Image base64 invalide")
+          .max(8 * 1024 * 1024, "Image trop volumineuse (max ~6 Mo)"),
+        label: z.string().max(60).optional(),
+      }),
+    )
+    .min(1, "Au moins une capture requise")
+    .max(6, "6 captures maximum"),
+  source_currency: z.enum(["CNY", "USD"]).default("CNY"),
+});
+
+type ExtractedVariant = {
+  name: string;
+  size: string;
+  color: string;
+  color_hex: string;
+  source_price: number;
+  price_xof_estimated: number;
+};
+
+async function getXofRateFor(currency: "CNY" | "USD"): Promise<number> {
+  if (currency === "CNY") {
+    const { data: s } = await supabaseAdmin
+      .from("site_settings")
+      .select("cny_to_xof_rate")
+      .eq("id", "main")
+      .maybeSingle();
+    return Number((s as { cny_to_xof_rate?: number } | null)?.cny_to_xof_rate ?? 85);
+  }
+  try {
+    const payload = await fetchRates("USD");
+    return payload.rates["XOF"] ?? 600;
+  } catch {
+    return 600;
+  }
+}
+
+export const analyzeVariantImages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => VariantImagesSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("AI gateway non configuré");
+
+    const fxRate = await getXofRateFor(data.source_currency);
+
+    const instructionParts: Array<
+      { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
+    > = [
+      {
+        type: "text",
+        text: [
+          "Tu es un assistant d'import e-commerce pour le dropshipping.",
+          "Analyse ces captures d'écran d'un panneau de variantes (SKU) Taobao / 1688 / AliExpress.",
+          "Objectifs :",
+          "- Extraire chaque option visible : couleur, taille, modèle, capacité, etc.",
+          "- Lire les prix imprimés (devise détectée = " +
+            data.source_currency +
+            "). Ignorer les prix barrés.",
+          "- Si plusieurs captures correspondent à différents axes (ex. couleur + taille), construire toutes les combinaisons logiques. S'il n'y a pas assez d'info pour combiner, retourne les options à plat.",
+          "- Traduire chaque nom de variante en français e-commerce naturel et court (ex. 'Beige', 'Rouge bordeaux', 'Taille M', 'Combiné M / Beige').",
+          "- Pour la couleur, fournir aussi un code hex 6 chiffres approximatif (ex. '#1e3a8a') si une couleur est claire ; sinon chaîne vide.",
+          "- Pour la taille, normaliser ('S', 'M', 'L', 'XL', '42', '10x15cm'…).",
+          "- Ne PAS inventer de prix : si non visible, mettre 0.",
+          "- Ne PAS extraire de stock fournisseur.",
+          'Retourne UNIQUEMENT du JSON strict de la forme : {"variants":[{"name":"","size":"","color":"","color_hex":"","source_price":0}]}',
+          "Pas de markdown, pas de commentaire.",
+        ].join("\n"),
+      },
+    ];
+
+    data.images.forEach((img, idx) => {
+      instructionParts.push({
+        type: "text",
+        text: `Capture ${idx + 1}${img.label ? ` (${img.label})` : ""} :`,
+      });
+      instructionParts.push({ type: "image_url", image_url: { url: img.data_url } });
+    });
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: instructionParts }],
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
+      if (res.status === 402)
+        throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres Lovable AI.");
+      throw new Error(`Erreur IA (${res.status})`);
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = safeParseJson(raw);
+    if (!parsed) throw new Error("Réponse IA illisible");
+
+    const rawVariants = Array.isArray(parsed.variants) ? (parsed.variants as unknown[]) : [];
+    const variants: ExtractedVariant[] = rawVariants
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? n : 0;
+        };
+        const hex = str("color_hex");
+        const sourcePrice = num("source_price");
+        return {
+          name: str("name").slice(0, 80),
+          size: str("size").slice(0, 40),
+          color: str("color").slice(0, 60),
+          color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
+          source_price: sourcePrice,
+          price_xof_estimated: sourcePrice > 0 ? Math.round(sourcePrice * fxRate) : 0,
+        };
+      })
+      .filter((v): v is ExtractedVariant => {
+        if (!v) return false;
+        return v.name !== "" || v.size !== "" || v.color !== "";
+      })
+      .slice(0, 60);
+
+    return {
+      variants,
+      source_currency: data.source_currency,
+      fx_rate: fxRate,
+    };
+  });
