@@ -204,9 +204,15 @@ function extractUrlFromText(input: string): string | null {
   return m ? m[0] : null;
 }
 
-const MOBILE_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
-
+const MOBILE_UAS = [
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1",
+];
+const MOBILE_UA = MOBILE_UAS[0];
+function pickUA(): string {
+  return MOBILE_UAS[Math.floor(Math.random() * MOBILE_UAS.length)];
+}
 // Resolve Taobao/1688 mobile short links (e.tb.cn, m.tb.cn, s.click...) to their
 // final URL, and rewrite to the desktop canonical form when an item id is found.
 async function resolveShareUrl(rawUrl: string): Promise<string> {
