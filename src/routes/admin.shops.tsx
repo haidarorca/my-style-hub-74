@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
