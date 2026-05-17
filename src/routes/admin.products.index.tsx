@@ -459,7 +459,15 @@ const ProductCardMobile = memo(function ProductCardMobile({
             </Button>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-2">
+          <Button asChild size="sm" variant="outline" className="w-full">
+            <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+              <Pencil className="mr-1 h-3 w-3" /> Modifier l'article
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 });
