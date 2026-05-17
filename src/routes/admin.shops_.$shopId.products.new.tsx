@@ -336,10 +336,11 @@ function NewAdminShopProductPage() {
       toast.error("Choisissez une catégorie.");
       return;
     }
-    const cleanSourceUrl = sourceUrl.trim();
-    if (cleanSourceUrl && !/^https?:\/\//.test(cleanSourceUrl)) {
-      toast.error("Le lien source doit commencer par http(s)://");
-      return;
+    // Le champ peut contenir un texte de partage Taobao — extraire l'URL si nécessaire
+    let cleanSourceUrl = sourceUrl.trim();
+    if (cleanSourceUrl && !/^https?:\/\//i.test(cleanSourceUrl)) {
+      const m = cleanSourceUrl.match(/https?:\/\/\S+/i);
+      cleanSourceUrl = m ? m[0] : "";
     }
 
     const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
