@@ -137,10 +137,29 @@ function NewAdminShopProductPage() {
 
   // Analyzer state
   const analyze = useServerFn(analyzeSourceUrl);
+  const analyzeImgs = useServerFn(analyzeVariantImages);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
     null,
   );
+
+  // Variant-from-image extractor
+  type ImgShot = { file: File; data_url: string; label: string };
+  type ExtractedRow = {
+    name: string;
+    size: string;
+    color: string;
+    color_hex: string;
+    source_price: number;
+    price_xof_estimated: number;
+    image_file: File | null;
+  };
+  const [imgOpen, setImgOpen] = useState(false);
+  const [imgShots, setImgShots] = useState<ImgShot[]>([]);
+  const [imgCurrency, setImgCurrency] = useState<"CNY" | "USD">("CNY");
+  const [imgAnalyzing, setImgAnalyzing] = useState(false);
+  const [imgRows, setImgRows] = useState<ExtractedRow[]>([]);
+  const [imgFxRate, setImgFxRate] = useState<number>(0);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -424,6 +443,116 @@ function NewAdminShopProductPage() {
     toast.success(
       `${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`,
     );
+  }
+
+  // ── Variant from image (vision OCR) ─────────────────────
+  async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(file);
+    });
+  }
+  async function onPickImgShots(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, 6 - imgShots.length);
+    e.target.value = "";
+    const next: ImgShot[] = [];
+    for (const f of files) {
+      if (f.size > 6 * 1024 * 1024) {
+        toast.error(`${f.name} dépasse 6 Mo`);
+        continue;
+      }
+      try {
+        const data_url = await fileToDataUrl(f);
+        next.push({ file: f, data_url, label: "" });
+      } catch {
+        toast.error(`Lecture impossible : ${f.name}`);
+      }
+    }
+    setImgShots((prev) => [...prev, ...next].slice(0, 6));
+  }
+  function updateShotLabel(i: number, label: string) {
+    setImgShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, label } : s)));
+  }
+  function removeShot(i: number) {
+    setImgShots((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  async function runImageAnalysis() {
+    if (imgShots.length === 0) {
+      toast.error("Ajoutez au moins une capture.");
+      return;
+    }
+    setImgAnalyzing(true);
+    setImgRows([]);
+    try {
+      const r = await analyzeImgs({
+        data: {
+          images: imgShots.map((s) => ({
+            data_url: s.data_url,
+            label: s.label.trim() || undefined,
+          })),
+          source_currency: imgCurrency,
+        },
+      });
+      setImgFxRate(r.fx_rate);
+      setImgRows(
+        r.variants.map((v) => ({
+          name: v.name,
+          size: v.size,
+          color: v.color,
+          color_hex: v.color_hex,
+          source_price: v.source_price,
+          price_xof_estimated: v.price_xof_estimated,
+          image_file: null,
+        })),
+      );
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée. Essayez d'autres captures plus nettes.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse image");
+    } finally {
+      setImgAnalyzing(false);
+    }
+  }
+  function updateImgRow(i: number, patch: Partial<ExtractedRow>) {
+    setImgRows((prev) =>
+      prev.map((r, idx) => {
+        if (idx !== i) return r;
+        const next = { ...r, ...patch };
+        if (patch.source_price !== undefined && imgFxRate > 0) {
+          next.price_xof_estimated = Math.round((Number(patch.source_price) || 0) * imgFxRate);
+        }
+        return next;
+      }),
+    );
+  }
+  function removeImgRow(i: number) {
+    setImgRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function pickImgRowImage(i: number, file: File | null) {
+    setImgRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, image_file: file } : r)));
+  }
+  function applyImgVariants() {
+    if (imgRows.length === 0) return;
+    const rows: VariantInput[] = imgRows.map((v) => ({
+      size: v.size,
+      color: v.color || v.name,
+      color_hex: v.color_hex,
+      stock: 0,
+      source_price: v.source_price > 0 ? String(v.source_price) : "",
+      source_currency: imgCurrency,
+      price_override: v.price_xof_estimated > 0 ? String(v.price_xof_estimated) : "",
+      image_file: v.image_file,
+    }));
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setImgOpen(false);
+    setImgShots([]);
+    setImgRows([]);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -869,9 +998,19 @@ function NewAdminShopProductPage() {
               </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={addVariant}>
-            <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+              <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setImgOpen(true)}
+            >
+              <Camera className="mr-1 h-4 w-4" /> Importer variantes depuis image
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -1184,6 +1323,208 @@ function NewAdminShopProductPage() {
           {submitting ? t("vendor.new.submitting") : "Publier le produit"}
         </Button>
       </div>
+      <Dialog open={imgOpen} onOpenChange={setImgOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Importer variantes depuis image</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Envoyez 1 à 6 captures du panneau de variantes (couleur, taille…). L'IA lit
+              les noms, prix et combinaisons. Vous validez avant import.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Devise source</Label>
+              <Select
+                value={imgCurrency}
+                onValueChange={(v) => setImgCurrency(v as "CNY" | "USD")}
+              >
+                <SelectTrigger className="h-8 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CNY">CNY ¥</SelectItem>
+                  <SelectItem value="USD">USD $</SelectItem>
+                </SelectContent>
+              </Select>
+              {imgFxRate > 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  1 {imgCurrency} ≈ {imgFxRate.toFixed(2)} F
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {imgShots.map((s, i) => (
+                <div key={i} className="relative rounded border p-1">
+                  <img
+                    src={s.data_url}
+                    alt=""
+                    className="h-24 w-full rounded object-cover"
+                  />
+                  <Input
+                    className="mt-1 h-7 text-[11px]"
+                    placeholder="Étiquette (ex: couleurs, taille M)"
+                    value={s.label}
+                    onChange={(e) => updateShotLabel(i, e.target.value)}
+                    maxLength={60}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeShot(i)}
+                    className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {imgShots.length < 6 && (
+                <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-xs text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                  Ajouter
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={onPickImgShots}
+                  />
+                </label>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              onClick={runImageAnalysis}
+              disabled={imgAnalyzing || imgShots.length === 0}
+            >
+              {imgAnalyzing ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Analyse en cours…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1 h-4 w-4" /> Analyser les captures
+                </>
+              )}
+            </Button>
+
+            {imgRows.length > 0 && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
+                <div className="text-[11px] font-semibold uppercase text-muted-foreground">
+                  Aperçu — {imgRows.length} variante(s)
+                </div>
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  {imgRows.map((r, i) => (
+                    <div
+                      key={i}
+                      className="space-y-1 rounded border bg-background p-2"
+                    >
+                      <div className="grid grid-cols-12 gap-1">
+                        <Input
+                          className="col-span-4 h-8 text-xs"
+                          placeholder="Couleur"
+                          value={r.color}
+                          onChange={(e) => updateImgRow(i, { color: e.target.value })}
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          placeholder="Taille"
+                          value={r.size}
+                          onChange={(e) => updateImgRow(i, { size: e.target.value })}
+                        />
+                        <input
+                          type="color"
+                          className="col-span-1 h-8 w-full rounded border"
+                          value={r.color_hex || "#000000"}
+                          onChange={(e) => updateImgRow(i, { color_hex: e.target.value })}
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          type="number"
+                          placeholder={imgCurrency}
+                          value={r.source_price || ""}
+                          onChange={(e) =>
+                            updateImgRow(i, { source_price: Number(e.target.value) || 0 })
+                          }
+                        />
+                        <Input
+                          className="col-span-2 h-8 text-xs"
+                          type="number"
+                          placeholder="FCFA"
+                          value={r.price_xof_estimated || ""}
+                          onChange={(e) =>
+                            updateImgRow(i, {
+                              price_xof_estimated: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="col-span-1 h-8 w-8"
+                          onClick={() => removeImgRow(i)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {r.image_file ? (
+                          <div className="relative h-10 w-10 overflow-hidden rounded border">
+                            <img
+                              src={URL.createObjectURL(r.image_file)}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => pickImgRowImage(i, null)}
+                              className="absolute right-0 top-0 bg-background/80 p-0.5"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex h-10 w-10 cursor-pointer items-center justify-center rounded border-2 border-dashed text-muted-foreground">
+                            <Upload className="h-3.5 w-3.5" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) =>
+                                pickImgRowImage(i, e.target.files?.[0] ?? null)
+                              }
+                            />
+                          </label>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          Image variante (optionnelle)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setImgOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={applyImgVariants}
+              disabled={imgRows.length === 0}
+            >
+              Importer {imgRows.length > 0 ? `(${imgRows.length})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
