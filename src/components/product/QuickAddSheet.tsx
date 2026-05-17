@@ -117,9 +117,13 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
               </div>
               <div className="flex-1">
                 <p className="line-clamp-2 text-sm font-medium">{productName}</p>
-                <p className="mt-1 text-lg font-bold text-primary">
-                  {Number(price).toLocaleString("fr-FR")} {t("misc.currency")}
-                </p>
+                {resolvedPrice !== null ? (
+                  <p className="mt-1 text-lg font-bold text-primary">
+                    {Number(resolvedPrice).toLocaleString("fr-FR")} {t("misc.currency")}
+                  </p>
+                ) : (
+                  <Skeleton className="mt-1 h-6 w-24" />
+                )}
               </div>
             </div>
 
