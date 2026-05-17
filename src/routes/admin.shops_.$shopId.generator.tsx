@@ -18,7 +18,7 @@ import {
 } from "@/lib/admin-generator.functions";
 import { getAdminShop } from "@/lib/admin-shops.functions";
 
-export const Route = createFileRoute("/admin/shops/$shopId/generator")({
+export const Route = createFileRoute("/admin/shops_/$shopId/generator")({
   component: GeneratorPage,
 });
 
