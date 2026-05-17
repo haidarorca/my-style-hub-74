@@ -129,6 +129,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
   const qc = useQueryClient();
   const fetchList = useServerFn(listAdminProducts);
   const mutateStatus = useServerFn(setProductStatus);
+  const deleteFn = useServerFn(deleteOrArchiveProduct);
 
   const params = useMemo(
     () => ({
@@ -156,6 +157,8 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<AdminProductRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const act = useCallback(
     async (id: string, status: "approved" | "rejected") => {
@@ -178,6 +181,21 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
     },
     [mutateStatus, qc, rejectReason],
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await deleteFn({ data: { product_id: deleteTarget.id } });
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+      setDeleteTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteFn, deleteTarget, qc]);
 
   const onPage = useCallback(
     (next: number) => navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) }),
