@@ -380,11 +380,12 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 }
 
 const ProductRowDesktop = memo(function ProductRowDesktop({
-  row, busy, reason, onReason, onAct,
+  row, busy, reason, onReason, onAct, onDelete,
 }: {
   row: AdminProductRow; busy: boolean; reason: string;
   onReason: (v: string) => void;
   onAct: (id: string, s: "approved" | "rejected") => void;
+  onDelete: () => void;
 }) {
   return (
     <TableRow>
@@ -464,6 +465,16 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
               )}
             </>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+            disabled={busy}
+            title="Supprimer ce produit"
+          >
+            <Trash2 className="mr-1 h-3 w-3" /> Supprimer
+          </Button>
         </div>
       </TableCell>
     </TableRow>
