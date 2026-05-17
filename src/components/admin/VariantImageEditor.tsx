@@ -488,5 +488,3 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
     </Dialog>
   );
 }
-
-void Plus;
