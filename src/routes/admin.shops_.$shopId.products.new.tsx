@@ -525,8 +525,20 @@ function NewAdminShopProductPage() {
 
   // ── OCR variants from screenshots ────────────────────────
   function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    setOcrFiles((prev) => [...prev, ...files].slice(0, 8));
+    if (ocrDisabled) {
+      toast.warning("OCR désactivé en mode sûr. Le formulaire reste utilisable manuellement.");
+      e.target.value = "";
+      return;
+    }
+    const maxFiles = mobileSafeMode ? 4 : 8;
+    const maxMb = mobileSafeMode ? 8 : 14;
+    const files = Array.from(e.target.files ?? []).filter(
+      (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
+    );
+    if (files.length === 0 && e.target.files?.length) {
+      toast.error(`Images trop lourdes ou invalides. Maximum ${maxMb} Mo par capture.`);
+    }
+    setOcrFiles((prev) => [...prev, ...files].slice(0, maxFiles));
     e.target.value = "";
   }
   function fileToDataUrl(file: File): Promise<string> {
@@ -538,9 +550,12 @@ function NewAdminShopProductPage() {
     });
   }
   // Downscale + JPEG-compress to keep total payload small for the AI gateway.
-  async function compressImageForOcr(file: File, maxSide = 1400, quality = 0.78): Promise<string> {
+  async function compressImageForOcr(file: File): Promise<string> {
+    const maxSide = mobileSafeMode ? 900 : 1200;
+    const quality = mobileSafeMode ? 0.64 : 0.72;
+    let url = "";
     try {
-      const url = URL.createObjectURL(file);
+      url = URL.createObjectURL(file);
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
         const el = new Image();
         el.onload = () => resolve(el);
@@ -556,13 +571,16 @@ function NewAdminShopProductPage() {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("ctx");
       ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
       return canvas.toDataURL("image/jpeg", quality);
-    } catch {
-      return fileToDataUrl(file);
+    } finally {
+      if (url) URL.revokeObjectURL(url);
     }
   }
   async function handleOcrAnalyze() {
+    if (ocrDisabled) {
+      toast.warning("OCR désactivé en mode sûr. Ajoutez les variantes manuellement.");
+      return;
+    }
     if (ocrFiles.length === 0) {
       toast.error("Ajoutez au moins une capture.");
       return;
@@ -570,15 +588,37 @@ function NewAdminShopProductPage() {
     setOcrLoading(true);
     setOcrResult(null);
     try {
-      const dataUrls = await Promise.all(ocrFiles.map((f) => compressImageForOcr(f)));
-      const r = await analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } });
-      setOcrResult(r);
-      if (r.variants.length === 0) {
+      const dataUrls = await withTimeout(
+        Promise.all(ocrFiles.map((f) => compressImageForOcr(f))),
+        18_000,
+        "Préparation des images OCR",
+      );
+      const r = await withTimeout(
+        analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } }),
+        OCR_TIMEOUT_MS,
+        "Analyse OCR",
+      );
+      const safeVariants = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
+      setOcrResult({ ...r, variants: safeVariants });
+      try {
+        localStorage.removeItem(OCR_FAILURES_KEY);
+      } catch {
+        /* ignore */
+      }
+      if (safeVariants.length === 0) {
         toast.warning("Aucune variante détectée. Réessayez avec d'autres captures.");
       } else {
-        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+        toast.success(`${safeVariants.length} variante(s) détectée(s).`);
       }
     } catch (err) {
+      logError({
+        type: "manual",
+        message: err instanceof Error ? err.message : "Échec OCR",
+        stack: err instanceof Error ? err.stack : undefined,
+        url: window.location.href,
+      });
+      disableOcrAfterCrash();
+      if (getOcrDisabled()) setOcrDisabled(true);
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
     } finally {
       setOcrLoading(false);
