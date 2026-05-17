@@ -20,6 +20,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import { humanizeOcrError, humanizeUrlError } from "@/lib/admin-error-messages";
 
 import { VariantImageEditor } from "@/components/admin/VariantImageEditor";
 import { useSiteSettings } from "@/hooks/use-site-settings";
