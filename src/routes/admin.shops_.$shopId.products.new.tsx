@@ -278,6 +278,11 @@ function NewAdminShopProductPage() {
     setName(analysis.name_fr);
     toast.success("Nom appliqué.");
   }
+  function applyDesignation() {
+    if (!analysis?.designation_fr) return;
+    setDesignation(analysis.designation_fr);
+    toast.success("Désignation appliquée.");
+  }
   function applyDescription() {
     if (!analysis?.description_fr) return;
     setDescription(analysis.description_fr);
@@ -302,18 +307,28 @@ function NewAdminShopProductPage() {
     setImages((prev) => [...prev, ...files].slice(0, 8));
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
-  function applyVariants() {
+  async function applyVariants() {
     if (!analysis?.suggested_variants?.length) return;
-    const rows: VariantInput[] = analysis.suggested_variants.map((v) => ({
-      size: v.size,
-      color: v.color,
-      color_hex: v.color_hex,
-      stock: v.stock,
-      price_override: "",
-      image_file: null,
-    }));
+    const rows: VariantInput[] = [];
+    for (let i = 0; i < analysis.suggested_variants.length; i++) {
+      const v = analysis.suggested_variants[i];
+      let image_file: File | null = null;
+      if (v.image_data_url) {
+        image_file = await dataUrlToFile(v.image_data_url, i);
+      }
+      rows.push({
+        size: v.size,
+        color: v.color || v.name,
+        color_hex: v.color_hex,
+        stock: v.stock,
+        price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+        image_file,
+      });
+    }
     setVariants((prev) => [...prev, ...rows]);
-    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    const withImg = rows.filter((r) => r.image_file).length;
+    const withPrice = rows.filter((r) => r.price_override).length;
+    toast.success(`${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`);
   }
 
   async function handleSubmit(e: React.FormEvent) {
