@@ -224,10 +224,15 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
         <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
           <ShoppingBag className="h-3 w-3" /> {row.product_count ?? 0} produit(s)
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline" className="flex-1">
             <Link to="/shop/$vendorId" params={{ vendorId: row.id }}>
               Voir
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="default" className="flex-1">
+            <Link to="/admin/shops/$shopId/generator" params={{ shopId: row.id }}>
+              <Sparkles className="mr-1 h-3.5 w-3.5" /> Générateur
             </Link>
           </Button>
           <Button size="sm" variant="outline" onClick={onEdit}>
