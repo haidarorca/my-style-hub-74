@@ -58,11 +58,16 @@ function ModeratePage() {
         supabase.from("countries").select("id, name, flag_emoji").order("position"),
       ]);
       if (prod.error) throw prod.error;
-      const vendor = await supabase
-        .from("profiles")
-        .select("id, full_name, shop_name, email, phone, shop_whatsapp, ships_internationally, source_country_id, allowed_destination_country_ids")
-        .eq("id", prod.data.vendor_id)
-        .maybeSingle();
+      const [vendor, category] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, shop_name, email, phone, shop_whatsapp, ships_internationally, source_country_id, allowed_destination_country_ids")
+          .eq("id", prod.data.vendor_id)
+          .maybeSingle(),
+        prod.data.category_id
+          ? supabase.from("categories").select("id, name").eq("id", prod.data.category_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
       return {
         product: prod.data,
         images: imgs.data ?? [],
@@ -70,6 +75,7 @@ function ModeratePage() {
         customizations: cust.data ?? [],
         countries: countries.data ?? [],
         vendor: vendor.data,
+        category: category.data as { id: string; name: string } | null,
       };
     },
   });
