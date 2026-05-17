@@ -3,7 +3,18 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2, Loader2, Wand2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Upload,
+  X,
+  Sparkles,
+  Clock,
+  Link2,
+  Loader2,
+  Wand2,
+} from "lucide-react";
 import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
@@ -18,7 +29,11 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
 
@@ -27,13 +42,29 @@ export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
 });
 
 const FONT_OPTIONS = [
-  "Arial", "Helvetica", "Times New Roman", "Georgia", "Courier New",
-  "Impact", "Comic Sans MS", "Pacifico", "Lobster", "Bebas Neue",
+  "Arial",
+  "Helvetica",
+  "Times New Roman",
+  "Georgia",
+  "Courier New",
+  "Impact",
+  "Comic Sans MS",
+  "Pacifico",
+  "Lobster",
+  "Bebas Neue",
 ];
 
 const COLOR_PRESETS = [
-  "#000000", "#ffffff", "#e11d48", "#f59e0b", "#10b981",
-  "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280", "#fde047",
+  "#000000",
+  "#ffffff",
+  "#e11d48",
+  "#f59e0b",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#6b7280",
+  "#fde047",
 ];
 
 interface VariantInput {
@@ -41,6 +72,8 @@ interface VariantInput {
   color: string;
   color_hex: string;
   stock: number;
+  source_price: string;
+  source_currency: string;
   price_override: string;
   image_file: File | null;
 }
@@ -49,8 +82,21 @@ type Pick = string;
 const isReq = (v: Pick) => v.startsWith("req:");
 const idOf = (v: Pick) => v.slice(4);
 
-type CatRow = { id: string; name: string; level: number; parent_id: string | null; name_i18n: unknown };
-type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
+type CatRow = {
+  id: string;
+  name: string;
+  level: number;
+  parent_id: string | null;
+  name_i18n: unknown;
+};
+type ReqRow = {
+  id: string;
+  name: string;
+  level: number;
+  parent_id: string | null;
+  parent_request_id: string | null;
+  status: string;
+};
 
 function NewAdminShopProductPage() {
   const { shopId } = Route.useParams();
@@ -84,7 +130,9 @@ function NewAdminShopProductPage() {
   // Analyzer state
   const analyze = useServerFn(analyzeSourceUrl);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(null);
+  const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
+    null,
+  );
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -136,7 +184,11 @@ function NewAdminShopProductPage() {
     const pending = (reqs ?? []).filter((r) => r.level === level);
     if (level === 1) {
       return [
-        ...approved.map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
+        ...approved.map((c) => ({
+          value: `cat:${c.id}`,
+          label: pickI18n(c.name, c.name_i18n, lang),
+          pending: false,
+        })),
         ...pending
           .filter((r) => r.parent_id === null && r.parent_request_id === null)
           .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
@@ -151,8 +203,16 @@ function NewAdminShopProductPage() {
     }
     const parentId = idOf(parent);
     return [
-      ...approved.filter((c) => c.parent_id === parentId).map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
-      ...pending.filter((r) => r.parent_id === parentId).map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
+      ...approved
+        .filter((c) => c.parent_id === parentId)
+        .map((c) => ({
+          value: `cat:${c.id}`,
+          label: pickI18n(c.name, c.name_i18n, lang),
+          pending: false,
+        })),
+      ...pending
+        .filter((r) => r.parent_id === parentId)
+        .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
     ];
   }
 
@@ -200,9 +260,16 @@ function NewAdminShopProductPage() {
         .single();
       if (error) throw error;
       const newPick: Pick = `req:${data.id}`;
-      if (level === 1) { setPick1(newPick); setPick2(""); setPick3(""); }
-      else if (level === 2) { setPick2(newPick); setPick3(""); }
-      else { setPick3(newPick); }
+      if (level === 1) {
+        setPick1(newPick);
+        setPick2("");
+        setPick3("");
+      } else if (level === 2) {
+        setPick2(newPick);
+        setPick3("");
+      } else {
+        setPick3(newPick);
+      }
       setNewOpen(0);
       setNewName("");
       await qc.invalidateQueries({ queryKey: ["admin-shop-new", "pending-requests", shopId] });
@@ -221,7 +288,19 @@ function NewAdminShopProductPage() {
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
   const addVariant = () =>
-    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
+    setVariants((v) => [
+      ...v,
+      {
+        size: "",
+        color: "",
+        color_hex: "",
+        stock: 0,
+        source_price: "",
+        source_currency: "",
+        price_override: "",
+        image_file: null,
+      },
+    ]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
@@ -249,7 +328,9 @@ function NewAdminShopProductPage() {
   async function handleAnalyze() {
     const raw = sourceUrl.trim();
     if (raw.length < 4 || !/https?:\/\//i.test(raw)) {
-      toast.error("Collez un lien (e.tb.cn, taobao, 1688, aliexpress…) ou le texte de partage complet.");
+      toast.error(
+        "Collez un lien (e.tb.cn, taobao, 1688, aliexpress…) ou le texte de partage complet.",
+      );
       return;
     }
     setAnalyzing(true);
@@ -291,7 +372,9 @@ function NewAdminShopProductPage() {
   function applyPrice() {
     if (!analysis?.suggested_price_xof) return;
     setPrice(String(analysis.suggested_price_xof));
-    toast.success(`Prix appliqué (${analysis.source_price} ${analysis.source_currency} × ${analysis.fx_rate}).`);
+    toast.success(
+      `Prix appliqué (${analysis.source_price} ${analysis.source_currency} × ${analysis.fx_rate}).`,
+    );
   }
   async function applyImages() {
     if (!analysis?.images?.length) return;
@@ -320,7 +403,9 @@ function NewAdminShopProductPage() {
         size: v.size,
         color: v.color || v.name,
         color_hex: v.color_hex,
-        stock: v.stock,
+        stock: 0,
+        source_price: v.source_price > 0 ? String(v.source_price) : "",
+        source_currency: analysis.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file,
       });
@@ -328,7 +413,9 @@ function NewAdminShopProductPage() {
     setVariants((prev) => [...prev, ...rows]);
     const withImg = rows.filter((r) => r.image_file).length;
     const withPrice = rows.filter((r) => r.price_override).length;
-    toast.success(`${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`);
+    toast.success(
+      `${rows.length} variante(s) importée(s) · ${withImg} image(s) · ${withPrice} prix détecté(s).`,
+    );
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -413,8 +500,12 @@ function NewAdminShopProductPage() {
 
       if (variants.length > 0) {
         const variantRows: Array<{
-          product_id: string; size: string | null; color: string | null;
-          color_hex: string | null; stock: number; price_override: number | null;
+          product_id: string;
+          size: string | null;
+          color: string | null;
+          color_hex: string | null;
+          stock: number;
+          price_override: number | null;
           image_url: string | null;
         }> = [];
         for (let i = 0; i < variants.length; i++) {
@@ -423,7 +514,9 @@ function NewAdminShopProductPage() {
           if (v.image_file) {
             const ext = v.image_file.name.split(".").pop() || "jpg";
             const path = `${shopId}/${productId}/variants/${Date.now()}-${i}.${ext}`;
-            const { error: upErr } = await supabase.storage.from("product-images").upload(path, v.image_file);
+            const { error: upErr } = await supabase.storage
+              .from("product-images")
+              .upload(path, v.image_file);
             if (upErr) throw upErr;
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
@@ -451,7 +544,11 @@ function NewAdminShopProductPage() {
         allow_all_colors?: boolean;
       }[] = [];
       if (allowImage) {
-        customRows.push({ product_id: productId, type: "image", image_size_message: imageMessage.trim() || null });
+        customRows.push({
+          product_id: productId,
+          type: "image",
+          image_size_message: imageMessage.trim() || null,
+        });
       }
       if (allowText) {
         customRows.push({
@@ -497,7 +594,9 @@ function NewAdminShopProductPage() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex items-center gap-2">
         <Button asChild size="sm" variant="ghost">
-          <Link to="/admin/shops"><ArrowLeft className="mr-1 h-4 w-4" /> Retour</Link>
+          <Link to="/admin/shops">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Retour
+          </Link>
         </Button>
         <h1 className="text-xl font-bold">
           {t("vendor.products.new_title")} — {shop?.shop_name ?? "…"}
@@ -505,13 +604,19 @@ function NewAdminShopProductPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
                 <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
-                <button type="button" onClick={() => removeImage(i)} className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5"
+                >
                   <X className="h-3 w-3" />
                 </button>
               </div>
@@ -519,18 +624,30 @@ function NewAdminShopProductPage() {
             <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
               <Upload className="h-5 w-5" />
               {t("vendor.new.add")}
-              <input type="file" accept="image/*" multiple onChange={onPickImages} className="hidden" />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={onPickImages}
+                className="hidden"
+              />
             </label>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{t("vendor.new.info")}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{t("vendor.new.info")}</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div>
             <Label>{t("vendor.new.code_label")}</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("vendor.new.code_placeholder")} />
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder={t("vendor.new.code_placeholder")}
+            />
             <p className="mt-1 text-xs text-muted-foreground">{t("vendor.new.code_help")}</p>
           </div>
           <div>
@@ -539,11 +656,19 @@ function NewAdminShopProductPage() {
           </div>
           <div>
             <Label>{t("vendor.new.designation_label")}</Label>
-            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder={t("vendor.new.designation_placeholder")} />
+            <Input
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              placeholder={t("vendor.new.designation_placeholder")}
+            />
           </div>
           <div>
             <Label>{t("vendor.new.description_label")}</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
           </div>
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
@@ -558,7 +683,9 @@ function NewAdminShopProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{t("vendor.new.cat_card")}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{t("vendor.new.cat_card")}</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-[11px] text-muted-foreground">{t("vendor.new.cat_help")}</p>
 
@@ -567,7 +694,12 @@ function NewAdminShopProductPage() {
             placeholder={t("vendor.new.cat_section_pick")}
             options={opts1}
             value={pick1}
-            onChange={(v) => { setPick1(v); setPick2(""); setPick3(""); setNewOpen(0); }}
+            onChange={(v) => {
+              setPick1(v);
+              setPick2("");
+              setPick3("");
+              setNewOpen(0);
+            }}
             isCreating={newOpen === 1}
             onStartNew={() => startNew(1)}
             newName={newName}
@@ -584,7 +716,11 @@ function NewAdminShopProductPage() {
             placeholder={pick1 ? t("vendor.new.cat_cat_pick") : t("vendor.new.cat_cat_first")}
             options={opts2}
             value={pick2}
-            onChange={(v) => { setPick2(v); setPick3(""); setNewOpen(0); }}
+            onChange={(v) => {
+              setPick2(v);
+              setPick3("");
+              setNewOpen(0);
+            }}
             isCreating={newOpen === 2}
             onStartNew={() => startNew(2)}
             newName={newName}
@@ -601,7 +737,10 @@ function NewAdminShopProductPage() {
             placeholder={pick2 ? t("vendor.new.cat_sub_pick") : t("vendor.new.cat_sub_first")}
             options={opts3}
             value={pick3}
-            onChange={(v) => { setPick3(v); setNewOpen(0); }}
+            onChange={(v) => {
+              setPick3(v);
+              setNewOpen(0);
+            }}
             isCreating={newOpen === 3}
             onStartNew={() => startNew(3)}
             newName={newName}
@@ -631,28 +770,60 @@ function NewAdminShopProductPage() {
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
               <div className="grid grid-cols-12 items-end gap-2">
-                <div className="col-span-2">
+                <div className="col-span-3 sm:col-span-2">
                   <Label className="text-[10px]">{t("vendor.new.v_size")}</Label>
-                  <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
+                  <Input
+                    className="h-8"
+                    value={v.size}
+                    onChange={(e) => updateVariant(i, { size: e.target.value })}
+                    placeholder="S, M, 42…"
+                  />
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-5 sm:col-span-3">
                   <Label className="text-[10px]">{t("vendor.new.v_color")}</Label>
-                  <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder={t("vendor.new.v_color_placeholder")} />
+                  <Input
+                    className="h-8"
+                    value={v.color}
+                    onChange={(e) => updateVariant(i, { color: e.target.value })}
+                    placeholder={t("vendor.new.v_color_placeholder")}
+                  />
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-2 sm:col-span-1">
                   <Label className="text-[10px]">{t("vendor.new.v_hex")}</Label>
-                  <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
+                  <input
+                    type="color"
+                    value={v.color_hex || "#000000"}
+                    onChange={(e) => updateVariant(i, { color_hex: e.target.value })}
+                    className="h-8 w-full rounded border"
+                  />
                 </div>
-                <div className="col-span-2">
-                  <Label className="text-[10px]">{t("vendor.new.v_stock")}</Label>
-                  <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
+                <div className="col-span-4 sm:col-span-2">
+                  <Label className="text-[10px]">Prix fournisseur</Label>
+                  <Input
+                    className="h-8"
+                    value={v.source_price ? `${v.source_price} ${v.source_currency}` : "—"}
+                    readOnly
+                  />
                 </div>
-                <div className="col-span-3">
-                  <Label className="text-[10px]">{t("vendor.new.v_price")}</Label>
-                  <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
+                <div className="col-span-6 sm:col-span-3">
+                  <Label className="text-[10px]">Prix de vente estimé (FCFA)</Label>
+                  <Input
+                    className="h-8"
+                    type="number"
+                    min={0}
+                    value={v.price_override}
+                    onChange={(e) => updateVariant(i, { price_override: e.target.value })}
+                    placeholder="—"
+                  />
                 </div>
-                <div className="col-span-1">
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
+                <div className="col-span-2 sm:col-span-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => removeVariant(i)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -660,17 +831,30 @@ function NewAdminShopProductPage() {
               <div className="flex items-center gap-2">
                 {v.image_file ? (
                   <div className="relative h-14 w-14 overflow-hidden rounded border">
-                    <img src={URL.createObjectURL(v.image_file)} alt="" className="h-full w-full object-cover" />
-                    <button type="button" onClick={() => updateVariant(i, { image_file: null })}
-                      className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
+                    <img
+                      src={URL.createObjectURL(v.image_file)}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateVariant(i, { image_file: null })}
+                      className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 ) : (
                   <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground">
                     <Upload className="h-4 w-4" />
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={(e) => updateVariant(i, { image_file: e.target.files?.[0] ?? null })} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        updateVariant(i, { image_file: e.target.files?.[0] ?? null })
+                      }
+                    />
                   </label>
                 )}
                 <p className="text-[11px] text-muted-foreground">{t("vendor.new.v_image_help")}</p>
@@ -684,7 +868,9 @@ function NewAdminShopProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{t("vendor.new.custom")}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{t("vendor.new.custom")}</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -721,15 +907,24 @@ function NewAdminShopProductPage() {
                 <div className="mb-2 flex items-center justify-between">
                   <Label>{t("vendor.new.custom_fonts")}</Label>
                   <label className="flex items-center gap-2 text-xs">
-                    <Checkbox checked={allowAllFonts} onCheckedChange={(v) => setAllowAllFonts(!!v)} />
+                    <Checkbox
+                      checked={allowAllFonts}
+                      onCheckedChange={(v) => setAllowAllFonts(!!v)}
+                    />
                     {t("vendor.new.custom_all")}
                   </label>
                 </div>
                 {!allowAllFonts && (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {FONT_OPTIONS.map((f) => (
-                      <label key={f} className="flex items-center gap-2 rounded border bg-background p-2 text-xs">
-                        <Checkbox checked={allowedFonts.includes(f)} onCheckedChange={(v) => toggleFont(f, !!v)} />
+                      <label
+                        key={f}
+                        className="flex items-center gap-2 rounded border bg-background p-2 text-xs"
+                      >
+                        <Checkbox
+                          checked={allowedFonts.includes(f)}
+                          onCheckedChange={(v) => toggleFont(f, !!v)}
+                        />
                         <span style={{ fontFamily: f }}>{f}</span>
                       </label>
                     ))}
@@ -740,7 +935,10 @@ function NewAdminShopProductPage() {
                 <div className="mb-2 flex items-center justify-between">
                   <Label>{t("vendor.new.custom_colors")}</Label>
                   <label className="flex items-center gap-2 text-xs">
-                    <Checkbox checked={allowAllColors} onCheckedChange={(v) => setAllowAllColors(!!v)} />
+                    <Checkbox
+                      checked={allowAllColors}
+                      onCheckedChange={(v) => setAllowAllColors(!!v)}
+                    />
                     {t("vendor.new.custom_all")}
                   </label>
                 </div>
@@ -790,14 +988,19 @@ function NewAdminShopProductPage() {
               disabled={analyzing || !sourceUrl.trim()}
               className="gap-2 sm:self-end"
             >
-              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {analyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
               {analyzing ? "Analyse…" : "Analyser le lien"}
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
             Visible uniquement par les administrateurs. Jamais affiché aux clients ni aux vendeurs.
-            Le système suit automatiquement les redirections mobiles (e.tb.cn) et bascule sur un mode dégradé
-            si Taobao bloque la page (récupération images + titre uniquement, le reste est à remplir à la main).
+            Le système suit automatiquement les redirections mobiles (e.tb.cn) et bascule sur un
+            mode dégradé si Taobao bloque la page (récupération images + titre uniquement, le reste
+            est à remplir à la main).
           </p>
 
           {analysis && (
@@ -811,8 +1014,14 @@ function NewAdminShopProductPage() {
                 <div className="text-xs text-muted-foreground">
                   {analysis.source_price > 0 ? (
                     <>
-                      Prix source : <span className="font-medium text-foreground">{analysis.source_price} {analysis.source_currency}</span>
-                      {" "}× {analysis.fx_rate} = <span className="font-medium text-foreground">{analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF</span>
+                      Prix source :{" "}
+                      <span className="font-medium text-foreground">
+                        {analysis.source_price} {analysis.source_currency}
+                      </span>{" "}
+                      × {analysis.fx_rate} ={" "}
+                      <span className="font-medium text-foreground">
+                        {analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF
+                      </span>
                     </>
                   ) : (
                     <span className="italic">Prix non détecté — saisissez-le manuellement.</span>
@@ -826,7 +1035,9 @@ function NewAdminShopProductPage() {
                     <div className="text-[11px] uppercase text-muted-foreground">Nom</div>
                     <div className="truncate">{analysis.name_fr}</div>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyName}>Appliquer</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={applyName}>
+                    Appliquer
+                  </Button>
                 </div>
               )}
 
@@ -836,7 +1047,9 @@ function NewAdminShopProductPage() {
                     <div className="text-[11px] uppercase text-muted-foreground">Désignation</div>
                     <div className="line-clamp-2 text-xs">{analysis.designation_fr}</div>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyDesignation}>Appliquer</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={applyDesignation}>
+                    Appliquer
+                  </Button>
                 </div>
               )}
 
@@ -846,17 +1059,23 @@ function NewAdminShopProductPage() {
                     <div className="text-[11px] uppercase text-muted-foreground">Description</div>
                     <div className="line-clamp-2 text-xs">{analysis.description_fr}</div>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyDescription}>Appliquer</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={applyDescription}>
+                    Appliquer
+                  </Button>
                 </div>
               )}
 
               {analysis.suggested_price_xof > 0 && (
                 <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] uppercase text-muted-foreground">Prix suggéré (XOF)</div>
+                    <div className="text-[11px] uppercase text-muted-foreground">
+                      Prix suggéré (XOF)
+                    </div>
                     <div>{analysis.suggested_price_xof.toLocaleString("fr-FR")} F</div>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyPrice}>Appliquer</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={applyPrice}>
+                    Appliquer
+                  </Button>
                 </div>
               )}
 
@@ -866,11 +1085,19 @@ function NewAdminShopProductPage() {
                     <div className="text-[11px] uppercase text-muted-foreground">Images</div>
                     <div className="flex gap-1 overflow-x-auto py-1">
                       {analysis.images.slice(0, 6).map((src, i) => (
-                        <img key={i} src={src} alt="" loading="lazy" className="h-12 w-12 rounded object-cover" />
+                        <img
+                          key={i}
+                          src={src}
+                          alt=""
+                          loading="lazy"
+                          className="h-12 w-12 rounded object-cover"
+                        />
                       ))}
                     </div>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyImages}>Ajouter</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={applyImages}>
+                    Ajouter
+                  </Button>
                 </div>
               )}
 
@@ -878,11 +1105,15 @@ function NewAdminShopProductPage() {
                 <div className="space-y-2 border-t border-border/60 pt-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase text-muted-foreground">Variantes détectées</div>
+                      <div className="text-[11px] uppercase text-muted-foreground">
+                        Variantes détectées
+                      </div>
                       <div className="text-xs">
                         {analysis.suggested_variants.length} variante(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.image_data_url).length} image(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length} prix
+                        {analysis.suggested_variants.filter((v) => v.image_data_url).length}{" "}
+                        image(s) ·{" "}
+                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length}{" "}
+                        prix
                       </div>
                     </div>
                     <Button type="button" size="sm" onClick={applyVariants}>
@@ -893,11 +1124,21 @@ function NewAdminShopProductPage() {
                     {analysis.suggested_variants.slice(0, 10).map((v, i) => (
                       <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-0.5">
                         {v.image_data_url ? (
-                          <img src={v.image_data_url} alt="" loading="lazy" className="h-12 w-12 rounded object-cover" />
+                          <img
+                            src={v.image_data_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-12 w-12 rounded object-cover"
+                          />
                         ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[9px] text-muted-foreground">—</div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[9px] text-muted-foreground">
+                            —
+                          </div>
                         )}
-                        <div className="w-full truncate text-center text-[9px]" title={v.name || `${v.color} ${v.size}`}>
+                        <div
+                          className="w-full truncate text-center text-[9px]"
+                          title={v.name || `${v.color} ${v.size}`}
+                        >
                           {v.name || `${v.color} ${v.size}`.trim() || "?"}
                         </div>
                         {v.price_xof_detected > 0 && (
@@ -913,7 +1154,8 @@ function NewAdminShopProductPage() {
 
               {analysis.suggested_category_name && (
                 <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
-                  Catégorie suggérée : <span className="text-foreground">{analysis.suggested_category_name}</span>
+                  Catégorie suggérée :{" "}
+                  <span className="text-foreground">{analysis.suggested_category_name}</span>
                   {!analysis.suggested_category_id && " (non reconnue — sélectionnez manuellement)"}
                 </div>
               )}
@@ -922,8 +1164,15 @@ function NewAdminShopProductPage() {
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
-        <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
+      <div
+        className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur"
+        style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}
+      >
+        <Button
+          type="submit"
+          disabled={submitting}
+          className="h-12 w-full rounded-full text-sm font-semibold"
+        >
           {submitting ? t("vendor.new.submitting") : "Publier le produit"}
         </Button>
       </div>
@@ -932,8 +1181,20 @@ function NewAdminShopProductPage() {
 }
 
 function CategoryLevel({
-  label, placeholder, options, value, onChange,
-  isCreating, onStartNew, newName, setNewName, onConfirmNew, onCancelNew, creating, disabled, t,
+  label,
+  placeholder,
+  options,
+  value,
+  onChange,
+  isCreating,
+  onStartNew,
+  newName,
+  setNewName,
+  onConfirmNew,
+  onCancelNew,
+  creating,
+  disabled,
+  t,
 }: {
   label: string;
   placeholder: string;
@@ -974,8 +1235,14 @@ function CategoryLevel({
             maxLength={80}
             placeholder={t("vendor.new.cat_new_placeholder")}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); onConfirmNew(); }
-              if (e.key === "Escape") { e.preventDefault(); onCancelNew(); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onConfirmNew();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                onCancelNew();
+              }
             }}
           />
           <Button type="button" size="sm" onClick={onConfirmNew} disabled={creating}>

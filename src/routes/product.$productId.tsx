@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
 import { EditableLabel } from "@/components/admin/EditableLabel";
@@ -50,8 +55,26 @@ interface Customization {
   allowed_colors: string[] | null;
 }
 
-const DEFAULT_FONTS = ["Arial", "Helvetica", "Times New Roman", "Georgia", "Impact", "Pacifico", "Lobster", "Bebas Neue"];
-const DEFAULT_COLORS = ["#000000", "#ffffff", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+const DEFAULT_FONTS = [
+  "Arial",
+  "Helvetica",
+  "Times New Roman",
+  "Georgia",
+  "Impact",
+  "Pacifico",
+  "Lobster",
+  "Bebas Neue",
+];
+const DEFAULT_COLORS = [
+  "#000000",
+  "#ffffff",
+  "#e11d48",
+  "#f59e0b",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 function ProductPage() {
   const { productId } = Route.useParams();
@@ -91,8 +114,14 @@ function ProductPage() {
     },
   });
 
-  const variants = (data?.product_variants ?? []) as Variant[];
-  const images = (data?.product_images ?? []) as { url: string; position: number | null }[];
+  const variants = useMemo(
+    () => (data?.product_variants ?? []) as Variant[],
+    [data?.product_variants],
+  );
+  const images = useMemo(
+    () => (data?.product_images ?? []) as { url: string; position: number | null }[],
+    [data?.product_images],
+  );
 
   // Fire-and-forget: increment the private view counter (visible only to shop owner)
   useEffect(() => {
@@ -121,19 +150,30 @@ function ProductPage() {
     );
   }, [variants, size, color, sizes.length, colors.length]);
 
+  useEffect(() => {
+    if (matchedVariant?.image_url) setImgIdx(0);
+  }, [matchedVariant?.image_url]);
+
   const priceLines = useMemo(
-    () => data ? [{ productId: data.id, variantId: matchedVariant?.id ?? null }] : [],
+    () => (data ? [{ productId: data.id, variantId: matchedVariant?.id ?? null }] : []),
     [data, matchedVariant?.id],
   );
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
-  const price = displayPriceLines.get(priceKey)?.final_price ?? matchedVariant?.price_override ?? data?.price ?? 0;
+  const price =
+    displayPriceLines.get(priceKey)?.final_price ??
+    matchedVariant?.price_override ??
+    data?.price ??
+    0;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;
   const needsCustomText = !!textCustom && !customText.trim();
   const canAdd =
-    !needsSize && !needsColor && !needsCustomImage && !needsCustomText &&
+    !needsSize &&
+    !needsColor &&
+    !needsCustomImage &&
+    !needsCustomText &&
     (variants.length === 0 || !!matchedVariant);
 
   const onAdd = async () => {
@@ -153,7 +193,8 @@ function ProductPage() {
           setSubmitting(false);
           return;
         }
-        const url = supabase.storage.from("customization-uploads").getPublicUrl(path).data.publicUrl;
+        const url = supabase.storage.from("customization-uploads").getPublicUrl(path)
+          .data.publicUrl;
         customization.image_url = url;
       }
       if (textCustom && customText.trim()) {
@@ -227,7 +268,9 @@ function ProductPage() {
         </div>
         {/* Gallery — swipeable */}
         {(() => {
-          const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
+          const variantImg =
+            matchedVariant?.image_url ??
+            (color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null);
           const urls = images.map((i) => i.url);
           const galleryUrls = variantImg
             ? [variantImg, ...urls.filter((u) => u !== variantImg)]
@@ -249,7 +292,9 @@ function ProductPage() {
               {Number(price).toLocaleString("fr-FR")} FCFA
             </p>
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
-            <p className="text-xs text-muted-foreground">{t("product.code")} : {data.code}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("product.code")} : {data.code}
+            </p>
             {productDesignation && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
@@ -266,7 +311,9 @@ function ProductPage() {
                     key={s}
                     onClick={() => setSize(s)}
                     className={`min-w-12 rounded-md border px-3 py-1.5 text-sm ${
-                      size === s ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                      size === s
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border"
                     }`}
                   >
                     {s}
@@ -295,7 +342,10 @@ function ProductPage() {
                           <img src={vImg} alt="" className="h-full w-full object-cover" />
                         </span>
                       ) : hex ? (
-                        <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: hex }} />
+                        <span
+                          className="h-4 w-4 rounded-full border border-border"
+                          style={{ backgroundColor: hex }}
+                        />
                       ) : null}
                       {c}
                     </button>
@@ -307,17 +357,25 @@ function ProductPage() {
 
           {(imageCustom || textCustom) && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-primary">{t("product.personalization")}</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                {t("product.personalization")}
+              </p>
 
               {imageCustom && (
                 <div>
-                    <p className="mb-1 text-xs font-semibold">{t("product.your_image")}</p>
+                  <p className="mb-1 text-xs font-semibold">{t("product.your_image")}</p>
                   {imageCustom.image_size_message && (
-                    <p className="mb-2 text-[11px] text-muted-foreground">{imageCustom.image_size_message}</p>
+                    <p className="mb-2 text-[11px] text-muted-foreground">
+                      {imageCustom.image_size_message}
+                    </p>
                   )}
                   {customImageFile ? (
                     <div className="relative inline-block">
-                      <img src={URL.createObjectURL(customImageFile)} alt="" className="h-24 w-24 rounded-lg object-cover" />
+                      <img
+                        src={URL.createObjectURL(customImageFile)}
+                        alt=""
+                        className="h-24 w-24 rounded-lg object-cover"
+                      />
                       <button
                         type="button"
                         onClick={() => setCustomImageFile(null)}
@@ -353,17 +411,23 @@ function ProductPage() {
                     />
                   </div>
 
-                  {(textCustom.allow_all_fonts || (textCustom.allowed_fonts && textCustom.allowed_fonts.length > 0)) && (
+                  {(textCustom.allow_all_fonts ||
+                    (textCustom.allowed_fonts && textCustom.allowed_fonts.length > 0)) && (
                     <div>
                       <p className="mb-1 text-xs font-semibold">{t("product.font")}</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {(textCustom.allow_all_fonts ? DEFAULT_FONTS : textCustom.allowed_fonts ?? []).map((f) => (
+                        {(textCustom.allow_all_fonts
+                          ? DEFAULT_FONTS
+                          : (textCustom.allowed_fonts ?? [])
+                        ).map((f) => (
                           <button
                             key={f}
                             type="button"
                             onClick={() => setCustomFont(f)}
                             className={`rounded-md border px-2 py-1 text-xs ${
-                              customFont === f ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                              customFont === f
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border"
                             }`}
                             style={{ fontFamily: f }}
                           >
@@ -374,17 +438,23 @@ function ProductPage() {
                     </div>
                   )}
 
-                  {(textCustom.allow_all_colors || (textCustom.allowed_colors && textCustom.allowed_colors.length > 0)) && (
+                  {(textCustom.allow_all_colors ||
+                    (textCustom.allowed_colors && textCustom.allowed_colors.length > 0)) && (
                     <div>
                       <p className="mb-1 text-xs font-semibold">{t("product.text_color")}</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {(textCustom.allow_all_colors ? DEFAULT_COLORS : textCustom.allowed_colors ?? []).map((c) => (
+                        {(textCustom.allow_all_colors
+                          ? DEFAULT_COLORS
+                          : (textCustom.allowed_colors ?? [])
+                        ).map((c) => (
                           <button
                             key={c}
                             type="button"
                             onClick={() => setCustomColor(c)}
                             className={`h-7 w-7 rounded-full border-2 ${
-                              customColor === c ? "border-primary ring-2 ring-primary/30" : "border-border"
+                              customColor === c
+                                ? "border-primary ring-2 ring-primary/30"
+                                : "border-border"
                             }`}
                             style={{ backgroundColor: c }}
                             aria-label={c}
@@ -398,7 +468,10 @@ function ProductPage() {
                     <div className="rounded-lg border border-border bg-background p-3 text-center">
                       <p
                         className="break-words text-lg font-semibold"
-                        style={{ fontFamily: customFont || undefined, color: customColor || undefined }}
+                        style={{
+                          fontFamily: customFont || undefined,
+                          color: customColor || undefined,
+                        }}
                       >
                         {customText}
                       </p>
@@ -412,11 +485,21 @@ function ProductPage() {
           <div>
             <p className="mb-1.5 text-xs font-semibold">{t("product.quantity")}</p>
             <div className="inline-flex items-center rounded-md border border-border">
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(Math.max(1, qty - 1))}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setQty(Math.max(1, qty - 1))}
+              >
                 <Minus className="h-4 w-4" />
               </Button>
               <span className="w-10 text-center text-sm font-semibold">{qty}</span>
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(qty + 1)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setQty(qty + 1)}
+              >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -425,7 +508,9 @@ function ProductPage() {
           {productDescription && (
             <div>
               <p className="mb-1 text-xs font-semibold">{t("product.description")}</p>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{productDescription}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {productDescription}
+              </p>
             </div>
           )}
 
@@ -444,7 +529,9 @@ function ProductPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{shopName}</p>
-                <p className="text-xs text-muted-foreground">{t("product.see_vendor_products")} {dir === "rtl" ? "←" : "→"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("product.see_vendor_products")} {dir === "rtl" ? "←" : "→"}
+                </p>
               </div>
             </div>
           </Link>
@@ -480,7 +567,10 @@ function ProductPage() {
       </main>
 
       {/* Bottom bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur"
+        style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
+      >
         <div className="mx-auto flex max-w-3xl gap-2 px-3 py-3">
           <Link to="/cart" className="shrink-0">
             <Button variant="outline" className="h-12 rounded-full">
@@ -492,7 +582,21 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? t("product.choose_size") : needsColor ? t("product.choose_color") : needsCustomImage ? t("product.add_image") : needsCustomText ? t("product.enter_text") : <EditableLabel uiKey="product.add_to_cart" defaultLabel={t("product.add_to_cart")} defaultSize="md" />}
+            {needsSize ? (
+              t("product.choose_size")
+            ) : needsColor ? (
+              t("product.choose_color")
+            ) : needsCustomImage ? (
+              t("product.add_image")
+            ) : needsCustomText ? (
+              t("product.enter_text")
+            ) : (
+              <EditableLabel
+                uiKey="product.add_to_cart"
+                defaultLabel={t("product.add_to_cart")}
+                defaultSize="md"
+              />
+            )}
           </Button>
         </div>
       </div>
@@ -584,4 +688,3 @@ function ProductGallery({ urls, alt, activeIndex, onIndexChange, dir }: ProductG
     </div>
   );
 }
-
