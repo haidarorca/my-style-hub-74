@@ -222,7 +222,7 @@ async function resolveShareUrl(rawUrl: string): Promise<string> {
       method: "GET",
       redirect: "follow",
       headers: {
-        "User-Agent": MOBILE_UA,
+        "User-Agent": pickUA(),
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
       },
@@ -269,7 +269,7 @@ async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": MOBILE_UA,
+        "User-Agent": pickUA(),
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
       },
