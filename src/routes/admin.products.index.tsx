@@ -309,6 +309,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
                   reason={rejectReason[p.id] ?? ""}
                   onReason={(v) => setRejectReason((r) => ({ ...r, [p.id]: v }))}
                   onAct={act}
+                  onDelete={() => setDeleteTarget(p)}
                 />
               ))
             )}
@@ -340,6 +341,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
                     reason={rejectReason[p.id] ?? ""}
                     onReason={(v) => setRejectReason((r) => ({ ...r, [p.id]: v }))}
                     onAct={act}
+                    onDelete={() => setDeleteTarget(p)}
                   />
                 ))}
               </TableBody>
