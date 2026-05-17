@@ -351,6 +351,30 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
           <PaginationBar page={search.page} pageSize={PAGE_SIZE} total={total} onPageChange={onPage} className="border-t" />
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>{" "}
+              (#{deleteTarget?.code}) sera supprimé. Si le produit a déjà été vendu, il sera
+              <strong> archivé </strong>automatiquement pour préserver l'historique des commandes ;
+              sinon il sera <strong>supprimé définitivement</strong>. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+            >
+              {deleting ? "Suppression…" : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
