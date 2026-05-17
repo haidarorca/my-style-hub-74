@@ -141,6 +141,29 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       suggestedCategoryId = match?.id ?? null;
     }
 
+    const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
+    const cleanVariants = rawVariants
+      .map((v) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+        const num = (k: string) => {
+          const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
+          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+        };
+        const hex = str("color_hex");
+        const url = str("image_url");
+        return {
+          size: str("size").slice(0, 40),
+          color: str("color").slice(0, 60),
+          color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
+          stock: num("stock"),
+          image_url: /^https?:\/\//.test(url) ? url : "",
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
+      .slice(0, 30);
+
     return {
       name_fr: typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "",
       description_fr: typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "",
@@ -150,7 +173,7 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
         : [],
       suggested_category_id: suggestedCategoryId,
       suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
-      suggested_variants: Array.isArray(parsed.suggested_variants) ? parsed.suggested_variants : [],
+      suggested_variants: cleanVariants,
     };
   });
 
