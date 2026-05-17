@@ -1414,7 +1414,7 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
     }
 
     const prompt = [
-      "Tu reçois 1 à 8 captures d'écran de la page d'un produit Taobao/1688/AliExpress.",
+      `Tu reçois ${dataUrls.length} capture(s) d'écran d'un produit Taobao/1688/AliExpress, numérotées de 0 à ${dataUrls.length - 1} dans l'ordre fourni.`,
       "Elles montrent les VARIANTES (SKU) du produit : couleurs, tailles, modèles, packs, et leurs prix.",
       "Tu dois fusionner toutes les captures pour reconstruire la liste COMPLÈTE des combinaisons disponibles.",
       "Règles :",
@@ -1424,9 +1424,13 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
       "- N'invente JAMAIS de prix : si le prix n'est pas visible pour une combinaison, mets 0.",
       "- N'extrais JAMAIS le stock fournisseur.",
       "- Devise : 'CNY' (¥/￥/元), 'USD' ($) ou 'XOF'. Si aucun symbole, suppose CNY pour Taobao/1688.",
+      "POUR CHAQUE variante, identifie ÉGALEMENT :",
+      `- source_image_index : numéro (0..${dataUrls.length - 1}) de la capture où la vignette ou la photo de CETTE variante précise est la plus visible. Si tu hésites, choisis la capture qui contient la zone produit la plus large pour ce SKU. Si vraiment aucune, mets null.`,
+      "- crop_hint : rectangle EN POURCENTAGE (0..100) de la même capture qui isole UNIQUEMENT la photo produit propre (sans bandeau prix, sans bouton acheter, sans logo Taobao/1688, sans texte en bas). Format : {\"x\":..,\"y\":..,\"w\":..,\"h\":..}. Si toute la capture est déjà propre, mets {\"x\":0,\"y\":0,\"w\":100,\"h\":100}. Si tu ne sais pas, mets null.",
+      "- chinese_label : libellé chinois original tel qu'écrit sur la capture (vide si absent).",
       `Contexte utilisateur (optionnel): ${data.hint || "—"}`,
       "Retourne UNIQUEMENT du JSON strict :",
-      '{"currency":"CNY","variants":[{"name":"Noir + M","color":"Noir","size":"M","source_price":0}]}',
+      '{"currency":"CNY","variants":[{"name":"Noir + M","color":"Noir","size":"M","source_price":0,"source_image_index":0,"crop_hint":{"x":0,"y":0,"w":100,"h":100},"chinese_label":""}]}',
     ].join("\n");
 
     const messages = [
@@ -1466,6 +1470,7 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
       : "CNY";
     const fxRate = currency === "CNY" ? cnyToXof : currency === "USD" ? usdToXof : 1;
 
+    const imgCount = dataUrls.length;
     const cleanVariants = (parsed.variants as unknown[])
       .map((v) => {
         if (!v || typeof v !== "object") return null;
@@ -1480,12 +1485,39 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
         const size = str("size").slice(0, 40);
         const srcPrice = num("source_price");
         if (!name && !color && !size) return null;
+        let sourceImageIndex: number | null = null;
+        const rawIdx = o.source_image_index;
+        if (typeof rawIdx === "number" && Number.isFinite(rawIdx)) {
+          const i = Math.floor(rawIdx);
+          if (i >= 0 && i < imgCount) sourceImageIndex = i;
+        }
+        let cropHint: { x: number; y: number; w: number; h: number } | null = null;
+        const rawCrop = o.crop_hint;
+        if (rawCrop && typeof rawCrop === "object") {
+          const c = rawCrop as Record<string, unknown>;
+          const cn = (k: string) => {
+            const n = typeof c[k] === "number" ? (c[k] as number) : Number(c[k]);
+            return Number.isFinite(n) ? n : NaN;
+          };
+          const x = cn("x"), y = cn("y"), w = cn("w"), h = cn("h");
+          if ([x, y, w, h].every((n) => Number.isFinite(n)) && w > 0 && h > 0) {
+            cropHint = {
+              x: Math.max(0, Math.min(100, x)),
+              y: Math.max(0, Math.min(100, y)),
+              w: Math.max(1, Math.min(100, w)),
+              h: Math.max(1, Math.min(100, h)),
+            };
+          }
+        }
         return {
           name: name || [color, size].filter(Boolean).join(" + "),
           color,
           size,
           source_price: srcPrice,
           price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
+          source_image_index: sourceImageIndex,
+          crop_hint: cropHint,
+          chinese_label: str("chinese_label").slice(0, 120),
         };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null)
