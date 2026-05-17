@@ -15,7 +15,7 @@ import {
   Loader2,
   Wand2,
 } from "lucide-react";
-import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
+import { analyzeSourceUrl, loadProductVariants } from "@/lib/admin-generator.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
