@@ -496,7 +496,8 @@ function priceFromUnknown(value: unknown, field = ""): number {
     if (!cleaned) return 0;
     const n = Number(cleaned);
     if (!Number.isFinite(n)) return 0;
-    return /cent|fen|money/i.test(field) && n > 100 ? n / 100 : n;
+    const looksLikeCents = /^\d{3,}$/.test(cleaned) && /price|money|cent|fen/i.test(field);
+    return ((/cent|fen|money/i.test(field) || looksLikeCents) && n >= 100) ? n / 100 : n;
   }
   return 0;
 }
@@ -542,7 +543,7 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   const variants: StructuredVariant[] = [];
   const roots: unknown[] = [];
   const direct = new Map<string, unknown[]>();
-  for (const key of ["apiStack", "skuBase", "skuCore", "skuModel", "skuProps", "skuMap", "skuInfoMap", "itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
+  for (const key of ["apiStack", "skuBase", "skuCore", "skuModel", "skuProps", "props", "skuMap", "skuInfoMap", "itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
     for (const value of findJsonValuesByKey(html, key)) {
       direct.set(key, [...(direct.get(key) ?? []), value]);
       roots.push(value, ...parseAnyEmbeddedJson(value));
