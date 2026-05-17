@@ -1098,13 +1098,14 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       }
     }
 
-    // 2c) Ultimate fallback: if the page is fully blocked, use the raw share text
-    //     (Taobao mobile shares embed the Chinese product title before the link).
-    //     We still run the AI below to translate it into FR name/designation/description.
+    // 2c) Always extract the share title (between 「 」) so the AI gets it even
+    //     when scraping succeeded partially. If the page is fully blocked, the
+    //     title becomes the sole input — we never give up when text is available.
+    const shareTitle = extractShareTitle(data.url);
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
-      const shareText = data.url.trim();
-      if (shareText.length >= 4) {
-        scraped = { text: shareText, images: [], html: "" };
+      const fallbackText = shareTitle || data.url.trim();
+      if (fallbackText.length >= 4) {
+        scraped = { text: fallbackText, images: [], html: "" };
         partialReasons.push(
           "Page Taobao bloquée — analyse basée uniquement sur le texte du lien partagé.",
         );
@@ -1114,6 +1115,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
             "Astuce : collez le texte de partage Taobao complet (avec le titre chinois) puis réessayez.",
         );
       }
+    } else if (shareTitle && !scraped.text.includes(shareTitle)) {
+      // Enrich scraped text with the user-provided title to guide the AI.
+      scraped = { ...scraped, text: `${shareTitle}\n\n${scraped.text}` };
     }
 
     // 2b) Parse embedded Taobao/1688 SKU JSON (skuMap, skuProps, itemImgs…) from raw HTML
