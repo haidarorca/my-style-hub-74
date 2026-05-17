@@ -537,7 +537,7 @@ async function scrapeViaApify(url: string): Promise<{ text: string; images: stri
     maxCrawlPages: 1,
     maxCrawlDepth: 0,
     saveMarkdown: true,
-    saveHtml: false,
+    saveHtml: true,
     saveScreenshots: false,
     proxyConfiguration: { useApifyProxy: true },
     requestTimeoutSecs: 60,
@@ -554,6 +554,7 @@ async function scrapeViaApify(url: string): Promise<{ text: string; images: stri
   const items = (await res.json()) as Array<{
     markdown?: string;
     text?: string;
+    html?: string;
     url?: string;
     metadata?: { title?: string; description?: string };
     screenshotUrl?: string;
@@ -565,6 +566,7 @@ async function scrapeViaApify(url: string): Promise<{ text: string; images: stri
   const title = it.metadata?.title ?? "";
   const desc = it.metadata?.description ?? "";
   const md = it.markdown ?? it.text ?? "";
+  const html = it.html ?? "";
   // Extract image URLs from markdown ![](url) and bare http(s) img links
   const imgRe = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s")]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s")]*)?)/gi;
   const set = new Set<string>();
@@ -576,6 +578,7 @@ async function scrapeViaApify(url: string): Promise<{ text: string; images: stri
   return {
     text: `Titre: ${title}\n\nDescription: ${desc}\n\n${md}`.slice(0, 18000),
     images: Array.from(set).slice(0, 20),
+    html,
   };
 }
 
