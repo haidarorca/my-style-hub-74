@@ -963,13 +963,32 @@ function NewAdminShopProductPage() {
                     placeholder="—"
                   />
                 </div>
-                <div className="col-span-2 sm:col-span-1">
+                <div className="col-span-2 sm:col-span-1 flex items-center gap-1">
+                  {v.image_file && (
+                    <Button
+                      type="button"
+                      variant={previewedVariantIdx === i ? "default" : "ghost"}
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Aperçu de cette variante"
+                      onClick={() =>
+                        setPreviewedVariantIdx((cur) => (cur === i ? null : i))
+                      }
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => removeVariant(i)}
+                    onClick={() => {
+                      removeVariant(i);
+                      setPreviewedVariantIdx((cur) =>
+                        cur === i ? null : cur !== null && cur > i ? cur - 1 : cur,
+                      );
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
