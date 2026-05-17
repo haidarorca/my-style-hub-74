@@ -24,7 +24,6 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
-  const displayPrice = dp ? dp.final_price : product.price;
   return (
     <div className="group relative overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
       <Link
