@@ -82,18 +82,10 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
             <button
               type="button"
-              onClick={() => {
-                try {
-                  localStorage.setItem("admin:ocr-disabled", "1");
-                  localStorage.removeItem("admin:ocr-crashes");
-                } catch {
-                  /* ignore */
-                }
-                window.location.reload();
-              }}
+              onClick={() => window.location.reload()}
               className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground"
             >
-              Recharger en mode sûr
+              Recharger la page
             </button>
             <button
               type="button"
