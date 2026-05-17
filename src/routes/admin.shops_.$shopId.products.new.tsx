@@ -414,10 +414,10 @@ function NewAdminShopProductPage() {
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
   async function applyVariants() {
-    if (!analysis?.suggested_variants?.length) return;
+    if (!loadedVariants.length) return;
     const rows: VariantInput[] = [];
-    for (let i = 0; i < analysis.suggested_variants.length; i++) {
-      const v = analysis.suggested_variants[i];
+    for (let i = 0; i < loadedVariants.length; i++) {
+      const v = loadedVariants[i];
       let image_file: File | null = null;
       if (v.image_data_url) {
         image_file = await dataUrlToFile(v.image_data_url, i);
@@ -428,7 +428,7 @@ function NewAdminShopProductPage() {
         color_hex: v.color_hex,
         stock: 0,
         source_price: v.source_price > 0 ? String(v.source_price) : "",
-        source_currency: analysis.source_currency,
+        source_currency: analysis?.source_currency ?? "CNY",
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file,
       });
