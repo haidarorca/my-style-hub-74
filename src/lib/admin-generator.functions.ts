@@ -653,7 +653,19 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       );
     }
 
-    // 3) Category guidance
+    // 2b) Parse embedded Taobao/1688 SKU JSON (skuMap, skuProps, itemImgs…) from raw HTML
+    const structured: StructuredSku =
+      scraped.html && scraped.html.length > 0
+        ? parseEmbeddedSkuData(scraped.html)
+        : { images: [], variants: [] };
+
+    // Filter scraped/markdown images through CDN+size whitelist
+    const filteredScrapedImages = Array.from(
+      new Set(scraped.images.map((u) => (u.startsWith("//") ? `https:${u}` : u))),
+    )
+      .filter(isLikelyProductImageUrl)
+      .map(upgradeAlicdnImage);
+
     const { data: cats } = await supabaseAdmin
       .from("categories")
       .select("id, name, level")
