@@ -626,7 +626,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     const currency = detectCurrencyFromUrl(resolvedUrl);
 
     // 2) Try Apify, then fall back to direct HTML fetch
-    let scraped: { text: string; images: string[] } | null = null;
+    let scraped: { text: string; images: string[]; html: string } | null = null;
     let partialReason: string | null = null;
     try {
       scraped = await scrapeViaApify(resolvedUrl);
