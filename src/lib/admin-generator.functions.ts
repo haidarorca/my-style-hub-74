@@ -994,7 +994,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
 
     // 2) Try Apify, then fall back to direct HTML fetch
     let scraped: { text: string; images: string[]; html: string } | null = null;
-    let partialReason: string | null = null;
+    const partialReasons: string[] = [];
     try {
       scraped = await scrapeViaApify(resolvedUrl);
     } catch (e) {
@@ -1003,12 +1003,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         await new Promise((r) => setTimeout(r, 1500));
         scraped = await scrapeViaApify(resolvedUrl);
       } catch (e2) {
-        partialReason =
+        const msg =
           e2 instanceof Error
             ? e2.message
             : e instanceof Error
               ? e.message
               : "Scraping principal échoué";
+        partialReasons.push(msg);
       }
     }
     if (
@@ -1016,18 +1017,33 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       (scraped.images.length === 0 && scraped.text.trim().length < 60) ||
       looksLikeLoginWall(scraped?.text ?? "")
     ) {
-      const fb = await scrapeViaDirectFetch(resolvedUrl);
-      if (fb) {
-        scraped = fb;
-        if (!partialReason)
-          partialReason = "Page protégée — récupération partielle (titre + images uniquement).";
+      try {
+        const fb = await scrapeViaDirectFetch(resolvedUrl);
+        if (fb) {
+          scraped = fb;
+          partialReasons.push("Page protégée — récupération partielle (titre + images).");
+        }
+      } catch {
+        /* ignore */
       }
     }
+
+    // 2c) Ultimate fallback: if the page is fully blocked, use the raw share text
+    //     (Taobao mobile shares embed the Chinese product title before the link).
+    //     We still run the AI below to translate it into FR name/designation/description.
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
-      throw new Error(
-        "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
-          "Astuce : ouvrez le lien dans un navigateur, copiez l'URL finale depuis la barre d'adresse, puis réessayez.",
-      );
+      const shareText = data.url.trim();
+      if (shareText.length >= 4) {
+        scraped = { text: shareText, images: [], html: "" };
+        partialReasons.push(
+          "Page Taobao bloquée — analyse basée uniquement sur le texte du lien partagé.",
+        );
+      } else {
+        throw new Error(
+          "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
+            "Astuce : collez le texte de partage Taobao complet (avec le titre chinois) puis réessayez.",
+        );
+      }
     }
 
     // 2b) Parse embedded Taobao/1688 SKU JSON (skuMap, skuProps, itemImgs…) from raw HTML
@@ -1065,9 +1081,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       "You analyse a product listing scraped from Taobao/1688/AliExpress (may contain Chinese/English/mixed text and image URLs).",
       "Extract a clean French e-commerce product. Translate any Chinese/English to natural French.",
       "Rules:",
-      "- name_fr: short product title in French (max 80 chars). Empty if unknown.",
-      "- designation_fr: SHORT commercial tagline in French (max 90 chars), one descriptive line summarising the product type and key benefit. Example: 'Poupée anti-stress souple et amusante pour enfants'. Empty if unknown.",
-      "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff. Empty if unknown.",
+      "- name_fr: short product title in French (max 80 chars). If the input only contains a Chinese/English title (no description), translate it into a natural French product name. Empty ONLY if no title is recognizable.",
+      "- designation_fr: SHORT commercial tagline in French (max 90 chars), one descriptive line summarising the product type and target audience. ALWAYS generate one if a name is detected, by inferring from the title (e.g. 'Ensemble d'été 2 pièces pour enfant'). Empty only if no title at all.",
+      "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff. If only a title is available, generate a plausible 2-3 sentence description inferred from the title's keywords (type of product, materials, season, audience). Empty only if no title at all.",
       `- source_price: main unit price as a number in ${currency} (no symbol). 0 if unknown.`,
       "- image_urls: array of MAIN product image URLs (http/https only, deduplicated, max 8). Exclude tiny thumbnails.",
       `- suggested_category: pick the BEST match from this list (return the exact string), or null: ${catNames}`,
@@ -1097,16 +1113,16 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
         parsed = safeParseJson(json.choices?.[0]?.message?.content?.trim() ?? "");
       } else if (res.status === 429) {
-        partialReason = partialReason ?? "Limite IA atteinte — résultat partiel.";
+        partialReasons.push("Limite IA atteinte — résultat partiel.");
       } else if (res.status === 402) {
-        partialReason = partialReason ?? "Crédits IA épuisés — résultat partiel.";
+        partialReasons.push("Crédits IA épuisés — résultat partiel.");
       }
     } catch {
       // ignore — we'll fall back to raw extraction
     }
     if (!parsed) {
       parsed = {};
-      partialReason = partialReason ?? "Analyse IA indisponible — remplissez manuellement.";
+      partialReasons.push("Analyse IA indisponible — remplissez manuellement.");
     }
 
     // 5) Resolve category id
@@ -1245,14 +1261,21 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
-    // Mark as partial if AI couldn't deliver core fields
-    const partial = Boolean(partialReason) || (!nameFr && sourcePrice === 0);
+    // Add granular reasons for missing core fields so the UI shows
+    // actionable hints instead of a vague "données incomplètes".
+    if (sourcePrice === 0) partialReasons.push("Prix non détecté — saisissez-le manuellement.");
+    if (cleanVariants.length === 0)
+      partialReasons.push("Variantes non détectées — ajoutez-les manuellement si besoin.");
+    if (!nameFr) partialReasons.push("Nom non détecté — saisissez-le manuellement.");
+
+    const partial = partialReasons.length > 0 || (!nameFr && sourcePrice === 0);
+    const dedupedReasons = Array.from(new Set(partialReasons));
 
     return {
       resolved_url: resolvedUrl,
       partial,
       partial_reason: partial
-        ? (partialReason ?? "Données incomplètes — complétez manuellement.")
+        ? dedupedReasons.join(" · ") || "Données incomplètes — complétez manuellement."
         : null,
       source_currency: currency,
       fx_rate: fxRate,
