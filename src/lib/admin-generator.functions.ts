@@ -265,7 +265,7 @@ async function resolveShareUrl(rawUrl: string): Promise<string> {
 
 // Lightweight HTML fallback: fetch the page directly with a mobile UA and pull
 // title, OG image, JSON-LD images. Used when Apify fails or returns empty.
-async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images: string[] } | null> {
+async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images: string[]; html: string } | null> {
   try {
     const res = await fetch(url, {
       headers: {
