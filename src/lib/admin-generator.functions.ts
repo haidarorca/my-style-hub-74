@@ -1037,8 +1037,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
         : { images: [], variants: [] };
 
     // Filter scraped/markdown images through CDN+size whitelist
+    // + ajout des images lazy-loaded et detail/description extraites du HTML brut
+    const lazyImgs = scraped.html ? extractLazyAndDetailImages(scraped.html) : [];
     const filteredScrapedImages = Array.from(
-      new Set(scraped.images.map((u) => (u.startsWith("//") ? `https:${u}` : u))),
+      new Set([
+        ...scraped.images.map((u) => (u.startsWith("//") ? `https:${u}` : u)),
+        ...lazyImgs,
+      ]),
     )
       .filter(isLikelyProductImageUrl)
       .map(upgradeAlicdnImage);
