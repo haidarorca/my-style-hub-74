@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
-  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass,
+  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye,
 } from "lucide-react";
 import {
   listAdminProducts, listReportedProducts, setProductStatus, setReportStatus,
@@ -360,14 +360,24 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
       <TableCell><ProductStatusBadge row={row} /></TableCell>
       <TableCell className="text-xs">{fmtDate(row.created_at)}</TableCell>
       <TableCell className="text-right">
-        <div className="inline-flex items-center gap-1">
+        <div className="inline-flex flex-wrap items-center justify-end gap-1">
           {row.status === "pending" ? (
             <>
+              <Button asChild size="sm" className="h-7 px-2 text-xs">
+                <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}>
+                  <Eye className="mr-1 h-3 w-3" /> Examiner
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="secondary" className="h-7 px-2 text-xs">
+                <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+                  <Pencil className="mr-1 h-3 w-3" /> Modifier
+                </Link>
+              </Button>
               <Input
-                placeholder="Motif (optionnel)"
+                placeholder="Motif rapide"
                 value={reason}
                 onChange={(e) => onReason(e.target.value)}
-                className="h-7 w-40 text-xs"
+                className="h-7 w-32 text-xs"
               />
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onAct(row.id, "rejected")} disabled={busy}>
                 <X className="mr-1 h-3 w-3" /> Rejeter
@@ -417,8 +427,20 @@ const ProductCardMobile = memo(function ProductCardMobile({
       </div>
       {row.status === "pending" ? (
         <div className="mt-2 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button asChild size="sm" className="flex-1">
+              <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}>
+                <Eye className="mr-1 h-3 w-3" /> Examiner
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary" className="flex-1">
+              <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+                <Pencil className="mr-1 h-3 w-3" /> Modifier
+              </Link>
+            </Button>
+          </div>
           <Input
-            placeholder="Motif de rejet (optionnel)"
+            placeholder="Motif de rejet rapide (optionnel)"
             value={reason}
             onChange={(e) => onReason(e.target.value)}
             className="h-8 text-xs"
