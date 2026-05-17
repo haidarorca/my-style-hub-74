@@ -1154,12 +1154,12 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       .map(upgradeAlicdnImage);
     const allImageUrls = Array.from(
       new Set([...structured.images, ...filteredScrapedImages, ...aiImageUrls]),
-    ).slice(0, 8);
+    ).slice(0, 25);
     const imageDataUrls: string[] = [];
     for (const u of allImageUrls) {
       const d = await downloadImageAsDataUrl(u);
       if (d) imageDataUrls.push(d);
-      if (imageDataUrls.length >= 6) break;
+      if (imageDataUrls.length >= 25) break;
     }
 
     // 8) Build variants. Structured (skuMap/skuProps) takes priority — guarantees
