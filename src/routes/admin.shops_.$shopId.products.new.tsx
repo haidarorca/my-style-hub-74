@@ -41,6 +41,8 @@ interface VariantInput {
   color: string;
   color_hex: string;
   stock: number;
+  source_price: string;
+  source_currency: string;
   price_override: string;
   image_file: File | null;
 }
@@ -221,7 +223,7 @@ function NewAdminShopProductPage() {
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
   const addVariant = () =>
-    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
+    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, source_price: "", source_currency: "", price_override: "", image_file: null }]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
@@ -320,7 +322,9 @@ function NewAdminShopProductPage() {
         size: v.size,
         color: v.color || v.name,
         color_hex: v.color_hex,
-        stock: v.stock,
+        stock: 0,
+        source_price: v.source_price > 0 ? String(v.source_price) : "",
+        source_currency: analysis.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file,
       });
