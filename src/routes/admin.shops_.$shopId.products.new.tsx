@@ -1218,7 +1218,7 @@ function NewAdminShopProductPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => updateVariant(i, { image_file: null })}
+                      onClick={() => updateVariant(i, { image_file: null, image_original: null })}
                       className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
                     >
                       <X className="h-3 w-3" />
@@ -1231,14 +1231,42 @@ function NewAdminShopProductPage() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) =>
-                        updateVariant(i, { image_file: e.target.files?.[0] ?? null })
-                      }
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        updateVariant(i, { image_file: f, image_original: f });
+                      }}
                     />
                   </label>
                 )}
-                <p className="text-[11px] text-muted-foreground">{t("vendor.new.v_image_help")}</p>
+                <div className="flex flex-col gap-1">
+                  {v.image_file && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setEditingVariantIdx(i)}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" /> Modifier l'image
+                    </Button>
+                  )}
+                  {v.image_original && v.image_file && v.image_file !== v.image_original && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => updateVariant(i, { image_file: v.image_original })}
+                    >
+                      <Undo2 className="mr-1 h-3 w-3" /> Originale
+                    </Button>
+                  )}
+                </div>
               </div>
+              <AdminPriceNote
+                variant={v}
+                rate={siteSettings.cny_to_xof_rate || 85}
+              />
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={addVariant}>
