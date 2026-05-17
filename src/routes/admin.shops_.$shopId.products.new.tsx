@@ -1124,27 +1124,48 @@ function NewAdminShopProductPage() {
                 </div>
               )}
 
-              {analysis.suggested_variants.length > 0 && (
-                <div className="space-y-2 border-t border-border/60 pt-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase text-muted-foreground">
-                        Variantes détectées
-                      </div>
-                      <div className="text-xs">
-                        {analysis.suggested_variants.length} variante(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.image_data_url).length}{" "}
-                        image(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length}{" "}
-                        prix
-                      </div>
+              <div className="space-y-2 border-t border-border/60 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">
+                      Variantes (SKU)
                     </div>
+                    <div className="text-xs">
+                      {loadedVariants.length === 0
+                        ? analysis.variants_hint > 0
+                          ? `~${analysis.variants_hint} variante(s) détectée(s) — chargement à la demande`
+                          : "Cliquez pour tenter de charger les variantes (peut prendre 30-60s)"
+                        : `${loadedVariants.length} variante(s) · ${loadedVariants.filter((v) => v.image_data_url).length} image(s) · ${loadedVariants.filter((v) => v.price_xof_detected > 0).length} prix`}
+                    </div>
+                  </div>
+                  {loadedVariants.length === 0 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleLoadVariants}
+                      disabled={loadingVariants}
+                      className="gap-2"
+                    >
+                      {loadingVariants ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      {loadingVariants ? "Chargement…" : "Charger les variantes"}
+                    </Button>
+                  ) : (
                     <Button type="button" size="sm" onClick={applyVariants}>
                       Importer les variantes
                     </Button>
+                  )}
+                </div>
+                {loadingVariants && (
+                  <div className="text-[11px] italic text-muted-foreground">
+                    Analyse approfondie en cours (navigateur réel + extraction SKU)…
                   </div>
+                )}
+                {loadedVariants.length > 0 && (
                   <div className="flex gap-1 overflow-x-auto py-1">
-                    {analysis.suggested_variants.slice(0, 10).map((v, i) => (
+                    {loadedVariants.slice(0, 10).map((v, i) => (
                       <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-0.5">
                         {v.image_data_url ? (
                           <img
@@ -1172,8 +1193,8 @@ function NewAdminShopProductPage() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {analysis.suggested_category_name && (
                 <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
