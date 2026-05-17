@@ -541,8 +541,10 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   const images = new Set<string>();
   const variants: StructuredVariant[] = [];
   const roots: unknown[] = [];
+  const direct = new Map<string, unknown[]>();
   for (const key of ["apiStack", "skuBase", "skuCore", "skuModel", "skuProps", "skuMap", "skuInfoMap", "itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
     for (const value of findJsonValuesByKey(html, key)) {
+      direct.set(key, [...(direct.get(key) ?? []), value]);
       roots.push(value, ...parseAnyEmbeddedJson(value));
     }
   }
@@ -553,9 +555,10 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
     return img;
   };
 
-  for (const root of roots) {
+  for (const root of [...roots, ...(direct.get("itemImgs") ?? []), ...(direct.get("auctionImages") ?? []), ...(direct.get("images") ?? []), ...(direct.get("picsPath") ?? []), ...(direct.get("itemImages") ?? [])]) {
     for (const key of ["itemImgs", "auctionImages", "images", "picsPath", "itemImages", "imageList", "mainImages"]) {
-      for (const gallery of collectByKey(root, key)) {
+      const galleries = [root, ...collectByKey(root, key)];
+      for (const gallery of galleries) {
         const arr = Array.isArray(gallery) ? gallery : [gallery];
         for (const it of arr) {
           if (typeof it === "string") addImage(it);
@@ -595,7 +598,9 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
 
   for (const root of roots) {
     for (const props of [
+      ...(direct.get("skuProps") ?? []),
       ...collectByKey(root, "skuProps"),
+      ...(direct.get("props") ?? []),
       ...collectByKey(root, "props"),
     ]) collectProps(props);
   }
@@ -642,7 +647,9 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
 
   for (const root of roots) {
     for (const map of [
+      ...(direct.get("skuMap") ?? []),
       ...collectByKey(root, "skuMap"),
+      ...(direct.get("skuInfoMap") ?? []),
       ...collectByKey(root, "skuInfoMap"),
       ...collectByKey(root, "sku2info"),
     ]) addEntryFromMap(map);
