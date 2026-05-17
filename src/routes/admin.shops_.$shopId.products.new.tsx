@@ -1244,6 +1244,13 @@ function NewAdminShopProductPage() {
       <VariantImageEditor
         open={editingVariantIdx !== null}
         file={editingVariantIdx !== null ? variants[editingVariantIdx]?.image_file ?? null : null}
+        originalFile={
+          editingVariantIdx !== null
+            ? variants[editingVariantIdx]?.image_original ??
+              variants[editingVariantIdx]?.image_file ??
+              null
+            : null
+        }
         onClose={() => setEditingVariantIdx(null)}
         onSave={(file) => {
           if (editingVariantIdx === null) return;
@@ -1253,6 +1260,12 @@ function NewAdminShopProductPage() {
             image_file: file,
             image_original: cur.image_original ?? cur.image_file,
           });
+        }}
+        onResetOriginal={() => {
+          if (editingVariantIdx === null) return;
+          const cur = variants[editingVariantIdx];
+          if (!cur) return;
+          updateVariant(editingVariantIdx, { image_file: cur.image_original ?? cur.image_file });
         }}
       />
 
