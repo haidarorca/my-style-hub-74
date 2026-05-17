@@ -18,6 +18,7 @@ import {
   Eye,
 } from "lucide-react";
 import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import { cleanProductImage } from "@/lib/image-clean";
 import {
   Dialog,
   DialogContent,
