@@ -166,7 +166,7 @@ function AdminEditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
-    setStatus(p.status);
+    setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setRejectionReason(p.rejection_reason ?? "");
     setVendorId(p.vendor_id ?? "");
     setExistingImages(data.images);
@@ -455,7 +455,7 @@ function AdminEditProductPage() {
         category_id: finalCategoryId,
         pending_category_request_id: finalPendingCategoryRequestId,
         vendor_id: vendorId,
-        status,
+        status: (["pending","approved","rejected"].includes(status) ? status : "pending"),
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
       };
       if (status === "approved") updatePayload.is_edit = false;
