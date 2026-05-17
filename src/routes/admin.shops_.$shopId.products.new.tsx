@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
 
 export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
   component: NewAdminShopProductPage,
@@ -438,6 +439,11 @@ function NewAdminShopProductPage() {
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <CommissionPricePreview
+              vendorId={shopId}
+              basePrice={price}
+              categoryId={deepestPick && !isReq(deepestPick) ? idOf(deepestPick) : null}
+            />
           </div>
         </CardContent>
       </Card>
