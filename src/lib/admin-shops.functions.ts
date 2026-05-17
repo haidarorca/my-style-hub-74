@@ -178,7 +178,7 @@ export const updateAdminShop = createServerFn({ method: "POST" })
         patch.allowed_destination_country_ids = data.allowed_destination_country_ids;
     }
 
-    const { error: uErr } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.id);
+    const { error: uErr } = await (supabaseAdmin as any).from("profiles").update(patch).eq("id", data.id);
     if (uErr) throw new Error(uErr.message);
     return { ok: true };
   });
