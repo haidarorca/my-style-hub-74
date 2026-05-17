@@ -232,6 +232,11 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
             </div>
             {status === "pending" ? (
               <div className="flex w-full flex-col gap-2 md:w-auto">
+                <Button asChild size="sm" className="w-full">
+                  <Link to="/admin/products/$productId/moderate" params={{ productId: p.id }}>
+                    <Eye className="mr-1 h-4 w-4" /> Examiner
+                  </Link>
+                </Button>
                 <Button asChild size="sm" variant="secondary" className="w-full">
                   <Link to="/admin/products/$productId/edit" params={{ productId: p.id }}>
                     <Pencil className="mr-1 h-4 w-4" /> Modifier l'article
@@ -239,7 +244,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
                 </Button>
                 <div className="flex w-full items-center gap-2">
                   <Input
-                    placeholder="Motif de rejet (optionnel)"
+                    placeholder="Motif rapide (optionnel)"
                     value={reason[p.id] ?? ""}
                     onChange={(e) => setReason({ ...reason, [p.id]: e.target.value })}
                     className="h-8"
