@@ -129,10 +129,15 @@ function NewAdminShopProductPage() {
 
   // Analyzer state
   const analyze = useServerFn(analyzeSourceUrl);
+  const loadVariantsFn = useServerFn(loadProductVariants);
   const [analyzing, setAnalyzing] = useState(false);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
     null,
   );
+  const [loadedVariants, setLoadedVariants] = useState<
+    Awaited<ReturnType<typeof loadProductVariants>>["variants"]
+  >([]);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
