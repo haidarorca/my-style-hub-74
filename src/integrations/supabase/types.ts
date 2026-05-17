@@ -1414,6 +1414,7 @@ export type Database = {
           banner_show_arrows: boolean
           banner_show_dots: boolean
           banner_transition: string
+          cny_to_xof_rate: number
           commission_whatsapp_number: string | null
           created_at: string
           footer_text: string | null
@@ -1444,6 +1445,7 @@ export type Database = {
           banner_show_arrows?: boolean
           banner_show_dots?: boolean
           banner_transition?: string
+          cny_to_xof_rate?: number
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
@@ -1474,6 +1476,7 @@ export type Database = {
           banner_show_arrows?: boolean
           banner_show_dots?: boolean
           banner_transition?: string
+          cny_to_xof_rate?: number
           commission_whatsapp_number?: string | null
           created_at?: string
           footer_text?: string | null
