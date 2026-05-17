@@ -689,6 +689,7 @@ function NewAdminShopProductPage() {
         source_currency: ocrResult.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file: cleanedFile,
+        image_original: cleanedFile,
       };
     });
 
