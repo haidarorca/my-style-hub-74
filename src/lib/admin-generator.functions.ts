@@ -844,17 +844,28 @@ async function scrapeViaApify(
   if (!token) throw new Error("APIFY_TOKEN non configuré");
 
   // apify/website-content-crawler — generic, returns markdown of a single page
-  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=90`;
+  // For Taobao/1688 SPA we MUST run a real Chromium with extra wait so client-side
+  // JSON (skuMap, propertyMemoMap, __INIT_DATA__…) is injected into the DOM.
+  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=120`;
+  const isAlibaba = /taobao\.com|tmall\.com|1688\.com|tb\.cn|tmall\.hk/i.test(url);
   const body = {
     startUrls: [{ url }],
-    crawlerType: "playwright:adaptive",
+    crawlerType: isAlibaba ? "playwright:firefox" : "playwright:adaptive",
     maxCrawlPages: 1,
     maxCrawlDepth: 0,
     saveMarkdown: true,
     saveHtml: true,
     saveScreenshots: false,
-    proxyConfiguration: { useApifyProxy: true },
-    requestTimeoutSecs: 60,
+    proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
+    requestTimeoutSecs: 90,
+    dynamicContentWaitSecs: isAlibaba ? 12 : 5,
+    maxScrollHeightPixels: 6000,
+    removeElementsCssSelector: "",
+    htmlTransformer: "none",
+    readableTextCharThreshold: 0,
+    initialCookies: isAlibaba
+      ? [{ name: "hng", value: "fr|FR|EUR", domain: ".taobao.com" }]
+      : [],
   };
   const res = await fetch(endpoint, {
     method: "POST",
