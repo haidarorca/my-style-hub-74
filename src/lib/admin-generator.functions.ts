@@ -108,7 +108,7 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
       `- source_price: extract the unit price as a number in ${data.source_currency} (no currency symbol). If multiple prices, pick the most plausible retail unit price.`,
       "- image_urls: array of image URLs found in the text (http/https only, deduplicated)",
       `- suggested_category: pick the BEST match from this list (return the exact string), or null if none fits: ${catNames}`,
-      "- suggested_variants: array of {size, color, color_hex, stock, image_url} extracted from the text. Conventions: size = clothing/shoe size or dimension as a short string (e.g. 'S', 'M', 'L', '42', '10x15cm') or empty string if none. color = French color name (e.g. 'Rouge', 'Bleu marine') or empty string. color_hex = matching 6-digit hex like '#1e3a8a' or empty string. stock = integer estimate or 0 if unknown. image_url = http(s) image URL for this variant from the text or empty string. Deduplicate. Return [] if no variants are explicit.",
+      "- suggested_variants: array of {size, color, color_hex, image_url} extracted from the text. Conventions: size = clothing/shoe size or dimension as a short string (e.g. 'S', 'M', 'L', '42', '10x15cm') or empty string if none. color = French color name (e.g. 'Rouge', 'Bleu marine') or empty string. color_hex = matching 6-digit hex like '#1e3a8a' or empty string. image_url = http(s) image URL for this variant from the text or empty string. Do NOT extract supplier stock. Deduplicate. Return [] if no variants are explicit.",
       'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[{"size":"","color":"","color_hex":"","stock":0,"image_url":""}]}',
       "",
       "Input:",
@@ -157,7 +157,7 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
           size: str("size").slice(0, 40),
           color: str("color").slice(0, 60),
           color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
-          stock: num("stock"),
+          stock: 0,
           image_url: /^https?:\/\//.test(url) ? url : "",
         };
       })
