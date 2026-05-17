@@ -28,6 +28,7 @@ export type AdminOrderItem = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customization: Record<string, any> | null;
   commission_amount: number;
+  source_url: string | null;
 };
 
 export type AdminOrderRow = {
