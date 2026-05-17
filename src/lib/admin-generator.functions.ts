@@ -183,8 +183,127 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
 
 function detectCurrencyFromUrl(url: string): "CNY" | "USD" {
   const u = url.toLowerCase();
-  if (u.includes("taobao.com") || u.includes("1688.com") || u.includes("tmall.com") || u.includes("jd.com")) return "CNY";
+  if (
+    u.includes("taobao.com") || u.includes("1688.com") || u.includes("tmall.com") ||
+    u.includes("jd.com") || u.includes("tb.cn") || u.includes("tmall.hk")
+  ) return "CNY";
   return "USD"; // aliexpress, amazon, etc.
+}
+
+// Extract the first http(s) URL from a free-form share text (Taobao mobile shares
+// often look like: "【淘宝】...  https://e.tb.cn/h.xxxxx 复制链接...").
+function extractUrlFromText(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    // Take only up to first whitespace
+    const m = trimmed.match(/^(https?:\/\/\S+)/i);
+    return m ? m[1] : trimmed;
+  }
+  const m = trimmed.match(/https?:\/\/[^\s'")<>\u4e00-\u9fff]+/i);
+  return m ? m[0] : null;
+}
+
+const MOBILE_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
+// Resolve Taobao/1688 mobile short links (e.tb.cn, m.tb.cn, s.click...) to their
+// final URL, and rewrite to the desktop canonical form when an item id is found.
+async function resolveShareUrl(rawUrl: string): Promise<string> {
+  let finalUrl = rawUrl;
+  try {
+    const res = await fetch(rawUrl, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        "User-Agent": MOBILE_UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+    finalUrl = res.url || rawUrl;
+    // Some Taobao shorts redirect into a JS-based interstitial; try to find a
+    // refresh/canonical URL inside the body too.
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("text/html")) {
+      const html = (await res.text().catch(() => "")).slice(0, 200_000);
+      const meta = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+url=([^"'>\s]+)/i);
+      const canon = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+      const jsRedir = html.match(/(?:location\.href|window\.location)\s*=\s*["']([^"']+)["']/i);
+      const cand = meta?.[1] || canon?.[1] || jsRedir?.[1];
+      if (cand && /^https?:\/\//i.test(cand)) finalUrl = cand;
+    }
+  } catch {
+    // Network/timeout — keep original; downstream scraper will still try.
+  }
+
+  // Normalize to desktop canonical when an item id is present.
+  try {
+    const u = new URL(finalUrl);
+    const host = u.hostname.toLowerCase();
+    const id = u.searchParams.get("id") || u.searchParams.get("itemId");
+    if (id && /^\d{6,}$/.test(id)) {
+      if (host.includes("taobao") || host.includes("tmall") || host.includes("tb.cn")) {
+        return `https://item.taobao.com/item.htm?id=${id}`;
+      }
+      if (host.includes("1688")) {
+        return `https://detail.1688.com/offer/${id}.html`;
+      }
+    }
+  } catch {
+    // ignore URL parse errors
+  }
+  return finalUrl;
+}
+
+// Lightweight HTML fallback: fetch the page directly with a mobile UA and pull
+// title, OG image, JSON-LD images. Used when Apify fails or returns empty.
+async function scrapeViaDirectFetch(url: string): Promise<{ text: string; images: string[] } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": MOBILE_UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8,zh;q=0.7",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 400_000);
+    const titleM = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i);
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    const ogDesc = html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i);
+    const ogImgs: string[] = [];
+    const imgRe = /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = imgRe.exec(html))) ogImgs.push(m[1]);
+    const linkImgRe = /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^"']*)?)["']/gi;
+    while ((m = linkImgRe.exec(html))) ogImgs.push(m[1]);
+    const images = Array.from(new Set(ogImgs)).slice(0, 12);
+
+    const title = (ogTitle?.[1] || titleM?.[1] || "").trim();
+    const desc = (ogDesc?.[1] || "").trim();
+    if (!title && images.length === 0) return null;
+
+    return {
+      text: `Titre: ${title}\n\nDescription: ${desc}`.slice(0, 4000),
+      images,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Heuristic: page content looks like a login wall.
+function looksLikeLoginWall(text: string): boolean {
+  const s = text.toLowerCase();
+  return (
+    s.includes("请登录") || s.includes("登录后") || s.includes("亲，请登录") ||
+    s.includes("sign in to continue") || /\bplease\s+log\s*in\b/.test(s) ||
+    s.includes("login.taobao.com") || s.includes("login.1688.com")
+  );
 }
 
 async function scrapeViaApify(url: string): Promise<{ text: string; images: string[] }> {
