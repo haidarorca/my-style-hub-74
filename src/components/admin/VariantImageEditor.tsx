@@ -30,15 +30,17 @@ type Txt = {
 interface Props {
   open: boolean;
   file: File | null;
+  originalFile?: File | null;
   onClose: () => void;
   onSave: (file: File) => void;
+  onResetOriginal?: () => void;
 }
 
 const PALETTE = ["#ffffff", "#000000", "#e11d48", "#f59e0b", "#10b981", "#3b82f6"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
-export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
+export function VariantImageEditor({ open, file, originalFile, onClose, onSave, onResetOriginal }: Props) {
   const [src, setSrc] = useState<string>("");
   const [nat, setNat] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [crop, setCrop] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -46,6 +48,9 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
   const [texts, setTexts] = useState<Txt[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panDrag = useRef<{ startX: number; startY: number; orig: { x: number; y: number } } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
 
@@ -64,6 +69,8 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
       setMasks([]);
       setTexts([]);
       setSelected(null);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
     };
     img.src = url;
     return () => URL.revokeObjectURL(url);
@@ -165,6 +172,15 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
     setMasks([]);
     setTexts([]);
     setSelected(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+  function restoreOriginal() {
+    if (!onResetOriginal) return;
+    onResetOriginal();
+    reset();
+    toast.success("Image originale restaurée.");
+    onClose();
   }
   function remove(id: string) {
     if (id === "__crop__") setCrop(null);
@@ -276,21 +292,62 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
             <Type className="mr-1 h-3.5 w-3.5" /> Texte
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={reset}>
-            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Annuler tout
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Annuler modifs
           </Button>
+        </div>
+
+        {/* Zoom slider */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Zoom</span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            step={0.1}
+            value={zoom}
+            onChange={(e) => {
+              const z = Number(e.target.value);
+              setZoom(z);
+              if (z === 1) setPan({ x: 0, y: 0 });
+            }}
+            className="flex-1 accent-primary"
+          />
+          <span className="w-10 text-right tabular-nums">{zoom.toFixed(1)}×</span>
         </div>
 
         {/* Stage */}
         <div
           ref={stageRef}
           className="relative mx-auto flex h-[55vh] max-h-[440px] w-full select-none items-center justify-center overflow-hidden rounded border bg-muted/30 touch-none"
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onPointerDown={() => setSelected(null)}
+          onPointerMove={(e) => {
+            if (panDrag.current) {
+              const dx = e.clientX - panDrag.current.startX;
+              const dy = e.clientY - panDrag.current.startY;
+              setPan({ x: panDrag.current.orig.x + dx, y: panDrag.current.orig.y + dy });
+              return;
+            }
+            onPointerMove(e);
+          }}
+          onPointerUp={() => {
+            panDrag.current = null;
+            onPointerUp();
+          }}
+          onPointerCancel={() => {
+            panDrag.current = null;
+            onPointerUp();
+          }}
+          onPointerDown={(e) => {
+            setSelected(null);
+            if (zoom > 1) {
+              panDrag.current = { startX: e.clientX, startY: e.clientY, orig: { ...pan } };
+            }
+          }}
         >
           {src && (
-            <>
+            <div
+              className="relative flex h-full w-full items-center justify-center"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center" }}
+            >
               <img
                 src={src}
                 alt=""
@@ -375,7 +432,7 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -475,14 +532,21 @@ export function VariantImageEditor({ open, file, onClose, onSave }: Props) {
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
-            Annuler
-          </Button>
-          <Button type="button" size="sm" onClick={save} disabled={saving || !file}>
-            <Check className="mr-1 h-3.5 w-3.5" />
-            {saving ? "Enregistrement…" : "Enregistrer"}
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          {onResetOriginal && originalFile && originalFile !== file ? (
+            <Button type="button" variant="outline" size="sm" onClick={restoreOriginal} disabled={saving}>
+              <RotateCcw className="mr-1 h-3.5 w-3.5" /> Image originale
+            </Button>
+          ) : <span />}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+              Annuler
+            </Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving || !file}>
+              <Check className="mr-1 h-3.5 w-3.5" />
+              {saving ? "Enregistrement…" : "Valider"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

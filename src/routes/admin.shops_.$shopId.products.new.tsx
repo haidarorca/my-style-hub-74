@@ -20,7 +20,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
-import { cleanProductImage } from "@/lib/image-clean";
+
 import { VariantImageEditor } from "@/components/admin/VariantImageEditor";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import {
@@ -634,55 +634,14 @@ function NewAdminShopProductPage() {
   }
   async function applyOcrVariants() {
     if (!ocrResult) return;
-    const safeMode = mobileSafeMode || ocrDisabled;
     const sourceFiles = ocrFiles.slice();
 
-    // Pre-clean every unique (sourceIndex, cropHint) combo ONCE, sequentially,
-    // so we don't fire 30 canvas operations in parallel on mobile.
-    type CleanKey = string;
-    const cleanedByKey = new Map<CleanKey, File>();
-    const keyFor = (idx: number | null, hint: { x: number; y: number; w: number; h: number } | null) =>
-      `${idx ?? "_"}|${hint ? `${hint.x},${hint.y},${hint.w},${hint.h}` : "_"}`;
-
-    const toClean: Array<{
-      key: CleanKey;
-      idx: number;
-      hint: { x: number; y: number; w: number; h: number } | null;
-    }> = [];
-    for (const v of ocrResult.variants) {
-      const idx = v.source_image_index;
-      if (idx === null || idx === undefined || !sourceFiles[idx]) continue;
-      const k = keyFor(idx, v.crop_hint ?? null);
-      if (cleanedByKey.has(k) || toClean.some((c) => c.key === k)) continue;
-      toClean.push({ key: k, idx, hint: v.crop_hint ?? null });
-    }
-
-    if (toClean.length > 0) {
-      const cleanToast = toast.loading(`Nettoyage de ${toClean.length} image(s)…`);
-      try {
-        for (const c of toClean) {
-          const file = sourceFiles[c.idx];
-          if (!file) continue;
-          const cleaned = safeMode
-            ? file
-            : await cleanProductImage(file, {
-                cropHint: c.hint ?? undefined,
-                maxSide: 1400,
-                quality: 0.82,
-                timeoutMs: 8000,
-              });
-          cleanedByKey.set(c.key, cleaned);
-        }
-      } finally {
-        toast.dismiss(cleanToast);
-      }
-    }
-
-    // Build variant rows, attaching the cleaned File when available.
+    // ⚡ No automatic canvas processing here — we just attach the raw source
+    // file to each variant. The admin can open the editor on demand for the
+    // few images that actually need a crop / mask. Fast & mobile-safe.
     const rows: VariantInput[] = ocrResult.variants.map((v) => {
       const idx = v.source_image_index;
-      const k = idx === null || idx === undefined ? null : keyFor(idx, v.crop_hint ?? null);
-      const cleanedFile = k ? cleanedByKey.get(k) ?? null : null;
+      const file = idx !== null && idx !== undefined ? sourceFiles[idx] ?? null : null;
       return {
         size: v.size,
         color: v.color || v.name,
@@ -691,17 +650,24 @@ function NewAdminShopProductPage() {
         source_price: v.source_price > 0 ? String(v.source_price) : "",
         source_currency: ocrResult.source_currency,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
-        image_file: cleanedFile,
-        image_original: cleanedFile,
+        image_file: file,
+        image_original: file,
       };
     });
 
-    // Also push every distinct cleaned image into the main product gallery
-    // (so the buyer sees clean photos without manual reupload). Respect the 25-file cap.
+    // Push the unique source files referenced by variants into the gallery.
     setImages((prev) => {
       const next = [...prev];
       const existingKeys = new Set(next.map((f) => `${f.name}|${f.size}`));
-      for (const f of cleanedByKey.values()) {
+      const referenced = new Set<number>();
+      for (const v of ocrResult.variants) {
+        if (v.source_image_index !== null && v.source_image_index !== undefined) {
+          referenced.add(v.source_image_index);
+        }
+      }
+      for (const idx of referenced) {
+        const f = sourceFiles[idx];
+        if (!f) continue;
         if (next.length >= 25) break;
         const k = `${f.name}|${f.size}`;
         if (!existingKeys.has(k)) {
@@ -1278,6 +1244,13 @@ function NewAdminShopProductPage() {
       <VariantImageEditor
         open={editingVariantIdx !== null}
         file={editingVariantIdx !== null ? variants[editingVariantIdx]?.image_file ?? null : null}
+        originalFile={
+          editingVariantIdx !== null
+            ? variants[editingVariantIdx]?.image_original ??
+              variants[editingVariantIdx]?.image_file ??
+              null
+            : null
+        }
         onClose={() => setEditingVariantIdx(null)}
         onSave={(file) => {
           if (editingVariantIdx === null) return;
@@ -1287,6 +1260,12 @@ function NewAdminShopProductPage() {
             image_file: file,
             image_original: cur.image_original ?? cur.image_file,
           });
+        }}
+        onResetOriginal={() => {
+          if (editingVariantIdx === null) return;
+          const cur = variants[editingVariantIdx];
+          if (!cur) return;
+          updateVariant(editingVariantIdx, { image_file: cur.image_original ?? cur.image_file });
         }}
       />
 
