@@ -532,14 +532,21 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
-            Annuler
-          </Button>
-          <Button type="button" size="sm" onClick={save} disabled={saving || !file}>
-            <Check className="mr-1 h-3.5 w-3.5" />
-            {saving ? "Enregistrement…" : "Enregistrer"}
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          {onResetOriginal && originalFile && originalFile !== file ? (
+            <Button type="button" variant="outline" size="sm" onClick={restoreOriginal} disabled={saving}>
+              <RotateCcw className="mr-1 h-3.5 w-3.5" /> Image originale
+            </Button>
+          ) : <span />}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+              Annuler
+            </Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving || !file}>
+              <Check className="mr-1 h-3.5 w-3.5" />
+              {saving ? "Enregistrement…" : "Valider"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
