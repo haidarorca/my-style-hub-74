@@ -381,7 +381,7 @@ async function downloadImageAsDataUrl(url: string): Promise<string | null> {
 }
 
 const AnalyzeUrlSchema = z.object({
-  url: z.string().url().max(2000),
+  url: z.string().min(4).max(4000),
 });
 
 export const analyzeSourceUrl = createServerFn({ method: "POST" })
@@ -392,12 +392,39 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("AI gateway non configuré");
 
-    const currency = detectCurrencyFromUrl(data.url);
+    // 0) Extract a URL from a Taobao share text if needed
+    const extracted = extractUrlFromText(data.url);
+    if (!extracted) {
+      throw new Error("Aucun lien détecté. Collez l'URL produit ou le texte de partage Taobao complet.");
+    }
 
-    // 1) Scrape page
-    const scraped = await scrapeViaApify(data.url);
+    // 1) Resolve mobile short links (e.tb.cn, m.tb.cn…) → canonical desktop URL
+    const resolvedUrl = await resolveShareUrl(extracted);
+    const currency = detectCurrencyFromUrl(resolvedUrl);
 
-    // 2) Category guidance
+    // 2) Try Apify, then fall back to direct HTML fetch
+    let scraped: { text: string; images: string[] } | null = null;
+    let partialReason: string | null = null;
+    try {
+      scraped = await scrapeViaApify(resolvedUrl);
+    } catch (e) {
+      partialReason = e instanceof Error ? e.message : "Scraping principal échoué";
+    }
+    if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 60) || looksLikeLoginWall(scraped?.text ?? "")) {
+      const fb = await scrapeViaDirectFetch(resolvedUrl);
+      if (fb) {
+        scraped = fb;
+        if (!partialReason) partialReason = "Page protégée — récupération partielle (titre + images uniquement).";
+      }
+    }
+    if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
+      throw new Error(
+        "Impossible d'extraire le produit (lien protégé, application Taobao requise, ou bloqué). " +
+        "Astuce : ouvrez le lien dans un navigateur, copiez l'URL finale depuis la barre d'adresse, puis réessayez.",
+      );
+    }
+
+    // 3) Category guidance
     const { data: cats } = await supabaseAdmin
       .from("categories")
       .select("id, name, level")
@@ -406,51 +433,60 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       .limit(200);
     const catNames = (cats ?? []).map((c) => c.name).slice(0, 120).join(", ");
 
-    // 3) AI extraction (same prompt as analyzeSourceProduct, augmented with scraped images)
+    // 4) AI extraction (best-effort — never blocks fallback delivery)
     const enrichedText = scraped.text + "\n\nImages détectées:\n" + scraped.images.join("\n");
     const prompt = [
       "You analyse a product listing scraped from Taobao/1688/AliExpress (may contain Chinese/English/mixed text and image URLs).",
       "Extract a clean French e-commerce product. Translate any Chinese/English to natural French.",
       "Rules:",
-      "- name_fr: short product title in French (max 80 chars)",
-      "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff",
-      `- source_price: unit price as a number in ${currency} (no symbol). If multiple, pick the most plausible retail unit price.`,
+      "- name_fr: short product title in French (max 80 chars). If you cannot determine it, return empty string.",
+      "- description_fr: clean paragraph in French (max 500 chars), no marketing fluff. Empty if unknown.",
+      `- source_price: unit price as a number in ${currency} (no symbol). 0 if unknown.`,
       "- image_urls: array of product image URLs from the text (http/https only, deduplicated, max 8)",
       `- suggested_category: pick the BEST match from this list (return the exact string), or null: ${catNames}`,
-      "- suggested_variants: array of {size, color, color_hex, stock, image_url}. size=clothing/shoe size or dimension. color=French color name. color_hex=6-digit hex or ''. stock=integer or 0. Return [] if none explicit.",
+      "- suggested_variants: array of {size, color, color_hex, stock, image_url}. Return [] if none explicit.",
       'Return ONLY strict JSON: {"name_fr":"","description_fr":"","source_price":0,"image_urls":[],"suggested_category":null,"suggested_variants":[]}',
       "",
       "Input:",
       enrichedText,
     ].join("\n");
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) {
-      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
-      if (res.status === 402) throw new Error("Crédits IA épuisés.");
-      throw new Error(`Erreur IA (${res.status})`);
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        parsed = safeParseJson(json.choices?.[0]?.message?.content?.trim() ?? "");
+      } else if (res.status === 429) {
+        partialReason = partialReason ?? "Limite IA atteinte — résultat partiel.";
+      } else if (res.status === 402) {
+        partialReason = partialReason ?? "Crédits IA épuisés — résultat partiel.";
+      }
+    } catch {
+      // ignore — we'll fall back to raw extraction
     }
-    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const parsed = safeParseJson(json.choices?.[0]?.message?.content?.trim() ?? "");
-    if (!parsed) throw new Error("Réponse IA illisible");
+    if (!parsed) {
+      parsed = {};
+      partialReason = partialReason ?? "Analyse IA indisponible — remplissez manuellement.";
+    }
 
-    // 4) Resolve category id
+    // 5) Resolve category id
     let suggestedCategoryId: string | null = null;
     if (typeof parsed.suggested_category === "string" && parsed.suggested_category.trim()) {
       const match = (cats ?? []).find(
-        (c) => c.name.toLowerCase() === (parsed.suggested_category as string).toLowerCase().trim(),
+        (c) => c.name.toLowerCase() === (parsed!.suggested_category as string).toLowerCase().trim(),
       );
       suggestedCategoryId = match?.id ?? null;
     }
 
-    // 5) FX rate
+    // 6) FX rate
     let fxRate = 1;
     if (currency === "CNY") {
       const { data: s } = await supabaseAdmin
@@ -471,11 +507,11 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       typeof parsed.source_price === "number" ? parsed.source_price : Number(parsed.source_price) || 0;
     const suggestedPriceXof = Math.round(sourcePrice * fxRate);
 
-    // 6) Download images server-side (bypass CORS) — limit to 6 to keep payload small
+    // 7) Download images server-side (bypass CORS) — limit to 6
     const aiImageUrls = Array.isArray(parsed.image_urls)
       ? (parsed.image_urls as unknown[]).filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
       : [];
-    const allImageUrls = Array.from(new Set([...aiImageUrls, ...scraped.images])).slice(0, 6);
+    const allImageUrls = Array.from(new Set([...aiImageUrls, ...scraped.images])).slice(0, 8);
     const imageDataUrls: string[] = [];
     for (const u of allImageUrls) {
       const d = await downloadImageAsDataUrl(u);
@@ -483,7 +519,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       if (imageDataUrls.length >= 6) break;
     }
 
-    // 7) Clean variants
+    // 8) Clean variants
     const rawVariants = Array.isArray(parsed.suggested_variants) ? (parsed.suggested_variants as unknown[]) : [];
     const cleanVariants = rawVariants
       .map((v) => {
@@ -505,17 +541,26 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       .filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== ""))
       .slice(0, 20);
 
+    const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
+    const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
+
+    // Mark as partial if AI couldn't deliver core fields
+    const partial = Boolean(partialReason) || (!nameFr && sourcePrice === 0);
+
     return {
+      resolved_url: resolvedUrl,
+      partial,
+      partial_reason: partial ? (partialReason ?? "Données incomplètes — complétez manuellement.") : null,
       source_currency: currency,
       fx_rate: fxRate,
       source_price: sourcePrice,
       suggested_price_xof: suggestedPriceXof,
-      name_fr: typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "",
-      description_fr: typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "",
+      name_fr: nameFr,
+      description_fr: descFr,
       suggested_category_id: suggestedCategoryId,
       suggested_category_name: typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
       suggested_variants: cleanVariants,
-      images: imageDataUrls, // data URLs ready to convert to File on the client
+      images: imageDataUrls,
     };
   });
 
