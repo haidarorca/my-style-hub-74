@@ -236,6 +236,76 @@ function extractUrlFromText(input: string): string | null {
   return m ? m[0] : null;
 }
 
+// Extract the product title embedded in a Taobao share text. Mobile shares wrap
+// the Chinese title between full-width brackets: 「...」. We strip the URL and
+// boilerplate so the AI prompt receives just the meaningful product name.
+function extractShareTitle(input: string): string {
+  if (!input) return "";
+  const bracket = input.match(/「([^」]{4,300})」/);
+  if (bracket) return bracket[1].trim();
+  // Fallback: take the longest Chinese run in the text
+  const runs = input.match(/[\u4e00-\u9fff][\u4e00-\u9fff0-9A-Za-z\-/\s]{6,200}/g) ?? [];
+  runs.sort((a, b) => b.length - a.length);
+  return runs[0]?.trim() ?? "";
+}
+
+// Minimal local heuristic: if the AI is unavailable AND we only have a Chinese
+// title, generate FR name/designation/description from keyword mappings so the
+// form is never left empty.
+const CN_KEYWORDS: Array<[RegExp, string]> = [
+  [/小米/, "Xiaomi"],
+  [/华为/, "Huawei"],
+  [/苹果/, "Apple"],
+  [/三星/, "Samsung"],
+  [/手环/, "bracelet connecté"],
+  [/手表|智能手表/, "montre connectée"],
+  [/耳机/, "écouteurs"],
+  [/充电器/, "chargeur"],
+  [/数据线/, "câble"],
+  [/儿童|童装|男童|女童/, "enfant"],
+  [/套装|两件套/, "ensemble"],
+  [/夏季|夏装/, "été"],
+  [/冬季/, "hiver"],
+  [/短袖/, "manches courtes"],
+  [/短裤/, "short"],
+  [/NFC/i, "NFC"],
+  [/心率/, "fréquence cardiaque"],
+  [/睡眠/, "suivi du sommeil"],
+  [/防水/, "étanche"],
+  [/运动|健身/, "sport"],
+  [/健康/, "santé"],
+  [/长续航/, "longue autonomie"],
+  [/全面屏/, "écran complet"],
+  [/蓝牙/, "Bluetooth"],
+];
+function heuristicFromChinese(title: string): {
+  name: string;
+  designation: string;
+  description: string;
+} {
+  if (!title) return { name: "", designation: "", description: "" };
+  const hits = CN_KEYWORDS.filter(([re]) => re.test(title)).map(([, fr]) => fr);
+  const uniq = Array.from(new Set(hits));
+  if (uniq.length === 0) return { name: "", designation: "", description: "" };
+  const brand = uniq.find((w) => /^[A-Z]/.test(w)) ?? "";
+  const productType =
+    uniq.find((w) => /bracelet|montre|écouteurs|chargeur|câble|ensemble|short/.test(w)) ?? "Produit";
+  const modelMatch = title.match(/\b\d+(?:NFC)?\b/i);
+  const model = modelMatch ? ` ${modelMatch[0]}` : "";
+  const name = [brand, productType + model].filter(Boolean).join(" ").trim();
+  const designation = uniq.slice(0, 4).join(" · ");
+  const features = uniq.filter((w) => w !== brand && w !== productType);
+  const description =
+    features.length > 0
+      ? `${name || productType} : ${features.join(", ")}.`
+      : `${name || productType}.`;
+  return {
+    name: name.slice(0, 80),
+    designation: designation.slice(0, 90),
+    description: description.slice(0, 500),
+  };
+}
+
 const MOBILE_UAS = [
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
   "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
