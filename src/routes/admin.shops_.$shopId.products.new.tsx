@@ -253,12 +253,24 @@ function NewAdminShopProductPage() {
 
     setSubmitting(true);
     try {
+      const cleanCode = code.trim();
+      const { data: duplicate, error: duplicateErr } = await supabase
+        .from("products")
+        .select("id")
+        .eq("vendor_id", shopId)
+        .eq("code", cleanCode)
+        .maybeSingle();
+      if (duplicateErr) throw duplicateErr;
+      if (duplicate) {
+        throw new Error("Ce code produit existe déjà dans cette boutique.");
+      }
+
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
           vendor_id: shopId,
           name: name.trim(),
-          code: code.trim(),
+          code: cleanCode,
           designation: designation.trim() || null,
           description: description.trim() || null,
           price: priceNum,

@@ -218,6 +218,15 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
       throw new Error("Boutique admin introuvable");
     }
 
+    const { data: duplicate, error: dupErr } = await supabaseAdmin
+      .from("products")
+      .select("id")
+      .eq("vendor_id", data.shop_id)
+      .eq("code", data.code)
+      .maybeSingle();
+    if (dupErr) throw new Error(dupErr.message);
+    if (duplicate) throw new Error("Ce code produit existe déjà dans cette boutique.");
+
     // Insert product (auto-approved since admin)
     const { data: prod, error: pErr } = await supabaseAdmin
       .from("products")
