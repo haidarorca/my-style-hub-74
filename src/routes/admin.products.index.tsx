@@ -427,8 +427,20 @@ const ProductCardMobile = memo(function ProductCardMobile({
       </div>
       {row.status === "pending" ? (
         <div className="mt-2 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button asChild size="sm" className="flex-1">
+              <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}>
+                <Eye className="mr-1 h-3 w-3" /> Examiner
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary" className="flex-1">
+              <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+                <Pencil className="mr-1 h-3 w-3" /> Modifier
+              </Link>
+            </Button>
+          </div>
           <Input
-            placeholder="Motif de rejet (optionnel)"
+            placeholder="Motif de rejet rapide (optionnel)"
             value={reason}
             onChange={(e) => onReason(e.target.value)}
             className="h-8 text-xs"
