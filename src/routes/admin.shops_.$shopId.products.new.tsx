@@ -634,6 +634,7 @@ function NewAdminShopProductPage() {
         toast.success(`${safeVariants.length} variante(s) détectée(s).`);
       }
     } catch (err) {
+      toast.dismiss(progressToast);
       logError({
         type: "manual",
         message: err instanceof Error ? err.message : "Échec OCR",
