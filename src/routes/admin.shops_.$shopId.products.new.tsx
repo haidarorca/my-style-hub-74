@@ -203,6 +203,7 @@ function NewAdminShopProductPage() {
   const [ocrFiles, setOcrFiles] = useState<File[]>([]);
   const [ocrHint, setOcrHint] = useState("");
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState("");
   const [ocrResult, setOcrResult] = useState<Awaited<
     ReturnType<typeof analyzeVariantsFromImages>
   > | null>(null);
@@ -524,6 +525,7 @@ function NewAdminShopProductPage() {
     if (files.length === 0 && e.target.files?.length) {
       toast.error(`Images trop lourdes ou invalides. Maximum ${maxMb} Mo par capture.`);
     }
+    setOcrError("");
     setOcrFiles((prev) => {
       const merged = [...prev, ...files].slice(0, maxFiles);
       if (prev.length + files.length > maxFiles) {
@@ -567,6 +569,7 @@ function NewAdminShopProductPage() {
     }
     setOcrLoading(true);
     setOcrResult(null);
+    setOcrError("");
     const total = ocrFiles.length;
     const progressToast = toast.loading(`Préparation 0/${total}…`);
     try {
@@ -574,11 +577,23 @@ function NewAdminShopProductPage() {
       // and avoids the white-screen freeze caused by Promise.all on many images.
       const dataUrls: string[] = [];
       for (let i = 0; i < ocrFiles.length; i++) {
-        const url = await compressImageForOcr(ocrFiles[i]);
-        dataUrls.push(url);
+        try {
+          const url = await compressImageForOcr(ocrFiles[i]);
+          dataUrls.push(url);
+        } catch (err) {
+          logError({
+            type: "manual",
+            message: err instanceof Error ? `Image OCR ignorée: ${err.message}` : "Image OCR ignorée",
+            stack: err instanceof Error ? err.stack : undefined,
+            url: window.location.href,
+          });
+        }
         toast.loading(`Préparation ${i + 1}/${total}…`, { id: progressToast });
         // Yield to the event loop so the UI can repaint.
         await new Promise((r) => setTimeout(r, 0));
+      }
+      if (dataUrls.length === 0) {
+        throw new Error("Aucune capture lisible pour l'OCR.");
       }
       toast.loading(`Analyse IA en cours…`, { id: progressToast });
       const r = await withTimeout(
@@ -603,6 +618,7 @@ function NewAdminShopProductPage() {
         stack: err instanceof Error ? err.stack : undefined,
         url: window.location.href,
       });
+      setOcrError(humanizeOcrError(err));
       toast.error(humanizeOcrError(err));
     } finally {
       setOcrLoading(false);
