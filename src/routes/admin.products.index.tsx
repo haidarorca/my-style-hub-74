@@ -7,10 +7,10 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
-  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye,
+  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2,
 } from "lucide-react";
 import {
-  listAdminProducts, listReportedProducts, setProductStatus, setReportStatus,
+  listAdminProducts, listReportedProducts, setProductStatus, setReportStatus, deleteOrArchiveProduct,
   type AdminProductRow, type AdminReportRow,
 } from "@/lib/admin-products.functions";
 import { PermissionGate } from "@/components/admin/PermissionGate";
@@ -24,6 +24,10 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
@@ -125,6 +129,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
   const qc = useQueryClient();
   const fetchList = useServerFn(listAdminProducts);
   const mutateStatus = useServerFn(setProductStatus);
+  const deleteFn = useServerFn(deleteOrArchiveProduct);
 
   const params = useMemo(
     () => ({
@@ -152,6 +157,8 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<AdminProductRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const act = useCallback(
     async (id: string, status: "approved" | "rejected") => {
@@ -174,6 +181,21 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
     },
     [mutateStatus, qc, rejectReason],
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await deleteFn({ data: { product_id: deleteTarget.id } });
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+      setDeleteTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteFn, deleteTarget, qc]);
 
   const onPage = useCallback(
     (next: number) => navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) }),
@@ -287,6 +309,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
                   reason={rejectReason[p.id] ?? ""}
                   onReason={(v) => setRejectReason((r) => ({ ...r, [p.id]: v }))}
                   onAct={act}
+                  onDelete={() => setDeleteTarget(p)}
                 />
               ))
             )}
@@ -318,6 +341,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
                     reason={rejectReason[p.id] ?? ""}
                     onReason={(v) => setRejectReason((r) => ({ ...r, [p.id]: v }))}
                     onAct={act}
+                    onDelete={() => setDeleteTarget(p)}
                   />
                 ))}
               </TableBody>
@@ -327,16 +351,41 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
           <PaginationBar page={search.page} pageSize={PAGE_SIZE} total={total} onPageChange={onPage} className="border-t" />
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>{" "}
+              (#{deleteTarget?.code}) sera supprimé. Si le produit a déjà été vendu, il sera
+              <strong> archivé </strong>automatiquement pour préserver l'historique des commandes ;
+              sinon il sera <strong>supprimé définitivement</strong>. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+            >
+              {deleting ? "Suppression…" : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
 
 const ProductRowDesktop = memo(function ProductRowDesktop({
-  row, busy, reason, onReason, onAct,
+  row, busy, reason, onReason, onAct, onDelete,
 }: {
   row: AdminProductRow; busy: boolean; reason: string;
   onReason: (v: string) => void;
   onAct: (id: string, s: "approved" | "rejected") => void;
+  onDelete: () => void;
 }) {
   return (
     <TableRow>
@@ -416,6 +465,16 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
               )}
             </>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+            disabled={busy}
+            title="Supprimer ce produit"
+          >
+            <Trash2 className="mr-1 h-3 w-3" /> Supprimer
+          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -423,11 +482,12 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
 });
 
 const ProductCardMobile = memo(function ProductCardMobile({
-  row, busy, reason, onReason, onAct,
+  row, busy, reason, onReason, onAct, onDelete,
 }: {
   row: AdminProductRow; busy: boolean; reason: string;
   onReason: (v: string) => void;
   onAct: (id: string, s: "approved" | "rejected") => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -500,6 +560,15 @@ const ProductCardMobile = memo(function ProductCardMobile({
           )}
         </div>
       )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onDelete}
+        disabled={busy}
+      >
+        <Trash2 className="mr-1 h-3 w-3" /> Supprimer le produit
+      </Button>
     </div>
   );
 });

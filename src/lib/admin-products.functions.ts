@@ -343,6 +343,72 @@ export const setProductStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ product_id: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true; mode: "deleted" | "archived"; message: string }> => {
+    await assertAdmin(context.userId);
+
+    const { data: product, error: prodErr } = await supabaseAdmin
+      .from("products")
+      .select("id, name, code, vendor_id")
+      .eq("id", data.product_id)
+      .maybeSingle();
+    if (prodErr) throw new Error(prodErr.message);
+    if (!product) return { ok: true, mode: "deleted", message: "Produit déjà supprimé." };
+
+    // Check sales history
+    const { count: salesCount, error: salesErr } = await supabaseAdmin
+      .from("order_items")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", data.product_id);
+    if (salesErr) throw new Error(salesErr.message);
+
+    if ((salesCount ?? 0) > 0) {
+      // Logical archive — keep history intact
+      const { error: archErr } = await supabaseAdmin
+        .from("products")
+        .update({
+          is_active: false,
+          status: "rejected",
+          rejection_reason: "Archivé par l'administration",
+        })
+        .eq("id", data.product_id);
+      if (archErr) throw new Error(archErr.message);
+      return {
+        ok: true,
+        mode: "archived",
+        message: `« ${product.name} » a été archivé (lié à ${salesCount} vente(s)).`,
+      };
+    }
+
+    // Hard delete — clean children first (no FK cascade)
+    await supabaseAdmin.from("product_customizations").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("product_images").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("product_variants").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("product_admin_metadata").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("product_reviews").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("product_reports").delete().eq("product_id", data.product_id);
+    await supabaseAdmin.from("cart_items").delete().eq("product_id", data.product_id);
+    // moderation feedback items via feedback ids
+    const { data: feedbacks } = await supabaseAdmin
+      .from("product_moderation_feedback")
+      .select("id")
+      .eq("product_id", data.product_id);
+    const fbIds = (feedbacks ?? []).map((f) => f.id);
+    if (fbIds.length > 0) {
+      await supabaseAdmin.from("product_moderation_feedback_items").delete().in("feedback_id", fbIds);
+      await supabaseAdmin.from("product_moderation_feedback").delete().in("id", fbIds);
+    }
+
+    const { error: delErr } = await supabaseAdmin.from("products").delete().eq("id", data.product_id);
+    if (delErr) throw new Error(delErr.message);
+
+    return { ok: true, mode: "deleted", message: `« ${product.name} » a été supprimé définitivement.` };
+  });
+
 export const setReportStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
