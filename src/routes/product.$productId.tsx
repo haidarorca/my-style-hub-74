@@ -162,9 +162,6 @@ function ProductPage() {
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
-  // Buyer-facing price: only the final (commission-included) price. Never show
-  // the raw vendor price or variant override while the final price is loading.
-  const price = resolvedFinalPrice ?? 0;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;
