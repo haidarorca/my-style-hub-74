@@ -172,6 +172,15 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
     setMasks([]);
     setTexts([]);
     setSelected(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+  function restoreOriginal() {
+    if (!onResetOriginal) return;
+    onResetOriginal();
+    reset();
+    toast.success("Image originale restaurée.");
+    onClose();
   }
   function remove(id: string) {
     if (id === "__crop__") setCrop(null);
