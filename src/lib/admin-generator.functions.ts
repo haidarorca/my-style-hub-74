@@ -873,38 +873,45 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
 
 async function scrapeViaApify(
   url: string,
+  mode: "fast" | "deep" = "fast",
 ): Promise<{ text: string; images: string[]; html: string }> {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error("APIFY_TOKEN non configuré");
 
-  // apify/website-content-crawler — generic, returns markdown of a single page
-  // For Taobao/1688 SPA we MUST run a real Chromium with extra wait so client-side
-  // JSON (skuMap, propertyMemoMap, __INIT_DATA__…) is injected into the DOM.
-  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=120`;
   const isAlibaba = /taobao\.com|tmall\.com|1688\.com|tb\.cn|tmall\.hk/i.test(url);
+  // Fast mode = cheerio (HTML only, ~5-10s). Deep mode = real browser with wait
+  // for SPA-rendered SKU JSON (~30-60s). Server-fn upstream timeout is ~60s,
+  // so deep mode must stay well under that.
+  const useBrowser = mode === "deep" && isAlibaba;
+  const apifyTimeout = useBrowser ? 70 : 45;
+  const endpoint = `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=${apifyTimeout}`;
   const body = {
     startUrls: [{ url }],
-    crawlerType: isAlibaba ? "playwright:firefox" : "playwright:adaptive",
+    crawlerType: useBrowser ? "playwright:firefox" : "cheerio",
     maxCrawlPages: 1,
     maxCrawlDepth: 0,
     saveMarkdown: true,
     saveHtml: true,
     saveScreenshots: false,
-    proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
-    requestTimeoutSecs: 90,
-    dynamicContentWaitSecs: isAlibaba ? 12 : 5,
-    maxScrollHeightPixels: 6000,
+    proxyConfiguration: useBrowser
+      ? { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] }
+      : { useApifyProxy: true },
+    requestTimeoutSecs: useBrowser ? 55 : 25,
+    dynamicContentWaitSecs: useBrowser ? 8 : 0,
+    maxScrollHeightPixels: useBrowser ? 4000 : 0,
     removeElementsCssSelector: "",
     htmlTransformer: "none",
     readableTextCharThreshold: 0,
-    initialCookies: isAlibaba
-      ? [{ name: "hng", value: "fr|FR|EUR", domain: ".taobao.com" }]
-      : [],
+    initialCookies:
+      useBrowser && isAlibaba
+        ? [{ name: "hng", value: "fr|FR|EUR", domain: ".taobao.com" }]
+        : [],
   };
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout((apifyTimeout + 10) * 1000),
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -926,7 +933,6 @@ async function scrapeViaApify(
   const desc = it.metadata?.description ?? "";
   const md = it.markdown ?? it.text ?? "";
   const html = it.html ?? "";
-  // Extract image URLs from markdown ![](url) and bare http(s) img links
   const imgRe =
     /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s")]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s")]*)?)/gi;
   const set = new Set<string>();
