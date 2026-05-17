@@ -642,6 +642,30 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   const variants: StructuredVariant[] = [];
   const roots: unknown[] = [];
   const direct = new Map<string, unknown[]>();
+
+  // Taobao mobile h5 ships its data as `window.__INIT_DATA__ = JSON.parse('…')`
+  // or `window.runParams = {…}`. Extract those root objects first so the recursive
+  // walker can find skuMap / propertyMemoMap / componentsVO inside.
+  for (const re of [
+    /window\.__INIT_DATA__\s*=\s*JSON\.parse\(['"]([\s\S]*?)['"]\)\s*;/g,
+    /window\.__INIT_DATA__\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+    /window\.runParams\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+    /g_config\s*=\s*(\{[\s\S]*?\})\s*;\s*<\/script>/g,
+  ]) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) {
+      try {
+        const decoded = m[1]
+          .replace(/\\\\/g, "\\")
+          .replace(/\\"/g, '"')
+          .replace(/\\u002F/gi, "/");
+        roots.push(JSON.parse(decoded));
+      } catch {
+        /* skip */
+      }
+    }
+  }
+
   for (const key of [
     "apiStack",
     "skuBase",
@@ -651,6 +675,12 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
     "props",
     "skuMap",
     "skuInfoMap",
+    "propertyMemoMap",
+    "valItemInfo",
+    "componentsVO",
+    "vertical",
+    "priceModule",
+    "skuItem",
     "itemImgs",
     "auctionImages",
     "images",
