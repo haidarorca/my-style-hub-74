@@ -312,7 +312,220 @@ function looksLikeLoginWall(text: string): boolean {
   );
 }
 
-async function scrapeViaApify(url: string): Promise<{ text: string; images: string[] }> {
+// ───────────────────────────────────────────────────────────
+// SKU / image filtering helpers (Taobao / 1688 / Tmall)
+// ───────────────────────────────────────────────────────────
+
+// Only keep images served from Alibaba product CDNs. Reject SVG/icons/UI assets.
+function isLikelyProductImageUrl(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  const u = url.toLowerCase();
+  // Reject obvious non-photo assets
+  if (/\.svg(\?|$)/.test(u)) return false;
+  if (/(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon)/.test(u)) return false;
+  // Allow Alibaba product CDNs only (covers Taobao / Tmall / 1688 / AliExpress)
+  const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(u);
+  if (!allowedHost) return false;
+  // Filter out tiny resized thumbnails like _40x40, _60x60, _80x80q90
+  const sizeMatch = u.match(/_(\d{2,4})x(\d{2,4})(?:q\d+)?\.(?:jpg|jpeg|png|webp)(?:_\.webp)?(?:\?|$)/);
+  if (sizeMatch) {
+    const w = parseInt(sizeMatch[1], 10);
+    const h = parseInt(sizeMatch[2], 10);
+    if (w < 200 || h < 200) return false;
+  }
+  return true;
+}
+
+// Strip alicdn resize suffix (_NNNxNNN.jpg) to get original/high-res image.
+function upgradeAlicdnImage(url: string): string {
+  return url
+    .replace(/_\d{2,4}x\d{2,4}(?:q\d+)?\.(jpg|jpeg|png|webp)(?:_\.webp)?$/i, "")
+    .replace(/_\d{2,4}x\d{2,4}(?:q\d+)?\.(jpg|jpeg|png|webp)(?:_\.webp)?(\?[^"']*)?$/i, "$2");
+}
+
+// Walk a balanced JSON object/array starting at the first { or [ after `startIdx`.
+function extractBalancedJsonAt(text: string, startIdx: number): string | null {
+  let i = startIdx;
+  while (i < text.length && text[i] !== "{" && text[i] !== "[") i++;
+  if (i >= text.length) return null;
+  const open = text[i];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let j = i; j < text.length; j++) {
+    const ch = text[j];
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = false; }
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return text.slice(i, j + 1);
+    }
+  }
+  return null;
+}
+
+function findJsonByKey(html: string, key: string): unknown | null {
+  // Search for "key": followed by { or [
+  const re = new RegExp(`["']${key}["']\\s*:\\s*(?=[\\{\\[])`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const raw = extractBalancedJsonAt(html, m.index + m[0].length);
+    if (!raw) continue;
+    try {
+      // Some embedded JSON has escaped quotes (\") — try direct then unescape.
+      return JSON.parse(raw);
+    } catch {
+      try {
+        return JSON.parse(raw.replace(/\\"/g, '"').replace(/\\\\/g, "\\"));
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+type StructuredVariant = {
+  name: string;
+  color: string;
+  image_url: string;
+  source_price: number;
+};
+
+type StructuredSku = {
+  images: string[];
+  variants: StructuredVariant[];
+};
+
+// Extract product images + variants from embedded Taobao / 1688 JSON.
+function parseEmbeddedSkuData(html: string): StructuredSku {
+  const images = new Set<string>();
+  const variants: StructuredVariant[] = [];
+
+  // ── 1) Main product gallery (Taobao h5 / item) ──
+  // Try keys: "images", "itemImgs", "auctionImages", "picsPath"
+  for (const key of ["itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
+    const v = findJsonByKey(html, key);
+    if (Array.isArray(v)) {
+      for (const it of v) {
+        if (typeof it === "string") {
+          const u = it.startsWith("//") ? `https:${it}` : it;
+          if (isLikelyProductImageUrl(u)) images.add(upgradeAlicdnImage(u));
+        } else if (it && typeof it === "object") {
+          const url = (it as Record<string, unknown>).url ?? (it as Record<string, unknown>).fullPathImageURI ?? (it as Record<string, unknown>).img;
+          if (typeof url === "string") {
+            const u = url.startsWith("//") ? `https:${url}` : url;
+            if (isLikelyProductImageUrl(u)) images.add(upgradeAlicdnImage(u));
+          }
+        }
+      }
+    }
+  }
+
+  // ── 2) skuProps (Taobao mobile detail) ──
+  // [{pid, prop:"颜色分类", values:[{vid,name,image,...}]}, ...]
+  const skuProps = findJsonByKey(html, "skuProps") ?? findJsonByKey(html, "props");
+  // Build vid → {name, image} for color-like prop (one with images).
+  const vidToVariant = new Map<string, { name: string; image: string; isColor: boolean }>();
+  if (Array.isArray(skuProps)) {
+    for (const p of skuProps) {
+      if (!p || typeof p !== "object") continue;
+      const propName = String((p as Record<string, unknown>).prop ?? (p as Record<string, unknown>).name ?? "");
+      const values = (p as Record<string, unknown>).values;
+      const isColor = /颜色|color|款式|花色|图案|套餐|规格|型号/i.test(propName);
+      if (!Array.isArray(values)) continue;
+      for (const val of values) {
+        if (!val || typeof val !== "object") continue;
+        const vid = String((val as Record<string, unknown>).vid ?? (val as Record<string, unknown>).id ?? "");
+        const name = String((val as Record<string, unknown>).name ?? (val as Record<string, unknown>).text ?? "").trim();
+        const rawImg = (val as Record<string, unknown>).image ?? (val as Record<string, unknown>).imageUrl ?? "";
+        let img = typeof rawImg === "string" ? rawImg : "";
+        if (img.startsWith("//")) img = `https:${img}`;
+        if (img && !isLikelyProductImageUrl(img)) img = "";
+        if (img) img = upgradeAlicdnImage(img);
+        if (vid && (name || img)) vidToVariant.set(vid, { name, image: img, isColor });
+        if (img) images.add(img);
+      }
+    }
+  }
+
+  // ── 3) skuMap → per-SKU price + quantity ──
+  // Key format: ";vid1;vid2;" → { price, quantity, ... }
+  const skuMap = findJsonByKey(html, "skuMap") ?? findJsonByKey(html, "skuCore") ?? findJsonByKey(html, "skus");
+  const skuEntries: Array<{ vids: string[]; price: number }> = [];
+  if (skuMap && typeof skuMap === "object" && !Array.isArray(skuMap)) {
+    for (const [k, raw] of Object.entries(skuMap as Record<string, unknown>)) {
+      const vids = k.split(/[;:,]/).filter((s) => /^\d{3,}$/.test(s));
+      if (vids.length === 0) continue;
+      const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const priceRaw = obj.price ?? obj.priceText ?? obj.promotionPrice ?? obj.sellingPrice ?? 0;
+      const price = typeof priceRaw === "number" ? priceRaw : parseFloat(String(priceRaw).replace(/[^\d.]/g, "")) || 0;
+      skuEntries.push({ vids, price });
+    }
+  } else if (Array.isArray(skuMap)) {
+    for (const raw of skuMap as unknown[]) {
+      if (!raw || typeof raw !== "object") continue;
+      const obj = raw as Record<string, unknown>;
+      const propPath = String(obj.propPath ?? obj.skuId ?? obj.specPath ?? "");
+      const vids = propPath.split(/[;:,]/).filter((s) => /^\d{3,}$/.test(s));
+      if (vids.length === 0) continue;
+      const priceRaw = obj.price ?? obj.priceText ?? obj.promotionPrice ?? obj.sellingPrice ?? 0;
+      const price = typeof priceRaw === "number" ? priceRaw : parseFloat(String(priceRaw).replace(/[^\d.]/g, "")) || 0;
+      skuEntries.push({ vids, price });
+    }
+  }
+
+  // ── 4) Combine: variant = each color value (or each sku entry) ──
+  // Group by the "color-like" vid in each sku.
+  const variantByKey = new Map<string, StructuredVariant>();
+  if (skuEntries.length > 0 && vidToVariant.size > 0) {
+    for (const { vids, price } of skuEntries) {
+      const parts: string[] = [];
+      let img = "";
+      let colorName = "";
+      for (const vid of vids) {
+        const v = vidToVariant.get(vid);
+        if (!v) continue;
+        if (v.name) parts.push(v.name);
+        if (v.image && !img) img = v.image;
+        if (v.isColor && v.name && !colorName) colorName = v.name;
+      }
+      if (parts.length === 0) continue;
+      const name = parts.join(" - ").slice(0, 90);
+      const key = name + "|" + img;
+      const existing = variantByKey.get(key);
+      if (!existing || (price > 0 && (existing.source_price === 0 || price < existing.source_price))) {
+        variantByKey.set(key, { name, color: colorName, image_url: img, source_price: price });
+      }
+    }
+  } else if (vidToVariant.size > 0) {
+    // No skuMap → emit one variant per color value
+    for (const v of vidToVariant.values()) {
+      if (!v.name && !v.image) continue;
+      variantByKey.set(v.name + "|" + v.image, {
+        name: v.name.slice(0, 90),
+        color: v.isColor ? v.name : "",
+        image_url: v.image,
+        source_price: 0,
+      });
+    }
+  }
+  for (const v of variantByKey.values()) variants.push(v);
+
+  return {
+    images: Array.from(images).slice(0, 12),
+    variants: variants.slice(0, 30),
+  };
+}
+
+async function scrapeViaApify(url: string): Promise<{ text: string; images: string[]; html: string }> {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error("APIFY_TOKEN non configuré");
 
