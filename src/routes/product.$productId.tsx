@@ -121,6 +121,10 @@ function ProductPage() {
     );
   }, [variants, size, color, sizes.length, colors.length]);
 
+  useEffect(() => {
+    if (matchedVariant?.image_url) setImgIdx(0);
+  }, [matchedVariant?.image_url]);
+
   const priceLines = useMemo(
     () => data ? [{ productId: data.id, variantId: matchedVariant?.id ?? null }] : [],
     [data, matchedVariant?.id],
@@ -227,7 +231,7 @@ function ProductPage() {
         </div>
         {/* Gallery — swipeable */}
         {(() => {
-          const variantImg = color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null;
+          const variantImg = matchedVariant?.image_url ?? (color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null);
           const urls = images.map((i) => i.url);
           const galleryUrls = variantImg
             ? [variantImg, ...urls.filter((u) => u !== variantImg)]
