@@ -1654,7 +1654,7 @@ function NewAdminShopProductPage() {
               <Camera className="h-4 w-4" /> Importer les variantes depuis des images
             </DialogTitle>
             <DialogDescription>
-              Envoyez jusqu'à {mobileSafeMode ? 10 : 25} captures (couleurs, tailles, prix). L'IA
+              Envoyez jusqu'à 10 captures (couleurs, tailles, prix). L'IA
               les analyse une par une et reconstruit les combinaisons en français.
             </DialogDescription>
           </DialogHeader>
