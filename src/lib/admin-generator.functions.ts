@@ -236,6 +236,76 @@ function extractUrlFromText(input: string): string | null {
   return m ? m[0] : null;
 }
 
+// Extract the product title embedded in a Taobao share text. Mobile shares wrap
+// the Chinese title between full-width brackets: 「...」. We strip the URL and
+// boilerplate so the AI prompt receives just the meaningful product name.
+function extractShareTitle(input: string): string {
+  if (!input) return "";
+  const bracket = input.match(/「([^」]{4,300})」/);
+  if (bracket) return bracket[1].trim();
+  // Fallback: take the longest Chinese run in the text
+  const runs = input.match(/[\u4e00-\u9fff][\u4e00-\u9fff0-9A-Za-z\-/\s]{6,200}/g) ?? [];
+  runs.sort((a, b) => b.length - a.length);
+  return runs[0]?.trim() ?? "";
+}
+
+// Minimal local heuristic: if the AI is unavailable AND we only have a Chinese
+// title, generate FR name/designation/description from keyword mappings so the
+// form is never left empty.
+const CN_KEYWORDS: Array<[RegExp, string]> = [
+  [/小米/, "Xiaomi"],
+  [/华为/, "Huawei"],
+  [/苹果/, "Apple"],
+  [/三星/, "Samsung"],
+  [/手环/, "bracelet connecté"],
+  [/手表|智能手表/, "montre connectée"],
+  [/耳机/, "écouteurs"],
+  [/充电器/, "chargeur"],
+  [/数据线/, "câble"],
+  [/儿童|童装|男童|女童/, "enfant"],
+  [/套装|两件套/, "ensemble"],
+  [/夏季|夏装/, "été"],
+  [/冬季/, "hiver"],
+  [/短袖/, "manches courtes"],
+  [/短裤/, "short"],
+  [/NFC/i, "NFC"],
+  [/心率/, "fréquence cardiaque"],
+  [/睡眠/, "suivi du sommeil"],
+  [/防水/, "étanche"],
+  [/运动|健身/, "sport"],
+  [/健康/, "santé"],
+  [/长续航/, "longue autonomie"],
+  [/全面屏/, "écran complet"],
+  [/蓝牙/, "Bluetooth"],
+];
+function heuristicFromChinese(title: string): {
+  name: string;
+  designation: string;
+  description: string;
+} {
+  if (!title) return { name: "", designation: "", description: "" };
+  const hits = CN_KEYWORDS.filter(([re]) => re.test(title)).map(([, fr]) => fr);
+  const uniq = Array.from(new Set(hits));
+  if (uniq.length === 0) return { name: "", designation: "", description: "" };
+  const brand = uniq.find((w) => /^[A-Z]/.test(w)) ?? "";
+  const productType =
+    uniq.find((w) => /bracelet|montre|écouteurs|chargeur|câble|ensemble|short/.test(w)) ?? "Produit";
+  const modelMatch = title.match(/\b\d+(?:NFC)?\b/i);
+  const model = modelMatch ? ` ${modelMatch[0]}` : "";
+  const name = [brand, productType + model].filter(Boolean).join(" ").trim();
+  const designation = uniq.slice(0, 4).join(" · ");
+  const features = uniq.filter((w) => w !== brand && w !== productType);
+  const description =
+    features.length > 0
+      ? `${name || productType} : ${features.join(", ")}.`
+      : `${name || productType}.`;
+  return {
+    name: name.slice(0, 80),
+    designation: designation.slice(0, 90),
+    description: description.slice(0, 500),
+  };
+}
+
 const MOBILE_UAS = [
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
   "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -1028,13 +1098,14 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       }
     }
 
-    // 2c) Ultimate fallback: if the page is fully blocked, use the raw share text
-    //     (Taobao mobile shares embed the Chinese product title before the link).
-    //     We still run the AI below to translate it into FR name/designation/description.
+    // 2c) Always extract the share title (between 「 」) so the AI gets it even
+    //     when scraping succeeded partially. If the page is fully blocked, the
+    //     title becomes the sole input — we never give up when text is available.
+    const shareTitle = extractShareTitle(data.url);
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 20)) {
-      const shareText = data.url.trim();
-      if (shareText.length >= 4) {
-        scraped = { text: shareText, images: [], html: "" };
+      const fallbackText = shareTitle || data.url.trim();
+      if (fallbackText.length >= 4) {
+        scraped = { text: fallbackText, images: [], html: "" };
         partialReasons.push(
           "Page Taobao bloquée — analyse basée uniquement sur le texte du lien partagé.",
         );
@@ -1044,6 +1115,9 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
             "Astuce : collez le texte de partage Taobao complet (avec le titre chinois) puis réessayez.",
         );
       }
+    } else if (shareTitle && !scraped.text.includes(shareTitle)) {
+      // Enrich scraped text with the user-provided title to guide the AI.
+      scraped = { ...scraped, text: `${shareTitle}\n\n${scraped.text}` };
     }
 
     // 2b) Parse embedded Taobao/1688 SKU JSON (skuMap, skuProps, itemImgs…) from raw HTML
@@ -1256,16 +1330,24 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       image_data_url: v.image_url ? (variantUrlCache.get(v.image_url) ?? null) : null,
     }));
 
-    const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
-    const designationFr =
+    let nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
+    let designationFr =
       typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
-    const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
+    let descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
-    // Add granular reasons for missing core fields so the UI shows
-    // actionable hints instead of a vague "données incomplètes".
+    // Local heuristic fallback: if the AI didn't return anything usable but we
+    // have a Chinese share title, derive FR fields from keyword mappings so the
+    // form is never left empty.
+    if ((!nameFr || !designationFr || !descFr) && shareTitle) {
+      const h = heuristicFromChinese(shareTitle);
+      if (!nameFr && h.name) nameFr = h.name;
+      if (!designationFr && h.designation) designationFr = h.designation;
+      if (!descFr && h.description) descFr = h.description;
+    }
+
+    // Granular reasons for missing core fields. We intentionally do NOT warn
+    // about missing variants — variant entry is fully manual by design.
     if (sourcePrice === 0) partialReasons.push("Prix non détecté — saisissez-le manuellement.");
-    if (cleanVariants.length === 0)
-      partialReasons.push("Variantes non détectées — ajoutez-les manuellement si besoin.");
     if (!nameFr) partialReasons.push("Nom non détecté — saisissez-le manuellement.");
 
     const partial = partialReasons.length > 0 || (!nameFr && sourcePrice === 0);
