@@ -585,6 +585,45 @@ export type Database = {
         }
         Relationships: []
       }
+      moderation_reason_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          is_enabled: boolean
+          label: string
+          position: number
+          step: Database["public"]["Enums"]["moderation_step"]
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          is_enabled?: boolean
+          label: string
+          position?: number
+          step: Database["public"]["Enums"]["moderation_step"]
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          is_enabled?: boolean
+          label?: string
+          position?: number
+          step?: Database["public"]["Enums"]["moderation_step"]
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -871,6 +910,71 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_moderation_feedback: {
+        Row: {
+          admin_id: string
+          created_at: string
+          decision: Database["public"]["Enums"]["moderation_decision"]
+          global_message: string | null
+          id: string
+          product_id: string
+          vendor_id: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          decision: Database["public"]["Enums"]["moderation_decision"]
+          global_message?: string | null
+          id?: string
+          product_id: string
+          vendor_id: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          decision?: Database["public"]["Enums"]["moderation_decision"]
+          global_message?: string | null
+          id?: string
+          product_id?: string
+          vendor_id?: string
+        }
+        Relationships: []
+      }
+      product_moderation_feedback_items: {
+        Row: {
+          feedback_id: string
+          id: string
+          position: number
+          reason_text: string
+          step: Database["public"]["Enums"]["moderation_step"]
+          video_url: string | null
+        }
+        Insert: {
+          feedback_id: string
+          id?: string
+          position?: number
+          reason_text: string
+          step: Database["public"]["Enums"]["moderation_step"]
+          video_url?: string | null
+        }
+        Update: {
+          feedback_id?: string
+          id?: string
+          position?: number
+          reason_text?: string
+          step?: Database["public"]["Enums"]["moderation_step"]
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_moderation_feedback_items_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "product_moderation_feedback"
             referencedColumns: ["id"]
           },
         ]
@@ -1707,6 +1811,20 @@ export type Database = {
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
       customization_type: "name" | "image"
+      moderation_decision: "approved" | "rejected" | "changes_requested"
+      moderation_step:
+        | "name"
+        | "code"
+        | "designation"
+        | "description"
+        | "category"
+        | "subcategory"
+        | "images"
+        | "price"
+        | "stock"
+        | "variants"
+        | "countries"
+        | "global"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
       user_sex: "homme" | "femme"
@@ -1858,6 +1976,21 @@ export const Constants = {
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
       customization_type: ["name", "image"],
+      moderation_decision: ["approved", "rejected", "changes_requested"],
+      moderation_step: [
+        "name",
+        "code",
+        "designation",
+        "description",
+        "category",
+        "subcategory",
+        "images",
+        "price",
+        "stock",
+        "variants",
+        "countries",
+        "global",
+      ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
       user_sex: ["homme", "femme"],

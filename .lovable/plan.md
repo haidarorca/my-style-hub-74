@@ -1,79 +1,87 @@
-## Préparation groupée des commandes — Vendeur & Admin
+# Système professionnel de modération des produits
 
-Système complet permettant de sélectionner plusieurs commandes et générer une vue regroupée par produit (et par vendeur côté admin) pour faciliter la préparation.
+Refonte de la page admin de validation des produits en un vrai workflow de modération étape par étape, avec édition, motifs structurés, notifications et envoi WhatsApp.
 
-### Périmètre
+## 1. Base de données
 
-**Espace vendeur** (`/vendor/orders`)
-- Cases à cocher devant chaque commande + sélection multiple (tout/aucun)
-- Bouton "Préparation groupée" (apparaît dès 1 sélection)
-- Statuts inclus par défaut : `new`, `confirmed` (les autres exclus)
-- Page dédiée `/vendor/preparation` recevant les IDs sélectionnés
+Nouvelles tables :
 
-**Espace admin** (`/admin/orders`)
-- Mêmes cases à cocher + bouton
-- Page dédiée `/admin/preparation`
-- Colonne **Vendeur** visible + regroupement par couple (produit + vendeur)
+- **`moderation_reason_templates`** — bibliothèque de motifs prédéfinis et personnalisés
+  - `step` (enum : name, code, designation, description, category, subcategory, images, price, stock, variants, countries, global)
+  - `label` (texte du motif)
+  - `video_url` (optionnel)
+  - `is_default` (motifs livrés par défaut vs créés par l'admin)
+  - `created_by`, `position`, `is_enabled`
 
-### Page de préparation (UI partagée)
+- **`product_moderation_feedback`** — feedback structuré envoyé au vendeur
+  - `product_id`, `vendor_id`, `admin_id`
+  - `decision` (approved, rejected, changes_requested)
+  - `global_message`
+  - `created_at`
 
-```
-┌─────────────────────────────────────────┐
-│ Préparation groupée — 5 commandes       │
-│ [Imprimer] [PDF] [Excel] [Copier]       │
-├─────────────────────────────────────────┤
-│ ▼ 🟦 PRODUIT A · Vendeur X (admin)      │
-│    Image · SKU · Qté totale : 6         │
-│    ├ Taille M / Noir   ×2  (cmd #abc..) │
-│    ├ Taille L / Noir   ×3  (cmd #def..) │
-│    └ Taille XL / Blanc ×1  (cmd #ghi..) │
-│    [Détails] [Commandes] [Personnalis.] │
-├─────────────────────────────────────────┤
-│ ▼ 🟧 PRODUIT B …                        │
-└─────────────────────────────────────────┘
-```
+- **`product_moderation_feedback_items`** — détail par étape
+  - `feedback_id`, `step`, `reason_text`, `video_url`
 
-- Bloc accordéon par produit (couleur de fond légère + bordure colorée par produit, hash du product_id → palette de tokens)
-- Variantes listées en sous-lignes (taille, couleur, qté, commandes liées)
-- Produits personnalisés : bouton "Voir personnalisations" → dialog listant chaque ligne client (texte, police, couleur, image téléchargeable)
-- Boutons : marquer en préparation (passe le statut commande à `confirmed`), imprimer (window.print + styles), PDF (via print-to-PDF du navigateur), Excel (xlsx généré côté client), copier résumé texte
-- Téléchargement images clients (lien direct par fichier + "tout télécharger" en ZIP)
+Politiques RLS : admin lit/écrit tout ; vendeur lit son propre feedback ; templates publics en lecture pour les admins seulement.
 
-### Logique de regroupement
+Seed initial avec les motifs donnés en exemple (nom, catégorie, images).
 
-- **Clé vendeur** : `product_id + variant_id + customization?` → variante
-- **Clé admin** : `vendor_id + product_id + variant_id + customization?` → variante
-- Personnalisations (texte/image client) : jamais fusionnées, chacune reste une ligne propre rattachée au produit parent
-- Statuts filtrés côté serveur : `new` et `confirmed` uniquement
+## 2. Server functions (`src/lib/admin-moderation.functions.ts`)
 
-### Architecture technique
+- `getProductForModeration(productId)` — produit complet avec images, variantes, catégorie, pays, customizations, infos vendeur
+- `updateProductAsAdmin(productId, patch)` — admin peut corriger n'importe quel champ avant validation (réutilise `supabaseAdmin`)
+- `listReasonTemplates(step?)` — chargement à la demande par étape
+- `createReasonTemplate({step, label, video_url})` — sauvegarder un motif perso
+- `submitModerationDecision({product_id, decision, items[], global_message, notify_vendor})` — applique le statut, écrit le feedback, crée une notification structurée pour le vendeur
 
-**Backend (server functions)**
-- `src/lib/preparation.functions.ts`
-  - `getVendorPreparation({ order_ids })` — middleware `requireSupabaseAuth`, filtre `vendor_id = userId`
-  - `getAdminPreparation({ order_ids })` — middleware admin, retourne aussi `vendor_id`/`vendor_shop_name`
-  - Retour : `groups: [{ product_id, vendor_id?, product, total_qty, variants:[…], customizations:[…], order_refs:[…] }]`
+## 3. Interface admin
 
-**Frontend**
-- `src/components/orders/PreparationView.tsx` — composant partagé (props : `mode: "vendor"|"admin"`, `groups`)
-- `src/routes/vendor.preparation.tsx` — lit `?ids=` du querystring, appelle `getVendorPreparation`
-- `src/routes/admin.preparation.tsx` — idem côté admin
-- Ajout sélection dans `vendor.orders.tsx` et `admin.orders.tsx` (state local `Set<orderId>`, barre d'action fixe en bas mobile / sticky en haut desktop)
+### Page liste (`/admin/products`)
+- Ajout d'un bouton **Examiner** sur chaque ligne → ouvre la page de détail.
 
-**Dépendances**
-- `xlsx` pour l'export Excel (déjà courant)
-- `jszip` pour le téléchargement groupé des images clients
+### Page détail (`/admin/products/$productId/moderate`)
+Layout responsive mobile-first, deux colonnes sur desktop :
 
-### Détails techniques
+**Colonne gauche — aperçu et édition du produit**
+- Carrousel images (avec suppression/ajout)
+- Champs éditables inline : nom, code, désignation, description, prix, stock, catégorie, sous-catégorie, pays de livraison, variantes
+- Bouton **Enregistrer modifications**
 
-- IDs passés via querystring (limite ~50 commandes par préparation pour rester sous la limite URL)
-- Mobile : barre d'action en bas (sticky), cases à cocher à gauche de chaque carte commande
-- Print CSS : masquer header/nav, layout A4 propre
-- Images chargées en `loading=lazy`
-- Pas de modification des statuts en bulk dans cette V1 sauf "marquer en préparation" (= `confirmed`)
+**Colonne droite — panneau de modération**
+- 3 boutons d'action : **Approuver** / **Demander modification** / **Rejeter**
+- Liste des étapes du formulaire, chacune avec :
+  - case à cocher
+  - quand cochée → liste déroulante chargée à la demande (lazy) avec les motifs de CETTE étape uniquement
+  - sélection multiple de motifs
+  - bouton **+ Ajouter un motif personnalisé** (champ texte + URL vidéo optionnel)
+- Section **Message global** indépendante (même mécanisme)
+- Prévisualisation du message final
+- Boutons : **Envoyer la décision** et **Envoyer par WhatsApp**
 
-### Hors périmètre (V2 possible)
+### Bouton WhatsApp
+Construit un message texte propre et bien hiérarchisé à partir des motifs cochés, puis ouvre `https://wa.me/<vendor_phone>?text=...`.
 
-- Vue temps réel multi-utilisateurs
-- Bons de préparation imprimables par commande individuelle
-- Gestion de stock automatique au passage en préparation
+## 4. Notification vendeur
+
+À l'envoi de la décision :
+- Insertion dans `notifications` (titre, message structuré, lien vers le produit)
+- Mise à jour du `products.status` + `rejection_reason` (résumé compact pour compatibilité)
+- Le feedback détaillé reste consultable via la page produit côté vendeur (déjà existante, affiche `product_moderation_feedback`)
+
+## 5. Performance et UX mobile
+
+- Listes de motifs chargées **uniquement** quand l'étape est cochée (TanStack Query `enabled`)
+- Vidéos = liens cliquables, jamais d'iframe
+- Mise en cache des templates par étape pour éviter les rechargements
+- Cases à cocher larges, boutons gros pour le tactile
+- États de chargement et toasts de confirmation
+
+## Détails techniques
+
+- Hook `useReasonTemplates(step)` avec `enabled: checked === true`
+- `submitModerationDecision` est transactionnelle côté serveur (un seul handler qui fait tout)
+- La page liste actuelle (`admin.products.tsx`) reste fonctionnelle, juste enrichie d'un lien Examiner
+- Aucun changement de logique de visibilité / pays (corrections précédentes préservées)
+- WhatsApp : si `profiles.phone` manquant, désactiver le bouton avec tooltip
+
+Confirme-moi pour que je lance la migration SQL puis l'implémentation.
