@@ -39,7 +39,7 @@ async function fetchRates(base: string): Promise<RatePayload> {
   const payload: RatePayload = { base: json.base_code ?? base, rates: json.rates, fetched_at: new Date().toISOString() };
   await supabaseAdmin
     .from("admin_stats_cache")
-    .upsert({ key: cacheKey, value: payload as unknown as Record<string, unknown>, updated_at: new Date().toISOString() });
+    .upsert({ key: cacheKey, value: payload as never, updated_at: new Date().toISOString() });
   return payload;
 }
 
