@@ -1188,6 +1188,7 @@ export type Database = {
           designation: string | null
           designation_i18n: Json | null
           id: string
+          is_active: boolean
           is_edit: boolean
           name: string
           name_i18n: Json | null
@@ -1198,6 +1199,7 @@ export type Database = {
           translated_hash: string | null
           updated_at: string
           vendor_id: string
+          views_count: number
         }
         Insert: {
           category_id?: string | null
@@ -1209,6 +1211,7 @@ export type Database = {
           designation?: string | null
           designation_i18n?: Json | null
           id?: string
+          is_active?: boolean
           is_edit?: boolean
           name: string
           name_i18n?: Json | null
@@ -1219,6 +1222,7 @@ export type Database = {
           translated_hash?: string | null
           updated_at?: string
           vendor_id: string
+          views_count?: number
         }
         Update: {
           category_id?: string | null
@@ -1230,6 +1234,7 @@ export type Database = {
           designation?: string | null
           designation_i18n?: Json | null
           id?: string
+          is_active?: boolean
           is_edit?: boolean
           name?: string
           name_i18n?: Json | null
@@ -1240,6 +1245,7 @@ export type Database = {
           translated_hash?: string | null
           updated_at?: string
           vendor_id?: string
+          views_count?: number
         }
         Relationships: [
           {
@@ -1754,6 +1760,14 @@ export type Database = {
           variant_id: string
         }[]
       }
+      get_shop_product_stats: {
+        Args: { _vendor_id: string }
+        Returns: {
+          product_id: string
+          revenue: number
+          sales_count: number
+        }[]
+      }
       has_admin_permission: {
         Args: {
           _perm: Database["public"]["Enums"]["admin_permission"]
@@ -1767,6 +1781,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_product_view: {
+        Args: { _product_id: string }
+        Returns: undefined
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       log_admin_action: {

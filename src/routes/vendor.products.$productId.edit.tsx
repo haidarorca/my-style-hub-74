@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
 
 export const Route = createFileRoute("/vendor/products/$productId/edit")({
   component: EditProductPage,
@@ -331,7 +332,11 @@ function EditProductPage() {
           <div><Label>Nom *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
           <div><Label>Désignation</Label><Input value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
           <div><Label>Description</Label><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div><Label>Prix (FCFA) *</Label><Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+          <div>
+            <Label>Prix (FCFA) *</Label>
+            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <CommissionPricePreview vendorId={user?.id} basePrice={price} categoryId={(data?.product as any)?.category_id ?? null} />
+          </div>
         </CardContent>
       </Card>
 
