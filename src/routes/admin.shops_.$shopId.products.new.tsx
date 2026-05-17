@@ -396,7 +396,7 @@ function NewAdminShopProductPage() {
       toast.error("Aucune image récupérée.");
       return;
     }
-    setImages((prev) => [...prev, ...files].slice(0, 8));
+    setImages((prev) => [...prev, ...files].slice(0, 25));
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
   async function applyVariants() {
