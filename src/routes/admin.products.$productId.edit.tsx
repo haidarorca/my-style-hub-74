@@ -166,7 +166,7 @@ function AdminEditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
-    setStatus(p.status);
+    setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setRejectionReason(p.rejection_reason ?? "");
     setVendorId(p.vendor_id ?? "");
     setExistingImages(data.images);
