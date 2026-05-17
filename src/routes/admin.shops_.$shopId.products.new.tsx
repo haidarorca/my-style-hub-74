@@ -2,13 +2,18 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Upload, X, Link2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles, Clock, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -18,31 +23,38 @@ export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
   component: NewAdminShopProductPage,
 });
 
-type VariantInput = {
+const FONT_OPTIONS = [
+  "Arial", "Helvetica", "Times New Roman", "Georgia", "Courier New",
+  "Impact", "Comic Sans MS", "Pacifico", "Lobster", "Bebas Neue",
+];
+
+const COLOR_PRESETS = [
+  "#000000", "#ffffff", "#e11d48", "#f59e0b", "#10b981",
+  "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280", "#fde047",
+];
+
+interface VariantInput {
   size: string;
   color: string;
   color_hex: string;
   stock: number;
   price_override: string;
   image_file: File | null;
-};
+}
+
+type Pick = string;
+const isReq = (v: Pick) => v.startsWith("req:");
+const idOf = (v: Pick) => v.slice(4);
+
+type CatRow = { id: string; name: string; level: number; parent_id: string | null; name_i18n: unknown };
+type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
 
 function NewAdminShopProductPage() {
   const { shopId } = Route.useParams();
   const { user } = useAuth();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const qc = useQueryClient();
-
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>("");
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [images, setImages] = useState<File[]>([]);
-  const [variants, setVariants] = useState<VariantInput[]>([]);
-  const [submitting, setSubmitting] = useState(false);
 
   const { data: shop } = useQuery({
     queryKey: ["admin-shop-min", shopId],
@@ -56,33 +68,147 @@ function NewAdminShopProductPage() {
     },
   });
 
+  // Basic
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState<string>("");
+
+  // Admin-only
+  const [sourceUrl, setSourceUrl] = useState("");
+
+  // Category picks
+  const [pick1, setPick1] = useState<Pick>("");
+  const [pick2, setPick2] = useState<Pick>("");
+  const [pick3, setPick3] = useState<Pick>("");
+
+  const [newOpen, setNewOpen] = useState<0 | 1 | 2 | 3>(0);
+  const [newName, setNewName] = useState("");
+  const [creatingNew, setCreatingNew] = useState(false);
+
+  const [images, setImages] = useState<File[]>([]);
+  const [variants, setVariants] = useState<VariantInput[]>([]);
+  const [allowImage, setAllowImage] = useState(false);
+  const [imageMessage, setImageMessage] = useState(t("vendor.new.custom_image_msg_placeholder"));
+  const [allowText, setAllowText] = useState(false);
+  const [allowAllFonts, setAllowAllFonts] = useState(false);
+  const [allowedFonts, setAllowedFonts] = useState<string[]>([]);
+  const [allowAllColors, setAllowAllColors] = useState(false);
+  const [allowedColors, setAllowedColors] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
   const { data: cats } = useQuery({
-    queryKey: ["all-categories-flat-admin-new"],
+    queryKey: ["admin-shop-new", "cats"],
     queryFn: async () => {
       const { data } = await supabase
         .from("categories")
-        .select("id, name, level, parent_id")
-        .order("name");
-      return data ?? [];
+        .select("id, name, level, parent_id, name_i18n")
+        .order("position");
+      return (data ?? []) as CatRow[];
     },
   });
 
-  const catOptions = useMemo(() => {
-    const map = new Map((cats ?? []).map((c) => [c.id, c]));
-    const path = (id: string): string => {
-      const c = map.get(id);
-      if (!c) return "";
-      return c.parent_id ? `${path(c.parent_id)} › ${c.name}` : c.name;
-    };
-    return (cats ?? [])
-      .filter((c) => c.level === 3)
-      .map((c) => ({ id: c.id, label: path(c.id) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [cats]);
+  // Pending requests belonging to this admin shop (vendor_id = shopId)
+  const { data: reqs } = useQuery({
+    queryKey: ["admin-shop-new", "pending-requests", shopId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("category_requests")
+        .select("id, name, level, parent_id, parent_request_id, status")
+        .eq("vendor_id", shopId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      return (data ?? []) as ReqRow[];
+    },
+  });
+
+  function optionsFor(level: 1 | 2 | 3): { value: Pick; label: string; pending: boolean }[] {
+    const approved = (cats ?? []).filter((c) => c.level === level);
+    const pending = (reqs ?? []).filter((r) => r.level === level);
+    if (level === 1) {
+      return [
+        ...approved.map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
+        ...pending
+          .filter((r) => r.parent_id === null && r.parent_request_id === null)
+          .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
+      ];
+    }
+    const parent = level === 2 ? pick1 : pick2;
+    if (!parent) return [];
+    if (isReq(parent)) {
+      return pending
+        .filter((r) => r.parent_request_id === idOf(parent))
+        .map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true }));
+    }
+    const parentId = idOf(parent);
+    return [
+      ...approved.filter((c) => c.parent_id === parentId).map((c) => ({ value: `cat:${c.id}`, label: pickI18n(c.name, c.name_i18n, lang), pending: false })),
+      ...pending.filter((r) => r.parent_id === parentId).map((r) => ({ value: `req:${r.id}`, label: r.name, pending: true })),
+    ];
+  }
+
+  const opts1 = useMemo(() => optionsFor(1), [cats, reqs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opts2 = useMemo(() => optionsFor(2), [cats, reqs, pick1]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opts3 = useMemo(() => optionsFor(3), [cats, reqs, pick2]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deepestPick = pick3 || pick2 || pick1 || "";
+
+  function startNew(level: 1 | 2 | 3) {
+    if (level === 2 && !pick1) return toast.error("Choisissez d'abord le rayon.");
+    if (level === 3 && !pick2) return toast.error("Choisissez d'abord la catégorie.");
+    setNewOpen(level);
+    setNewName("");
+  }
+
+  async function confirmNew() {
+    if (!user || !newOpen) return;
+    const trimmed = newName.trim();
+    if (trimmed.length < 2 || trimmed.length > 80) {
+      toast.error("Le nom doit faire entre 2 et 80 caractères.");
+      return;
+    }
+    const level = newOpen;
+    let parent_id: string | null = null;
+    let parent_request_id: string | null = null;
+    if (level >= 2) {
+      const parentPick = level === 2 ? pick1 : pick2;
+      if (!parentPick) return;
+      if (isReq(parentPick)) parent_request_id = idOf(parentPick);
+      else parent_id = idOf(parentPick);
+    }
+    setCreatingNew(true);
+    try {
+      const { data, error } = await supabase
+        .from("category_requests")
+        .insert({
+          vendor_id: shopId,
+          level,
+          name: trimmed,
+          parent_id,
+          parent_request_id,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const newPick: Pick = `req:${data.id}`;
+      if (level === 1) { setPick1(newPick); setPick2(""); setPick3(""); }
+      else if (level === 2) { setPick2(newPick); setPick3(""); }
+      else { setPick3(newPick); }
+      setNewOpen(0);
+      setNewName("");
+      await qc.invalidateQueries({ queryKey: ["admin-shop-new", "pending-requests", shopId] });
+      toast.success(`« ${trimmed} » créé.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la création.");
+    } finally {
+      setCreatingNew(false);
+    }
+  }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    setImages((prev) => [...prev, ...files].slice(0, 10));
+    setImages((prev) => [...prev, ...files].slice(0, 8));
     e.target.value = "";
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
@@ -91,6 +217,10 @@ function NewAdminShopProductPage() {
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
+  const toggleFont = (f: string, checked: boolean) =>
+    setAllowedFonts((prev) => (checked ? [...prev, f] : prev.filter((x) => x !== f)));
+  const toggleColor = (c: string) =>
+    setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,8 +234,12 @@ function NewAdminShopProductPage() {
       return;
     }
     const priceNum = Number(price);
-    if (!Number.isFinite(priceNum) || priceNum < 0) {
+    if (Number.isNaN(priceNum) || priceNum < 0) {
       toast.error("Prix invalide.");
+      return;
+    }
+    if (!deepestPick) {
+      toast.error("Choisissez une catégorie.");
       return;
     }
     const cleanSourceUrl = sourceUrl.trim();
@@ -113,6 +247,9 @@ function NewAdminShopProductPage() {
       toast.error("Le lien source doit commencer par http(s)://");
       return;
     }
+
+    const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
+    const pending_category_request_id = isReq(deepestPick) ? idOf(deepestPick) : null;
 
     setSubmitting(true);
     try {
@@ -125,7 +262,8 @@ function NewAdminShopProductPage() {
           designation: designation.trim() || null,
           description: description.trim() || null,
           price: priceNum,
-          category_id: categoryId || null,
+          category_id,
+          pending_category_request_id,
           status: "approved",
         })
         .select("id")
@@ -138,7 +276,6 @@ function NewAdminShopProductPage() {
       }
       const productId = prod.id as string;
 
-      // Upload images
       const imageRows: { product_id: string; url: string; position: number }[] = [];
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
@@ -152,7 +289,6 @@ function NewAdminShopProductPage() {
       const { error: imgErr } = await supabase.from("product_images").insert(imageRows);
       if (imgErr) throw imgErr;
 
-      // Variants
       if (variants.length > 0) {
         const variantRows: Array<{
           product_id: string; size: string | null; color: string | null;
@@ -183,13 +319,47 @@ function NewAdminShopProductPage() {
         if (varErr) throw varErr;
       }
 
-      // Admin-only source URL
+      const customRows: {
+        product_id: string;
+        type: "image" | "name";
+        image_size_message?: string | null;
+        allowed_fonts?: string[];
+        allow_all_fonts?: boolean;
+        allowed_colors?: string[];
+        allow_all_colors?: boolean;
+      }[] = [];
+      if (allowImage) {
+        customRows.push({ product_id: productId, type: "image", image_size_message: imageMessage.trim() || null });
+      }
+      if (allowText) {
+        customRows.push({
+          product_id: productId,
+          type: "name",
+          allowed_fonts: allowAllFonts ? [] : allowedFonts,
+          allow_all_fonts: allowAllFonts,
+          allowed_colors: allowAllColors ? [] : allowedColors,
+          allow_all_colors: allowAllColors,
+        });
+      }
+      if (customRows.length > 0) {
+        const { error: cErr } = await supabase.from("product_customizations").insert(customRows);
+        if (cErr) throw cErr;
+      }
+
+      // Admin-only source URL (Taobao/1688/AliExpress/…)
       if (cleanSourceUrl) {
         const { error: pamErr } = await supabase
           .from("product_admin_metadata")
           .insert({ product_id: productId, source_url: cleanSourceUrl });
         if (pamErr) throw pamErr;
       }
+
+      void autoTranslateProduct({
+        productId,
+        name: name.trim(),
+        designation: designation.trim() || null,
+        description: description.trim() || null,
+      });
 
       qc.invalidateQueries({ queryKey: ["admin-shops"] });
       toast.success("Produit créé dans la boutique.");
@@ -202,18 +372,18 @@ function NewAdminShopProductPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pb-12">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex items-center gap-2">
         <Button asChild size="sm" variant="ghost">
           <Link to="/admin/shops"><ArrowLeft className="mr-1 h-4 w-4" /> Retour</Link>
         </Button>
-        <h1 className="text-lg font-bold">
-          Nouveau produit — {shop?.shop_name ?? "…"}
+        <h1 className="text-xl font-bold">
+          {t("vendor.products.new_title")} — {shop?.shop_name ?? "…"}
         </h1>
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Photos</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
@@ -226,7 +396,7 @@ function NewAdminShopProductPage() {
             ))}
             <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:bg-accent">
               <Upload className="h-5 w-5" />
-              Ajouter
+              {t("vendor.new.add")}
               <input type="file" accept="image/*" multiple onChange={onPickImages} className="hidden" />
             </label>
           </div>
@@ -234,42 +404,242 @@ function NewAdminShopProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Informations</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.info")}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Code produit *</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ex : TB-12345" />
+            <Label>{t("vendor.new.code_label")}</Label>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("vendor.new.code_placeholder")} />
+            <p className="mt-1 text-xs text-muted-foreground">{t("vendor.new.code_help")}</p>
           </div>
           <div>
-            <Label>Nom *</Label>
+            <Label>{t("vendor.new.name_label")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Label>Désignation</Label>
-            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} />
+            <Label>{t("vendor.new.designation_label")}</Label>
+            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder={t("vendor.new.designation_placeholder")} />
           </div>
           <div>
-            <Label>Description</Label>
+            <Label>{t("vendor.new.description_label")}</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
           <div>
-            <Label>Prix (FCFA) *</Label>
+            <Label>{t("vendor.new.price_label")}</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
-          <div>
-            <Label>Catégorie</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger><SelectValue placeholder="— Choisir —" /></SelectTrigger>
-              <SelectContent>
-                {catOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.cat_card")}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-[11px] text-muted-foreground">{t("vendor.new.cat_help")}</p>
+
+          <CategoryLevel
+            label={t("vendor.new.cat_section")}
+            placeholder={t("vendor.new.cat_section_pick")}
+            options={opts1}
+            value={pick1}
+            onChange={(v) => { setPick1(v); setPick2(""); setPick3(""); setNewOpen(0); }}
+            isCreating={newOpen === 1}
+            onStartNew={() => startNew(1)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={false}
+            t={t}
+          />
+
+          <CategoryLevel
+            label={t("vendor.new.cat_cat")}
+            placeholder={pick1 ? t("vendor.new.cat_cat_pick") : t("vendor.new.cat_cat_first")}
+            options={opts2}
+            value={pick2}
+            onChange={(v) => { setPick2(v); setPick3(""); setNewOpen(0); }}
+            isCreating={newOpen === 2}
+            onStartNew={() => startNew(2)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={!pick1}
+            t={t}
+          />
+
+          <CategoryLevel
+            label={t("vendor.new.cat_sub")}
+            placeholder={pick2 ? t("vendor.new.cat_sub_pick") : t("vendor.new.cat_sub_first")}
+            options={opts3}
+            value={pick3}
+            onChange={(v) => { setPick3(v); setNewOpen(0); }}
+            isCreating={newOpen === 3}
+            onStartNew={() => startNew(3)}
+            newName={newName}
+            setNewName={setNewName}
+            onConfirmNew={confirmNew}
+            onCancelNew={() => setNewOpen(0)}
+            creating={creatingNew}
+            disabled={!pick2}
+            t={t}
+          />
+
+          {deepestPick && isReq(deepestPick) && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{t("vendor.new.cat_pending")}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("vendor.new.variants")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
+          {variants.map((v, i) => (
+            <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
+              <div className="grid grid-cols-12 items-end gap-2">
+                <div className="col-span-2">
+                  <Label className="text-[10px]">{t("vendor.new.v_size")}</Label>
+                  <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[10px]">{t("vendor.new.v_color")}</Label>
+                  <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder={t("vendor.new.v_color_placeholder")} />
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-[10px]">{t("vendor.new.v_hex")}</Label>
+                  <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-[10px]">{t("vendor.new.v_stock")}</Label>
+                  <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[10px]">{t("vendor.new.v_price")}</Label>
+                  <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {v.image_file ? (
+                  <div className="relative h-14 w-14 overflow-hidden rounded border">
+                    <img src={URL.createObjectURL(v.image_file)} alt="" className="h-full w-full object-cover" />
+                    <button type="button" onClick={() => updateVariant(i, { image_file: null })}
+                      className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={(e) => updateVariant(i, { image_file: e.target.files?.[0] ?? null })} />
+                  </label>
+                )}
+                <p className="text-[11px] text-muted-foreground">{t("vendor.new.v_image_help")}</p>
+              </div>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+            <Plus className="mr-1 h-4 w-4" /> {t("vendor.new.v_add")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">{t("vendor.new.custom")}</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>{t("vendor.new.custom_image")}</Label>
+              <p className="text-xs text-muted-foreground">{t("vendor.new.custom_image_help")}</p>
+            </div>
+            <Switch checked={allowImage} onCheckedChange={setAllowImage} />
+          </div>
+          {allowImage && (
+            <div>
+              <Label>{t("vendor.new.custom_image_msg")}</Label>
+              <Textarea
+                value={imageMessage}
+                onChange={(e) => setImageMessage(e.target.value)}
+                rows={2}
+                placeholder={t("vendor.new.custom_image_msg_placeholder")}
+              />
+            </div>
+          )}
+
+          <div className="border-t pt-4" />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>{t("vendor.new.custom_text")}</Label>
+              <p className="text-xs text-muted-foreground">{t("vendor.new.custom_text_help")}</p>
+            </div>
+            <Switch checked={allowText} onCheckedChange={setAllowText} />
+          </div>
+
+          {allowText && (
+            <div className="space-y-3">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label>{t("vendor.new.custom_fonts")}</Label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox checked={allowAllFonts} onCheckedChange={(v) => setAllowAllFonts(!!v)} />
+                    {t("vendor.new.custom_all")}
+                  </label>
+                </div>
+                {!allowAllFonts && (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {FONT_OPTIONS.map((f) => (
+                      <label key={f} className="flex items-center gap-2 rounded border bg-background p-2 text-xs">
+                        <Checkbox checked={allowedFonts.includes(f)} onCheckedChange={(v) => toggleFont(f, !!v)} />
+                        <span style={{ fontFamily: f }}>{f}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label>{t("vendor.new.custom_colors")}</Label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox checked={allowAllColors} onCheckedChange={(v) => setAllowAllColors(!!v)} />
+                    {t("vendor.new.custom_all")}
+                  </label>
+                </div>
+                {!allowAllColors && (
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_PRESETS.map((c) => (
+                      <button
+                        type="button"
+                        key={c}
+                        onClick={() => toggleColor(c)}
+                        className={`h-9 w-9 rounded-full border-2 ${
+                          allowedColors.includes(c) ? "border-primary" : "border-border"
+                        }`}
+                        style={{ backgroundColor: c }}
+                        aria-label={c}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Admin-only extra field */}
       <Card className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -281,59 +651,104 @@ function NewAdminShopProductPage() {
             type="url"
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
-            placeholder="https://item.taobao.com/... · https://www.1688.com/... · https://aliexpress.com/..."
+            placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
           />
           <p className="text-[11px] text-muted-foreground">
-            Visible uniquement par les administrateurs (pas par les clients ni dans les commandes côté client).
-            Utile pour retrouver le fournisseur en dropshipping.
+            Note interne. Visible uniquement par les administrateurs — jamais par les clients,
+            les vendeurs ni sur la fiche publique. Utile pour retrouver le fournisseur en dropshipping.
           </p>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Variantes (optionnel)</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={addVariant}>
-              <Plus className="mr-1 h-3 w-3" /> Ajouter
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {variants.length === 0 && (
-            <p className="text-xs text-muted-foreground">Aucune variante. Le produit aura un seul prix / stock.</p>
-          )}
-          {variants.map((v, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 rounded-md border p-2">
-              <Input placeholder="Taille" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} />
-              <Input placeholder="Couleur" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} />
-              <Input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} />
-              <Input type="number" placeholder="Stock" value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) || 0 })} />
-              <Input type="number" placeholder="Prix variante (FCFA)" value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
-              <div className="flex items-center gap-1">
-                <label className="cursor-pointer text-xs underline">
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={(e) => updateVariant(i, { image_file: e.target.files?.[0] ?? null })}
-                  />
-                  {v.image_file ? v.image_file.name.slice(0, 14) : "Image"}
-                </label>
-                <Button type="button" size="sm" variant="ghost" onClick={() => removeVariant(i)}>
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" asChild>
-          <Link to="/admin/shops">Annuler</Link>
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Publication…" : "Publier le produit"}
+      <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
+        <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
+          {submitting ? t("vendor.new.submitting") : "Publier le produit"}
         </Button>
       </div>
     </form>
+  );
+}
+
+function CategoryLevel({
+  label, placeholder, options, value, onChange,
+  isCreating, onStartNew, newName, setNewName, onConfirmNew, onCancelNew, creating, disabled, t,
+}: {
+  label: string;
+  placeholder: string;
+  options: { value: Pick; label: string; pending: boolean }[];
+  value: Pick;
+  onChange: (v: Pick) => void;
+  isCreating: boolean;
+  onStartNew: () => void;
+  newName: string;
+  setNewName: (v: string) => void;
+  onConfirmNew: () => void;
+  onCancelNew: () => void;
+  creating: boolean;
+  disabled: boolean;
+  t: (key: string, fallback?: string) => string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label className={disabled ? "text-muted-foreground" : ""}>{label}</Label>
+        {!isCreating && !disabled && (
+          <button
+            type="button"
+            onClick={onStartNew}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+          >
+            <Plus className="h-3 w-3" /> {t("vendor.new.cat_new")}
+          </button>
+        )}
+      </div>
+
+      {isCreating ? (
+        <div className="flex gap-2">
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            maxLength={80}
+            placeholder={t("vendor.new.cat_new_placeholder")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); onConfirmNew(); }
+              if (e.key === "Escape") { e.preventDefault(); onCancelNew(); }
+            }}
+          />
+          <Button type="button" size="sm" onClick={onConfirmNew} disabled={creating}>
+            {creating ? "…" : t("vendor.new.cat_create")}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onCancelNew} disabled={creating}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <Select value={value} onValueChange={onChange} disabled={disabled}>
+          <SelectTrigger>
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.length === 0 && (
+              <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                {t("vendor.new.cat_empty")}
+              </div>
+            )}
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                <span className="inline-flex items-center gap-2">
+                  {o.label}
+                  {o.pending && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                      <Clock className="h-2.5 w-2.5" /> {t("vendor.new.cat_pending_badge")}
+                    </span>
+                  )}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
   );
 }
