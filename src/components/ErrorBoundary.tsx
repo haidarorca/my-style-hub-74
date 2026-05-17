@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { clearErrorLog, getErrorLog, logError } from "@/lib/error-logger";
+import { clearErrorLog, logError } from "@/lib/error-logger";
 
 type Props = {
   children: ReactNode;
@@ -37,8 +37,6 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children;
 
-    const logs = getErrorLog().slice(-5).reverse();
-
     return (
       <div className="min-h-[70vh] bg-background px-4 py-6 text-foreground">
         <div className="mx-auto max-w-xl space-y-4 rounded-lg border bg-card p-4 shadow-card">
@@ -55,22 +53,6 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error.message || "Erreur inconnue"}
             </div>
           </div>
-
-          {logs.length > 0 && (
-            <details className="rounded-md border bg-background p-3 text-xs">
-              <summary className="cursor-pointer font-medium">Logs console récents</summary>
-              <div className="mt-2 max-h-56 space-y-2 overflow-auto">
-                {logs.map((log) => (
-                  <div key={`${log.ts}-${log.message}`} className="border-t pt-2 first:border-t-0 first:pt-0">
-                    <div className="text-[10px] uppercase text-muted-foreground">
-                      {new Date(log.ts).toLocaleString("fr-FR")} · {log.type}
-                    </div>
-                    <div className="break-words">{log.message}</div>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
