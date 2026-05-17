@@ -14,8 +14,17 @@ import {
   Link2,
   Loader2,
   Wand2,
+  Camera,
+  Eye,
 } from "lucide-react";
-import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
+import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
