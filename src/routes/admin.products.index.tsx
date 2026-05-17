@@ -393,11 +393,28 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
               </Button>
             </>
           ) : (
-            <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
-              <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
-                <Pencil className="mr-1 h-3 w-3" /> Éditer
-              </Link>
-            </Button>
+            <>
+              <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
+                <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+                  <Pencil className="mr-1 h-3 w-3" /> Éditer
+                </Link>
+              </Button>
+              <Input
+                placeholder="Motif (optionnel)"
+                value={reason}
+                onChange={(e) => onReason(e.target.value)}
+                className="h-7 w-32 text-xs"
+              />
+              {row.status === "approved" ? (
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onAct(row.id, "rejected")} disabled={busy}>
+                  <X className="mr-1 h-3 w-3" /> Rejeter
+                </Button>
+              ) : (
+                <Button size="sm" className="h-7 px-2 text-xs" onClick={() => onAct(row.id, "approved")} disabled={busy}>
+                  <Check className="mr-1 h-3 w-3" /> Approuver
+                </Button>
+              )}
+            </>
           )}
         </div>
       </TableCell>
@@ -460,12 +477,27 @@ const ProductCardMobile = memo(function ProductCardMobile({
           </div>
         </div>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 flex flex-col gap-2">
           <Button asChild size="sm" variant="outline" className="w-full">
             <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
               <Pencil className="mr-1 h-3 w-3" /> Modifier l'article
             </Link>
           </Button>
+          <Input
+            placeholder="Motif (optionnel)"
+            value={reason}
+            onChange={(e) => onReason(e.target.value)}
+            className="h-8 text-xs"
+          />
+          {row.status === "approved" ? (
+            <Button size="sm" variant="outline" className="w-full" onClick={() => onAct(row.id, "rejected")} disabled={busy}>
+              <X className="mr-1 h-3 w-3" /> Rejeter ce produit
+            </Button>
+          ) : (
+            <Button size="sm" className="w-full" onClick={() => onAct(row.id, "approved")} disabled={busy}>
+              <Check className="mr-1 h-3 w-3" /> Approuver ce produit
+            </Button>
+          )}
         </div>
       )}
     </div>
