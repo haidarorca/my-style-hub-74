@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -200,11 +201,59 @@ export const getAdminShop = createServerFn({ method: "POST" })
     return row as AdminShopRow & { is_admin_shop: boolean };
   });
 
-export const deleteAdminShop = createServerFn({ method: "POST" })
+export const getAdminShopDeletionInfo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("profiles")
+      .select("id, shop_name, is_admin_shop")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!row || !(row as any).is_admin_shop) throw new Error("Boutique introuvable.");
+
+    const { count: productCount } = await supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", data.id);
+
+    const { count: orderItemCount } = await supabaseAdmin
+      .from("order_items")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", data.id);
+
+    return {
+      shop_name: (row as any).shop_name as string | null,
+      product_count: productCount ?? 0,
+      order_item_count: orderItemCount ?? 0,
+    };
+  });
+
+export const deleteAdminShop = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid(), password: z.string().min(1).max(200) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+
+    // Verify password by re-authenticating the calling admin
+    const { data: userRes, error: uErr } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    if (uErr || !userRes?.user?.email) throw new Error("Impossible de vérifier l'identité admin.");
+    const adminEmail = userRes.user.email;
+
+    const SUPABASE_URL = process.env.SUPABASE_URL!;
+    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
+    const verifier = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+    });
+    const { error: signErr } = await verifier.auth.signInWithPassword({
+      email: adminEmail,
+      password: data.password,
+    });
+    if (signErr) throw new Error("Mot de passe admin incorrect.");
+
     const { data: row } = await supabaseAdmin
       .from("profiles")
       .select("id, is_admin_shop")
@@ -217,7 +266,7 @@ export const deleteAdminShop = createServerFn({ method: "POST" })
       .select("id", { count: "exact", head: true })
       .eq("vendor_id", data.id);
     if ((count ?? 0) > 0) {
-      throw new Error(`Impossible: cette boutique contient ${count} produit(s). Supprimez-les d'abord.`);
+      throw new Error(`Impossible : cette boutique contient ${count} produit(s). Supprimez-les d'abord.`);
     }
 
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.id);
