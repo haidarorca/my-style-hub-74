@@ -119,7 +119,21 @@ function GeneratorPage() {
       setSourcePrice(String(r.source_price));
       setImageUrls(r.image_urls.join("\n"));
       if (r.suggested_category_id) setCategoryId(r.suggested_category_id);
-      toast.success("Analyse terminée. Vérifiez et complétez.");
+      if (r.suggested_variants && r.suggested_variants.length > 0) {
+        setVariants(
+          r.suggested_variants.map((v) => ({
+            size: v.size ?? "",
+            color: v.color ?? "",
+            color_hex: v.color_hex ?? "",
+            stock: String(v.stock ?? 0),
+            price_override: "",
+            image_url: v.image_url ?? "",
+          })),
+        );
+      }
+      toast.success(
+        `Analyse terminée${r.suggested_variants.length > 0 ? ` · ${r.suggested_variants.length} variante(s) détectée(s)` : ""}.`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -132,6 +146,41 @@ function GeneratorPage() {
       if (!name.trim()) throw new Error("Nom requis.");
       if (urls.length === 0) throw new Error("Au moins une URL d'image.");
       if (!Number.isFinite(px) || px <= 0) throw new Error("Prix FCFA invalide.");
+
+      const cleanVariants = variants
+        .map((v) => {
+          const size = v.size.trim();
+          const color = v.color.trim();
+          if (!size && !color) return null;
+          const hex = v.color_hex.trim();
+          const validHex = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "";
+          const stockNum = Number(v.stock);
+          const priceNum = v.price_override.trim() ? Number(v.price_override) : null;
+          const img = v.image_url.trim();
+          return {
+            size,
+            color,
+            color_hex: validHex,
+            stock: Number.isFinite(stockNum) && stockNum >= 0 ? Math.floor(stockNum) : 0,
+            price_override: priceNum !== null && Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : null,
+            image_url: /^https?:\/\//.test(img) ? img : "",
+          };
+        })
+        .filter((v): v is NonNullable<typeof v> => v !== null);
+
+      return publishFn({
+        data: {
+          shop_id: shopId,
+          code: code.trim(),
+          name: name.trim(),
+          description: description.trim() || null,
+          price_xof: px,
+          category_id: categoryId || null,
+          image_urls: urls,
+          variants: cleanVariants,
+        },
+      });
+    },
       return publishFn({
         data: {
           shop_id: shopId,
