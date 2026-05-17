@@ -1263,9 +1263,11 @@ export type Database = {
           full_name: string | null
           hide_contact_publicly: boolean
           id: string
+          is_admin_shop: boolean
           is_verified: boolean
           latitude: number | null
           longitude: number | null
+          managed_by_admin_id: string | null
           phone: string | null
           sex: Database["public"]["Enums"]["user_sex"] | null
           ships_internationally: boolean
@@ -1297,9 +1299,11 @@ export type Database = {
           full_name?: string | null
           hide_contact_publicly?: boolean
           id: string
+          is_admin_shop?: boolean
           is_verified?: boolean
           latitude?: number | null
           longitude?: number | null
+          managed_by_admin_id?: string | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
           ships_internationally?: boolean
@@ -1331,9 +1335,11 @@ export type Database = {
           full_name?: string | null
           hide_contact_publicly?: boolean
           id?: string
+          is_admin_shop?: boolean
           is_verified?: boolean
           latitude?: number | null
           longitude?: number | null
+          managed_by_admin_id?: string | null
           phone?: string | null
           sex?: Database["public"]["Enums"]["user_sex"] | null
           ships_internationally?: boolean
