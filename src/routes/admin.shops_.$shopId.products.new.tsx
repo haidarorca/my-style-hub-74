@@ -247,17 +247,25 @@ function NewAdminShopProductPage() {
   }
 
   async function handleAnalyze() {
-    const url = sourceUrl.trim();
-    if (!/^https?:\/\//.test(url)) {
-      toast.error("Entrez d'abord un lien Taobao / 1688 / AliExpress valide.");
+    const raw = sourceUrl.trim();
+    if (raw.length < 4 || !/https?:\/\//i.test(raw)) {
+      toast.error("Collez un lien (e.tb.cn, taobao, 1688, aliexpress…) ou le texte de partage complet.");
       return;
     }
     setAnalyzing(true);
     setAnalysis(null);
     try {
-      const r = await analyze({ data: { url } });
+      const r = await analyze({ data: { url: raw } });
       setAnalysis(r);
-      toast.success("Analyse terminée — appliquez les sections souhaitées.");
+      if (r.partial) {
+        toast.warning(r.partial_reason ?? "Analyse partielle — complétez manuellement.");
+      } else {
+        toast.success("Analyse terminée — appliquez les sections souhaitées.");
+      }
+      // Remplacer le texte de partage par l'URL canonique résolue (sauvegarde propre)
+      if (r.resolved_url && /^https?:\/\//.test(r.resolved_url)) {
+        setSourceUrl(r.resolved_url);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
     } finally {
@@ -328,10 +336,11 @@ function NewAdminShopProductPage() {
       toast.error("Choisissez une catégorie.");
       return;
     }
-    const cleanSourceUrl = sourceUrl.trim();
-    if (cleanSourceUrl && !/^https?:\/\//.test(cleanSourceUrl)) {
-      toast.error("Le lien source doit commencer par http(s)://");
-      return;
+    // Le champ peut contenir un texte de partage Taobao — extraire l'URL si nécessaire
+    let cleanSourceUrl = sourceUrl.trim();
+    if (cleanSourceUrl && !/^https?:\/\//i.test(cleanSourceUrl)) {
+      const m = cleanSourceUrl.match(/https?:\/\/\S+/i);
+      cleanSourceUrl = m ? m[0] : "";
     }
 
     const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
@@ -750,35 +759,49 @@ function NewAdminShopProductPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              type="url"
+          <div className="flex flex-col gap-2">
+            <Textarea
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
-              placeholder="https://item.taobao.com/… · https://www.1688.com/… · https://aliexpress.com/…"
-              className="flex-1"
+              placeholder={
+                "Collez ici :\n• un lien direct (item.taobao.com, 1688.com, aliexpress.com…)\n• un lien mobile court (https://e.tb.cn/...)\n• ou le texte de partage complet copié depuis l'app Taobao"
+              }
+              rows={3}
+              className="font-mono text-xs"
             />
             <Button
               type="button"
               onClick={handleAnalyze}
               disabled={analyzing || !sourceUrl.trim()}
-              className="gap-2"
+              className="gap-2 sm:self-end"
             >
               {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
               {analyzing ? "Analyse…" : "Analyser le lien"}
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Lien interne : visible uniquement par les administrateurs. Jamais affiché aux clients ni aux vendeurs.
-            L'analyse récupère images, prix, variantes et génère un nom + description en français — vous validez ensuite chaque section.
+            Visible uniquement par les administrateurs. Jamais affiché aux clients ni aux vendeurs.
+            Le système suit automatiquement les redirections mobiles (e.tb.cn) et bascule sur un mode dégradé
+            si Taobao bloque la page (récupération images + titre uniquement, le reste est à remplir à la main).
           </p>
 
           {analysis && (
             <div className="space-y-2 rounded-md border border-border bg-background/60 p-3 text-sm">
+              {analysis.partial && (
+                <div className="rounded border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  ⚠ Analyse partielle : {analysis.partial_reason}
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs text-muted-foreground">
-                  Prix source : <span className="font-medium text-foreground">{analysis.source_price} {analysis.source_currency}</span>
-                  {" "}× {analysis.fx_rate} = <span className="font-medium text-foreground">{analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF</span>
+                  {analysis.source_price > 0 ? (
+                    <>
+                      Prix source : <span className="font-medium text-foreground">{analysis.source_price} {analysis.source_currency}</span>
+                      {" "}× {analysis.fx_rate} = <span className="font-medium text-foreground">{analysis.suggested_price_xof.toLocaleString("fr-FR")} XOF</span>
+                    </>
+                  ) : (
+                    <span className="italic">Prix non détecté — saisissez-le manuellement.</span>
+                  )}
                 </div>
               </div>
 
