@@ -794,26 +794,25 @@ function NewAdminShopProductPage() {
           <CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {previewedVariantIdx !== null && variants[previewedVariantIdx]?.image_file && (
+          {previewedVariantIdx !== null && safePreviewVariant?.image_file && variantImageUrls[previewedVariantIdx] && (
             <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2">
               <img
-                src={URL.createObjectURL(variants[previewedVariantIdx].image_file as File)}
+                src={variantImageUrls[previewedVariantIdx]}
                 alt=""
                 className="h-32 w-32 rounded-lg object-cover"
               />
               <div className="min-w-0 flex-1 text-xs">
                 <div className="text-[10px] uppercase text-muted-foreground">Variante affichée</div>
                 <div className="truncate font-medium">
-                  {[variants[previewedVariantIdx].color, variants[previewedVariantIdx].size]
+                  {[safePreviewVariant.color, safePreviewVariant.size]
                     .filter(Boolean)
                     .join(" + ") || "—"}
                 </div>
-                {variants[previewedVariantIdx].source_price && (
+                {safePreviewVariant.source_price && (
                   <div className="mt-1 text-[11px] text-muted-foreground">
                     Prix fournisseur :{" "}
                     <span className="text-foreground">
-                      {variants[previewedVariantIdx].source_price}{" "}
-                      {variants[previewedVariantIdx].source_currency}
+                      {safePreviewVariant.source_price} {safePreviewVariant.source_currency}
                     </span>
                   </div>
                 )}
@@ -830,7 +829,7 @@ function NewAdminShopProductPage() {
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
-                <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+                <img src={imageUrls[i]} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeImage(i)}
