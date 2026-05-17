@@ -58,35 +58,11 @@ export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
   component: AdminProductPageWithBoundary,
 });
 
-const OCR_DISABLED_KEY = "admin:ocr-disabled";
-const OCR_FAILURES_KEY = "admin:ocr-failures";
 const OCR_TIMEOUT_MS = 45_000;
-
-function isMobileSafeRuntime() {
-  if (typeof window === "undefined") return false;
-  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
-  return window.innerWidth < 640 || memory <= 3;
-}
-
-function getOcrDisabled() {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(OCR_DISABLED_KEY) === "1";
-}
-
-function disableOcrAfterCrash() {
-  if (typeof window === "undefined") return;
-  try {
-    const failures = Number(localStorage.getItem(OCR_FAILURES_KEY) ?? "0") + 1;
-    localStorage.setItem(OCR_FAILURES_KEY, String(failures));
-    if (failures >= 2 || isMobileSafeRuntime()) localStorage.setItem(OCR_DISABLED_KEY, "1");
-  } catch {
-    /* ignore */
-  }
-}
 
 function AdminProductPageWithBoundary() {
   return (
-    <ErrorBoundary label="Formulaire admin produit" onError={disableOcrAfterCrash}>
+    <ErrorBoundary label="Formulaire admin produit">
       <NewAdminShopProductPage />
     </ErrorBoundary>
   );
