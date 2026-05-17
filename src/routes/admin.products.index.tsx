@@ -360,14 +360,24 @@ const ProductRowDesktop = memo(function ProductRowDesktop({
       <TableCell><ProductStatusBadge row={row} /></TableCell>
       <TableCell className="text-xs">{fmtDate(row.created_at)}</TableCell>
       <TableCell className="text-right">
-        <div className="inline-flex items-center gap-1">
+        <div className="inline-flex flex-wrap items-center justify-end gap-1">
           {row.status === "pending" ? (
             <>
+              <Button asChild size="sm" className="h-7 px-2 text-xs">
+                <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}>
+                  <Eye className="mr-1 h-3 w-3" /> Examiner
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="secondary" className="h-7 px-2 text-xs">
+                <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}>
+                  <Pencil className="mr-1 h-3 w-3" /> Modifier
+                </Link>
+              </Button>
               <Input
-                placeholder="Motif (optionnel)"
+                placeholder="Motif rapide"
                 value={reason}
                 onChange={(e) => onReason(e.target.value)}
-                className="h-7 w-40 text-xs"
+                className="h-7 w-32 text-xs"
               />
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onAct(row.id, "rejected")} disabled={busy}>
                 <X className="mr-1 h-3 w-3" /> Rejeter
