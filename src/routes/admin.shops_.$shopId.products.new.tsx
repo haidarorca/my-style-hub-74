@@ -830,6 +830,16 @@ function NewAdminShopProductPage() {
                 </div>
               )}
 
+              {analysis.designation_fr && (
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">Désignation</div>
+                    <div className="line-clamp-2 text-xs">{analysis.designation_fr}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={applyDesignation}>Appliquer</Button>
+                </div>
+              )}
+
               {analysis.description_fr && (
                 <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
                   <div className="min-w-0 flex-1">
@@ -856,7 +866,7 @@ function NewAdminShopProductPage() {
                     <div className="text-[11px] uppercase text-muted-foreground">Images</div>
                     <div className="flex gap-1 overflow-x-auto py-1">
                       {analysis.images.slice(0, 6).map((src, i) => (
-                        <img key={i} src={src} alt="" className="h-12 w-12 rounded object-cover" />
+                        <img key={i} src={src} alt="" loading="lazy" className="h-12 w-12 rounded object-cover" />
                       ))}
                     </div>
                   </div>
@@ -865,12 +875,39 @@ function NewAdminShopProductPage() {
               )}
 
               {analysis.suggested_variants.length > 0 && (
-                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] uppercase text-muted-foreground">Variantes</div>
-                    <div className="text-xs">{analysis.suggested_variants.length} détectée(s)</div>
+                <div className="space-y-2 border-t border-border/60 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] uppercase text-muted-foreground">Variantes détectées</div>
+                      <div className="text-xs">
+                        {analysis.suggested_variants.length} variante(s) ·{" "}
+                        {analysis.suggested_variants.filter((v) => v.image_data_url).length} image(s) ·{" "}
+                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length} prix
+                      </div>
+                    </div>
+                    <Button type="button" size="sm" onClick={applyVariants}>
+                      Importer les variantes
+                    </Button>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={applyVariants}>Ajouter</Button>
+                  <div className="flex gap-1 overflow-x-auto py-1">
+                    {analysis.suggested_variants.slice(0, 10).map((v, i) => (
+                      <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-0.5">
+                        {v.image_data_url ? (
+                          <img src={v.image_data_url} alt="" loading="lazy" className="h-12 w-12 rounded object-cover" />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[9px] text-muted-foreground">—</div>
+                        )}
+                        <div className="w-full truncate text-center text-[9px]" title={v.name || `${v.color} ${v.size}`}>
+                          {v.name || `${v.color} ${v.size}`.trim() || "?"}
+                        </div>
+                        {v.price_xof_detected > 0 && (
+                          <div className="text-[9px] font-semibold text-primary">
+                            {v.price_xof_detected.toLocaleString("fr-FR")}F
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
