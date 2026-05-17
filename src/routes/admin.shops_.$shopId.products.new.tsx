@@ -54,6 +54,7 @@ export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
 
 const OCR_DISABLED_KEY = "admin:ocr-disabled";
 const OCR_FAILURES_KEY = "admin:ocr-failures";
+const OCR_TIMEOUT_MS = 45_000;
 
 function isMobileSafeRuntime() {
   if (typeof window === "undefined") return false;
@@ -83,6 +84,39 @@ function AdminProductPageWithBoundary() {
       <NewAdminShopProductPage />
     </ErrorBoundary>
   );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} a expiré.`)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function useObjectUrls(files: (File | null | undefined)[]) {
+  const urls = useMemo(
+    () => files.map((file) => (file ? URL.createObjectURL(file) : "")),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      urls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [urls]);
+
+  return urls;
 }
 
 const FONT_OPTIONS = [
