@@ -292,21 +292,62 @@ export function VariantImageEditor({ open, file, originalFile, onClose, onSave, 
             <Type className="mr-1 h-3.5 w-3.5" /> Texte
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={reset}>
-            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Annuler tout
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Annuler modifs
           </Button>
+        </div>
+
+        {/* Zoom slider */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Zoom</span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            step={0.1}
+            value={zoom}
+            onChange={(e) => {
+              const z = Number(e.target.value);
+              setZoom(z);
+              if (z === 1) setPan({ x: 0, y: 0 });
+            }}
+            className="flex-1 accent-primary"
+          />
+          <span className="w-10 text-right tabular-nums">{zoom.toFixed(1)}×</span>
         </div>
 
         {/* Stage */}
         <div
           ref={stageRef}
           className="relative mx-auto flex h-[55vh] max-h-[440px] w-full select-none items-center justify-center overflow-hidden rounded border bg-muted/30 touch-none"
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onPointerDown={() => setSelected(null)}
+          onPointerMove={(e) => {
+            if (panDrag.current) {
+              const dx = e.clientX - panDrag.current.startX;
+              const dy = e.clientY - panDrag.current.startY;
+              setPan({ x: panDrag.current.orig.x + dx, y: panDrag.current.orig.y + dy });
+              return;
+            }
+            onPointerMove(e);
+          }}
+          onPointerUp={() => {
+            panDrag.current = null;
+            onPointerUp();
+          }}
+          onPointerCancel={() => {
+            panDrag.current = null;
+            onPointerUp();
+          }}
+          onPointerDown={(e) => {
+            setSelected(null);
+            if (zoom > 1) {
+              panDrag.current = { startX: e.clientX, startY: e.clientY, orig: { ...pan } };
+            }
+          }}
         >
           {src && (
-            <>
+            <div
+              className="relative flex h-full w-full items-center justify-center"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center" }}
+            >
               <img
                 src={src}
                 alt=""
