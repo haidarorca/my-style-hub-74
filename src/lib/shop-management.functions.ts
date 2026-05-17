@@ -163,18 +163,35 @@ export const deleteShopProduct = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ productId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
-    const { data: prod } = await supabaseAdmin
-      .from("products")
-      .select("id, vendor_id")
-      .eq("id", data.productId)
-      .maybeSingle();
-    if (!prod) throw new Error("Produit introuvable.");
-    await assertShopAccess((prod as any).vendor_id as string, context.userId);
+  .handler(async ({ data, context }): Promise<{ ok: boolean; alreadyDeleted?: boolean; message?: string }> => {
+    try {
+      if (!data?.productId) {
+        return { ok: true, alreadyDeleted: true, message: "Produit déjà supprimé ou introuvable." };
+      }
+      const { data: prod, error: fetchErr } = await supabaseAdmin
+        .from("products")
+        .select("id, vendor_id")
+        .eq("id", data.productId)
+        .maybeSingle();
+      if (fetchErr) {
+        console.error("[deleteShopProduct] fetch error", fetchErr);
+        return { ok: false, message: "Erreur lors de la vérification du produit." };
+      }
+      if (!prod) {
+        return { ok: true, alreadyDeleted: true, message: "Produit déjà supprimé ou introuvable." };
+      }
+      await assertShopAccess((prod as any).vendor_id as string, context.userId);
 
-    const { error } = await supabaseAdmin.from("products").delete().eq("id", data.productId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+      const { error } = await supabaseAdmin.from("products").delete().eq("id", data.productId);
+      if (error) {
+        console.error("[deleteShopProduct] delete error", error);
+        return { ok: false, message: error.message };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      console.error("[deleteShopProduct] unexpected", e);
+      return { ok: false, message: e?.message ?? "Erreur inattendue lors de la suppression." };
+    }
   });
 
 export type ShopOverview = {
