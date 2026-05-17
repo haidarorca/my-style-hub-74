@@ -620,6 +620,10 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       }
     }
   }
+  for (const [key, val] of vidMap.entries()) {
+    if (/^\d+[:：]\d+$/.test(key)) skuIdToVids.set(key, key.split(/[:：]/));
+    if (/^\d+[:：]\d+$/.test(val.id)) skuIdToVids.set(val.id, val.id.split(/[:：]/));
+  }
 
   const entries: SkuEntry[] = [];
   const addEntryFromMap = (mapLike: unknown) => {
@@ -627,7 +631,7 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
     for (const [key, raw] of Object.entries(mapLike as Record<string, unknown>)) {
       if (key === "0" || key === "default") continue;
       const obj = raw && typeof raw === "object" ? raw : {};
-      const vids = skuIdToVids.get(key) ?? key.split(/[;:,]/).filter((s) => /^\d{2,}$/.test(s));
+      const vids = skuIdToVids.get(key) ?? key.split(/[;:,：]/).filter((s) => /^\d{2,}$/.test(s));
       const names = splitSkuNames(key);
       const price = extractPrice(obj);
       if (vids.length > 0 || names.length > 0) entries.push({ vids, names, price });
@@ -639,7 +643,7 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
       if (!raw || typeof raw !== "object") continue;
       const rec = raw as Record<string, unknown>;
       const path = String(rec.propPath ?? rec.specPath ?? rec.pvs ?? rec.skuId ?? rec.id ?? "");
-      const vids = skuIdToVids.get(path) ?? path.split(/[;:,]/).filter((s) => /^\d{2,}$/.test(s));
+      const vids = skuIdToVids.get(path) ?? path.split(/[;:,：]/).filter((s) => /^\d{2,}$/.test(s));
       const names = splitSkuNames(String(rec.name ?? rec.specAttrs ?? rec.attributes ?? ""));
       const price = extractPrice(rec);
       if (vids.length > 0 || names.length > 0) entries.push({ vids, names, price });
