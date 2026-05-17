@@ -323,7 +323,7 @@ function isLikelyProductImageUrl(url: string): boolean {
   const u = url.toLowerCase();
   // Reject obvious non-photo assets
   if (/\.svg(\?|$)/.test(u)) return false;
-  if (/(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon)/.test(u)) return false;
+  if (/(sprite|icon|logo|placeholder|loading|blank|avatar|badge|emoji|favicon|button|btn|coupon|redpacket|wangwang|tb-live|qrcode|qr-code|service|shop|seller|tmall-rate|rating|star|cart|search|header|footer|toolbar)/.test(u)) return false;
   // Allow Alibaba product CDNs only (covers Taobao / Tmall / 1688 / AliExpress)
   const allowedHost = /(?:img|gw|gd\d?|sc\d?|ae\d?|aeis\d?|gaitaobao\d?|cbu\d+)\.alicdn\.com/.test(u);
   if (!allowedHost) return false;
@@ -334,6 +334,8 @@ function isLikelyProductImageUrl(url: string): boolean {
     const h = parseInt(sizeMatch[2], 10);
     if (w < 200 || h < 200) return false;
   }
+  // Reject common tiny UI/crop suffixes without explicit dimensions.
+  if (/(?:\.sum\.|_\d+x\d+q\d+|_\.webp_\d+x\d+)/.test(u)) return false;
   return true;
 }
 
