@@ -57,6 +57,7 @@ import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.custome
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
+import { Route as AdminProductsProductIdModerateRouteImport } from './routes/admin.products.$productId.moderate'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
 
 const VendorRoute = VendorRouteImport.update({
@@ -300,6 +301,12 @@ const VendorProductsProductIdEditRoute =
     path: '/products/$productId/edit',
     getParentRoute: () => VendorRoute,
   } as any)
+const AdminProductsProductIdModerateRoute =
+  AdminProductsProductIdModerateRouteImport.update({
+    id: '/$productId/moderate',
+    path: '/$productId/moderate',
+    getParentRoute: () => AdminProductsRoute,
+  } as any)
 const AdminProductsProductIdEditRoute =
   AdminProductsProductIdEditRouteImport.update({
     id: '/$productId/edit',
@@ -356,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
+  '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -404,6 +412,7 @@ export interface FileRoutesByTo {
   '/admin/products': typeof AdminProductsIndexRoute
   '/vendor/products': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
+  '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
 }
 export interface FileRoutesById {
@@ -456,6 +465,7 @@ export interface FileRoutesById {
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
+  '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
 }
 export interface FileRouteTypes {
@@ -509,6 +519,7 @@ export interface FileRouteTypes {
     | '/admin/products/'
     | '/vendor/products/'
     | '/admin/products/$productId/edit'
+    | '/admin/products/$productId/moderate'
     | '/vendor/products/$productId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -557,6 +568,7 @@ export interface FileRouteTypes {
     | '/admin/products'
     | '/vendor/products'
     | '/admin/products/$productId/edit'
+    | '/admin/products/$productId/moderate'
     | '/vendor/products/$productId/edit'
   id:
     | '__root__'
@@ -608,6 +620,7 @@ export interface FileRouteTypes {
     | '/admin/products/'
     | '/vendor/products/'
     | '/admin/products/$productId/edit'
+    | '/admin/products/$productId/moderate'
     | '/vendor/products/$productId/edit'
   fileRoutesById: FileRoutesById
 }
@@ -969,6 +982,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendorProductsProductIdEditRouteImport
       parentRoute: typeof VendorRoute
     }
+    '/admin/products/$productId/moderate': {
+      id: '/admin/products/$productId/moderate'
+      path: '/$productId/moderate'
+      fullPath: '/admin/products/$productId/moderate'
+      preLoaderRoute: typeof AdminProductsProductIdModerateRouteImport
+      parentRoute: typeof AdminProductsRoute
+    }
     '/admin/products/$productId/edit': {
       id: '/admin/products/$productId/edit'
       path: '/$productId/edit'
@@ -1007,11 +1027,13 @@ const AdminCustomersRouteWithChildren = AdminCustomersRoute._addFileChildren(
 interface AdminProductsRouteChildren {
   AdminProductsIndexRoute: typeof AdminProductsIndexRoute
   AdminProductsProductIdEditRoute: typeof AdminProductsProductIdEditRoute
+  AdminProductsProductIdModerateRoute: typeof AdminProductsProductIdModerateRoute
 }
 
 const AdminProductsRouteChildren: AdminProductsRouteChildren = {
   AdminProductsIndexRoute: AdminProductsIndexRoute,
   AdminProductsProductIdEditRoute: AdminProductsProductIdEditRoute,
+  AdminProductsProductIdModerateRoute: AdminProductsProductIdModerateRoute,
 }
 
 const AdminProductsRouteWithChildren = AdminProductsRoute._addFileChildren(
@@ -1111,13 +1133,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
