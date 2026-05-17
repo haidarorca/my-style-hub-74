@@ -635,27 +635,27 @@ function NewAdminShopProductPage() {
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
               <div className="grid grid-cols-12 items-end gap-2">
-                <div className="col-span-2">
+                <div className="col-span-3 sm:col-span-2">
                   <Label className="text-[10px]">{t("vendor.new.v_size")}</Label>
                   <Input className="h-8" value={v.size} onChange={(e) => updateVariant(i, { size: e.target.value })} placeholder="S, M, 42…" />
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-5 sm:col-span-3">
                   <Label className="text-[10px]">{t("vendor.new.v_color")}</Label>
                   <Input className="h-8" value={v.color} onChange={(e) => updateVariant(i, { color: e.target.value })} placeholder={t("vendor.new.v_color_placeholder")} />
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-2 sm:col-span-1">
                   <Label className="text-[10px]">{t("vendor.new.v_hex")}</Label>
                   <input type="color" value={v.color_hex || "#000000"} onChange={(e) => updateVariant(i, { color_hex: e.target.value })} className="h-8 w-full rounded border" />
                 </div>
-                <div className="col-span-2">
-                  <Label className="text-[10px]">{t("vendor.new.v_stock")}</Label>
-                  <Input className="h-8" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
+                <div className="col-span-4 sm:col-span-2">
+                  <Label className="text-[10px]">Prix fournisseur</Label>
+                  <Input className="h-8" value={v.source_price ? `${v.source_price} ${v.source_currency}` : "—"} readOnly />
                 </div>
-                <div className="col-span-3">
-                  <Label className="text-[10px]">{t("vendor.new.v_price")}</Label>
+                <div className="col-span-6 sm:col-span-3">
+                  <Label className="text-[10px]">Prix de vente estimé (FCFA)</Label>
                   <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-2 sm:col-span-1">
                   <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
