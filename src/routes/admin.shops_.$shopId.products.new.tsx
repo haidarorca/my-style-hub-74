@@ -1688,7 +1688,7 @@ function NewAdminShopProductPage() {
                   </button>
                 </div>
               ))}
-              {ocrFiles.length < (mobileSafeMode ? 10 : 25) && (
+              {ocrFiles.length < 10 && (
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
                   <Upload className="h-4 w-4" />
                   Ajouter
