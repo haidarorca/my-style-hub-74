@@ -181,6 +181,15 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
 // 3) Publish generated product into an admin shop
 // ───────────────────────────────────────────────────────────
 
+const VariantSchema = z.object({
+  size: z.string().trim().max(40).optional().default(""),
+  color: z.string().trim().max(60).optional().default(""),
+  color_hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().or(z.literal("")).default(""),
+  stock: z.number().int().min(0).max(1_000_000).default(0),
+  price_override: z.number().min(0).max(50_000_000).nullable().optional(),
+  image_url: z.string().url().optional().or(z.literal("")).default(""),
+});
+
 const PublishSchema = z.object({
   shop_id: z.string().uuid(),
   code: z.string().trim().min(1).max(60),
@@ -189,6 +198,7 @@ const PublishSchema = z.object({
   price_xof: z.number().min(0).max(50_000_000),
   category_id: z.string().uuid().nullable(),
   image_urls: z.array(z.string().url()).min(1).max(10),
+  variants: z.array(VariantSchema).max(50).default([]),
 });
 
 export const publishGeneratedProduct = createServerFn({ method: "POST" })
