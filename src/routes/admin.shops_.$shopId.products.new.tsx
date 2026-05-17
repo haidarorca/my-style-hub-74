@@ -538,7 +538,7 @@ function NewAdminShopProductPage() {
         setSourceUrl(r.resolved_url);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
+      toast.error(humanizeUrlError(err));
     } finally {
       setAnalyzing(false);
     }
