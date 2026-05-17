@@ -414,7 +414,13 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     try {
       scraped = await scrapeViaApify(resolvedUrl);
     } catch (e) {
-      partialReason = e instanceof Error ? e.message : "Scraping principal échoué";
+      // single light retry — Apify cold starts can return transient 5xx
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        scraped = await scrapeViaApify(resolvedUrl);
+      } catch (e2) {
+        partialReason = e2 instanceof Error ? e2.message : (e instanceof Error ? e.message : "Scraping principal échoué");
+      }
     }
     if (!scraped || (scraped.images.length === 0 && scraped.text.trim().length < 60) || looksLikeLoginWall(scraped?.text ?? "")) {
       const fb = await scrapeViaDirectFetch(resolvedUrl);
