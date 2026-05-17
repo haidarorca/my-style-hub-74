@@ -575,7 +575,7 @@ function NewAdminShopProductPage() {
       e.target.value = "";
       return;
     }
-    const maxFiles = mobileSafeMode ? 10 : 25;
+    const maxFiles = 10;
     const maxMb = mobileSafeMode ? 8 : 14;
     const files = Array.from(e.target.files ?? []).filter(
       (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
