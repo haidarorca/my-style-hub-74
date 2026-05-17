@@ -288,9 +288,13 @@ function ProductPage() {
 
         <div className="space-y-4 px-4 py-3">
           <div>
-            <p className="text-xl font-extrabold text-primary">
-              {Number(price).toLocaleString("fr-FR")} FCFA
-            </p>
+            {resolvedFinalPrice !== null ? (
+              <p className="text-xl font-extrabold text-primary">
+                {Number(resolvedFinalPrice).toLocaleString("fr-FR")} FCFA
+              </p>
+            ) : (
+              <Skeleton className="h-7 w-32" />
+            )}
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
             <p className="text-xs text-muted-foreground">
               {t("product.code")} : {data.code}
