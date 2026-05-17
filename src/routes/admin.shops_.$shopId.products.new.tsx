@@ -516,13 +516,8 @@ function NewAdminShopProductPage() {
 
   // ── OCR variants from screenshots ────────────────────────
   function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    if (ocrDisabled) {
-      toast.warning("OCR désactivé en mode sûr. Le formulaire reste utilisable manuellement.");
-      e.target.value = "";
-      return;
-    }
     const maxFiles = 10;
-    const maxMb = mobileSafeMode ? 8 : 14;
+    const maxMb = 14;
     const files = Array.from(e.target.files ?? []).filter(
       (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
     );
@@ -540,8 +535,8 @@ function NewAdminShopProductPage() {
   }
   // Downscale + JPEG-compress to keep total payload small for the AI gateway.
   async function compressImageForOcr(file: File): Promise<string> {
-    const maxSide = mobileSafeMode ? 900 : 1200;
-    const quality = mobileSafeMode ? 0.64 : 0.72;
+    const maxSide = 1200;
+    const quality = 0.72;
     let url = "";
     try {
       url = URL.createObjectURL(file);
@@ -566,10 +561,6 @@ function NewAdminShopProductPage() {
     }
   }
   async function handleOcrAnalyze() {
-    if (ocrDisabled) {
-      toast.warning("OCR désactivé en mode sûr. Ajoutez les variantes manuellement.");
-      return;
-    }
     if (ocrFiles.length === 0) {
       toast.error("Ajoutez au moins une capture.");
       return;
@@ -599,11 +590,6 @@ function NewAdminShopProductPage() {
       const safeVariants = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
       setOcrResult({ ...r, variants: safeVariants });
       setOcrSelected(new Set(safeVariants.map((_, i) => i)));
-      try {
-        localStorage.removeItem(OCR_FAILURES_KEY);
-      } catch {
-        /* ignore */
-      }
       if (safeVariants.length === 0) {
         toast.warning("Aucune variante détectée. Réessayez avec d'autres captures.");
       } else {
@@ -617,8 +603,6 @@ function NewAdminShopProductPage() {
         stack: err instanceof Error ? err.stack : undefined,
         url: window.location.href,
       });
-      disableOcrAfterCrash();
-      if (getOcrDisabled()) setOcrDisabled(true);
       toast.error(humanizeOcrError(err));
     } finally {
       setOcrLoading(false);
