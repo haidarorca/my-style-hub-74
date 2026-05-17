@@ -107,6 +107,47 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+// Convert noisy backend / Zod errors into a clean French message for the toast.
+function humanizeOcrError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const s = raw.toLowerCase();
+  if (/at most\s+\d+\s+element/.test(s) || /maximum\s+\d+\s+images?/.test(s)) {
+    return "Maximum 10 images autorisées par analyse.";
+  }
+  if (/at least\s+1\s+element/.test(s) || /ajoutez au moins/.test(s)) {
+    return "Ajoutez au moins une capture avant de lancer l'analyse.";
+  }
+  if (/timeout|expir/.test(s)) return "Analyse trop longue. Réessayez avec moins de captures.";
+  if (/limite ia|429/.test(s)) return "Limite IA atteinte. Réessayez dans un instant.";
+  if (/crédits ia|402/.test(s)) return "Crédits IA épuisés. Ajoutez du crédit pour continuer.";
+  if (/illisible|réponse ia/.test(s)) return "Captures peu lisibles. Réessayez avec des images plus nettes.";
+  if (/network|fetch|failed to fetch/.test(s)) return "Connexion instable. Vérifiez votre réseau et réessayez.";
+  if (/\barray\b|\bstring\b|\bzod\b|expected|received|\.parse\(|input|validation/.test(s)) {
+    return "Format d'images non accepté. Réessayez avec des captures JPG/PNG standard.";
+  }
+  return "Analyse impossible pour le moment. Réessayez ou ajoutez les variantes à la main.";
+}
+
+// Convert noisy errors from the URL importer into a clean French message.
+function humanizeUrlError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const s = raw.toLowerCase();
+  if (/aucun lien|collez/.test(s)) return "Collez un lien produit (Taobao, 1688, AliExpress…) ou le texte de partage.";
+  if (/apify/.test(s) || /scraping/.test(s)) {
+    return "Lien protégé ou indisponible. Remplissez les champs manuellement.";
+  }
+  if (/timeout|expir/.test(s)) return "Le site source est trop lent. Réessayez dans un instant.";
+  if (/429/.test(s)) return "Trop de requêtes. Réessayez dans une minute.";
+  if (/402|crédits/.test(s)) return "Crédits IA épuisés. L'analyse automatique est indisponible.";
+  if (/\bzod\b|expected|received|\.parse\(|input|validation/.test(s)) {
+    return "Lien non reconnu. Vérifiez l'URL puis réessayez.";
+  }
+  if (/impossible d'extraire|login wall|protégé/.test(s)) {
+    return "Page protégée — remplissez les champs manuellement.";
+  }
+  return "Analyse du lien impossible. Vous pouvez remplir le formulaire manuellement.";
+}
+
 function useObjectUrls(files: (File | null | undefined)[]) {
   const urls = useMemo(
     () => files.map((file) => (file ? URL.createObjectURL(file) : "")),
@@ -497,7 +538,7 @@ function NewAdminShopProductPage() {
         setSourceUrl(r.resolved_url);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
+      toast.error(humanizeUrlError(err));
     } finally {
       setAnalyzing(false);
     }
@@ -575,7 +616,7 @@ function NewAdminShopProductPage() {
       e.target.value = "";
       return;
     }
-    const maxFiles = mobileSafeMode ? 10 : 25;
+    const maxFiles = 10;
     const maxMb = mobileSafeMode ? 8 : 14;
     const files = Array.from(e.target.files ?? []).filter(
       (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
@@ -673,7 +714,7 @@ function NewAdminShopProductPage() {
       });
       disableOcrAfterCrash();
       if (getOcrDisabled()) setOcrDisabled(true);
-      toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
+      toast.error(humanizeOcrError(err));
     } finally {
       setOcrLoading(false);
     }
@@ -1654,13 +1695,13 @@ function NewAdminShopProductPage() {
               <Camera className="h-4 w-4" /> Importer les variantes depuis des images
             </DialogTitle>
             <DialogDescription>
-              Envoyez jusqu'à {mobileSafeMode ? 10 : 25} captures (couleurs, tailles, prix). L'IA
+              Envoyez jusqu'à 10 captures (couleurs, tailles, prix). L'IA
               les analyse une par une et reconstruit les combinaisons en français.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{ocrFiles.length} / {mobileSafeMode ? 10 : 25} image(s)</span>
+              <span>{ocrFiles.length} / 10 image(s)</span>
               {ocrFiles.length > 0 && (
                 <button
                   type="button"
@@ -1688,7 +1729,7 @@ function NewAdminShopProductPage() {
                   </button>
                 </div>
               ))}
-              {ocrFiles.length < (mobileSafeMode ? 10 : 25) && (
+              {ocrFiles.length < 10 && (
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
                   <Upload className="h-4 w-4" />
                   Ajouter
