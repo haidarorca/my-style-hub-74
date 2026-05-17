@@ -1470,6 +1470,7 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
       : "CNY";
     const fxRate = currency === "CNY" ? cnyToXof : currency === "USD" ? usdToXof : 1;
 
+    const imgCount = dataUrls.length;
     const cleanVariants = (parsed.variants as unknown[])
       .map((v) => {
         if (!v || typeof v !== "object") return null;
@@ -1484,12 +1485,39 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
         const size = str("size").slice(0, 40);
         const srcPrice = num("source_price");
         if (!name && !color && !size) return null;
+        let sourceImageIndex: number | null = null;
+        const rawIdx = o.source_image_index;
+        if (typeof rawIdx === "number" && Number.isFinite(rawIdx)) {
+          const i = Math.floor(rawIdx);
+          if (i >= 0 && i < imgCount) sourceImageIndex = i;
+        }
+        let cropHint: { x: number; y: number; w: number; h: number } | null = null;
+        const rawCrop = o.crop_hint;
+        if (rawCrop && typeof rawCrop === "object") {
+          const c = rawCrop as Record<string, unknown>;
+          const cn = (k: string) => {
+            const n = typeof c[k] === "number" ? (c[k] as number) : Number(c[k]);
+            return Number.isFinite(n) ? n : NaN;
+          };
+          const x = cn("x"), y = cn("y"), w = cn("w"), h = cn("h");
+          if ([x, y, w, h].every((n) => Number.isFinite(n)) && w > 0 && h > 0) {
+            cropHint = {
+              x: Math.max(0, Math.min(100, x)),
+              y: Math.max(0, Math.min(100, y)),
+              w: Math.max(1, Math.min(100, w)),
+              h: Math.max(1, Math.min(100, h)),
+            };
+          }
+        }
         return {
           name: name || [color, size].filter(Boolean).join(" + "),
           color,
           size,
           source_price: srcPrice,
           price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
+          source_image_index: sourceImageIndex,
+          crop_hint: cropHint,
+          chinese_label: str("chinese_label").slice(0, 120),
         };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null)
