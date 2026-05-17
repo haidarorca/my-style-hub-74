@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 
 export interface ProductCardProduct {
