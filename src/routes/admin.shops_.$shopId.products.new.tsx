@@ -1607,6 +1607,12 @@ function NewAdminShopProductPage() {
               {ocrLoading ? "Analyse…" : "Analyser les images"}
             </Button>
 
+            {ocrError && (
+              <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                {ocrError}
+              </div>
+            )}
+
             {ocrResult && ocrResult.variants.length > 0 && (
               <div className="space-y-2 rounded-md border bg-muted/30 p-2">
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
