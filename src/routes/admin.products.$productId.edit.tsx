@@ -309,8 +309,8 @@ function AdminEditProductPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !data?.product) return;
-    if (!name.trim() || !price) {
-      toast.error("Nom et prix obligatoires.");
+    if (!name.trim() || !code.trim() || !price) {
+      toast.error("Nom, code et prix obligatoires.");
       return;
     }
     if (!vendorId) {
