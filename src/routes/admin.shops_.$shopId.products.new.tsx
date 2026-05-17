@@ -1599,26 +1599,42 @@ function NewAdminShopProductPage() {
               <Camera className="h-4 w-4" /> Importer les variantes depuis des images
             </DialogTitle>
             <DialogDescription>
-              Envoyez 1 à 8 captures d'écran (couleurs, tailles, prix). L'IA fusionne et reconstruit
-              les combinaisons en français.
+              Envoyez jusqu'à {mobileSafeMode ? 10 : 25} captures (couleurs, tailles, prix). L'IA
+              les analyse une par une et reconstruit les combinaisons en français.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{ocrFiles.length} / {mobileSafeMode ? 10 : 25} image(s)</span>
+              {ocrFiles.length > 0 && (
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setOcrFiles([])}
+                >
+                  Tout retirer
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto rounded border bg-muted/20 p-2 sm:grid-cols-5">
               {ocrFiles.map((f, i) => (
-                <div key={i} className="relative h-20 w-20 overflow-hidden rounded border">
-                  <img src={ocrFileUrls[i]} alt="" className="h-full w-full object-cover" />
+                <div key={`${f.name}-${i}`} className="relative aspect-square overflow-hidden rounded border bg-background">
+                  <img src={ocrFileUrls[i]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <span className="absolute left-0.5 top-0.5 rounded bg-background/85 px-1 text-[9px] font-medium">
+                    #{i + 1}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
+                    className="absolute right-0 top-0 rounded-bl bg-background/85 p-0.5"
+                    aria-label="Retirer"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
-              {ocrFiles.length < 8 && (
-                <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
+              {ocrFiles.length < (mobileSafeMode ? 10 : 25) && (
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
                   <Upload className="h-4 w-4" />
                   Ajouter
                   <input
@@ -1652,40 +1668,123 @@ function NewAdminShopProductPage() {
 
             {ocrResult && ocrResult.variants.length > 0 && (
               <div className="space-y-2 rounded-md border bg-muted/30 p-2">
-                <div className="text-[11px] text-muted-foreground">
-                  {ocrResult.variants.length} variante(s) · devise détectée : {ocrResult.source_currency}
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    {ocrSelected.size} / {ocrResult.variants.length} sélectionnée(s) · devise :{" "}
+                    {ocrResult.source_currency}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() =>
+                        setOcrSelected(new Set(ocrResult.variants.map((_, i) => i)))
+                      }
+                    >
+                      Tout cocher
+                    </button>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => setOcrSelected(new Set())}
+                    >
+                      Décocher
+                    </button>
+                  </div>
                 </div>
                 <div className="max-h-60 overflow-y-auto rounded border bg-background">
                   <table className="w-full text-xs">
-                    <thead className="bg-muted/60 text-left text-[10px] uppercase">
+                    <thead className="sticky top-0 bg-muted/80 text-left text-[10px] uppercase">
                       <tr>
+                        <th className="w-7 p-1.5"></th>
                         <th className="p-1.5">Variante</th>
-                        <th className="p-1.5">Prix fournisseur</th>
-                        <th className="p-1.5">Estimé FCFA</th>
+                        <th className="p-1.5">Image</th>
+                        <th className="p-1.5">Prix</th>
+                        <th className="p-1.5">FCFA</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ocrResult.variants.map((v, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="p-1.5">{v.name}</td>
-                          <td className="p-1.5">
-                            {v.source_price > 0
-                              ? `${v.source_price} ${ocrResult.source_currency}`
-                              : "—"}
-                          </td>
-                          <td className="p-1.5">
-                            {v.price_xof_detected > 0
-                              ? `${v.price_xof_detected.toLocaleString("fr-FR")} F`
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {ocrResult.variants.map((v, i) => {
+                        const checked = ocrSelected.has(i);
+                        const srcIdx = v.source_image_index;
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-t cursor-pointer ${checked ? "" : "opacity-50"}`}
+                            onClick={() => {
+                              setOcrSelected((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(i)) n.delete(i);
+                                else n.add(i);
+                                return n;
+                              });
+                            }}
+                          >
+                            <td className="p-1.5">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {}}
+                                className="h-3.5 w-3.5"
+                              />
+                            </td>
+                            <td className="p-1.5">{v.name}</td>
+                            <td className="p-1.5">
+                              {srcIdx !== null && srcIdx !== undefined && ocrFileUrls[srcIdx] ? (
+                                <div className="flex items-center gap-1">
+                                  <img
+                                    src={ocrFileUrls[srcIdx]}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-7 w-7 rounded border object-cover"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground">#{srcIdx + 1}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="p-1.5 whitespace-nowrap">
+                              {v.source_price > 0
+                                ? `${v.source_price} ${ocrResult.source_currency}`
+                                : "—"}
+                            </td>
+                            <td className="p-1.5 whitespace-nowrap">
+                              {v.price_xof_detected > 0
+                                ? `${v.price_xof_detected.toLocaleString("fr-FR")} F`
+                                : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-                <Button type="button" onClick={applyOcrVariants} className="w-full">
-                  Appliquer dans le formulaire
-                </Button>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setOcrResult(null);
+                      setOcrSelected(new Set());
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={ocrSelected.size === 0}
+                    onClick={() => applyOcrVariants(true)}
+                  >
+                    Valider sélection ({ocrSelected.size})
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => applyOcrVariants(false)}>
+                    Tout appliquer
+                  </Button>
+                </div>
               </div>
             )}
           </div>
