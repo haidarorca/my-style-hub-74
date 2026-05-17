@@ -546,7 +546,7 @@ function NewAdminShopProductPage() {
       e.target.value = "";
       return;
     }
-    const maxFiles = mobileSafeMode ? 4 : 8;
+    const maxFiles = mobileSafeMode ? 10 : 25;
     const maxMb = mobileSafeMode ? 8 : 14;
     const files = Array.from(e.target.files ?? []).filter(
       (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
@@ -554,7 +554,13 @@ function NewAdminShopProductPage() {
     if (files.length === 0 && e.target.files?.length) {
       toast.error(`Images trop lourdes ou invalides. Maximum ${maxMb} Mo par capture.`);
     }
-    setOcrFiles((prev) => [...prev, ...files].slice(0, maxFiles));
+    setOcrFiles((prev) => {
+      const merged = [...prev, ...files].slice(0, maxFiles);
+      if (prev.length + files.length > maxFiles) {
+        toast.info(`Limite atteinte : maximum ${maxFiles} images par session.`);
+      }
+      return merged;
+    });
     e.target.value = "";
   }
   // Downscale + JPEG-compress to keep total payload small for the AI gateway.
