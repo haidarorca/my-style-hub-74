@@ -247,17 +247,25 @@ function NewAdminShopProductPage() {
   }
 
   async function handleAnalyze() {
-    const url = sourceUrl.trim();
-    if (!/^https?:\/\//.test(url)) {
-      toast.error("Entrez d'abord un lien Taobao / 1688 / AliExpress valide.");
+    const raw = sourceUrl.trim();
+    if (raw.length < 4 || !/https?:\/\//i.test(raw)) {
+      toast.error("Collez un lien (e.tb.cn, taobao, 1688, aliexpress…) ou le texte de partage complet.");
       return;
     }
     setAnalyzing(true);
     setAnalysis(null);
     try {
-      const r = await analyze({ data: { url } });
+      const r = await analyze({ data: { url: raw } });
       setAnalysis(r);
-      toast.success("Analyse terminée — appliquez les sections souhaitées.");
+      if (r.partial) {
+        toast.warning(r.partial_reason ?? "Analyse partielle — complétez manuellement.");
+      } else {
+        toast.success("Analyse terminée — appliquez les sections souhaitées.");
+      }
+      // Remplacer le texte de partage par l'URL canonique résolue (sauvegarde propre)
+      if (r.resolved_url && /^https?:\/\//.test(r.resolved_url)) {
+        setSourceUrl(r.resolved_url);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
     } finally {
