@@ -61,6 +61,7 @@ import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor
 import { Route as AdminShopsShopIdGeneratorRouteImport } from './routes/admin.shops.$shopId.generator'
 import { Route as AdminProductsProductIdModerateRouteImport } from './routes/admin.products.$productId.moderate'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
+import { Route as AdminShopsShopIdProductsNewRouteImport } from './routes/admin.shops.$shopId.products.new'
 
 const VendorRoute = VendorRouteImport.update({
   id: '/vendor',
@@ -326,6 +327,12 @@ const AdminProductsProductIdEditRoute =
     path: '/$productId/edit',
     getParentRoute: () => AdminProductsRoute,
   } as any)
+const AdminShopsShopIdProductsNewRoute =
+  AdminShopsShopIdProductsNewRouteImport.update({
+    id: '/$shopId/products/new',
+    path: '/$shopId/products/new',
+    getParentRoute: () => AdminShopsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
+  '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -431,6 +439,7 @@ export interface FileRoutesByTo {
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
+  '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -486,6 +495,7 @@ export interface FileRoutesById {
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
+  '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
     | '/vendor/products/$productId/edit'
+    | '/admin/shops/$shopId/products/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
     | '/vendor/products/$productId/edit'
+    | '/admin/shops/$shopId/products/new'
   id:
     | '__root__'
     | '/'
@@ -647,6 +659,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
     | '/vendor/products/$productId/edit'
+    | '/admin/shops/$shopId/products/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1035,6 +1048,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsProductIdEditRouteImport
       parentRoute: typeof AdminProductsRoute
     }
+    '/admin/shops/$shopId/products/new': {
+      id: '/admin/shops/$shopId/products/new'
+      path: '/$shopId/products/new'
+      fullPath: '/admin/shops/$shopId/products/new'
+      preLoaderRoute: typeof AdminShopsShopIdProductsNewRouteImport
+      parentRoute: typeof AdminShopsRoute
+    }
   }
 }
 
@@ -1081,10 +1101,12 @@ const AdminProductsRouteWithChildren = AdminProductsRoute._addFileChildren(
 
 interface AdminShopsRouteChildren {
   AdminShopsShopIdGeneratorRoute: typeof AdminShopsShopIdGeneratorRoute
+  AdminShopsShopIdProductsNewRoute: typeof AdminShopsShopIdProductsNewRoute
 }
 
 const AdminShopsRouteChildren: AdminShopsRouteChildren = {
   AdminShopsShopIdGeneratorRoute: AdminShopsShopIdGeneratorRoute,
+  AdminShopsShopIdProductsNewRoute: AdminShopsShopIdProductsNewRoute,
 }
 
 const AdminShopsRouteWithChildren = AdminShopsRoute._addFileChildren(
