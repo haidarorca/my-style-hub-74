@@ -1275,6 +1275,21 @@ function NewAdminShopProductPage() {
         </CardContent>
       </Card>
 
+      <VariantImageEditor
+        open={editingVariantIdx !== null}
+        file={editingVariantIdx !== null ? variants[editingVariantIdx]?.image_file ?? null : null}
+        onClose={() => setEditingVariantIdx(null)}
+        onSave={(file) => {
+          if (editingVariantIdx === null) return;
+          const cur = variants[editingVariantIdx];
+          if (!cur) return;
+          updateVariant(editingVariantIdx, {
+            image_file: file,
+            image_original: cur.image_original ?? cur.image_file,
+          });
+        }}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("vendor.new.custom")}</CardTitle>
