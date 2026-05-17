@@ -1148,90 +1148,17 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       if (imageDataUrls.length >= 6) break;
     }
 
-    // 8) Build variants. Structured (skuMap/skuProps) takes priority — guarantees
-    //    correct name ↔ image ↔ price. AI variants only fill gaps when no structured data.
-    type Interim = {
-      name: string;
-      size: string;
-      color: string;
-      color_hex: string;
-      stock: number;
-      image_url: string;
-      source_price: number;
-      price_xof_detected: number;
-    };
-    let interimVariants: Interim[] = [];
-    if (structured.variants.length > 0) {
-      interimVariants = structured.variants.map((v) => ({
-        name: v.name.slice(0, 90),
-        size: v.size.slice(0, 40),
-        color: v.color.slice(0, 60),
-        color_hex: "",
-        stock: 0,
-        image_url: v.image_url,
-        source_price: v.source_price,
-        price_xof_detected: v.source_price > 0 ? Math.round(v.source_price * fxRate) : 0,
-      }));
-    } else {
-      const rawVariants = Array.isArray(parsed.suggested_variants)
-        ? (parsed.suggested_variants as unknown[])
-        : [];
-      interimVariants = rawVariants
-        .map((v): Interim | null => {
-          if (!v || typeof v !== "object") return null;
-          const o = v as Record<string, unknown>;
-          const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
-          const num = (k: string) => {
-            const n = typeof o[k] === "number" ? (o[k] as number) : Number(o[k]);
-            return Number.isFinite(n) && n >= 0 ? n : 0;
-          };
-          const hex = str("color_hex");
-          const url = str("image_url");
-          const cleanUrl =
-            /^https?:\/\//.test(url) && isLikelyProductImageUrl(url) ? upgradeAlicdnImage(url) : "";
-          const srcPrice = num("source_price");
-          return {
-            name: str("name").slice(0, 90),
-            size: str("size").slice(0, 40),
-            color: str("color").slice(0, 60),
-            color_hex: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "",
-            stock: 0,
-            image_url: cleanUrl,
-            source_price: srcPrice,
-            price_xof_detected: srcPrice > 0 ? Math.round(srcPrice * fxRate) : 0,
-          };
-        })
-        .filter(
-          (v): v is Interim => v !== null && (v.size !== "" || v.color !== "" || v.name !== ""),
-        )
-        .slice(0, 30);
-    }
-
-    // Download distinct variant images (cap to 12 distinct URLs to keep it fast)
-    const variantUrlCache = new Map<string, string | null>();
-    const distinctUrls = Array.from(
-      new Set(interimVariants.map((v) => v.image_url).filter(Boolean)),
-    ).slice(0, 12);
-    for (const u of distinctUrls) {
-      variantUrlCache.set(u, await downloadImageAsDataUrl(u));
-    }
-    const cleanVariants = interimVariants.map((v) => ({
-      name: v.name,
-      size: v.size,
-      color: v.color,
-      color_hex: v.color_hex,
-      stock: v.stock,
-      source_price: v.source_price,
-      price_xof_detected: v.price_xof_detected,
-      image_data_url: v.image_url ? (variantUrlCache.get(v.image_url) ?? null) : null,
-    }));
+    // 8) Variants are deferred to loadProductVariants — keep this fast.
+    //    We surface a `variants_available` hint based on structured data found
+    //    in the (possibly incomplete) fast HTML so the UI knows whether to
+    //    offer the heavy "Charger les variantes" button.
+    const variantsHint = structured.variants.length;
 
     const nameFr = typeof parsed.name_fr === "string" ? parsed.name_fr.trim() : "";
     const designationFr =
       typeof parsed.designation_fr === "string" ? parsed.designation_fr.trim() : "";
     const descFr = typeof parsed.description_fr === "string" ? parsed.description_fr.trim() : "";
 
-    // Mark as partial if AI couldn't deliver core fields
     const partial = Boolean(partialReason) || (!nameFr && sourcePrice === 0);
 
     return {
@@ -1250,9 +1177,91 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
       suggested_category_id: suggestedCategoryId,
       suggested_category_name:
         typeof parsed.suggested_category === "string" ? parsed.suggested_category : null,
-      suggested_variants: cleanVariants,
+      suggested_variants: [] as Array<{
+        name: string;
+        size: string;
+        color: string;
+        color_hex: string;
+        stock: number;
+        source_price: number;
+        price_xof_detected: number;
+        image_data_url: string | null;
+      }>,
+      variants_hint: variantsHint,
       images: imageDataUrls,
     };
+  });
+
+// ───────────────────────────────────────────────────────────
+// 2c) Heavy variant loader — Playwright browser + SKU JSON parsing.
+//     Called explicitly via the "Charger les variantes" button so the
+//     initial analyse stays fast and never times out.
+// ───────────────────────────────────────────────────────────
+
+const LoadVariantsSchema = z.object({
+  url: z.string().min(4).max(4000),
+});
+
+export const loadProductVariants = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => LoadVariantsSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const extracted = extractUrlFromText(data.url);
+    if (!extracted) throw new Error("Aucun lien détecté.");
+    const resolvedUrl = await resolveShareUrl(extracted);
+    const currency = detectCurrencyFromUrl(resolvedUrl);
+
+    let scraped: { text: string; images: string[]; html: string } | null = null;
+    try {
+      scraped = await scrapeViaApify(resolvedUrl, "deep");
+    } catch (e) {
+      throw new Error(
+        e instanceof Error
+          ? `Chargement variantes échoué : ${e.message}`
+          : "Chargement variantes échoué.",
+      );
+    }
+    if (!scraped?.html) {
+      return { variants: [], source_currency: currency, fx_rate: 1 };
+    }
+
+    const structured = parseEmbeddedSkuData(scraped.html);
+    let fxRate = 1;
+    if (currency === "CNY") {
+      const { data: s } = await supabaseAdmin
+        .from("site_settings")
+        .select("cny_to_xof_rate")
+        .eq("id", "main")
+        .maybeSingle();
+      fxRate = Number((s as { cny_to_xof_rate?: number } | null)?.cny_to_xof_rate ?? 85);
+    } else if (currency === "USD") {
+      try {
+        const payload = await fetchRates("USD");
+        fxRate = payload.rates["XOF"] ?? 600;
+      } catch {
+        fxRate = 600;
+      }
+    }
+
+    const distinctUrls = Array.from(
+      new Set(structured.variants.map((v) => v.image_url).filter(Boolean)),
+    ).slice(0, 12);
+    const cache = new Map<string, string | null>();
+    for (const u of distinctUrls) cache.set(u, await downloadImageAsDataUrl(u));
+
+    const variants = structured.variants.map((v) => ({
+      name: v.name.slice(0, 90),
+      size: v.size.slice(0, 40),
+      color: v.color.slice(0, 60),
+      color_hex: "",
+      stock: 0,
+      source_price: v.source_price,
+      price_xof_detected: v.source_price > 0 ? Math.round(v.source_price * fxRate) : 0,
+      image_data_url: v.image_url ? (cache.get(v.image_url) ?? null) : null,
+    }));
+
+    return { variants, source_currency: currency, fx_rate: fxRate };
   });
 
 // ───────────────────────────────────────────────────────────
