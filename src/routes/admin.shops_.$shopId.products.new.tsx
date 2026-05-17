@@ -340,6 +340,7 @@ function NewAdminShopProductPage() {
     }
     setAnalyzing(true);
     setAnalysis(null);
+    setLoadedVariants([]);
     try {
       const r = await analyze({ data: { url: raw } });
       setAnalysis(r);
@@ -348,7 +349,6 @@ function NewAdminShopProductPage() {
       } else {
         toast.success("Analyse terminée — appliquez les sections souhaitées.");
       }
-      // Remplacer le texte de partage par l'URL canonique résolue (sauvegarde propre)
       if (r.resolved_url && /^https?:\/\//.test(r.resolved_url)) {
         setSourceUrl(r.resolved_url);
       }
@@ -356,6 +356,24 @@ function NewAdminShopProductPage() {
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function handleLoadVariants() {
+    if (!analysis?.resolved_url) return;
+    setLoadingVariants(true);
+    try {
+      const r = await loadVariantsFn({ data: { url: analysis.resolved_url } });
+      setLoadedVariants(r.variants);
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée sur cette page.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) chargée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec du chargement des variantes");
+    } finally {
+      setLoadingVariants(false);
     }
   }
 
