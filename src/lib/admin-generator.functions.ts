@@ -885,7 +885,7 @@ function parseEmbeddedSkuData(html: string): StructuredSku {
   }
 
   for (const v of variantByKey.values()) variants.push(v);
-  return { images: Array.from(images).slice(0, 12), variants: variants.slice(0, 30) };
+  return { images: Array.from(images).slice(0, 40), variants: variants.slice(0, 80) };
 }
 
 async function scrapeViaApify(
