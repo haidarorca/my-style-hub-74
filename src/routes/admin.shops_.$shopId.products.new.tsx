@@ -440,6 +440,62 @@ function NewAdminShopProductPage() {
     );
   }
 
+  // ── OCR variants from screenshots ────────────────────────
+  function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setOcrFiles((prev) => [...prev, ...files].slice(0, 8));
+    e.target.value = "";
+  }
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error("Lecture image impossible"));
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.readAsDataURL(file);
+    });
+  }
+  async function handleOcrAnalyze() {
+    if (ocrFiles.length === 0) {
+      toast.error("Ajoutez au moins une capture.");
+      return;
+    }
+    setOcrLoading(true);
+    setOcrResult(null);
+    try {
+      const dataUrls = await Promise.all(ocrFiles.map((f) => fileToDataUrl(f)));
+      const r = await analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } });
+      setOcrResult(r);
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée. Réessayez avec d'autres captures.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+  function applyOcrVariants() {
+    if (!ocrResult) return;
+    const rows: VariantInput[] = ocrResult.variants.map((v) => ({
+      size: v.size,
+      color: v.color || v.name,
+      color_hex: "",
+      stock: 0,
+      source_price: v.source_price > 0 ? String(v.source_price) : "",
+      source_currency: ocrResult.source_currency,
+      price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+      image_file: null,
+    }));
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setOcrOpen(false);
+    setOcrFiles([]);
+    setOcrResult(null);
+    setOcrHint("");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
