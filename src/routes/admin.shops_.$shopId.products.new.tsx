@@ -16,9 +16,13 @@ import {
   Wand2,
   Camera,
   Eye,
+  Pencil,
+  Undo2,
 } from "lucide-react";
 import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
 import { cleanProductImage } from "@/lib/image-clean";
+import { VariantImageEditor } from "@/components/admin/VariantImageEditor";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import {
   Dialog,
   DialogContent,
