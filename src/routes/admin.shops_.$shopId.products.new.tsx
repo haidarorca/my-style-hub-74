@@ -541,14 +541,6 @@ function NewAdminShopProductPage() {
     setOcrFiles((prev) => [...prev, ...files].slice(0, maxFiles));
     e.target.value = "";
   }
-  function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onerror = () => reject(new Error("Lecture image impossible"));
-      fr.onload = () => resolve(String(fr.result || ""));
-      fr.readAsDataURL(file);
-    });
-  }
   // Downscale + JPEG-compress to keep total payload small for the AI gateway.
   async function compressImageForOcr(file: File): Promise<string> {
     const maxSide = mobileSafeMode ? 900 : 1200;
@@ -1027,14 +1019,27 @@ function NewAdminShopProductPage() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setOcrOpen(true)}
+            onClick={() => {
+              if (ocrDisabled) {
+                toast.warning("OCR en mode sûr. Ajoutez les variantes manuellement.");
+                return;
+              }
+              setOcrOpen(true);
+            }}
+            disabled={ocrDisabled}
             className="gap-1"
           >
             <Camera className="h-4 w-4" />
-            Importer depuis images
+            {ocrDisabled ? "OCR désactivé" : "Importer depuis images"}
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
+          {ocrDisabled && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-2 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Mode sûr actif : l'OCR est désactivé pour éviter tout écran blanc. Le formulaire et les
+              variantes manuelles restent disponibles.
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
