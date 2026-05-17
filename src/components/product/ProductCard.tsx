@@ -49,9 +49,13 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           <p className="line-clamp-2 text-[clamp(11px,3.2vw,13px)] leading-snug text-foreground/90 min-h-[2.4em]">
             {displayName}
           </p>
-          <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-            {displayPrice.toLocaleString("fr-FR")} {t("misc.currency")}
-          </p>
+          {dp ? (
+            <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
+              {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
+            </p>
+          ) : (
+            <Skeleton className="mt-1.5 h-4 w-1/2" />
+          )}
         </div>
       </Link>
 
