@@ -945,7 +945,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
     if (structured.variants.length > 0) {
       interimVariants = structured.variants.map((v) => ({
         name: v.name.slice(0, 90),
-        size: "",
+        size: v.size.slice(0, 40),
         color: v.color.slice(0, 60),
         color_hex: "",
         stock: 0,
