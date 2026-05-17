@@ -395,6 +395,7 @@ function findJsonByKey(html: string, key: string): unknown | null {
 
 type StructuredVariant = {
   name: string;
+  size: string;
   color: string;
   image_url: string;
   source_price: number;
@@ -405,125 +406,285 @@ type StructuredSku = {
   variants: StructuredVariant[];
 };
 
+type SkuValue = { id: string; name: string; image: string; propName: string; kind: "color" | "size" | "model" };
+type SkuEntry = { vids: string[]; names: string[]; price: number };
+
+function decodeEmbeddedJsonLike(text: string): string {
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\\//g, "/")
+    .replace(/\\"/g, '"');
+}
+
+function normaliseProductImageUrl(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  let u = decodeEmbeddedJsonLike(raw).trim().replace(/^['"]|['"]$/g, "");
+  if (!u) return "";
+  if (u.startsWith("//")) u = `https:${u}`;
+  if (!/^https?:\/\//i.test(u)) return "";
+  if (!isLikelyProductImageUrl(u)) return "";
+  return upgradeAlicdnImage(u);
+}
+
+function findJsonValuesByKey(html: string, key: string): unknown[] {
+  const out: unknown[] = [];
+  for (const source of [html, decodeEmbeddedJsonLike(html)]) {
+    const re = new RegExp(`(?:["']${key}["']|${key})\\s*:\\s*(?=[\\{\\[])`, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source))) {
+      const raw = extractBalancedJsonAt(source, m.index + m[0].length);
+      if (!raw) continue;
+      try { out.push(JSON.parse(raw)); } catch { /* keep scanning */ }
+    }
+  }
+  const single = findJsonByKey(html, key);
+  if (single !== null) out.push(single);
+  return out;
+}
+
+function collectByKey(value: unknown, key: string, out: unknown[] = [], depth = 0): unknown[] {
+  if (depth > 8 || value == null) return out;
+  if (typeof value === "string") {
+    const s = decodeEmbeddedJsonLike(value.trim());
+    if ((s.startsWith("{") || s.startsWith("[")) && s.includes(key)) {
+      try { collectByKey(JSON.parse(s), key, out, depth + 1); } catch { /* ignore */ }
+    }
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectByKey(item, key, out, depth + 1);
+    return out;
+  }
+  if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === key) out.push(v);
+      collectByKey(v, key, out, depth + 1);
+    }
+  }
+  return out;
+}
+
+function parseAnyEmbeddedJson(value: unknown): unknown[] {
+  const roots: unknown[] = [];
+  const visit = (v: unknown, depth = 0) => {
+    if (depth > 5 || v == null) return;
+    if (typeof v === "string") {
+      const s = decodeEmbeddedJsonLike(v.trim());
+      if (s.startsWith("{") || s.startsWith("[")) {
+        try { roots.push(JSON.parse(s)); } catch { return; }
+      }
+      return;
+    }
+    if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
+    else if (typeof v === "object") Object.values(v as Record<string, unknown>).forEach((x) => visit(x, depth + 1));
+  };
+  visit(value);
+  return roots;
+}
+
+function priceFromUnknown(value: unknown, field = ""): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return /cent|fen|money/i.test(field) && value > 100 ? value / 100 : value;
+  }
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").match(/\d+(?:\.\d+)?/g)?.[0];
+    if (!cleaned) return 0;
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) return 0;
+    return /cent|fen|money/i.test(field) && n > 100 ? n / 100 : n;
+  }
+  return 0;
+}
+
+function extractPrice(obj: unknown, depth = 0): number {
+  if (!obj || typeof obj !== "object" || depth > 4) return 0;
+  const rec = obj as Record<string, unknown>;
+  const priority = ["promotionPrice", "activityPrice", "salePrice", "sellingPrice", "priceText", "price", "retailPrice", "discountPrice", "priceMoney", "cent"];
+  for (const k of priority) {
+    const direct = priceFromUnknown(rec[k], k);
+    if (direct > 0) return direct;
+    if (rec[k] && typeof rec[k] === "object") {
+      const nested = extractPrice(rec[k], depth + 1);
+      if (nested > 0) return nested;
+    }
+  }
+  for (const [k, v] of Object.entries(rec)) {
+    if (/price|money|cent|fen/i.test(k)) {
+      const n = priceFromUnknown(v, k) || extractPrice(v, depth + 1);
+      if (n > 0) return n;
+    }
+  }
+  return 0;
+}
+
+function classifySkuProp(propName: string): SkuValue["kind"] {
+  if (/尺码|尺寸|大小|size|容量|规格/i.test(propName)) return "size";
+  if (/颜色|colour|color|花色/i.test(propName)) return "color";
+  return "model";
+}
+
+function splitSkuNames(key: string): string[] {
+  return decodeEmbeddedJsonLike(key)
+    .split(/[;>&|,，]/)
+    .map((p) => p.replace(/^\d+:/, "").replace(/^[^:：]{1,12}[:：]/, "").trim())
+    .filter((p) => p.length > 0 && !/^\d+$/.test(p))
+    .slice(0, 4);
+}
+
 // Extract product images + variants from embedded Taobao / 1688 JSON.
 function parseEmbeddedSkuData(html: string): StructuredSku {
   const images = new Set<string>();
   const variants: StructuredVariant[] = [];
+  const roots: unknown[] = [];
+  for (const key of ["apiStack", "skuBase", "skuCore", "skuModel", "skuProps", "skuMap", "skuInfoMap", "itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
+    for (const value of findJsonValuesByKey(html, key)) {
+      roots.push(value, ...parseAnyEmbeddedJson(value));
+    }
+  }
 
-  // ── 1) Main product gallery (Taobao h5 / item) ──
-  // Try keys: "images", "itemImgs", "auctionImages", "picsPath"
-  for (const key of ["itemImgs", "auctionImages", "images", "picsPath", "itemImages"]) {
-    const v = findJsonByKey(html, key);
-    if (Array.isArray(v)) {
-      for (const it of v) {
-        if (typeof it === "string") {
-          const u = it.startsWith("//") ? `https:${it}` : it;
-          if (isLikelyProductImageUrl(u)) images.add(upgradeAlicdnImage(u));
-        } else if (it && typeof it === "object") {
-          const url = (it as Record<string, unknown>).url ?? (it as Record<string, unknown>).fullPathImageURI ?? (it as Record<string, unknown>).img;
-          if (typeof url === "string") {
-            const u = url.startsWith("//") ? `https:${url}` : url;
-            if (isLikelyProductImageUrl(u)) images.add(upgradeAlicdnImage(u));
+  const addImage = (raw: unknown) => {
+    const img = normaliseProductImageUrl(raw);
+    if (img) images.add(img);
+    return img;
+  };
+
+  for (const root of roots) {
+    for (const key of ["itemImgs", "auctionImages", "images", "picsPath", "itemImages", "imageList", "mainImages"]) {
+      for (const gallery of collectByKey(root, key)) {
+        const arr = Array.isArray(gallery) ? gallery : [gallery];
+        for (const it of arr) {
+          if (typeof it === "string") addImage(it);
+          else if (it && typeof it === "object") {
+            const r = it as Record<string, unknown>;
+            addImage(r.url ?? r.fullPathImageURI ?? r.img ?? r.image ?? r.imageUrl ?? r.picUrl);
           }
         }
       }
     }
   }
 
-  // ── 2) skuProps (Taobao mobile detail) ──
-  // [{pid, prop:"颜色分类", values:[{vid,name,image,...}]}, ...]
-  const skuProps = findJsonByKey(html, "skuProps") ?? findJsonByKey(html, "props");
-  // Build vid → {name, image} for color-like prop (one with images).
-  const vidToVariant = new Map<string, { name: string; image: string; isColor: boolean }>();
-  if (Array.isArray(skuProps)) {
-    for (const p of skuProps) {
+  const vidMap = new Map<string, SkuValue>();
+  const nameMap = new Map<string, SkuValue>();
+  const collectProps = (props: unknown) => {
+    if (!Array.isArray(props)) return;
+    for (const p of props) {
       if (!p || typeof p !== "object") continue;
-      const propName = String((p as Record<string, unknown>).prop ?? (p as Record<string, unknown>).name ?? "");
-      const values = (p as Record<string, unknown>).values;
-      const isColor = /颜色|color|款式|花色|图案|套餐|规格|型号/i.test(propName);
+      const rec = p as Record<string, unknown>;
+      const propName = String(rec.prop ?? rec.name ?? rec.text ?? rec.propName ?? "").trim();
+      const kind = classifySkuProp(propName);
+      const values = rec.values ?? rec.value ?? rec.children ?? rec.items;
       if (!Array.isArray(values)) continue;
-      for (const val of values) {
-        if (!val || typeof val !== "object") continue;
-        const vid = String((val as Record<string, unknown>).vid ?? (val as Record<string, unknown>).id ?? "");
-        const name = String((val as Record<string, unknown>).name ?? (val as Record<string, unknown>).text ?? "").trim();
-        const rawImg = (val as Record<string, unknown>).image ?? (val as Record<string, unknown>).imageUrl ?? "";
-        let img = typeof rawImg === "string" ? rawImg : "";
-        if (img.startsWith("//")) img = `https:${img}`;
-        if (img && !isLikelyProductImageUrl(img)) img = "";
-        if (img) img = upgradeAlicdnImage(img);
-        if (vid && (name || img)) vidToVariant.set(vid, { name, image: img, isColor });
-        if (img) images.add(img);
+      for (const rawVal of values) {
+        if (!rawVal || typeof rawVal !== "object") continue;
+        const val = rawVal as Record<string, unknown>;
+        const id = String(val.vid ?? val.id ?? val.valueId ?? val.specId ?? val.skuPropertyValueId ?? "").trim();
+        const name = String(val.name ?? val.text ?? val.valueName ?? val.title ?? "").trim();
+        const image = addImage(val.image ?? val.imageUrl ?? val.imgUrl ?? val.picUrl ?? val.thumb ?? val.originalImage);
+        if (!name && !image) continue;
+        const row: SkuValue = { id, name, image, propName, kind };
+        if (id) vidMap.set(id, row);
+        if (name) nameMap.set(name.toLowerCase(), row);
+      }
+    }
+  };
+
+  for (const root of roots) {
+    for (const props of [
+      ...collectByKey(root, "skuProps"),
+      ...collectByKey(root, "props"),
+    ]) collectProps(props);
+  }
+
+  const skuIdToVids = new Map<string, string[]>();
+  for (const root of roots) {
+    for (const skus of collectByKey(root, "skus")) {
+      if (!Array.isArray(skus)) continue;
+      for (const sku of skus) {
+        if (!sku || typeof sku !== "object") continue;
+        const rec = sku as Record<string, unknown>;
+        const skuId = String(rec.skuId ?? rec.id ?? "").trim();
+        const path = String(rec.propPath ?? rec.specPath ?? rec.pvs ?? "");
+        const vids = path.split(/[;:,]/).filter((s) => /^\d{2,}$/.test(s));
+        if (skuId && vids.length > 0) skuIdToVids.set(skuId, vids);
       }
     }
   }
 
-  // ── 3) skuMap → per-SKU price + quantity ──
-  // Key format: ";vid1;vid2;" → { price, quantity, ... }
-  const skuMap = findJsonByKey(html, "skuMap") ?? findJsonByKey(html, "skuCore") ?? findJsonByKey(html, "skus");
-  const skuEntries: Array<{ vids: string[]; price: number }> = [];
-  if (skuMap && typeof skuMap === "object" && !Array.isArray(skuMap)) {
-    for (const [k, raw] of Object.entries(skuMap as Record<string, unknown>)) {
-      const vids = k.split(/[;:,]/).filter((s) => /^\d{3,}$/.test(s));
-      if (vids.length === 0) continue;
-      const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-      const priceRaw = obj.price ?? obj.priceText ?? obj.promotionPrice ?? obj.sellingPrice ?? 0;
-      const price = typeof priceRaw === "number" ? priceRaw : parseFloat(String(priceRaw).replace(/[^\d.]/g, "")) || 0;
-      skuEntries.push({ vids, price });
+  const entries: SkuEntry[] = [];
+  const addEntryFromMap = (mapLike: unknown) => {
+    if (!mapLike || typeof mapLike !== "object" || Array.isArray(mapLike)) return;
+    for (const [key, raw] of Object.entries(mapLike as Record<string, unknown>)) {
+      if (key === "0" || key === "default") continue;
+      const obj = raw && typeof raw === "object" ? raw : {};
+      const vids = skuIdToVids.get(key) ?? key.split(/[;:,]/).filter((s) => /^\d{2,}$/.test(s));
+      const names = splitSkuNames(key);
+      const price = extractPrice(obj);
+      if (vids.length > 0 || names.length > 0) entries.push({ vids, names, price });
     }
-  } else if (Array.isArray(skuMap)) {
-    for (const raw of skuMap as unknown[]) {
+  };
+  const addEntryFromArray = (arr: unknown) => {
+    if (!Array.isArray(arr)) return;
+    for (const raw of arr) {
       if (!raw || typeof raw !== "object") continue;
-      const obj = raw as Record<string, unknown>;
-      const propPath = String(obj.propPath ?? obj.skuId ?? obj.specPath ?? "");
-      const vids = propPath.split(/[;:,]/).filter((s) => /^\d{3,}$/.test(s));
-      if (vids.length === 0) continue;
-      const priceRaw = obj.price ?? obj.priceText ?? obj.promotionPrice ?? obj.sellingPrice ?? 0;
-      const price = typeof priceRaw === "number" ? priceRaw : parseFloat(String(priceRaw).replace(/[^\d.]/g, "")) || 0;
-      skuEntries.push({ vids, price });
+      const rec = raw as Record<string, unknown>;
+      const path = String(rec.propPath ?? rec.specPath ?? rec.pvs ?? rec.skuId ?? rec.id ?? "");
+      const vids = skuIdToVids.get(path) ?? path.split(/[;:,]/).filter((s) => /^\d{2,}$/.test(s));
+      const names = splitSkuNames(String(rec.name ?? rec.specAttrs ?? rec.attributes ?? ""));
+      const price = extractPrice(rec);
+      if (vids.length > 0 || names.length > 0) entries.push({ vids, names, price });
+    }
+  };
+
+  for (const root of roots) {
+    for (const map of [
+      ...collectByKey(root, "skuMap"),
+      ...collectByKey(root, "skuInfoMap"),
+      ...collectByKey(root, "sku2info"),
+    ]) addEntryFromMap(map);
+    for (const arr of [
+      ...collectByKey(root, "skus"),
+      ...collectByKey(root, "skuList"),
+      ...collectByKey(root, "skuInfos"),
+    ]) addEntryFromArray(arr);
+  }
+
+  const variantByKey = new Map<string, StructuredVariant>();
+  if (entries.length > 0 && (vidMap.size > 0 || nameMap.size > 0)) {
+    for (const entry of entries) {
+      const values = [
+        ...entry.vids.map((id) => vidMap.get(id)).filter((v): v is SkuValue => !!v),
+        ...entry.names.map((n) => nameMap.get(n.toLowerCase())).filter((v): v is SkuValue => !!v),
+      ];
+      const names = values.map((v) => v.name).filter(Boolean);
+      for (const n of entry.names) if (!names.includes(n)) names.push(n);
+      if (names.length === 0) continue;
+      const image = values.find((v) => v.image)?.image ?? "";
+      const color = values.find((v) => v.kind === "color")?.name ?? (values.find((v) => v.image)?.name ?? "");
+      const size = values.find((v) => v.kind === "size")?.name ?? "";
+      const name = names.join(" - ").slice(0, 90);
+      const key = `${name}|${image}|${entry.price || 0}`;
+      variantByKey.set(key, { name, size, color, image_url: image, source_price: entry.price });
     }
   }
 
-  // ── 4) Combine: variant = each color value (or each sku entry) ──
-  // Group by the "color-like" vid in each sku.
-  const variantByKey = new Map<string, StructuredVariant>();
-  if (skuEntries.length > 0 && vidToVariant.size > 0) {
-    for (const { vids, price } of skuEntries) {
-      const parts: string[] = [];
-      let img = "";
-      let colorName = "";
-      for (const vid of vids) {
-        const v = vidToVariant.get(vid);
-        if (!v) continue;
-        if (v.name) parts.push(v.name);
-        if (v.image && !img) img = v.image;
-        if (v.isColor && v.name && !colorName) colorName = v.name;
-      }
-      if (parts.length === 0) continue;
-      const name = parts.join(" - ").slice(0, 90);
-      const key = name + "|" + img;
-      const existing = variantByKey.get(key);
-      if (!existing || (price > 0 && (existing.source_price === 0 || price < existing.source_price))) {
-        variantByKey.set(key, { name, color: colorName, image_url: img, source_price: price });
-      }
-    }
-  } else if (vidToVariant.size > 0) {
-    // No skuMap → emit one variant per color value
-    for (const v of vidToVariant.values()) {
+  if (variantByKey.size === 0 && vidMap.size > 0) {
+    for (const v of vidMap.values()) {
       if (!v.name && !v.image) continue;
-      variantByKey.set(v.name + "|" + v.image, {
+      variantByKey.set(`${v.name}|${v.image}`, {
         name: v.name.slice(0, 90),
-        color: v.isColor ? v.name : "",
+        size: v.kind === "size" ? v.name : "",
+        color: v.kind === "color" || v.image ? v.name : "",
         image_url: v.image,
         source_price: 0,
       });
     }
   }
-  for (const v of variantByKey.values()) variants.push(v);
 
-  return {
-    images: Array.from(images).slice(0, 12),
-    variants: variants.slice(0, 30),
-  };
+  for (const v of variantByKey.values()) variants.push(v);
+  return { images: Array.from(images).slice(0, 12), variants: variants.slice(0, 30) };
 }
 
 async function scrapeViaApify(url: string): Promise<{ text: string; images: string[]; html: string }> {
