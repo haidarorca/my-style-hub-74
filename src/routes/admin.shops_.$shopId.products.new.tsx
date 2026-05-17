@@ -430,6 +430,34 @@ function NewAdminShopProductPage() {
   const toggleColor = (c: string) =>
     setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
+  async function generateAvailableProductCode(baseCode: string) {
+    const normalized = baseCode.trim().replace(/\s+/g, "-").toUpperCase() || "PRODUIT";
+    for (let i = 0; i < 8; i++) {
+      const candidate = `${normalized}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const { data, error } = await supabase
+        .from("products")
+        .select("id")
+        .eq("vendor_id", shopId)
+        .eq("code", candidate)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return candidate;
+    }
+    return `${normalized}-${Date.now().toString().slice(-6)}`;
+  }
+
+  function publicationErrorMessage(err: unknown, step: string) {
+    const raw = err instanceof Error ? err.message : "Erreur inconnue";
+    if (raw.includes("Ce code produit existe déjà")) return raw;
+    if (/row-level security|violates row-level security/i.test(raw)) {
+      return `Permission refusée pendant l'étape « ${step} ». Les accès admin ont été corrigés, reconnectez-vous puis réessayez.`;
+    }
+    if (/duplicate|unique/i.test(raw)) {
+      return "Ce code produit existe déjà dans cette boutique.";
+    }
+    return `Échec pendant l'étape « ${step} » : ${raw}`;
+  }
+
   // ── Source URL analyzer ──────────────────────────────────
   async function dataUrlToFile(dataUrl: string, idx: number): Promise<File | null> {
     try {
@@ -746,6 +774,9 @@ function NewAdminShopProductPage() {
     const pending_category_request_id = isReq(deepestPick) ? idOf(deepestPick) : null;
 
     setSubmitting(true);
+    let createdProductId: string | null = null;
+    const uploadedPaths: string[] = [];
+    let currentStep = "vérification du code produit";
     try {
       const cleanCode = code.trim();
       const { data: duplicate, error: duplicateErr } = await supabase
@@ -756,9 +787,13 @@ function NewAdminShopProductPage() {
         .maybeSingle();
       if (duplicateErr) throw duplicateErr;
       if (duplicate) {
+        const suggestion = await generateAvailableProductCode(cleanCode);
+        setCode(suggestion);
+        toast.error(`Ce code existe déjà. Nouveau code proposé : ${suggestion}`);
         throw new Error("Ce code produit existe déjà dans cette boutique.");
       }
 
+      currentStep = "création du produit";
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -776,12 +811,17 @@ function NewAdminShopProductPage() {
         .single();
       if (prodErr) {
         if (prodErr.message.includes("unique") || prodErr.message.includes("duplicate")) {
+          const suggestion = await generateAvailableProductCode(cleanCode);
+          setCode(suggestion);
+          toast.error(`Ce code existe déjà. Nouveau code proposé : ${suggestion}`);
           throw new Error("Ce code produit existe déjà dans cette boutique.");
         }
         throw prodErr;
       }
       const productId = prod.id as string;
+      createdProductId = productId;
 
+      currentStep = "enregistrement des images";
       const imageRows: { product_id: string; url: string; position: number }[] = [];
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
@@ -789,6 +829,7 @@ function NewAdminShopProductPage() {
         const path = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`;
         const { error: upErr } = await supabase.storage.from("product-images").upload(path, file);
         if (upErr) throw upErr;
+        uploadedPaths.push(path);
         const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
         imageRows.push({ product_id: productId, url: pub.publicUrl, position: i });
       }
@@ -796,6 +837,7 @@ function NewAdminShopProductPage() {
       if (imgErr) throw imgErr;
 
       if (variants.length > 0) {
+        currentStep = "création des variantes et liaison des images";
         const variantRows: Array<{
           product_id: string;
           size: string | null;
@@ -815,6 +857,7 @@ function NewAdminShopProductPage() {
               .from("product-images")
               .upload(path, v.image_file);
             if (upErr) throw upErr;
+            uploadedPaths.push(path);
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
           variantRows.push({
@@ -858,12 +901,14 @@ function NewAdminShopProductPage() {
         });
       }
       if (customRows.length > 0) {
+        currentStep = "enregistrement des options de personnalisation";
         const { error: cErr } = await supabase.from("product_customizations").insert(customRows);
         if (cErr) throw cErr;
       }
 
       // Admin-only source URL (Taobao/1688/AliExpress/…)
       if (cleanSourceUrl) {
+        currentStep = "enregistrement des informations admin";
         const { error: pamErr } = await supabase
           .from("product_admin_metadata")
           .insert({ product_id: productId, source_url: cleanSourceUrl });
@@ -881,7 +926,17 @@ function NewAdminShopProductPage() {
       toast.success("Produit créé dans la boutique.");
       router.navigate({ to: "/admin/shops" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+      if (createdProductId) {
+        await supabase.from("product_admin_metadata").delete().eq("product_id", createdProductId);
+        await supabase.from("product_customizations").delete().eq("product_id", createdProductId);
+        await supabase.from("product_variants").delete().eq("product_id", createdProductId);
+        await supabase.from("product_images").delete().eq("product_id", createdProductId);
+        await supabase.from("products").delete().eq("id", createdProductId);
+      }
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from("product-images").remove(uploadedPaths);
+      }
+      toast.error(publicationErrorMessage(err, currentStep));
     } finally {
       setSubmitting(false);
     }
