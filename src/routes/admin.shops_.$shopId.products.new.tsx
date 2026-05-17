@@ -147,6 +147,8 @@ function humanizeUrlError(err: unknown): string {
   }
   return "Analyse du lien impossible. Vous pouvez remplir le formulaire manuellement.";
 }
+
+function useObjectUrls(files: (File | null | undefined)[]) {
   const urls = useMemo(
     () => files.map((file) => (file ? URL.createObjectURL(file) : "")),
     [files],
