@@ -93,6 +93,12 @@ function ProductPage() {
 
   const variants = (data?.product_variants ?? []) as Variant[];
   const images = (data?.product_images ?? []) as { url: string; position: number | null }[];
+
+  // Fire-and-forget: increment the private view counter (visible only to shop owner)
+  useEffect(() => {
+    if (!data?.id) return;
+    void supabase.rpc("increment_product_view" as never, { _product_id: data.id } as never);
+  }, [data?.id]);
   const customizations = (data?.product_customizations ?? []) as Customization[];
   const imageCustom = customizations.find((c) => c.type === "image") ?? null;
   const textCustom = customizations.find((c) => c.type === "name" || c.type === "logo") ?? null;
