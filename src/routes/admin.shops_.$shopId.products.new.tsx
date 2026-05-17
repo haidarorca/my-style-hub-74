@@ -15,7 +15,7 @@ import {
   Loader2,
   Wand2,
 } from "lucide-react";
-import { analyzeSourceUrl } from "@/lib/admin-generator.functions";
+import { analyzeSourceUrl, loadProductVariants } from "@/lib/admin-generator.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
 import { useAuth } from "@/hooks/use-auth";
@@ -129,10 +129,15 @@ function NewAdminShopProductPage() {
 
   // Analyzer state
   const analyze = useServerFn(analyzeSourceUrl);
+  const loadVariantsFn = useServerFn(loadProductVariants);
   const [analyzing, setAnalyzing] = useState(false);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof analyzeSourceUrl>> | null>(
     null,
   );
+  const [loadedVariants, setLoadedVariants] = useState<
+    Awaited<ReturnType<typeof loadProductVariants>>["variants"]
+  >([]);
 
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
@@ -335,6 +340,7 @@ function NewAdminShopProductPage() {
     }
     setAnalyzing(true);
     setAnalysis(null);
+    setLoadedVariants([]);
     try {
       const r = await analyze({ data: { url: raw } });
       setAnalysis(r);
@@ -343,7 +349,6 @@ function NewAdminShopProductPage() {
       } else {
         toast.success("Analyse terminée — appliquez les sections souhaitées.");
       }
-      // Remplacer le texte de partage par l'URL canonique résolue (sauvegarde propre)
       if (r.resolved_url && /^https?:\/\//.test(r.resolved_url)) {
         setSourceUrl(r.resolved_url);
       }
@@ -351,6 +356,24 @@ function NewAdminShopProductPage() {
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse");
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function handleLoadVariants() {
+    if (!analysis?.resolved_url) return;
+    setLoadingVariants(true);
+    try {
+      const r = await loadVariantsFn({ data: { url: analysis.resolved_url } });
+      setLoadedVariants(r.variants);
+      if (r.variants.length === 0) {
+        toast.warning("Aucune variante détectée sur cette page.");
+      } else {
+        toast.success(`${r.variants.length} variante(s) chargée(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec du chargement des variantes");
+    } finally {
+      setLoadingVariants(false);
     }
   }
 
@@ -391,10 +414,10 @@ function NewAdminShopProductPage() {
     toast.success(`${files.length} image(s) ajoutée(s).`);
   }
   async function applyVariants() {
-    if (!analysis?.suggested_variants?.length) return;
+    if (!loadedVariants.length) return;
     const rows: VariantInput[] = [];
-    for (let i = 0; i < analysis.suggested_variants.length; i++) {
-      const v = analysis.suggested_variants[i];
+    for (let i = 0; i < loadedVariants.length; i++) {
+      const v = loadedVariants[i];
       let image_file: File | null = null;
       if (v.image_data_url) {
         image_file = await dataUrlToFile(v.image_data_url, i);
@@ -405,7 +428,7 @@ function NewAdminShopProductPage() {
         color_hex: v.color_hex,
         stock: 0,
         source_price: v.source_price > 0 ? String(v.source_price) : "",
-        source_currency: analysis.source_currency,
+        source_currency: analysis?.source_currency ?? "CNY",
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file,
       });
@@ -1101,27 +1124,48 @@ function NewAdminShopProductPage() {
                 </div>
               )}
 
-              {analysis.suggested_variants.length > 0 && (
-                <div className="space-y-2 border-t border-border/60 pt-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase text-muted-foreground">
-                        Variantes détectées
-                      </div>
-                      <div className="text-xs">
-                        {analysis.suggested_variants.length} variante(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.image_data_url).length}{" "}
-                        image(s) ·{" "}
-                        {analysis.suggested_variants.filter((v) => v.price_xof_detected > 0).length}{" "}
-                        prix
-                      </div>
+              <div className="space-y-2 border-t border-border/60 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] uppercase text-muted-foreground">
+                      Variantes (SKU)
                     </div>
+                    <div className="text-xs">
+                      {loadedVariants.length === 0
+                        ? analysis.variants_hint > 0
+                          ? `~${analysis.variants_hint} variante(s) détectée(s) — chargement à la demande`
+                          : "Cliquez pour tenter de charger les variantes (peut prendre 30-60s)"
+                        : `${loadedVariants.length} variante(s) · ${loadedVariants.filter((v) => v.image_data_url).length} image(s) · ${loadedVariants.filter((v) => v.price_xof_detected > 0).length} prix`}
+                    </div>
+                  </div>
+                  {loadedVariants.length === 0 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleLoadVariants}
+                      disabled={loadingVariants}
+                      className="gap-2"
+                    >
+                      {loadingVariants ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      {loadingVariants ? "Chargement…" : "Charger les variantes"}
+                    </Button>
+                  ) : (
                     <Button type="button" size="sm" onClick={applyVariants}>
                       Importer les variantes
                     </Button>
+                  )}
+                </div>
+                {loadingVariants && (
+                  <div className="text-[11px] italic text-muted-foreground">
+                    Analyse approfondie en cours (navigateur réel + extraction SKU)…
                   </div>
+                )}
+                {loadedVariants.length > 0 && (
                   <div className="flex gap-1 overflow-x-auto py-1">
-                    {analysis.suggested_variants.slice(0, 10).map((v, i) => (
+                    {loadedVariants.slice(0, 10).map((v, i) => (
                       <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-0.5">
                         {v.image_data_url ? (
                           <img
@@ -1149,8 +1193,8 @@ function NewAdminShopProductPage() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {analysis.suggested_category_name && (
                 <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
