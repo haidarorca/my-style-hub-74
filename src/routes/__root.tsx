@@ -24,6 +24,7 @@ import { SwipeNavigator } from "@/components/layout/SwipeNavigator";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function NotFoundComponent() {
   return (
@@ -154,7 +155,9 @@ function RootComponent() {
               <DeliveryCountryProvider>
                 <AuthInvalidator />
                 <PromoBar />
-                <SwipeNavigator><Outlet /></SwipeNavigator>
+                <ErrorBoundary label="Application">
+                  <SwipeNavigator><Outlet /></SwipeNavigator>
+                </ErrorBoundary>
                 <MobileBottomNav />
                 <Toaster richColors position="top-center" />
               </DeliveryCountryProvider>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -45,10 +45,79 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { logError } from "@/lib/error-logger";
 
 export const Route = createFileRoute("/admin/shops_/$shopId/products/new")({
-  component: NewAdminShopProductPage,
+  component: AdminProductPageWithBoundary,
 });
+
+const OCR_DISABLED_KEY = "admin:ocr-disabled";
+const OCR_FAILURES_KEY = "admin:ocr-failures";
+const OCR_TIMEOUT_MS = 45_000;
+
+function isMobileSafeRuntime() {
+  if (typeof window === "undefined") return false;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
+  return window.innerWidth < 640 || memory <= 3;
+}
+
+function getOcrDisabled() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(OCR_DISABLED_KEY) === "1";
+}
+
+function disableOcrAfterCrash() {
+  if (typeof window === "undefined") return;
+  try {
+    const failures = Number(localStorage.getItem(OCR_FAILURES_KEY) ?? "0") + 1;
+    localStorage.setItem(OCR_FAILURES_KEY, String(failures));
+    if (failures >= 2 || isMobileSafeRuntime()) localStorage.setItem(OCR_DISABLED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function AdminProductPageWithBoundary() {
+  return (
+    <ErrorBoundary label="Formulaire admin produit" onError={disableOcrAfterCrash}>
+      <NewAdminShopProductPage />
+    </ErrorBoundary>
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} a expiré.`)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function useObjectUrls(files: (File | null | undefined)[]) {
+  const urls = useMemo(
+    () => files.map((file) => (file ? URL.createObjectURL(file) : "")),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      urls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [urls]);
+
+  return urls;
+}
 
 const FONT_OPTIONS = [
   "Arial",
@@ -149,6 +218,8 @@ function NewAdminShopProductPage() {
   const [ocrFiles, setOcrFiles] = useState<File[]>([]);
   const [ocrHint, setOcrHint] = useState("");
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrDisabled, setOcrDisabled] = useState(false);
+  const [mobileSafeMode, setMobileSafeMode] = useState(false);
   const [ocrResult, setOcrResult] = useState<Awaited<
     ReturnType<typeof analyzeVariantsFromImages>
   > | null>(null);
@@ -175,6 +246,23 @@ function NewAdminShopProductPage() {
   const [allowAllColors, setAllowAllColors] = useState(false);
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const safePreviewVariant =
+    previewedVariantIdx !== null ? variants[previewedVariantIdx] ?? null : null;
+  const variantFiles = useMemo(() => variants.map((v) => v.image_file), [variants]);
+  const imageUrls = useObjectUrls(images);
+  const variantImageUrls = useObjectUrls(variantFiles);
+  const ocrFileUrls = useObjectUrls(ocrFiles);
+
+  useEffect(() => {
+    if (previewedVariantIdx !== null && !variants[previewedVariantIdx]?.image_file) {
+      setPreviewedVariantIdx(null);
+    }
+  }, [previewedVariantIdx, variants]);
+
+  useEffect(() => {
+    setOcrDisabled(getOcrDisabled());
+    setMobileSafeMode(isMobileSafeRuntime());
+  }, []);
 
   const { data: cats } = useQuery({
     queryKey: ["admin-shop-new", "cats"],
@@ -304,7 +392,7 @@ function NewAdminShopProductPage() {
   }
 
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from(e.target.files ?? []).filter((file) => file.type.startsWith("image/"));
     setImages((prev) => [...prev, ...files].slice(0, 25));
     e.target.value = "";
   };
@@ -442,22 +530,29 @@ function NewAdminShopProductPage() {
 
   // ── OCR variants from screenshots ────────────────────────
   function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    setOcrFiles((prev) => [...prev, ...files].slice(0, 8));
+    if (ocrDisabled) {
+      toast.warning("OCR désactivé en mode sûr. Le formulaire reste utilisable manuellement.");
+      e.target.value = "";
+      return;
+    }
+    const maxFiles = mobileSafeMode ? 4 : 8;
+    const maxMb = mobileSafeMode ? 8 : 14;
+    const files = Array.from(e.target.files ?? []).filter(
+      (file) => file.type.startsWith("image/") && file.size <= maxMb * 1024 * 1024,
+    );
+    if (files.length === 0 && e.target.files?.length) {
+      toast.error(`Images trop lourdes ou invalides. Maximum ${maxMb} Mo par capture.`);
+    }
+    setOcrFiles((prev) => [...prev, ...files].slice(0, maxFiles));
     e.target.value = "";
   }
-  function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onerror = () => reject(new Error("Lecture image impossible"));
-      fr.onload = () => resolve(String(fr.result || ""));
-      fr.readAsDataURL(file);
-    });
-  }
   // Downscale + JPEG-compress to keep total payload small for the AI gateway.
-  async function compressImageForOcr(file: File, maxSide = 1400, quality = 0.78): Promise<string> {
+  async function compressImageForOcr(file: File): Promise<string> {
+    const maxSide = mobileSafeMode ? 900 : 1200;
+    const quality = mobileSafeMode ? 0.64 : 0.72;
+    let url = "";
     try {
-      const url = URL.createObjectURL(file);
+      url = URL.createObjectURL(file);
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
         const el = new Image();
         el.onload = () => resolve(el);
@@ -473,13 +568,16 @@ function NewAdminShopProductPage() {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("ctx");
       ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
       return canvas.toDataURL("image/jpeg", quality);
-    } catch {
-      return fileToDataUrl(file);
+    } finally {
+      if (url) URL.revokeObjectURL(url);
     }
   }
   async function handleOcrAnalyze() {
+    if (ocrDisabled) {
+      toast.warning("OCR désactivé en mode sûr. Ajoutez les variantes manuellement.");
+      return;
+    }
     if (ocrFiles.length === 0) {
       toast.error("Ajoutez au moins une capture.");
       return;
@@ -487,15 +585,37 @@ function NewAdminShopProductPage() {
     setOcrLoading(true);
     setOcrResult(null);
     try {
-      const dataUrls = await Promise.all(ocrFiles.map((f) => compressImageForOcr(f)));
-      const r = await analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } });
-      setOcrResult(r);
-      if (r.variants.length === 0) {
+      const dataUrls = await withTimeout(
+        Promise.all(ocrFiles.map((f) => compressImageForOcr(f))),
+        18_000,
+        "Préparation des images OCR",
+      );
+      const r = await withTimeout(
+        analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } }),
+        OCR_TIMEOUT_MS,
+        "Analyse OCR",
+      );
+      const safeVariants = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
+      setOcrResult({ ...r, variants: safeVariants });
+      try {
+        localStorage.removeItem(OCR_FAILURES_KEY);
+      } catch {
+        /* ignore */
+      }
+      if (safeVariants.length === 0) {
         toast.warning("Aucune variante détectée. Réessayez avec d'autres captures.");
       } else {
-        toast.success(`${r.variants.length} variante(s) détectée(s).`);
+        toast.success(`${safeVariants.length} variante(s) détectée(s).`);
       }
     } catch (err) {
+      logError({
+        type: "manual",
+        message: err instanceof Error ? err.message : "Échec OCR",
+        stack: err instanceof Error ? err.stack : undefined,
+        url: window.location.href,
+      });
+      disableOcrAfterCrash();
+      if (getOcrDisabled()) setOcrDisabled(true);
       toast.error(err instanceof Error ? err.message : "Échec de l'analyse vision.");
     } finally {
       setOcrLoading(false);
@@ -711,26 +831,25 @@ function NewAdminShopProductPage() {
           <CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {previewedVariantIdx !== null && variants[previewedVariantIdx]?.image_file && (
+          {previewedVariantIdx !== null && safePreviewVariant?.image_file && variantImageUrls[previewedVariantIdx] && (
             <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2">
               <img
-                src={URL.createObjectURL(variants[previewedVariantIdx].image_file as File)}
+                src={variantImageUrls[previewedVariantIdx]}
                 alt=""
                 className="h-32 w-32 rounded-lg object-cover"
               />
               <div className="min-w-0 flex-1 text-xs">
                 <div className="text-[10px] uppercase text-muted-foreground">Variante affichée</div>
                 <div className="truncate font-medium">
-                  {[variants[previewedVariantIdx].color, variants[previewedVariantIdx].size]
+                  {[safePreviewVariant.color, safePreviewVariant.size]
                     .filter(Boolean)
                     .join(" + ") || "—"}
                 </div>
-                {variants[previewedVariantIdx].source_price && (
+                {safePreviewVariant.source_price && (
                   <div className="mt-1 text-[11px] text-muted-foreground">
                     Prix fournisseur :{" "}
                     <span className="text-foreground">
-                      {variants[previewedVariantIdx].source_price}{" "}
-                      {variants[previewedVariantIdx].source_currency}
+                      {safePreviewVariant.source_price} {safePreviewVariant.source_currency}
                     </span>
                   </div>
                 )}
@@ -747,7 +866,7 @@ function NewAdminShopProductPage() {
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
-                <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+                <img src={imageUrls[i]} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeImage(i)}
@@ -905,14 +1024,27 @@ function NewAdminShopProductPage() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setOcrOpen(true)}
+            onClick={() => {
+              if (ocrDisabled) {
+                toast.warning("OCR en mode sûr. Ajoutez les variantes manuellement.");
+                return;
+              }
+              setOcrOpen(true);
+            }}
+            disabled={ocrDisabled}
             className="gap-1"
           >
             <Camera className="h-4 w-4" />
-            Importer depuis images
+            {ocrDisabled ? "OCR désactivé" : "Importer depuis images"}
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
+          {ocrDisabled && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-2 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Mode sûr actif : l'OCR est désactivé pour éviter tout écran blanc. Le formulaire et les
+              variantes manuelles restent disponibles.
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
@@ -998,7 +1130,7 @@ function NewAdminShopProductPage() {
                 {v.image_file ? (
                   <div className="relative h-14 w-14 overflow-hidden rounded border">
                     <img
-                      src={URL.createObjectURL(v.image_file)}
+                      src={variantImageUrls[i]}
                       alt=""
                       className="h-full w-full object-cover"
                     />
@@ -1345,7 +1477,7 @@ function NewAdminShopProductPage() {
             <div className="flex flex-wrap gap-2">
               {ocrFiles.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded border">
-                  <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+                  <img src={ocrFileUrls[i]} alt="" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
