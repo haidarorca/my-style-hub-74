@@ -685,7 +685,40 @@ function NewAdminShopProductPage() {
         <CardHeader>
           <CardTitle className="text-base">{t("vendor.new.photos")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {previewedVariantIdx !== null && variants[previewedVariantIdx]?.image_file && (
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2">
+              <img
+                src={URL.createObjectURL(variants[previewedVariantIdx].image_file as File)}
+                alt=""
+                className="h-32 w-32 rounded-lg object-cover"
+              />
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="text-[10px] uppercase text-muted-foreground">Variante affichée</div>
+                <div className="truncate font-medium">
+                  {[variants[previewedVariantIdx].color, variants[previewedVariantIdx].size]
+                    .filter(Boolean)
+                    .join(" + ") || "—"}
+                </div>
+                {variants[previewedVariantIdx].source_price && (
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Prix fournisseur :{" "}
+                    <span className="text-foreground">
+                      {variants[previewedVariantIdx].source_price}{" "}
+                      {variants[previewedVariantIdx].source_currency}
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewedVariantIdx(null)}
+                  className="mt-1 text-[11px] text-primary hover:underline"
+                >
+                  Retirer l'aperçu
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {images.map((f, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
@@ -711,6 +744,7 @@ function NewAdminShopProductPage() {
               />
             </label>
           </div>
+          <p className="text-[10px] text-muted-foreground">Jusqu'à 25 images.</p>
         </CardContent>
       </Card>
 
