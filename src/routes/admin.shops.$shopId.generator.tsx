@@ -53,6 +53,19 @@ function GeneratorPage() {
   const [fxRate, setFxRate] = useState<number | null>(null);
   const [fxFetchedAt, setFxFetchedAt] = useState<string | null>(null);
 
+  type VariantRow = {
+    size: string; color: string; color_hex: string;
+    stock: string; price_override: string; image_url: string;
+  };
+  const emptyVariant = (): VariantRow => ({
+    size: "", color: "", color_hex: "", stock: "0", price_override: "", image_url: "",
+  });
+  const [variants, setVariants] = useState<VariantRow[]>([]);
+  const addVariant = () => setVariants((v) => [...v, emptyVariant()]);
+  const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
+  const updateVariant = (i: number, patch: Partial<VariantRow>) =>
+    setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+
   // Categories (flat list of level 3, with parents path)
   const { data: cats } = useQuery({
     queryKey: ["all-categories-flat"],
