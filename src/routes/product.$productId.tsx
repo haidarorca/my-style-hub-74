@@ -114,7 +114,10 @@ function ProductPage() {
     },
   });
 
-  const variants = useMemo(() => (data?.product_variants ?? []) as Variant[], [data?.product_variants]);
+  const variants = useMemo(
+    () => (data?.product_variants ?? []) as Variant[],
+    [data?.product_variants],
+  );
   const images = useMemo(
     () => (data?.product_images ?? []) as { url: string; position: number | null }[],
     [data?.product_images],
