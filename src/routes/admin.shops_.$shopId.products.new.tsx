@@ -143,6 +143,19 @@ function NewAdminShopProductPage() {
     null,
   );
 
+  // OCR variants from images
+  const analyzeVariantsImg = useServerFn(analyzeVariantsFromImages);
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [ocrFiles, setOcrFiles] = useState<File[]>([]);
+  const [ocrHint, setOcrHint] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrResult, setOcrResult] = useState<Awaited<
+    ReturnType<typeof analyzeVariantsFromImages>
+  > | null>(null);
+
+  // Image preview pinned from a variant click (Taobao-like behaviour)
+  const [previewedVariantIdx, setPreviewedVariantIdx] = useState<number | null>(null);
+
   // Category picks
   const [pick1, setPick1] = useState<Pick>("");
   const [pick2, setPick2] = useState<Pick>("");
