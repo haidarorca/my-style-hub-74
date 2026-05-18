@@ -1494,7 +1494,9 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => VariantOcrSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    // Tout utilisateur authentifié (admin ou vendeur) peut analyser ses propres captures.
+    // Pas d'écriture en base : la fonction renvoie uniquement le résultat OCR.
+    void context.userId;
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("AI gateway non configuré");
 
