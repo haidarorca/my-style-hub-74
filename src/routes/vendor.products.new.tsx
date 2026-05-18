@@ -107,6 +107,29 @@ function NewProductPage() {
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // OCR: import des variantes depuis des captures (taille / couleur / prix)
+  const analyzeVariantsImg = useServerFn(analyzeVariantsFromImages);
+  const OCR_TIMEOUT_MS = 45_000;
+  type OcrVariant = {
+    name: string; color: string; size: string;
+    price_xof_detected: number; source_image_index: number | null;
+  };
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [ocrFiles, setOcrFiles] = useState<File[]>([]);
+  const [ocrHint, setOcrHint] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ variants: OcrVariant[] } | null>(null);
+  const [ocrSelected, setOcrSelected] = useState<Set<number>>(new Set());
+
+  const ocrFileUrls = useMemo(
+    () => ocrFiles.map((f) => URL.createObjectURL(f)),
+    [ocrFiles],
+  );
+  useEffect(() => {
+    return () => { ocrFileUrls.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [ocrFileUrls]);
+
   // Approved categories (all levels)
   const { data: cats } = useQuery({
     queryKey: ["vendor-new", "cats"],
