@@ -7,6 +7,7 @@ import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { StuckLoadingDetector } from "@/components/admin/StuckLoadingDetector";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -88,7 +89,9 @@ function AdminLayout() {
       </header>
       <main className="mx-auto max-w-7xl p-3 pb-safe">
         <ErrorBoundary label="Admin" resetKey={pathname}>
-          <Outlet />
+          <StuckLoadingDetector>
+            <Outlet />
+          </StuckLoadingDetector>
         </ErrorBoundary>
       </main>
     </div>

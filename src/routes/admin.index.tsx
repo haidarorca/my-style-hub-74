@@ -18,13 +18,20 @@ function useCount(table: string, filter?: { col: string; val: string }) {
   return useQuery({
     queryKey: ["count", table, filter?.col, filter?.val],
     queryFn: async () => {
-      let q = supabase.from(table as never).select("id", { count: "exact", head: true });
-      if (filter) q = (q as never as { eq: (c: string, v: string) => typeof q }).eq(filter.col, filter.val);
-      const { count, error } = await q;
-      if (error) throw error;
-      return count ?? 0;
+      try {
+        let q = supabase.from(table as never).select("id", { count: "exact", head: true });
+        if (filter) q = (q as never as { eq: (c: string, v: string) => typeof q }).eq(filter.col, filter.val);
+        const { count, error } = await q;
+        if (error) throw error;
+        return count ?? 0;
+      } catch (err) {
+        // Soft-fail: a single failed count must not crash the whole dashboard.
+        console.warn(`[admin] count(${table}) failed:`, err);
+        return 0;
+      }
     },
     staleTime: 60_000,
+    retry: 1,
   });
 }
 
@@ -91,6 +98,8 @@ function Dashboard() {
         ...(countsByVendor[v.user_id] ?? { total: 0, approved: 0, pending: 0 }),
       }));
     },
+    staleTime: 5 * 60_000,
+    retry: 1,
   });
 
   return (
@@ -176,7 +185,12 @@ function Dashboard() {
       <Card>
         <CardHeader><CardTitle className="text-base">Vendeurs et leurs produits</CardTitle></CardHeader>
         <CardContent>
-          {!vendorStats.data ? (
+          {vendorStats.isError ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">Impossible de charger les statistiques vendeurs.</p>
+              <Button size="sm" variant="outline" onClick={() => vendorStats.refetch()}>Réessayer</Button>
+            </div>
+          ) : vendorStats.isPending ? (
             <p className="text-sm text-muted-foreground">Chargement…</p>
           ) : vendorStats.data.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun vendeur.</p>
