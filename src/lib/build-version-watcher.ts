@@ -56,6 +56,53 @@ async function remoteFingerprint(): Promise<string | null> {
   }
 }
 
+function isStandalonePwa(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    if (window.matchMedia?.("(display-mode: standalone)").matches) return true;
+    // iOS Safari
+    if ((window.navigator as unknown as { standalone?: boolean }).standalone) return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+const HARD_RELOAD_KEY = "kawzone:hard-reload-at";
+
+async function hardReloadFresh() {
+  try {
+    const last = Number(sessionStorage.getItem(HARD_RELOAD_KEY) || "0");
+    if (Date.now() - last < 30_000) return;
+    sessionStorage.setItem(HARD_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+  try {
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister().catch(() => undefined)));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("_v", Date.now().toString());
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
+}
+
 function showUpdateToast() {
   if (notified) return;
   notified = true;
@@ -70,7 +117,7 @@ function showUpdateToast() {
         } catch {
           // ignore
         }
-        window.location.reload();
+        void hardReloadFresh();
       },
     },
   });
@@ -82,6 +129,12 @@ async function checkOnce() {
   const remote = await remoteFingerprint();
   if (!remote) return;
   if (remote !== initialFingerprint) {
+    // In an installed PWA the user has no easy way to refresh manually.
+    // Silently hard-reload onto the new build instead of showing a toast.
+    if (isStandalonePwa()) {
+      void hardReloadFresh();
+      return;
+    }
     showUpdateToast();
   }
 }
