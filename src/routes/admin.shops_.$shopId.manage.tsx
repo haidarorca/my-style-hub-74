@@ -65,6 +65,8 @@ function AdminShopManagePage() {
 
       <ShopOverviewCards overview={overview ?? null} loading={isLoading} />
 
+      <ShopContactSettings shopId={shopId} />
+
       <ShopProductsTable
         shopId={shopId}
         editTo="/admin/products/$productId/edit"
