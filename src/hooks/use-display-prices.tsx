@@ -18,8 +18,10 @@ export function useDisplayPrices(productIds: string[]) {
   const { data } = useQuery({
     queryKey: ["display-prices", countryId, ids],
     enabled: ids.length > 0,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const rows = await fetcher({ data: { productIds: ids, destinationCountryId: countryId ?? null } });
       return rows as DisplayPrice[];
@@ -54,8 +56,11 @@ export function useDisplayPriceLines(lines: Array<{ productId: string; variantId
   const { data, isFetched } = useQuery({
     queryKey: ["display-price-lines", countryId, key],
     enabled: stableLines.length > 0,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const rows = await fetcher({ data: { lines: stableLines, destinationCountryId: countryId ?? null } });
       return rows as DisplayPrice[];
