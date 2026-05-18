@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus } from "lucide-react";
+import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus, FileSpreadsheet } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,20 +145,40 @@ function AdminShopsPage() {
             Boutiques internes gérées par l'équipe — affichées comme des vendeurs normaux côté client.
           </p>
         </div>
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-1 h-4 w-4" /> Créer une boutique
-            </Button>
-          </DialogTrigger>
-          <ShopFormDialog
-            title="Créer une boutique admin"
-            initial={emptyForm}
-            submitting={createMut.isPending}
-            onSubmit={(f) => createMut.mutate(f)}
-            onClose={() => setOpenCreate(false)}
-          />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-1 h-4 w-4" /> Créer une boutique
+              </Button>
+            </DialogTrigger>
+            <ShopFormDialog
+              title="Créer une boutique admin"
+              initial={emptyForm}
+              submitting={createMut.isPending}
+              onSubmit={(f) => createMut.mutate(f)}
+              onClose={() => setOpenCreate(false)}
+            />
+          </Dialog>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={rows.length === 0}>
+                <FileSpreadsheet className="mr-1 h-4 w-4" /> Import / Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+              <DropdownMenuLabel>Choisir une boutique</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {rows.map((s) => (
+                <DropdownMenuItem key={s.id} asChild>
+                  <Link to="/admin/shops_/$shopId/import-export" params={{ shopId: s.id }}>
+                    {s.shop_name}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {isLoading ? (
