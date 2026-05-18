@@ -534,16 +534,7 @@ function OrdersPage() {
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                             </Link>
                             <div className="flex shrink-0 items-center gap-1.5">
-                              {wa && (
-                                <a
-                                  href={buildWa(wa, openOrder.id, v.shop_name)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                                >
-                                  <MessageCircle className="h-3 w-3" /> WhatsApp
-                                </a>
-                              )}
+                              <ContactActions vendorId={v.id} orderId={openOrder.id} productName={v.shop_name ?? "Boutique"} className="flex flex-wrap gap-1" />
                               {canReview && (
                                 <button
                                   onClick={() =>
