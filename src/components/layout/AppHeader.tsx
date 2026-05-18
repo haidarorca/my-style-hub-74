@@ -30,6 +30,13 @@ export function AppHeader() {
   const { t } = useI18n();
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const unreadFn = useServerFn(getUnreadCount);
+  const { data: unread = 0 } = useQuery({
+    queryKey: ["support-unread", user?.id ?? "anon"],
+    queryFn: () => unreadFn(),
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
 
   const handleSignOut = async () => {
     await signOut();
