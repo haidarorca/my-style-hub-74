@@ -522,19 +522,43 @@ function CartPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {Array.from(groups.values()).map((g) => (
+            {Array.from(groups.values()).map((g) => {
+              const groupState = groupSelectionState(g.items as any[]);
+              return (
               <section key={g.vendorId} className="overflow-hidden rounded-xl bg-card shadow-soft">
-                <header className="flex items-center gap-2 border-b border-border bg-accent/40 px-3 py-2">
+                <header className="flex items-center gap-3 border-b border-border bg-accent/40 px-3 py-2.5">
+                  <Checkbox
+                    checked={groupState}
+                    onCheckedChange={(v) => toggleGroup(g.items as any[], v === true)}
+                    aria-label={g.shopName}
+                  />
                   <Store className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">{g.shopName}</span>
+                  <span className="ms-auto text-[11px] text-muted-foreground">
+                    {(g.items as any[]).filter((it) => isSelected(it.id)).length}/{g.items.length}
+                  </span>
                 </header>
                 <ul>
                   {g.items.map((it: any) => {
                     const img = it.products?.product_images?.[0]?.url;
                     const price = unitPrice(it);
                     const cust = customizationSummary(it.customization);
+                    const checked = isSelected(it.id);
                     return (
-                      <li key={it.id} className="flex gap-3 border-b border-border p-3 last:border-0">
+                      <li
+                        key={it.id}
+                        className={cn(
+                          "flex gap-3 border-b border-border p-3 last:border-0 transition-colors",
+                          checked ? "bg-background" : "bg-muted/30 opacity-70",
+                        )}
+                      >
+                        <div className="flex items-start pt-1">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => toggleItem(it.id, v === true)}
+                            aria-label={it.products.name}
+                          />
+                        </div>
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                           {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" />}
                         </div>
@@ -578,7 +602,8 @@ function CartPage() {
                   })}
                 </ul>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
