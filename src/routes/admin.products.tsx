@@ -99,7 +99,7 @@ function ProductDetailDialog({ product, onClose }: { product: ProductRow | null;
               <div className="grid grid-cols-3 gap-2">
                 {details?.images.map((im, i) => (
                   <a key={i} href={im.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-lg bg-muted">
-                    <img src={im.url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+                    <img src={im.url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   </a>
                 ))}
                 {details && details.images.length === 0 && <div className="col-span-3 text-xs text-muted-foreground">Aucune image.</div>}
@@ -116,7 +116,7 @@ function ProductDetailDialog({ product, onClose }: { product: ProductRow | null;
                     <li key={v.id} className="flex items-center gap-2 rounded-lg border p-2">
                       {v.image_url ? (
                         <a href={v.image_url} target="_blank" rel="noreferrer" className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted">
-                          <img src={v.image_url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+                          <img src={v.image_url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                         </a>
                       ) : v.color_hex ? (
                         <div className="h-12 w-12 shrink-0 rounded border" style={{ background: v.color_hex }} />
@@ -224,7 +224,7 @@ function ProductList({ status }: { status: "pending" | "approved" | "rejected" }
         return (
           <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3">
             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-              {img && <img src={img} alt={p.name} className="h-full w-full object-cover" / loading="lazy" decoding="async" >}
+              {img && <img src={img} alt={p.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">

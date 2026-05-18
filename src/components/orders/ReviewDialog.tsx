@@ -151,7 +151,7 @@ export function ReviewDialog({
             <div className="flex flex-wrap gap-2">
               {photos.map((url) => (
                 <div key={url} className="relative h-16 w-16 overflow-hidden rounded-lg border">
-                  <img src={url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+                  <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   <button
                     type="button"
                     onClick={() => setPhotos((p) => p.filter((u) => u !== url))}
