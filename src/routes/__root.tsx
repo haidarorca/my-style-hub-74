@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -145,6 +146,7 @@ function AuthInvalidator() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => { installGlobalErrorLogger(); runPwaCleanup(); startBuildVersionWatcher(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
@@ -155,7 +157,7 @@ function RootComponent() {
               <DeliveryCountryProvider>
                 <AuthInvalidator />
                 <PromoBar />
-                <ErrorBoundary label="Application">
+                <ErrorBoundary label="Application" resetKey={pathname}>
                   <SwipeNavigator><Outlet /></SwipeNavigator>
                 </ErrorBoundary>
                 <MobileBottomNav />
