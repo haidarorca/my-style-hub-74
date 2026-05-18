@@ -145,20 +145,40 @@ function AdminShopsPage() {
             Boutiques internes gérées par l'équipe — affichées comme des vendeurs normaux côté client.
           </p>
         </div>
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-1 h-4 w-4" /> Créer une boutique
-            </Button>
-          </DialogTrigger>
-          <ShopFormDialog
-            title="Créer une boutique admin"
-            initial={emptyForm}
-            submitting={createMut.isPending}
-            onSubmit={(f) => createMut.mutate(f)}
-            onClose={() => setOpenCreate(false)}
-          />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-1 h-4 w-4" /> Créer une boutique
+              </Button>
+            </DialogTrigger>
+            <ShopFormDialog
+              title="Créer une boutique admin"
+              initial={emptyForm}
+              submitting={createMut.isPending}
+              onSubmit={(f) => createMut.mutate(f)}
+              onClose={() => setOpenCreate(false)}
+            />
+          </Dialog>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={rows.length === 0}>
+                <FileSpreadsheet className="mr-1 h-4 w-4" /> Import / Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+              <DropdownMenuLabel>Choisir une boutique</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {rows.map((s) => (
+                <DropdownMenuItem key={s.id} asChild>
+                  <Link to="/admin/shops_/$shopId/import-export" params={{ shopId: s.id }}>
+                    {s.shop_name}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {isLoading ? (
