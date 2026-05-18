@@ -311,7 +311,7 @@ function CartPage() {
     unitPrice: unitPrice(it),
   });
 
-  const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
+  const buildDispatchGroups = async (orderId: string, addr: Address): Promise<DispatchGroup[]> => {
     const groups: DispatchGroup[] = [];
     const byVendor = new Map<string, any[]>();
     const commissionItems: any[] = [];
@@ -324,10 +324,23 @@ function CartPage() {
         byVendor.get(vid)!.push(it);
       }
     }
+    // Fetch vendor WhatsApp numbers server-side (commission policy enforced by view)
+    const vendorIds = Array.from(byVendor.keys());
+    const vendorContacts = new Map<string, string | null>();
+    await Promise.all(
+      vendorIds.map(async (vid) => {
+        try {
+          const c = await fetchVendorContacts({ data: { vendorId: vid } });
+          vendorContacts.set(vid, c?.shop_whatsapp ?? null);
+        } catch {
+          vendorContacts.set(vid, null);
+        }
+      }),
+    );
     for (const [vid, vItems] of byVendor) {
       const first = vItems[0] as any;
       const shopName = first.products?.profiles?.shop_name || first.products?.profiles?.full_name || t("product.shop");
-      const wa = first.products?.profiles?.shop_whatsapp || first.products?.profiles?.phone || null;
+      const wa = vendorContacts.get(vid) ?? null;
       const msg = buildWhatsAppMessage(vItems.map(lineFor), {
         name: addr.full_name,
         phone: addr.phone,
