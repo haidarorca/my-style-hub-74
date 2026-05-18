@@ -452,6 +452,16 @@ function AccountPage() {
           <ChangePasswordCard />
         </div>
 
+        <div className="mt-6 rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Mise à jour de l'application</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Forcer la vérification d'une nouvelle version, vider les anciens caches et recharger l'application proprement.
+          </p>
+          <div className="mt-3">
+            <UpdateAppButton fullWidth />
+          </div>
+        </div>
+
         {isVendor && !isAdmin && <RemoveVendorCard />}
       </main>
 
