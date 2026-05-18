@@ -24,6 +24,8 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/commissions/hub", label: "Commissions", icon: Percent, superOnly: true },
   { to: "/admin/reports", label: "Signalements", icon: Flag, perm: "support" },
   { to: "/admin/reviews", label: "Avis", icon: MessageSquare, perm: "support" },
+  { to: "/admin/support", label: "Support", icon: LifeBuoy, perm: "support" },
+  { to: "/admin/contact-settings", label: "Contacts & support", icon: Phone, superOnly: true },
   { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
   { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
   { to: "/admin/notifications", label: "Notifications", icon: Bell },
