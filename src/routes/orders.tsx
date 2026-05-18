@@ -437,12 +437,7 @@ function OrdersPage() {
               (s: number, i: any) => s + Number(i.unit_price) * i.quantity,
               0,
             );
-            const vendorWa = (v: any) => {
-              if (!v) return "";
-              if (v.hide_contact_publicly) return "";
-              return (v.shop_whatsapp as string) || (v.phone as string) || "";
-            };
-            const supportWa = settings?.whatsapp_number || "";
+            const uniqueVendors_unused = null;
             const uniqueVendors = Array.from(
               new Map(openOrder.items.map((i: any) => [i.vendor_id, i.vendor])).values(),
             ).filter(Boolean);
