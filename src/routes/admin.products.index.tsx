@@ -215,11 +215,12 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <StatTile label="À valider" value={totals.pending} icon={Hourglass} color="text-amber-600" />
         <StatTile label="Approuvés" value={totals.approved} icon={PackageCheck} color="text-emerald-600" />
         <StatTile label="Rejetés" value={totals.rejected} icon={PackageX} color="text-destructive" />
         <StatTile label="Modifications" value={totals.edits_pending} icon={Pencil} color="text-primary" />
+        <StatTile label="Archivés" value={totals.archived} icon={Archive} color="text-muted-foreground" />
       </div>
 
       <Card>
