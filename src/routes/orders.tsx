@@ -428,7 +428,7 @@ function OrdersPage() {
               (s: number, i: any) => s + Number(i.unit_price) * i.quantity,
               0,
             );
-            const uniqueVendors_unused = null;
+            
             const uniqueVendors = Array.from(
               new Map(openOrder.items.map((i: any) => [i.vendor_id, i.vendor])).values(),
             ).filter(Boolean);
