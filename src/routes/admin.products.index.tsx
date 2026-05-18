@@ -153,7 +153,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const totals = data?.totals ?? { pending: 0, approved: 0, rejected: 0, edits_pending: 0 };
+  const totals = data?.totals ?? { pending: 0, approved: 0, rejected: 0, edits_pending: 0, archived: 0 };
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
