@@ -24,6 +24,16 @@ import { becomeVendor } from "@/lib/vendor-onboarding.functions";
 
 export const Route = createFileRoute("/become-vendor")({
   component: BecomeVendorPage,
+  head: () => ({
+    meta: [
+      { title: "Devenir vendeur — Kawzone" },
+      { name: "description", content: "Rejoignez Kawzone et vendez vos produits en ligne au Sénégal. Inscription rapide et boutique personnalisée." },
+      { property: "og:title", content: "Devenir vendeur — Kawzone" },
+      { property: "og:description", content: "Rejoignez Kawzone et vendez vos produits en ligne au Sénégal." },
+      { property: "og:url", content: "https://kawzone.com/become-vendor" },
+    ],
+    links: [{ rel: "canonical", href: "https://kawzone.com/become-vendor" }],
+  }),
 });
 
 function BecomeVendorPage() {

@@ -13,6 +13,13 @@ import { useI18n } from "@/hooks/use-i18n";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
+  head: () => ({
+    meta: [
+      { title: "Connexion — Kawzone" },
+      { name: "description", content: "Connectez-vous à votre compte Kawzone pour gérer vos commandes et favoris." },
+      { name: "robots", content: "noindex, follow" },
+    ],
+  }),
 });
 
 function LoginPage() {

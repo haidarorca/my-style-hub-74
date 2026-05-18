@@ -18,6 +18,13 @@ import {
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
+  head: () => ({
+    meta: [
+      { title: "Créer un compte — Kawzone" },
+      { name: "description", content: "Créez votre compte Kawzone gratuitement et profitez de la marketplace au Sénégal." },
+      { name: "robots", content: "noindex, follow" },
+    ],
+  }),
 });
 
 function SignupPage() {

@@ -14,6 +14,42 @@ import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/shop/$vendorId")({
   component: ShopPage,
+  loader: async ({ params }) => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await (supabase as never as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> } } } })
+        .from("public_vendor_profiles")
+        .select("id, shop_name, description, logo_url")
+        .eq("id", params.vendorId)
+        .maybeSingle();
+      return { seo: data ?? null };
+    } catch {
+      return { seo: null };
+    }
+  },
+  head: ({ params, loaderData }) => {
+    const seo = (loaderData as { seo?: Record<string, unknown> | null } | undefined)?.seo;
+    const name = (seo?.shop_name as string) ?? "Boutique";
+    const title = `${name} — Kawzone`;
+    const desc = ((seo?.description as string) ?? `Découvrez la boutique ${name} sur Kawzone.`).slice(0, 160);
+    const img = seo?.logo_url as string | undefined;
+    const url = `https://kawzone.com/shop/${params.vendorId}`;
+    const meta = [
+      { title },
+      { name: "description", content: desc },
+      { property: "og:title", content: title },
+      { property: "og:description", content: desc },
+      { property: "og:url", content: url },
+      { property: "og:type", content: "website" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: desc },
+    ];
+    if (img) {
+      meta.push({ property: "og:image", content: img });
+      meta.push({ name: "twitter:image", content: img });
+    }
+    return { meta, links: [{ rel: "canonical", href: url }] };
+  },
 });
 
 function ShopPage() {

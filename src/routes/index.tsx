@@ -19,6 +19,16 @@ import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/")({
   component: Home,
+  head: () => ({
+    meta: [
+      { title: "Kawzone — Marketplace au Sénégal" },
+      { name: "description", content: "Achetez en ligne au Sénégal : mode, accessoires, maison, électronique. Livraison rapide partout sur Kawzone." },
+      { property: "og:title", content: "Kawzone — Marketplace au Sénégal" },
+      { property: "og:description", content: "Achetez en ligne au Sénégal : mode, accessoires, maison, électronique." },
+      { property: "og:url", content: "https://kawzone.com/" },
+    ],
+    links: [{ rel: "canonical", href: "https://kawzone.com/" }],
+  }),
 });
 
 const ALL = "__all__";
