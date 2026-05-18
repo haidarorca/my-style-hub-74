@@ -155,12 +155,17 @@ export function startBuildVersionWatcher(): void {
   initialFingerprint = currentFingerprint();
   if (!initialFingerprint) return;
 
-  // First check shortly after mount, then on an interval, and whenever the
-  // user comes back to the tab.
+  // Installed PWAs need to detect a new deploy immediately on launch — the
+  // user has no address bar to refresh manually. Kick a check right away on
+  // standalone, otherwise wait 15s so it doesn't compete with first paint.
   const kick = () => {
     void checkOnce();
   };
-  setTimeout(kick, 15_000);
+  if (isStandalonePwa()) {
+    setTimeout(kick, 500);
+  } else {
+    setTimeout(kick, 15_000);
+  }
   setInterval(kick, CHECK_INTERVAL_MS);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") kick();
