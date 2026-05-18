@@ -6,6 +6,7 @@ import {
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
