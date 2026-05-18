@@ -12,7 +12,6 @@ import {
   Home,
   XCircle,
   RefreshCcw,
-  MessageCircle,
   Phone,
   Star,
   ChevronRight,
