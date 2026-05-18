@@ -480,7 +480,7 @@ function CartPage() {
       console.info("[checkout] submit saved", { orderId: savedOrderId, itemCount: rows.length, total: grandTotal });
 
       // Build dispatch groups BEFORE clearing the cart
-      const groups = buildDispatchGroups(savedOrderId, addr);
+      const groups = await buildDispatchGroups(savedOrderId, addr);
 
       // Only remove the items the buyer actually ordered — keep the rest in the cart.
       const orderedIds = selectedItems.map((it: any) => it.id as string);
