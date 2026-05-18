@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
-  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2,
+  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2, Archive,
 } from "lucide-react";
 import {
   listAdminProducts, listReportedProducts, setProductStatus, setReportStatus, deleteOrArchiveProduct,
