@@ -2073,6 +2073,18 @@ export type Database = {
           id: string
         }[]
       }
+      get_display_price_lines_batch: {
+        Args: { _destination_country_id?: string; _lines: Json }
+        Returns: {
+          base_price: number
+          commission_amount: number
+          commission_rate: number
+          commission_rule_id: string
+          final_price: number
+          product_id: string
+          variant_id: string
+        }[]
+      }
       get_display_prices: {
         Args: { _destination_country_id?: string; _product_ids: string[] }
         Returns: {
