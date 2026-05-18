@@ -60,6 +60,7 @@ import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commiss
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
 import { Route as AdminShopsShopIdManageRouteImport } from './routes/admin.shops_.$shopId.manage'
+import { Route as AdminShopsShopIdImportExportRouteImport } from './routes/admin.shops_.$shopId.import-export'
 import { Route as AdminShopsShopIdGeneratorRouteImport } from './routes/admin.shops_.$shopId.generator'
 import { Route as AdminProductsProductIdModerateRouteImport } from './routes/admin.products.$productId.moderate'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
@@ -321,6 +322,12 @@ const AdminShopsShopIdManageRoute = AdminShopsShopIdManageRouteImport.update({
   path: '/shops/$shopId/manage',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminShopsShopIdImportExportRoute =
+  AdminShopsShopIdImportExportRouteImport.update({
+    id: '/shops_/$shopId/import-export',
+    path: '/shops/$shopId/import-export',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const AdminShopsShopIdGeneratorRoute =
   AdminShopsShopIdGeneratorRouteImport.update({
     id: '/shops_/$shopId/generator',
@@ -399,6 +406,7 @@ export interface FileRoutesByFullPath {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -453,6 +461,7 @@ export interface FileRoutesByTo {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -511,6 +520,7 @@ export interface FileRoutesById {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops_/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops_/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops_/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops_/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -570,6 +580,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
+    | '/admin/shops/$shopId/import-export'
     | '/admin/shops/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops/$shopId/products/new'
@@ -624,6 +635,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
+    | '/admin/shops/$shopId/import-export'
     | '/admin/shops/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops/$shopId/products/new'
@@ -681,6 +693,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops_/$shopId/generator'
+    | '/admin/shops_/$shopId/import-export'
     | '/admin/shops_/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops_/$shopId/products/new'
@@ -1065,6 +1078,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminShopsShopIdManageRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/shops_/$shopId/import-export': {
+      id: '/admin/shops_/$shopId/import-export'
+      path: '/shops/$shopId/import-export'
+      fullPath: '/admin/shops/$shopId/import-export'
+      preLoaderRoute: typeof AdminShopsShopIdImportExportRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/shops_/$shopId/generator': {
       id: '/admin/shops_/$shopId/generator'
       path: '/shops/$shopId/generator'
@@ -1156,6 +1176,7 @@ interface AdminRouteChildren {
   AdminVendorsRoute: typeof AdminVendorsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminShopsShopIdGeneratorRoute: typeof AdminShopsShopIdGeneratorRoute
+  AdminShopsShopIdImportExportRoute: typeof AdminShopsShopIdImportExportRoute
   AdminShopsShopIdManageRoute: typeof AdminShopsShopIdManageRoute
   AdminShopsShopIdProductsNewRoute: typeof AdminShopsShopIdProductsNewRoute
 }
@@ -1179,6 +1200,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminVendorsRoute: AdminVendorsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminShopsShopIdGeneratorRoute: AdminShopsShopIdGeneratorRoute,
+  AdminShopsShopIdImportExportRoute: AdminShopsShopIdImportExportRoute,
   AdminShopsShopIdManageRoute: AdminShopsShopIdManageRoute,
   AdminShopsShopIdProductsNewRoute: AdminShopsShopIdProductsNewRoute,
 }
