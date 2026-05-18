@@ -778,6 +778,170 @@ function NewProductPage() {
         </CardContent>
       </Card>
 
+      <Dialog open={ocrOpen} onOpenChange={setOcrOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Importer les variantes depuis des images
+            </DialogTitle>
+            <DialogDescription>
+              Envoyez jusqu'à 10 captures qui montrent vos tailles, couleurs et prix.
+              L'IA détecte automatiquement les combinaisons et le prix en FCFA.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{ocrFiles.length} / 10 image(s)</span>
+              {ocrFiles.length > 0 && (
+                <button type="button" className="underline" onClick={() => setOcrFiles([])}>
+                  Tout retirer
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto rounded border bg-muted/20 p-2 sm:grid-cols-5">
+              {ocrFiles.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="relative aspect-square overflow-hidden rounded border bg-background">
+                  <img src={ocrFileUrls[i]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <span className="absolute left-0.5 top-0.5 rounded bg-background/85 px-1 text-[9px] font-medium">#{i + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="absolute right-0 top-0 rounded-bl bg-background/85 p-0.5"
+                    aria-label="Retirer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {ocrFiles.length < 10 && (
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
+                  <Upload className="h-4 w-4" />
+                  Ajouter
+                  <input type="file" accept="image/*" multiple onChange={onPickOcrFiles} className="hidden" />
+                </label>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">Indice (optionnel)</Label>
+              <Input
+                value={ocrHint}
+                onChange={(e) => setOcrHint(e.target.value)}
+                placeholder="Ex. Couleurs en image 1, tailles en image 2"
+                className="h-8"
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleOcrAnalyze}
+              disabled={ocrLoading || ocrFiles.length === 0}
+              className="w-full gap-2"
+            >
+              {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {ocrLoading ? "Analyse…" : "Analyser les images"}
+            </Button>
+
+            {ocrError && (
+              <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                {ocrError}
+              </div>
+            )}
+
+            {ocrResult && ocrResult.variants.length > 0 && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>{ocrSelected.size} / {ocrResult.variants.length} sélectionnée(s)</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => setOcrSelected(new Set(ocrResult.variants.map((_, i) => i)))}
+                    >
+                      Tout cocher
+                    </button>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => setOcrSelected(new Set())}
+                    >
+                      Décocher
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto rounded border bg-background">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/80 text-left text-[10px] uppercase">
+                      <tr>
+                        <th className="w-7 p-1.5"></th>
+                        <th className="p-1.5">Variante</th>
+                        <th className="p-1.5">Image</th>
+                        <th className="p-1.5">Prix suggéré (FCFA)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ocrResult.variants.map((v, i) => {
+                        const checked = ocrSelected.has(i);
+                        const srcIdx = v.source_image_index;
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-t cursor-pointer ${checked ? "" : "opacity-50"}`}
+                            onClick={() => {
+                              setOcrSelected((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(i)) n.delete(i);
+                                else n.add(i);
+                                return n;
+                              });
+                            }}
+                          >
+                            <td className="p-1.5">
+                              <input type="checkbox" checked={checked} onChange={() => {}} className="h-3.5 w-3.5" />
+                            </td>
+                            <td className="p-1.5">{v.name}</td>
+                            <td className="p-1.5">
+                              {srcIdx !== null && srcIdx !== undefined && ocrFileUrls[srcIdx] ? (
+                                <img src={ocrFileUrls[srcIdx]} alt="" loading="lazy" className="h-7 w-7 rounded border object-cover" />
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="p-1.5 whitespace-nowrap">
+                              {v.price_xof_detected > 0 ? `${v.price_xof_detected.toLocaleString("fr-FR")} F` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setOcrResult(null); setOcrSelected(new Set()); }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={ocrSelected.size === 0}
+                    onClick={() => applyOcrVariants(true)}
+                  >
+                    Valider sélection ({ocrSelected.size})
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => applyOcrVariants(false)}>
+                    Tout appliquer
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
         <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
           {submitting ? t("vendor.new.submitting") : t("vendor.new.submit")}
