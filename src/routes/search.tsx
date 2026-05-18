@@ -472,7 +472,7 @@ function SearchPage() {
                       params={{ categoryId: c.id }}
                       className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-accent"
                     >
-                      {c.logo_url && <img src={c.logo_url} alt="" className="h-5 w-5 rounded-full object-cover" />}
+                      {c.logo_url && <img src={c.logo_url} alt="" loading="lazy" decoding="async" className="h-5 w-5 rounded-full object-cover" />}
                       {pickI18n(c.name, c.name_i18n, lang)}
                     </Link>
                   ))}
