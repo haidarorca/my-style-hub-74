@@ -159,7 +159,8 @@ function CartPage() {
   const unitPrice = (it: any) => {
     const productId = it.products?.id ?? it.product_id;
     const key = `${productId}:${it.variant_id ?? ""}`;
-    return displayPriceLines.get(key)?.final_price ?? fallbackUnitPrice(it);
+    const resolved = displayPriceLines.get(key)?.final_price;
+    return resolved ?? (pricesReady ? fallbackUnitPrice(it) : 0);
   };
   const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
@@ -309,6 +310,11 @@ function CartPage() {
 
   const submitOrder = async () => {
     if (items.length === 0) return;
+    if (!pricesReady) {
+      console.info("[checkout] blocked: prices not ready", { itemCount: items.length, destinationCountryId });
+      toast.error(t("common.loading"));
+      return;
+    }
     if (!destinationCountryId) {
       toast.error(t("checkout.country_required"));
       return;
@@ -329,6 +335,22 @@ function CartPage() {
       }
 
       const orderId = crypto.randomUUID();
+      const debugPayload = {
+        orderId,
+        buyerId: user?.id ?? null,
+        destinationCountryId,
+        total: grandTotal,
+        items: items.map((it: any) => ({
+          productId: it.products?.id,
+          variantId: it.variant_id ?? null,
+          vendorId: it.products?.vendor_id,
+          vendorMode: it.products?.profiles?.vendor_mode ?? null,
+          isAdminShop: it.products?.profiles?.is_admin_shop ?? null,
+          unitPrice: unitPrice(it),
+          quantity: it.quantity,
+        })),
+      };
+      console.info("[checkout] submit start", debugPayload);
       const { error: oErr } = await supabase
         .from("orders")
         .insert({
@@ -344,7 +366,7 @@ function CartPage() {
           destination_country_id: destinationCountryId,
         } as any);
       if (oErr) {
-        console.error("[checkout] orders.insert failed", oErr);
+        console.error("[checkout] orders.insert failed", oErr, debugPayload);
         throw oErr;
       }
 
@@ -365,11 +387,12 @@ function CartPage() {
       }));
       const { error: iErr } = await supabase.from("order_items").insert(rows);
       if (iErr) {
-        console.error("[checkout] order_items.insert failed", iErr, { rows });
+        console.error("[checkout] order_items.insert failed", iErr, { ...debugPayload, rows });
         // Roll back the parent order so we don't leave orphans
         await supabase.from("orders").delete().eq("id", orderId);
         throw iErr;
       }
+      console.info("[checkout] submit saved", { orderId, itemCount: rows.length, total: grandTotal });
 
       // Build dispatch groups BEFORE clearing the cart
       const groups = buildDispatchGroups(orderId, addr);
