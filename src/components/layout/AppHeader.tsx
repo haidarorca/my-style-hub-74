@@ -103,7 +103,12 @@ export function AppHeader() {
                   <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/messages"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</Link>
+                  <Link to="/messages" className="flex items-center justify-between gap-2 w-full">
+                    <span className="flex items-center"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</span>
+                    {unread > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{unread}</span>
+                    )}
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/support"><LifeBuoy className="mr-2 h-4 w-4" /> Support</Link>
