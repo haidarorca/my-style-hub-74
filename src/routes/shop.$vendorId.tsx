@@ -125,16 +125,9 @@ function ShopPage() {
               {address && <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{address}</span></div>}
             </div>
 
-            {waLink && (
-              <a
-                href={waLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-sm font-semibold text-white shadow active:scale-[0.99]"
-              >
-                <Phone className="h-4 w-4" /> {t("shop.contact_wa")}
-              </a>
-            )}
+            <div className="mt-4">
+              <ContactActions vendorId={vendorId} productName={shopName} className="flex flex-wrap gap-2" />
+            </div>
           </div>
         </section>
 
