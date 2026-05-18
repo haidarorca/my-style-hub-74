@@ -384,7 +384,7 @@ export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
         .from("products")
         .update({
           is_active: false,
-          status: "rejected",
+          archived_at: new Date().toISOString(),
           rejection_reason: "Archivé par l'administration",
         })
         .eq("id", data.product_id);
