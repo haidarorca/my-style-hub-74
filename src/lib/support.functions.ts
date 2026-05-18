@@ -83,6 +83,8 @@ export const updateShopContactPolicy = createServerFn({ method: "POST" })
     show_email?: boolean;
     show_phone?: boolean;
     show_address?: boolean;
+    vendor_contact_force_visible?: boolean;
+    hide_contact_publicly?: boolean;
     assigned_support_admin_ids?: string[];
   }) => d)
   .handler(async ({ data, context }) => {
@@ -93,6 +95,56 @@ export const updateShopContactPolicy = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", shopId);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const getShopContactPolicy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { shopId: string }) => z.object({ shopId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!(await isAdmin(context.userId))) throw new Error("Accès refusé");
+    const { data: row, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, shop_name, vendor_mode, contact_mode, show_whatsapp, show_email, show_phone, show_address, vendor_contact_force_visible, hide_contact_publicly, assigned_support_admin_ids, shop_whatsapp, phone, email")
+      .eq("id", data.shopId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const createPublicSupportTicket = createServerFn({ method: "POST" })
+  .inputValidator((d: { name: string; email: string; subject: string; body: string }) =>
+    z.object({
+      name: z.string().trim().min(1).max(120),
+      email: z.string().trim().email().max(200),
+      subject: z.string().trim().min(2).max(200),
+      body: z.string().trim().min(1).max(5000),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const { data: conv, error } = await supabaseAdmin
+      .from("support_conversations" as never)
+      .insert({
+        subject: data.subject,
+        last_message_preview: data.body.slice(0, 200),
+        type: "client_support",
+        client_id: null,
+        client_name: data.name,
+        client_email: data.email,
+        is_commission_protected: false,
+      } as never)
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const c = conv as { id: string };
+    const { error: mErr } = await supabaseAdmin
+      .from("support_messages" as never)
+      .insert({
+        conversation_id: c.id,
+        sender_id: null,
+        sender_role: "client",
+        body: `${data.body}\n\n— De: ${data.name} <${data.email}>`,
+      } as never);
+    if (mErr) throw new Error(mErr.message);
     return { ok: true };
   });
 
