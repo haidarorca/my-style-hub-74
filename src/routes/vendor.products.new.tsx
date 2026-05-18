@@ -1,10 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X, Sparkles, Clock } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Upload,
+  X,
+  Sparkles,
+  Clock,
+  Camera,
+  Loader2,
+  Wand2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
+import { analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import { humanizeOcrError } from "@/lib/admin-error-messages";
+import { logError } from "@/lib/error-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
@@ -18,6 +32,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 
 export const Route = createFileRoute("/vendor/products/new")({
