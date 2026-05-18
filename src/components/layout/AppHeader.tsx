@@ -92,6 +92,12 @@ export function AppHeader() {
                 <DropdownMenuItem asChild>
                   <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/messages"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/support"><LifeBuoy className="mr-2 h-4 w-4" /> Support</Link>
+                </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem asChild>
                     <Link to="/admin"><ShieldCheck className="mr-2 h-4 w-4" /> {t("nav.admin")}</Link>
