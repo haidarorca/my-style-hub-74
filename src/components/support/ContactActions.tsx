@@ -124,6 +124,14 @@ export function ContactActions({ vendorId, productId, productName, orderId, clas
   );
 }
 
+function friendlyFormError(e: Error): string {
+  const m = e.message;
+  if (m.includes("String must contain") || m.startsWith("[") || m.includes("validation") || m.includes("Invalid")) {
+    return "Veuillez vérifier vos informations et réessayer.";
+  }
+  return m;
+}
+
 function NewTicketDialogContent({
   vendorId,
   productId,
@@ -141,12 +149,20 @@ function NewTicketDialogContent({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
 
+  const subjectTrimmed = subject.trim();
+  const bodyTrimmed = body.trim();
+
+  const subjectError = subjectTrimmed.length === 1 ? "Le sujet doit contenir au moins 2 caractères." : null;
+  const bodyError = bodyTrimmed.length === 0 && body.length > 0 ? "Le message ne peut pas être vide." : null;
+
+  const canSubmit = (subjectTrimmed.length === 0 || subjectTrimmed.length >= 2) && bodyTrimmed.length >= 1;
+
   const mutation = useMutation({
     mutationFn: () =>
       createFn({
         data: {
-          subject: subject.trim() || "Demande",
-          body: body.trim(),
+          subject: subjectTrimmed || "Demande",
+          body: bodyTrimmed,
           type: defaultType,
           vendorId,
           productId,
@@ -159,7 +175,7 @@ function NewTicketDialogContent({
       setBody("");
       onCreated();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyFormError(e)),
   });
 
   return (
@@ -171,14 +187,16 @@ function NewTicketDialogContent({
         <div>
           <Label>Sujet</Label>
           <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} placeholder="Ex: Question sur le produit" />
+          {subjectError && <p className="mt-1 text-xs text-destructive">{subjectError}</p>}
         </div>
         <div>
           <Label>Message</Label>
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={5000} />
+          {bodyError && <p className="mt-1 text-xs text-destructive">{bodyError}</p>}
         </div>
       </div>
       <DialogFooter>
-        <Button onClick={() => mutation.mutate()} disabled={!body.trim() || mutation.isPending}>
+        <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}>
           {mutation.isPending ? "Envoi…" : "Envoyer"}
         </Button>
       </DialogFooter>
