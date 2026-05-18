@@ -475,11 +475,15 @@ function CartPage() {
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
             <div className="flex-1">
                 <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
-              <p className="text-lg font-extrabold text-primary">
-                {grandTotal.toLocaleString("fr-FR")} FCFA
+              <p className="text-lg font-extrabold text-primary min-h-7">
+                {pricesReady ? (
+                  <>{grandTotal.toLocaleString("fr-FR")} FCFA</>
+                ) : (
+                  <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
+                )}
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
+            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)} disabled={!pricesReady}>
               <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
             </Button>
           </div>
