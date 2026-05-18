@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ShopOverviewCards } from "@/components/shop/ShopOverviewCards";
 import { ShopProductsTable } from "@/components/shop/ShopProductsTable";
+import { ShopContactSettings } from "@/components/support/ShopContactSettings";
 import { getShopOverview } from "@/lib/shop-management.functions";
 
 export const Route = createFileRoute("/admin/shops_/$shopId/manage")({
@@ -63,6 +64,8 @@ function AdminShopManagePage() {
       </div>
 
       <ShopOverviewCards overview={overview ?? null} loading={isLoading} />
+
+      <ShopContactSettings shopId={shopId} />
 
       <ShopProductsTable
         shopId={shopId}

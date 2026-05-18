@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VendorRouteImport } from './routes/vendor'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -48,6 +49,7 @@ import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
+import { Route as AdminContactSettingsRouteImport } from './routes/admin.contact-settings'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
 import { Route as AdminCommissionOrdersRouteImport } from './routes/admin.commission-orders'
 import { Route as AdminCategoryRequestsRouteImport } from './routes/admin.category-requests'
@@ -71,6 +73,11 @@ import { Route as AdminShopsShopIdProductsNewRouteImport } from './routes/admin.
 const VendorRoute = VendorRouteImport.update({
   id: '/vendor',
   path: '/vendor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -263,6 +270,11 @@ const AdminCountriesRoute = AdminCountriesRouteImport.update({
   path: '/countries',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminContactSettingsRoute = AdminContactSettingsRouteImport.update({
+  id: '/contact-settings',
+  path: '/contact-settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCommissionsRoute = AdminCommissionsRouteImport.update({
   id: '/commissions',
   path: '/commissions',
@@ -379,12 +391,14 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
+  '/support': typeof SupportRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
+  '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -438,11 +452,13 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
+  '/support': typeof SupportRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
+  '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -497,12 +513,14 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
+  '/support': typeof SupportRoute
   '/vendor': typeof VendorRouteWithChildren
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-requests': typeof AdminCategoryRequestsRoute
   '/admin/commission-orders': typeof AdminCommissionOrdersRoute
   '/admin/commissions': typeof AdminCommissionsRouteWithChildren
+  '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -559,12 +577,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/signup'
+    | '/support'
     | '/vendor'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
     | '/admin/commission-orders'
     | '/admin/commissions'
+    | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
     | '/admin/notifications'
@@ -618,11 +638,13 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/signup'
+    | '/support'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
     | '/admin/commission-orders'
     | '/admin/commissions'
+    | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
     | '/admin/notifications'
@@ -676,12 +698,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/signup'
+    | '/support'
     | '/vendor'
     | '/admin/admins'
     | '/admin/categories'
     | '/admin/category-requests'
     | '/admin/commission-orders'
     | '/admin/commissions'
+    | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
     | '/admin/notifications'
@@ -737,6 +761,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SearchRoute: typeof SearchRoute
   SignupRoute: typeof SignupRoute
+  SupportRoute: typeof SupportRoute
   VendorRoute: typeof VendorRouteWithChildren
   CCategoryIdRoute: typeof CCategoryIdRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
@@ -751,6 +776,13 @@ declare module '@tanstack/react-router' {
       path: '/vendor'
       fullPath: '/vendor'
       preLoaderRoute: typeof VendorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -1019,6 +1051,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCountriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/contact-settings': {
+      id: '/admin/contact-settings'
+      path: '/contact-settings'
+      fullPath: '/admin/contact-settings'
+      preLoaderRoute: typeof AdminContactSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/commissions': {
       id: '/admin/commissions'
       path: '/commissions'
@@ -1202,6 +1241,7 @@ interface AdminRouteChildren {
   AdminCategoryRequestsRoute: typeof AdminCategoryRequestsRoute
   AdminCommissionOrdersRoute: typeof AdminCommissionOrdersRoute
   AdminCommissionsRoute: typeof AdminCommissionsRouteWithChildren
+  AdminContactSettingsRoute: typeof AdminContactSettingsRoute
   AdminCountriesRoute: typeof AdminCountriesRoute
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
   AdminNotificationsRoute: typeof AdminNotificationsRoute
@@ -1227,6 +1267,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoryRequestsRoute: AdminCategoryRequestsRoute,
   AdminCommissionOrdersRoute: AdminCommissionOrdersRoute,
   AdminCommissionsRoute: AdminCommissionsRouteWithChildren,
+  AdminContactSettingsRoute: AdminContactSettingsRoute,
   AdminCountriesRoute: AdminCountriesRoute,
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
   AdminNotificationsRoute: AdminNotificationsRoute,
@@ -1295,6 +1336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SearchRoute: SearchRoute,
   SignupRoute: SignupRoute,
+  SupportRoute: SupportRoute,
   VendorRoute: VendorRouteWithChildren,
   CCategoryIdRoute: CCategoryIdRoute,
   ProductProductIdRoute: ProductProductIdRoute,

@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package } from "lucide-react";
+import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, MessageSquare, LifeBuoy } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -91,6 +91,12 @@ export function AppHeader() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/messages"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/support"><LifeBuoy className="mr-2 h-4 w-4" /> Support</Link>
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem asChild>
