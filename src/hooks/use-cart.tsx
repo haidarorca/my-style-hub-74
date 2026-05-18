@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useI18n } from "@/hooks/use-i18n";
 
-const GUEST_CART_KEY = "kawzone.guest_cart.v1";
+export const GUEST_CART_KEY = "kawzone.guest_cart.v1";
 
 export interface AddToCartInput {
   productId: string;

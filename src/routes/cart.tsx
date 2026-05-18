@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { BackButton } from "@/components/layout/BackButton";
-import { EditableLabel } from "@/components/admin/EditableLabel";
+
 import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCart, clearGuestCart } from "@/hooks/use-cart";
+import { useCart, clearGuestCart, GUEST_CART_KEY } from "@/hooks/use-cart";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
@@ -157,6 +158,52 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
+  // === Selection state (defaults: tout coché) ===
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const allIds = useMemo(() => items.map((it: any) => it.id as string), [items]);
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      const known = new Set(allIds);
+      // keep previously selected ids that still exist
+      prev.forEach((id) => { if (known.has(id)) next.add(id); });
+      // auto-select any newly added item
+      allIds.forEach((id) => { if (!prev.has(id) && !next.has(id)) next.add(id); });
+      // first load: prev is empty -> select all
+      if (prev.size === 0) allIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [allIds]);
+
+  const isSelected = (id: string) => selectedIds.has(id);
+  const toggleItem = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const groupSelectionState = (groupItems: any[]): boolean | "indeterminate" => {
+    const total = groupItems.length;
+    const sel = groupItems.filter((it) => selectedIds.has(it.id)).length;
+    if (sel === 0) return false;
+    if (sel === total) return true;
+    return "indeterminate";
+  };
+  const toggleGroup = (groupItems: any[], checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      groupItems.forEach((it) => { if (checked) next.add(it.id); else next.delete(it.id); });
+      return next;
+    });
+  };
+
+  const selectedItems = useMemo(
+    () => items.filter((it: any) => selectedIds.has(it.id)),
+    [items, selectedIds],
+  );
+  const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
+
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const unitPrice = (it: any) => {
@@ -165,7 +212,7 @@ function CartPage() {
     const resolved = displayPriceLines.get(key)?.final_price;
     return resolved ?? (pricesReady ? fallbackUnitPrice(it) : 0);
   };
-  const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
+  const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
@@ -264,10 +311,9 @@ function CartPage() {
 
   const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
     const groups: DispatchGroup[] = [];
-    // 1) Per non-commission vendor — each gets only their items, with full customer info, sent to their shop_whatsapp
     const byVendor = new Map<string, any[]>();
     const commissionItems: any[] = [];
-    for (const it of items) {
+    for (const it of selectedItems) {
       if (isCommissionItem(it)) commissionItems.push(it);
       else {
         const vid = (it as any).products?.vendor_id;
@@ -290,7 +336,6 @@ function CartPage() {
       });
       groups.push({ id: `vendor-${vid}`, label: shopName, whatsappNumber: wa, message: msg, isAdmin: false });
     }
-    // 2) Single admin group for all commission items
     if (commissionItems.length > 0) {
       const msg = buildWhatsAppMessage(commissionItems.map(lineFor), {
         name: addr.full_name,
@@ -312,7 +357,7 @@ function CartPage() {
   };
 
   const submitOrder = async () => {
-    if (items.length === 0) return;
+    if (selectedItems.length === 0) return;
     if (!pricesReady) {
       console.info("[checkout] blocked: prices not ready", { itemCount: items.length, destinationCountryId });
       toast.error(t("common.loading"));
@@ -343,7 +388,7 @@ function CartPage() {
         buyerId: user?.id ?? null,
         destinationCountryId,
         total: grandTotal,
-        items: items.map((it: any) => ({
+        items: selectedItems.map((it: any) => ({
           productId: it.products?.id,
           variantId: it.variant_id ?? null,
           vendorId: it.products?.vendor_id,
@@ -354,7 +399,7 @@ function CartPage() {
         })),
       };
       console.info("[checkout] submit start", debugPayload);
-      const rows = items.map((it: any) => ({
+      const rows = selectedItems.map((it: any) => ({
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -381,7 +426,7 @@ function CartPage() {
               city: addr.city,
               note: addr.note,
             },
-            items: items.map((it: any) => ({
+            items: selectedItems.map((it: any) => ({
               productId: it.products.id,
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
@@ -422,11 +467,22 @@ function CartPage() {
       // Build dispatch groups BEFORE clearing the cart
       const groups = buildDispatchGroups(savedOrderId, addr);
 
+      // Only remove the items the buyer actually ordered — keep the rest in the cart.
+      const orderedIds = selectedItems.map((it: any) => it.id as string);
       if (user) {
-        await supabase.from("cart_items").delete().eq("user_id", user.id);
+        await supabase.from("cart_items").delete().in("id", orderedIds);
       } else {
-        clearGuestCart();
+        try {
+          const raw = window.localStorage.getItem(GUEST_CART_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          const remaining = Array.isArray(list) ? list.filter((l: any) => !orderedIds.includes(l.id)) : [];
+          window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(remaining));
+          window.dispatchEvent(new Event("guest-cart-changed"));
+        } catch {
+          clearGuestCart();
+        }
       }
+      setSelectedIds(new Set());
       refresh();
       toast.success(t("checkout.order_saved_pending"));
       setSentIds(new Set());
@@ -466,19 +522,43 @@ function CartPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {Array.from(groups.values()).map((g) => (
+            {Array.from(groups.values()).map((g) => {
+              const groupState = groupSelectionState(g.items as any[]);
+              return (
               <section key={g.vendorId} className="overflow-hidden rounded-xl bg-card shadow-soft">
-                <header className="flex items-center gap-2 border-b border-border bg-accent/40 px-3 py-2">
+                <header className="flex items-center gap-3 border-b border-border bg-accent/40 px-3 py-2.5">
+                  <Checkbox
+                    checked={groupState}
+                    onCheckedChange={(v) => toggleGroup(g.items as any[], v === true)}
+                    aria-label={g.shopName}
+                  />
                   <Store className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">{g.shopName}</span>
+                  <span className="ms-auto text-[11px] text-muted-foreground">
+                    {(g.items as any[]).filter((it) => isSelected(it.id)).length}/{g.items.length}
+                  </span>
                 </header>
                 <ul>
                   {g.items.map((it: any) => {
                     const img = it.products?.product_images?.[0]?.url;
                     const price = unitPrice(it);
                     const cust = customizationSummary(it.customization);
+                    const checked = isSelected(it.id);
                     return (
-                      <li key={it.id} className="flex gap-3 border-b border-border p-3 last:border-0">
+                      <li
+                        key={it.id}
+                        className={cn(
+                          "flex gap-3 border-b border-border p-3 last:border-0 transition-colors",
+                          checked ? "bg-background" : "bg-muted/30 opacity-70",
+                        )}
+                      >
+                        <div className="flex items-start pt-1">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => toggleItem(it.id, v === true)}
+                            aria-label={it.products.name}
+                          />
+                        </div>
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                           {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" />}
                         </div>
@@ -522,7 +602,8 @@ function CartPage() {
                   })}
                 </ul>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -530,8 +611,29 @@ function CartPage() {
       {items.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
+            <div className="flex items-center gap-2 pe-1">
+              <Checkbox
+                checked={
+                  selectedIds.size === 0
+                    ? false
+                    : selectedIds.size === allIds.length
+                    ? true
+                    : "indeterminate"
+                }
+                onCheckedChange={(v) => {
+                  if (v === true) setSelectedIds(new Set(allIds));
+                  else setSelectedIds(new Set());
+                }}
+                aria-label="select all"
+              />
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                {selectedCount}/{items.reduce((s, it: any) => s + it.quantity, 0)}
+              </span>
+            </div>
             <div className="flex-1">
-                <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("cart.total")} · {selectedCount} {t("cart.title")}
+              </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
                   <>{grandTotal.toLocaleString("fr-FR")} FCFA</>
@@ -540,8 +642,14 @@ function CartPage() {
                 )}
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)} disabled={!pricesReady}>
-              <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
+            <Button
+              className="h-12 rounded-full px-5 text-sm font-semibold"
+              onClick={() => setCheckoutOpen(true)}
+              disabled={!pricesReady || selectedItems.length === 0}
+            >
+              {selectedItems.length === 0
+                ? t("cart.checkout")
+                : `${t("cart.checkout")} (${selectedCount})`}
             </Button>
           </div>
         </div>
