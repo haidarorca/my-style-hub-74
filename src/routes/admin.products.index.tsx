@@ -576,6 +576,9 @@ const ProductCardMobile = memo(function ProductCardMobile({
 });
 
 function ProductStatusBadge({ row }: { row: AdminProductRow }) {
+  if (row.is_archived) {
+    return <Badge variant="secondary" className="bg-muted text-muted-foreground"><Archive className="mr-1 h-3 w-3" />Archivé</Badge>;
+  }
   if (row.status === "pending") {
     return (
       <Badge variant="outline" className="border-amber-500 text-amber-600">
