@@ -437,8 +437,12 @@ function CartPage() {
                           )}
                           {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
                           <div className="mt-auto flex items-end justify-between pt-2">
-                            <p className="text-sm font-bold text-primary">
-                              {price.toLocaleString("fr-FR")} FCFA
+                            <p className="text-sm font-bold text-primary min-h-5">
+                              {pricesReady ? (
+                                <>{price.toLocaleString("fr-FR")} FCFA</>
+                              ) : (
+                                <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
+                              )}
                             </p>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
