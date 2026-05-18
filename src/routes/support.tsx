@@ -99,20 +99,45 @@ function SupportPage() {
   );
 }
 
+function friendlyFormError(e: Error): string {
+  const m = e.message;
+  if (m.includes("String must contain") || m.startsWith("[") || m.includes("validation") || m.includes("Invalid")) {
+    return "Veuillez vérifier vos informations et réessayer.";
+  }
+  return m;
+}
+
 function AuthTicketForm() {
   const createFn = useServerFn(createConversation);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+
+  const subjectTrimmed = subject.trim();
+  const bodyTrimmed = body.trim();
+
+  const subjectError = subjectTrimmed.length === 1 ? "Le sujet doit contenir au moins 2 caractères." : null;
+  const bodyError = bodyTrimmed.length === 0 && body.length > 0 ? "Le message ne peut pas être vide." : null;
+
+  const canSubmit = (subjectTrimmed.length === 0 || subjectTrimmed.length >= 2) && bodyTrimmed.length >= 1;
+
   const m = useMutation({
-    mutationFn: () => createFn({ data: { subject: subject.trim() || "Demande", body: body.trim(), type: "client_support" } }),
+    mutationFn: () => createFn({ data: { subject: subjectTrimmed || "Demande", body: bodyTrimmed, type: "client_support" } }),
     onSuccess: () => { toast.success("Demande envoyée. Réponse dans Mes messages."); setSubject(""); setBody(""); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyFormError(e)),
   });
   return (
     <div className="space-y-2">
-      <div><Label>Sujet</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} /></div>
-      <div><Label>Message</Label><Textarea value={body} rows={5} maxLength={5000} onChange={(e) => setBody(e.target.value)} /></div>
-      <Button onClick={() => m.mutate()} disabled={!body.trim() || m.isPending} className="w-full gap-2"><Send className="h-4 w-4" /> Envoyer</Button>
+      <div>
+        <Label>Sujet</Label>
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
+        {subjectError && <p className="mt-1 text-xs text-destructive">{subjectError}</p>}
+      </div>
+      <div>
+        <Label>Message</Label>
+        <Textarea value={body} rows={5} maxLength={5000} onChange={(e) => setBody(e.target.value)} />
+        {bodyError && <p className="mt-1 text-xs text-destructive">{bodyError}</p>}
+      </div>
+      <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending} className="w-full gap-2"><Send className="h-4 w-4" /> Envoyer</Button>
     </div>
   );
 }
