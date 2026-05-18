@@ -611,8 +611,29 @@ function CartPage() {
       {items.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
+            <div className="flex items-center gap-2 pe-1">
+              <Checkbox
+                checked={
+                  selectedIds.size === 0
+                    ? false
+                    : selectedIds.size === allIds.length
+                    ? true
+                    : "indeterminate"
+                }
+                onCheckedChange={(v) => {
+                  if (v === true) setSelectedIds(new Set(allIds));
+                  else setSelectedIds(new Set());
+                }}
+                aria-label="select all"
+              />
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                {selectedCount}/{items.reduce((s, it: any) => s + it.quantity, 0)}
+              </span>
+            </div>
             <div className="flex-1">
-                <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("cart.total")} · {selectedCount} {t("cart.title")}
+              </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
                   <>{grandTotal.toLocaleString("fr-FR")} FCFA</>
@@ -621,8 +642,14 @@ function CartPage() {
                 )}
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)} disabled={!pricesReady}>
-              <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
+            <Button
+              className="h-12 rounded-full px-5 text-sm font-semibold"
+              onClick={() => setCheckoutOpen(true)}
+              disabled={!pricesReady || selectedItems.length === 0}
+            >
+              {selectedItems.length === 0
+                ? t("cart.checkout")
+                : `${t("cart.checkout")} (${selectedCount})`}
             </Button>
           </div>
         </div>
