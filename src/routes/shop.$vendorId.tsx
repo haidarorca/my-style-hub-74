@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Store, BadgeCheck, Clock, MapPin, Phone } from "lucide-react";
+import { Store, BadgeCheck, Clock, MapPin } from "lucide-react";
+import { ContactActions } from "@/components/support/ContactActions";
 import { useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
