@@ -388,7 +388,7 @@ function CartPage() {
         buyerId: user?.id ?? null,
         destinationCountryId,
         total: grandTotal,
-        items: items.map((it: any) => ({
+        items: selectedItems.map((it: any) => ({
           productId: it.products?.id,
           variantId: it.variant_id ?? null,
           vendorId: it.products?.vendor_id,
@@ -399,7 +399,7 @@ function CartPage() {
         })),
       };
       console.info("[checkout] submit start", debugPayload);
-      const rows = items.map((it: any) => ({
+      const rows = selectedItems.map((it: any) => ({
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -426,7 +426,7 @@ function CartPage() {
               city: addr.city,
               note: addr.note,
             },
-            items: items.map((it: any) => ({
+            items: selectedItems.map((it: any) => ({
               productId: it.products.id,
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
@@ -467,11 +467,22 @@ function CartPage() {
       // Build dispatch groups BEFORE clearing the cart
       const groups = buildDispatchGroups(savedOrderId, addr);
 
+      // Only remove the items the buyer actually ordered — keep the rest in the cart.
+      const orderedIds = selectedItems.map((it: any) => it.id as string);
       if (user) {
-        await supabase.from("cart_items").delete().eq("user_id", user.id);
+        await supabase.from("cart_items").delete().in("id", orderedIds);
       } else {
-        clearGuestCart();
+        try {
+          const raw = window.localStorage.getItem(GUEST_CART_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          const remaining = Array.isArray(list) ? list.filter((l: any) => !orderedIds.includes(l.id)) : [];
+          window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(remaining));
+          window.dispatchEvent(new Event("guest-cart-changed"));
+        } catch {
+          clearGuestCart();
+        }
       }
+      setSelectedIds(new Set());
       refresh();
       toast.success(t("checkout.order_saved_pending"));
       setSentIds(new Set());
