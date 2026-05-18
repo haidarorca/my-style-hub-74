@@ -263,14 +263,6 @@ function OrdersPage() {
     setConfirmAction(null);
   };
 
-  const buildWa = (phone: string, orderId: string, vendorName?: string) => {
-    const clean = cleanPhone(phone);
-    const msg = encodeURIComponent(
-      `Bonjour${vendorName ? ` ${vendorName}` : ""}, je vous contacte au sujet de ma commande #${orderId.slice(0, 8)}.`,
-    );
-    return `https://wa.me/${clean.replace("+", "")}?text=${msg}`;
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
