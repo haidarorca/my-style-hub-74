@@ -1640,3 +1640,74 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
       variants: cleanVariants,
     };
   });
+
+// ───────────────────────────────────────────────────────────
+// generateProductCopy — assistant rédaction (image OU texte)
+// Disponible pour vendeurs ET admins.
+// ───────────────────────────────────────────────────────────
+
+const GenerateCopySchema = z.object({
+  mode: z.enum(["image", "text"]),
+  image_data_url: z.string().optional(),
+  description: z.string().max(4000).optional(),
+});
+
+export const generateProductCopy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => GenerateCopySchema.parse(input))
+  .handler(async ({ data }) => {
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("Assistant IA non configuré");
+
+    const userText =
+      "Génère une fiche produit en français pour une marketplace en Afrique de l'Ouest. " +
+      "Fournis : un nom de produit court et clair (max 80 caractères), une désignation courte type slogan/résumé (max 100 caractères), " +
+      "et une description complète et professionnelle (200-500 caractères, ton commercial mais factuel, pas d'emoji, pas de prix). " +
+      'Réponds STRICTEMENT en JSON sans texte autour : {"name":"","designation":"","description":""}';
+
+    type Msg = { role: string; content: unknown };
+    let messages: Msg[];
+    if (data.mode === "image") {
+      if (!data.image_data_url || !/^data:image\//.test(data.image_data_url)) {
+        throw new Error("Image invalide");
+      }
+      messages = [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText + "\n\nAnalyse cette image du produit et déduis matière, usage et public visible." },
+            { type: "image_url", image_url: { url: data.image_data_url } },
+          ],
+        },
+      ];
+    } else {
+      const txt = (data.description ?? "").trim();
+      if (txt.length < 3) throw new Error("Décrivez le produit (au moins quelques mots)");
+      messages = [
+        { role: "user", content: `${userText}\n\nDétails fournis :\n${txt}` },
+      ];
+    }
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "google/gemini-2.5-flash", messages }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
+      if (res.status === 402) throw new Error("Crédits IA épuisés. Ajoutez du crédit dans les paramètres.");
+      throw new Error(`Erreur IA (${res.status})`);
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = safeParseJson(raw);
+    if (!parsed) throw new Error("Réponse IA illisible");
+
+    const str = (k: string, max: number) =>
+      typeof parsed[k] === "string" ? (parsed[k] as string).trim().slice(0, max) : "";
+    return {
+      name: str("name", 120),
+      designation: str("designation", 160),
+      description: str("description", 1000),
+    };
+  });
