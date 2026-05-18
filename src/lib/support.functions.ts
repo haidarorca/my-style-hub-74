@@ -28,7 +28,7 @@ export const getContactPolicy = createServerFn({ method: "POST" })
     z.object({ vendorId: z.string().uuid(), productId: z.string().uuid().nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
     const { data: row, error } = await supabaseAdmin
-      .rpc("resolve_contact_policy", { _vendor_id: data.vendorId, _product_id: data.productId ?? null })
+      .rpc("resolve_contact_policy", { _vendor_id: data.vendorId, _product_id: data.productId ?? undefined })
       .maybeSingle();
     if (error) throw new Error(error.message);
     return (row ?? null) as ContactPolicy | null;
@@ -145,7 +145,7 @@ export const createConversation = createServerFn({ method: "POST" })
     let isCommissionProtected = false;
     if (data.vendorId) {
       const { data: pol } = await supabaseAdmin
-        .rpc("resolve_contact_policy", { _vendor_id: data.vendorId, _product_id: data.productId ?? null })
+        .rpc("resolve_contact_policy", { _vendor_id: data.vendorId, _product_id: data.productId ?? undefined })
         .maybeSingle();
       const p = pol as ContactPolicy | null;
       // If vendor cannot be contacted directly, route via admin
