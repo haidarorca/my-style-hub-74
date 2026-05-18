@@ -1,6 +1,8 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, MessageSquare, LifeBuoy } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
@@ -9,6 +11,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { SearchAutocomplete } from "@/components/layout/SearchAutocomplete";
 import { Button } from "@/components/ui/button";
+import { getUnreadCount } from "@/lib/support.functions";
 import {
   DropdownMenu,
   DropdownMenuContent,
