@@ -157,7 +157,7 @@ export const createConversation = createServerFn({ method: "POST" })
       .from("support_conversations" as never)
       .insert({
         subject: data.subject,
-        body_first: data.body,
+        last_message_preview: data.body.slice(0, 200),
         type: finalType,
         client_id: context.userId,
         vendor_id: finalType === "client_support" ? null : data.vendorId ?? null,
