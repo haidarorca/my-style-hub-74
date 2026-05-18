@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
+
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
@@ -411,11 +411,9 @@ function NewProductPage() {
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            <CommissionPricePreview
-              vendorId={user?.id}
-              basePrice={price}
-              categoryId={deepestPick && !isReq(deepestPick) ? idOf(deepestPick) : null}
-            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ce prix sera affiché tel quel au client (FCFA).
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
+
 
 export const Route = createFileRoute("/vendor/products/$productId/edit")({
   component: EditProductPage,
@@ -335,7 +335,7 @@ function EditProductPage() {
           <div>
             <Label>Prix (FCFA) *</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            <CommissionPricePreview vendorId={user?.id} basePrice={price} categoryId={(data?.product as any)?.category_id ?? null} />
+            <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
           </div>
         </CardContent>
       </Card>
