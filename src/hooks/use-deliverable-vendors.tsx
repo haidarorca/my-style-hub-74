@@ -25,24 +25,14 @@ export function useDeliverableVendorIds(): {
     enabled: !!countryId,
     staleTime: 60_000,
     queryFn: async () => {
-      // A vendor delivers to `countryId` when:
-      //  - their source country IS the selected country (delivers in own country), OR
-      //  - they ship internationally AND the country is in their allowed list.
-      const { data, error } = await (supabase as any)
-        .from("public_vendor_profiles")
-        .select("id, source_country_id, ships_internationally, allowed_destination_country_ids");
+      // Optimisation: une seule RPC indexée côté DB renvoie directement
+      // les vendor ids livrables. Logique identique à l'ancienne version
+      // (source country OR ships_internationally + allowed list).
+      const { data, error } = await (supabase as any).rpc("get_deliverable_vendor_ids", {
+        _country_id: countryId,
+      });
       if (error) throw error;
-      return ((data ?? []) as Array<{
-        id: string;
-        source_country_id: string | null;
-        ships_internationally: boolean | null;
-        allowed_destination_country_ids: string[] | null;
-      }>)
-        .filter((v) =>
-          v.source_country_id === countryId ||
-          (v.ships_internationally === true && (v.allowed_destination_country_ids ?? []).includes(countryId!)),
-        )
-        .map((r) => r.id);
+      return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
     },
   });
 
