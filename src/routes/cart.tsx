@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { BackButton } from "@/components/layout/BackButton";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
@@ -28,6 +29,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { createCheckoutOrder } from "@/lib/checkout.functions";
 
 interface DispatchGroup {
   id: string;
@@ -72,6 +74,7 @@ function CartPage() {
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
   const router = useRouter();
+  const createOrder = useServerFn(createCheckoutOrder);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
@@ -351,27 +354,7 @@ function CartPage() {
         })),
       };
       console.info("[checkout] submit start", debugPayload);
-      const { error: oErr } = await supabase
-        .from("orders")
-        .insert({
-          id: orderId,
-          buyer_id: user?.id ?? null,
-          total: grandTotal,
-          status: "new",
-          customer_name: addr.full_name,
-          customer_phone: addr.phone,
-          address: addr.address,
-          city: addr.city,
-          note: addr.note,
-          destination_country_id: destinationCountryId,
-        } as any);
-      if (oErr) {
-        console.error("[checkout] orders.insert failed", oErr, debugPayload);
-        throw oErr;
-      }
-
       const rows = items.map((it: any) => ({
-        order_id: orderId,
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -385,17 +368,59 @@ function CartPage() {
         quantity: it.quantity,
         customization: it.customization ?? null,
       }));
-      const { error: iErr } = await supabase.from("order_items").insert(rows);
-      if (iErr) {
-        console.error("[checkout] order_items.insert failed", iErr, { ...debugPayload, rows });
-        // Roll back the parent order so we don't leave orphans
-        await supabase.from("orders").delete().eq("id", orderId);
-        throw iErr;
+
+      let savedOrderId = orderId;
+      if (user) {
+        const saved = await createOrder({
+          data: {
+            destinationCountryId,
+            address: {
+              full_name: addr.full_name,
+              phone: addr.phone,
+              address: addr.address,
+              city: addr.city,
+              note: addr.note,
+            },
+            items: items.map((it: any) => ({
+              productId: it.products.id,
+              variantId: it.variant_id ?? null,
+              quantity: it.quantity,
+              customization: it.customization ?? null,
+            })),
+          },
+        });
+        savedOrderId = saved.orderId;
+      } else {
+        const { error: oErr } = await supabase
+          .from("orders")
+          .insert({
+            id: orderId,
+            buyer_id: null,
+            total: grandTotal,
+            status: "new",
+            customer_name: addr.full_name,
+            customer_phone: addr.phone,
+            address: addr.address,
+            city: addr.city,
+            note: addr.note,
+            destination_country_id: destinationCountryId,
+          } as any);
+        if (oErr) {
+          console.error("[checkout] guest orders.insert failed", oErr, debugPayload);
+          throw oErr;
+        }
+
+        const { error: iErr } = await supabase.from("order_items").insert(rows.map((row) => ({ ...row, order_id: orderId })));
+        if (iErr) {
+          console.error("[checkout] guest order_items.insert failed", iErr, { ...debugPayload, rows });
+          await supabase.from("orders").delete().eq("id", orderId);
+          throw iErr;
+        }
       }
-      console.info("[checkout] submit saved", { orderId, itemCount: rows.length, total: grandTotal });
+      console.info("[checkout] submit saved", { orderId: savedOrderId, itemCount: rows.length, total: grandTotal });
 
       // Build dispatch groups BEFORE clearing the cart
-      const groups = buildDispatchGroups(orderId, addr);
+      const groups = buildDispatchGroups(savedOrderId, addr);
 
       if (user) {
         await supabase.from("cart_items").delete().eq("user_id", user.id);
@@ -405,7 +430,7 @@ function CartPage() {
       refresh();
       toast.success(t("checkout.order_saved_pending"));
       setSentIds(new Set());
-      setDispatch({ groups, orderId });
+      setDispatch({ groups, orderId: savedOrderId });
     } catch (e: any) {
       console.error("[checkout] submitOrder error", e);
       const detail = e?.message || e?.error_description || e?.hint || "";
