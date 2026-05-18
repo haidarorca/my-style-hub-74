@@ -99,6 +99,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Kawzone" },
       { name: "application-name", content: "Kawzone" },
+      { property: "og:site_name", content: "Kawzone" },
+      { property: "og:locale", content: "fr_FR" },
+      { name: "format-detection", content: "telephone=no" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -109,6 +112,33 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Kawzone",
+          url: "https://kawzone.com",
+          logo: "https://kawzone.com/icon-512.png",
+          sameAs: [],
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Kawzone",
+          url: "https://kawzone.com",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "https://kawzone.com/search?q={search_term_string}",
+            "query-input": "required name=search_term_string",
+          },
+        }),
+      },
     ],
   }),
   shellComponent: RootShell,
