@@ -49,6 +49,11 @@ function AdminShopManagePage() {
               <ShoppingBag className="mr-1 h-4 w-4" /> Voir publiquement
             </Link>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/shops/$shopId/import-export" params={{ shopId }}>
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Import/Export
+            </Link>
+          </Button>
           <Button asChild size="sm">
             <Link to="/admin/shops/$shopId/products/new" params={{ shopId }}>
               <PackagePlus className="mr-1 h-4 w-4" /> Nouveau produit
