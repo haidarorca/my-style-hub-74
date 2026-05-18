@@ -504,7 +504,7 @@ function OrdersPage() {
                             >
                               <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-background ring-1 ring-border">
                                 {v.shop_logo_url ? (
-                                  <img src={v.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                                  <img src={v.shop_logo_url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-muted-foreground">
                                     {(v.shop_name ?? v.full_name ?? "?")[0]?.toUpperCase()}
@@ -548,7 +548,7 @@ function OrdersPage() {
                                   className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border"
                                 >
                                   {it.product_image_url ? (
-                                    <img src={it.product_image_url} alt="" className="h-full w-full object-cover" />
+                                    <img src={it.product_image_url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
                                   ) : (
                                     <Package className="m-auto mt-5 h-6 w-6 text-muted-foreground" />
                                   )}
