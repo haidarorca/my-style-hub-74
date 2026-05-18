@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag } from "lucide-react";
 import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
+import { UpdateAppButton } from "@/components/UpdateAppButton";
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
@@ -94,7 +95,10 @@ function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Tableau de bord</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <UpdateAppButton variant="outline" />
+      </div>
 
       <TranslationSyncCard />
 
