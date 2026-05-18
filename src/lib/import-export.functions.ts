@@ -82,7 +82,6 @@ export const exportProducts = createServerFn({ method: "POST" })
       .from("products")
       .select(
         "id, code, name, designation, description, price, status, category_id, vendor_id, " +
-        "categories:category_id(id, name, parent_id, level), " +
         "product_variants(id, size, color, color_hex, price_override, stock, image_url), " +
         "product_images(url, position)",
       )
