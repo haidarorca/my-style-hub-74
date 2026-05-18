@@ -532,7 +532,7 @@ function SearchPage() {
                         >
                           <div className="aspect-square overflow-hidden bg-muted">
                             {p.product_images?.[0]?.url ? (
-                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
+                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                             ) : null}
                           </div>
                           <div className="p-2">
