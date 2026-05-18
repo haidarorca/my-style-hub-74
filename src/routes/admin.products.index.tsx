@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
-  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2,
+  Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2, Archive,
 } from "lucide-react";
 import {
   listAdminProducts, listReportedProducts, setProductStatus, setReportStatus, deleteOrArchiveProduct,
@@ -36,7 +36,7 @@ const searchSchema = z.object({
   page: fallback(z.number().int().min(1), 1).default(1),
   q: fallback(z.string(), "").default(""),
   // moderation
-  status: fallback(z.enum(["all", "pending", "approved", "rejected"]), "pending").default("pending"),
+  status: fallback(z.enum(["all", "pending", "approved", "rejected", "archived"]), "pending").default("pending"),
   kind: fallback(z.enum(["all", "new", "edit"]), "all").default("all"),
   sort: fallback(z.enum(["created_at", "updated_at", "price", "name"]), "created_at").default("created_at"),
   dir: fallback(z.enum(["asc", "desc"]), "desc").default("desc"),
@@ -153,7 +153,7 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const totals = data?.totals ?? { pending: 0, approved: 0, rejected: 0, edits_pending: 0 };
+  const totals = data?.totals ?? { pending: 0, approved: 0, rejected: 0, edits_pending: 0, archived: 0 };
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
@@ -215,11 +215,12 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <StatTile label="À valider" value={totals.pending} icon={Hourglass} color="text-amber-600" />
         <StatTile label="Approuvés" value={totals.approved} icon={PackageCheck} color="text-emerald-600" />
         <StatTile label="Rejetés" value={totals.rejected} icon={PackageX} color="text-destructive" />
         <StatTile label="Modifications" value={totals.edits_pending} icon={Pencil} color="text-primary" />
+        <StatTile label="Archivés" value={totals.archived} icon={Archive} color="text-muted-foreground" />
       </div>
 
       <Card>
@@ -242,10 +243,11 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
             >
               <SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="all">Actifs (non archivés)</SelectItem>
                 <SelectItem value="pending">À valider</SelectItem>
                 <SelectItem value="approved">Approuvés</SelectItem>
                 <SelectItem value="rejected">Rejetés</SelectItem>
+                <SelectItem value="archived">Archivés</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -574,6 +576,9 @@ const ProductCardMobile = memo(function ProductCardMobile({
 });
 
 function ProductStatusBadge({ row }: { row: AdminProductRow }) {
+  if (row.is_archived) {
+    return <Badge variant="secondary" className="bg-muted text-muted-foreground"><Archive className="mr-1 h-3 w-3" />Archivé</Badge>;
+  }
   if (row.status === "pending") {
     return (
       <Badge variant="outline" className="border-amber-500 text-amber-600">

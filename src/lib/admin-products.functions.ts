@@ -21,7 +21,7 @@ const ModerationInput = z.object({
   page: z.number().int().min(1).max(10_000).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   q: z.string().trim().max(200).default(""),
-  status: z.enum(["all", "pending", "approved", "rejected"]).default("pending"),
+  status: z.enum(["all", "pending", "approved", "rejected", "archived"]).default("pending"),
   kind: z.enum(["all", "new", "edit"]).default("all"),
   sort: z.enum(["created_at", "updated_at", "price", "name"]).default("created_at"),
   dir: z.enum(["asc", "desc"]).default("desc"),
@@ -34,6 +34,7 @@ export type AdminProductRow = {
   price: number;
   status: "pending" | "approved" | "rejected";
   is_edit: boolean | null;
+  is_archived: boolean;
   rejection_reason: string | null;
   vendor_id: string;
   vendor_shop_name: string | null;
@@ -49,7 +50,7 @@ export type AdminProductsPage = {
   total: number;
   page: number;
   pageSize: number;
-  totals: { pending: number; approved: number; rejected: number; edits_pending: number };
+  totals: { pending: number; approved: number; rejected: number; edits_pending: number; archived: number };
 };
 
 export const listAdminProducts = createServerFn({ method: "POST" })
@@ -61,11 +62,17 @@ export const listAdminProducts = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("products")
       .select(
-        "id, name, code, price, status, is_edit, rejection_reason, vendor_id, created_at, updated_at, pending_category_request_id",
+        "id, name, code, price, status, is_edit, rejection_reason, vendor_id, created_at, updated_at, pending_category_request_id, archived_at",
         { count: "exact" },
       );
 
-    if (data.status !== "all") q = q.eq("status", data.status);
+    if (data.status === "archived") {
+      q = q.not("archived_at", "is", null);
+    } else {
+      // Exclude archived products from all other views (pending/approved/rejected/all)
+      q = q.is("archived_at", null);
+      if (data.status !== "all") q = q.eq("status", data.status);
+    }
     if (data.kind === "new") q = q.eq("is_edit", false);
     if (data.kind === "edit") q = q.eq("is_edit", true);
 
@@ -93,7 +100,7 @@ export const listAdminProducts = createServerFn({ method: "POST" })
       productIds.length
         ? supabaseAdmin.from("product_images").select("product_id, url, position").in("product_id", productIds).order("position", { ascending: true })
         : Promise.resolve({ data: [] as { product_id: string; url: string; position: number }[] }),
-      supabaseAdmin.from("products").select("status, is_edit"),
+      supabaseAdmin.from("products").select("status, is_edit, archived_at"),
     ]);
 
     const vendorMap = new Map((vendorsRes.data ?? []).map((v) => [v.id, v]));
@@ -102,10 +109,14 @@ export const listAdminProducts = createServerFn({ method: "POST" })
       if (!firstImg.has(im.product_id)) firstImg.set(im.product_id, im.url);
     }
 
-    const totals = { pending: 0, approved: 0, rejected: 0, edits_pending: 0 };
+    const totals = { pending: 0, approved: 0, rejected: 0, edits_pending: 0, archived: 0 };
     for (const p of totalsRes.data ?? []) {
-      const s = String(p.status ?? "pending") as keyof typeof totals;
-      if (s in totals) totals[s] += 1;
+      if (p.archived_at) {
+        totals.archived += 1;
+        continue;
+      }
+      const s = String(p.status ?? "pending") as "pending" | "approved" | "rejected";
+      if (s === "pending" || s === "approved" || s === "rejected") totals[s] += 1;
       if (p.status === "pending" && p.is_edit) totals.edits_pending += 1;
     }
 
@@ -118,6 +129,7 @@ export const listAdminProducts = createServerFn({ method: "POST" })
         price: Number(p.price ?? 0),
         status: p.status as AdminProductRow["status"],
         is_edit: p.is_edit,
+        is_archived: !!p.archived_at,
         rejection_reason: p.rejection_reason,
         vendor_id: p.vendor_id,
         vendor_shop_name: v?.shop_name ?? null,
@@ -372,7 +384,7 @@ export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
         .from("products")
         .update({
           is_active: false,
-          status: "rejected",
+          archived_at: new Date().toISOString(),
           rejection_reason: "Archivé par l'administration",
         })
         .eq("id", data.product_id);

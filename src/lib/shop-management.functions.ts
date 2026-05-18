@@ -67,6 +67,7 @@ export const listShopProducts = createServerFn({ method: "POST" })
       .from("products")
       .select("id, name, code, price, status, is_active, rejection_reason, created_at, category_id, views_count", { count: "exact" })
       .eq("vendor_id", data.shopId)
+      .is("archived_at", null)
       .order("created_at", { ascending: false });
 
     if (data.status !== "all") q = q.eq("status", data.status);
