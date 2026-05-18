@@ -31,6 +31,7 @@ import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
+import { getPublicVendorContacts } from "@/lib/support.functions";
 
 interface DispatchGroup {
   id: string;
