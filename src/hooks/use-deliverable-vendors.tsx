@@ -18,7 +18,7 @@ export function useDeliverableVendorIds(): {
   vendorIds: string[] | null;
   ready: boolean;
 } {
-  const { countryId, ready } = useDeliveryCountry();
+  const { countryId, ready, isManual } = useDeliveryCountry();
 
   const { data, isLoading } = useQuery({
     queryKey: ["deliverable-vendors", countryId],
