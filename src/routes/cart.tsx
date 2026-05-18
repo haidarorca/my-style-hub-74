@@ -31,6 +31,7 @@ import { useDeliveryCountry } from "@/hooks/use-delivery-country";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
+import { getPublicVendorContacts } from "@/lib/support.functions";
 
 interface DispatchGroup {
   id: string;
@@ -76,6 +77,7 @@ function CartPage() {
   const settings = useSiteSettings();
   const router = useRouter();
   const createOrder = useServerFn(createCheckoutOrder);
+  const fetchVendorContacts = useServerFn(getPublicVendorContacts);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
@@ -309,7 +311,7 @@ function CartPage() {
     unitPrice: unitPrice(it),
   });
 
-  const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
+  const buildDispatchGroups = async (orderId: string, addr: Address): Promise<DispatchGroup[]> => {
     const groups: DispatchGroup[] = [];
     const byVendor = new Map<string, any[]>();
     const commissionItems: any[] = [];
@@ -322,10 +324,23 @@ function CartPage() {
         byVendor.get(vid)!.push(it);
       }
     }
+    // Fetch vendor WhatsApp numbers server-side (commission policy enforced by view)
+    const vendorIds = Array.from(byVendor.keys());
+    const vendorContacts = new Map<string, string | null>();
+    await Promise.all(
+      vendorIds.map(async (vid) => {
+        try {
+          const c = await fetchVendorContacts({ data: { vendorId: vid } });
+          vendorContacts.set(vid, c?.shop_whatsapp ?? null);
+        } catch {
+          vendorContacts.set(vid, null);
+        }
+      }),
+    );
     for (const [vid, vItems] of byVendor) {
       const first = vItems[0] as any;
       const shopName = first.products?.profiles?.shop_name || first.products?.profiles?.full_name || t("product.shop");
-      const wa = first.products?.profiles?.shop_whatsapp || first.products?.profiles?.phone || null;
+      const wa = vendorContacts.get(vid) ?? null;
       const msg = buildWhatsAppMessage(vItems.map(lineFor), {
         name: addr.full_name,
         phone: addr.phone,
@@ -465,7 +480,7 @@ function CartPage() {
       console.info("[checkout] submit saved", { orderId: savedOrderId, itemCount: rows.length, total: grandTotal });
 
       // Build dispatch groups BEFORE clearing the cart
-      const groups = buildDispatchGroups(savedOrderId, addr);
+      const groups = await buildDispatchGroups(savedOrderId, addr);
 
       // Only remove the items the buyer actually ordered — keep the rest in the cart.
       const orderedIds = selectedItems.map((it: any) => it.id as string);
