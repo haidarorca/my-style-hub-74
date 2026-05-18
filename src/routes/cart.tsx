@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { BackButton } from "@/components/layout/BackButton";
-import { EditableLabel } from "@/components/admin/EditableLabel";
+
 import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
