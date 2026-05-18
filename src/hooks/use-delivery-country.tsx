@@ -11,6 +11,7 @@ interface Ctx {
   countryId: string | null;
   setCountryId: (id: string | null) => void;
   ready: boolean;
+  isManual: boolean;
 }
 
 const DeliveryCountryContext = createContext<Ctx | undefined>(undefined);
