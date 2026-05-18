@@ -414,6 +414,16 @@ function EditProductPage() {
         </CardContent>
       </Card>
 
+      <AiCopyGeneratorDialog
+        open={aiCopyOpen}
+        onOpenChange={setAiCopyOpen}
+        onApply={(r) => {
+          if (r.name) setName(r.name);
+          if (r.designation) setDesignation(r.designation);
+          if (r.description) setDescription(r.description);
+        }}
+      />
+
       <div className="flex gap-2">
         <Button type="button" variant="outline" onClick={() => router.navigate({ to: "/vendor" })}>Annuler</Button>
         <Button type="submit" disabled={submitting}>{submitting ? "Enregistrement…" : "Enregistrer"}</Button>
