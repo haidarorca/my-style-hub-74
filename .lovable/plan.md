@@ -1,58 +1,134 @@
 ## Objectif
 
-Faire évoluer "Importer depuis images" pour qu'un simple upload de photos fournisseur produise des variantes complètes, traduites, avec image dédiée déjà nettoyée — sans casser la stabilité actuelle.
+Permettre aux vendeurs et admins d'importer/exporter en masse les produits + variantes via Excel/CSV, avec import groupé d'images via ZIP, sans répéter les infos communes et sans casser le formulaire existant.
 
-## Étapes
+## Périmètre (v1)
 
-### 1. OCR enrichi côté serveur (Gemini 2.5 Flash)
-Fichier : `src/lib/admin-generator.functions.ts` (fonction `analyzeVariantsFromImages`)
+- **Produits + variantes** (parent/enfant via `Code produit`).
+- **Images via ZIP** avec système d'Image IDs stables (IMG001, IMG002…).
+- **Catégories et boutiques** : résolues par nom/slug existants (pas créées par l'import — sécurité).
+- **Hors v1** (à signaler) : import de nouvelles catégories et nouvelles boutiques (création) — restera manuel pour éviter pollution. Confirmable plus tard.
 
-- Étendre le prompt pour que Gemini renvoie, **par variante**, en plus du nom FR / prix :
-  - `sourceImageIndex` : index (0-based) de l'image fournie où la variante est la plus visible.
-  - `cropHint` : `{ x, y, w, h }` en pourcentage (0–100) du cadre produit propre (sans bandeau prix, sans bouton, sans logo Taobao).
-  - `chineseLabel` + `frenchLabel` : pour pouvoir remplacer le texte si besoin.
-- Output structuré via JSON strict (déjà en place). Pas de nouveau modèle, on garde Flash pour le coût/latence.
-- Conserver fallback si Gemini ne renvoie pas crop/index → comportement actuel.
+## Architecture
 
-### 2. Association image ↔ variante automatique
-Fichier : `src/routes/admin.shops_.$shopId.products.new.tsx` (dialog Apply)
+### Nouvelle page
+`src/routes/admin.shops_.$shopId.import-export.tsx` (admin/boutique admin)
+`src/routes/vendor.import-export.tsx` (vendeur)
 
-- Après réponse Gemini : pour chaque variante, on récupère le `File` correspondant à `sourceImageIndex`.
-- Si l'image n'est pas encore dans la galerie produit, on l'ajoute (en réutilisant le pipeline upload existant — pas de nouveau chemin réseau).
-- On stocke l'URL résultante dans `variant.imageUrl` (champ déjà existant et utilisé par l'aperçu 👁).
-- Si plusieurs variantes pointent vers la même image → OK, partage autorisé.
+Une UI partagée : `src/components/import-export/ImportExportPanel.tsx` avec props (scope: 'vendor' | 'admin', shopId).
 
-### 3. Nettoyage automatique côté client (canvas)
-Nouveau helper : `src/lib/image-clean.ts`
+### Onglets
+1. **Exporter** — filtres (catégorie, sous-cat, statut, pays, commission, boutique côté admin) → bouton "Télécharger Excel".
+2. **Importer** — upload `.xlsx`/`.csv` + ZIP images optionnel → prévisualisation → confirmation.
+3. **Modèle** — bouton "Télécharger modèle vide" + "Exporter structure type".
+4. **Historique** — liste des imports passés (table `product_imports`).
 
-- Fonction `cleanProductImage(file, cropHint?)` :
-  - décode via `createImageBitmap` (rapide, off-main-thread quand supporté),
-  - applique le `cropHint` Gemini si présent, sinon heuristique simple : crop bandeau bas 12 % si la luminance moyenne y est < seuil (bande noire prix typique Taobao),
-  - downscale max 1400 px côté long,
-  - réencode JPEG q=0.82,
-  - retourne `Blob` + `objectURL` géré par `useObjectUrls` (pas de fuite).
-- Pas de masquage de texte par pixels (trop coûteux mobile) — on se contente du crop. Le texte FR de la variante est affiché en overlay UI quand on prévisualise (badge sous l'image), donc le client voit toujours "Abeille" et pas 蜜蜂.
+### Server functions (nouveau fichier `src/lib/import-export.functions.ts`)
 
-### 4. Performance / stabilité
-- Tout le nettoyage tourne dans une **queue séquentielle** (`for…of` + `await`) — pas de `Promise.all` sur 25 images qui ferait freezer le mobile.
-- Cache mémoire `Map<fileHash, Blob>` par session pour ne pas re-traiter deux fois la même image (hash = `size + lastModified + name`).
-- Mode sûr existant respecté : si `admin:ocr-disabled` ou `< 640 px` + mémoire faible → on saute le nettoyage canvas, on garde juste l'association d'image brute.
-- Timeout 45 s déjà en place sur l'OCR — on garde. Ajout d'un timeout 8 s par image dans `cleanProductImage` pour éviter blocage navigateur.
-- Tout passe par `ErrorBoundary` + `useObjectUrls` existants → aucune régression sur l'écran blanc.
+- `exportProducts({ scope, filters })` → renvoie un Blob Excel (xlsx via `exceljs`, déjà compatible Worker — sinon `xlsx` lib légère).
+- `previewImport({ fileContent, imageManifest })` → parse, valide, renvoie diff (nouveaux, MAJ, erreurs ligne par ligne).
+- `commitImport({ importId })` → applique les changements après confirmation utilisateur.
+- `uploadImportImages({ zipFile })` → décompresse côté serveur, upload sur Supabase Storage bucket `product-imports`, renvoie map `{ IMG001: publicUrl }`.
 
-### 5. Traduction / labels
-- Le nom de variante affiché vient déjà de Gemini en français. On garde `chineseLabel` côté admin (collapsable) pour permettre la vérif manuelle, mais **jamais affiché côté client**.
+### Storage
+- Bucket existant `product-images` réutilisé pour stockage final.
+- Nouveau bucket `product-imports` (temporaire, RLS vendor/admin) pour ZIP staging.
 
-## Notes techniques
+### Nouvelle table `product_imports`
+Colonnes : id, user_id, scope (vendor/admin), shop_id, file_name, status (preview/committed/failed), summary jsonb (counts), errors jsonb, created_at, committed_at.
 
-- Aucun changement DB : on réutilise `variant.imageUrl` (déjà nullable dans le schéma actuel).
-- Aucun nouveau secret : Gemini déjà branché via `LOVABLE_API_KEY`.
-- Aucun nouveau package : `createImageBitmap` + Canvas2D natifs.
-- `attachSupabaseAuth` et `requireSupabaseAuth` déjà en place sur la serverFn.
-- Fichiers touchés : 2 modifiés (`admin-generator.functions.ts`, `admin.shops_.$shopId.products.new.tsx`) + 1 nouveau (`src/lib/image-clean.ts`).
+## Structure Excel
 
-## Hors-scope (refusé volontairement)
+### Colonnes (ordre fixe)
+```
+Type | Action | Code produit | Code variante | Boutique | Désignation | Nom |
+Description | Catégorie | Sous-catégorie | Sous-sous-catégorie | Prix affiché |
+Prix variante | Stock | Nom option 1 | Valeur option 1 | Nom option 2 |
+Valeur option 2 | Nom option 3 | Valeur option 3 | Images produit |
+Image variante | Pays livraison | Statut
+```
 
-- Pas de suppression pixel-par-pixel de texte chinois (lourd, fragile, inutile vu qu'on crop + overlay FR).
-- Pas de modèle vision plus cher (Pro) tant que Flash suffit.
-- Pas de traitement en Web Worker dans cette itération (ajoutable plus tard sans changer l'API).
+### Règles de parsing
+- `Type` = `parent` | `variant`.
+- Lignes `variant` héritent de la ligne `parent` la plus récente avec le même `Code produit` (pas besoin de répéter désignation/description/catégorie).
+- `Action` ∈ {`create`, `update`, `delete`, `ignore`}.
+- Couleur/Taille extraites des paires "Nom option N / Valeur option N" — mappage souple (Couleur→color, Taille→size, autre→color_hex ignoré v1).
+- `Images produit` = liste séparée par virgules d'Image IDs (IMG001,IMG002).
+- `Image variante` = un seul Image ID.
+
+## Logique Image ID
+
+- Pendant l'export : chaque URL existante reçoit un Image ID stable (hash court de l'URL) noté dans le fichier.
+- Pendant l'import :
+  1. L'utilisateur upload le ZIP en parallèle.
+  2. Le serveur dézippe, calcule pour chaque fichier l'Image ID = basename sans extension (`IMG001.jpg` → `IMG001`).
+  3. Upload sur `product-images` avec le nom `{shopId}/{importId}/{imageId}.{ext}`.
+  4. Map `{IMG001 → publicUrl}` injectée lors du commit.
+- Si un Image ID référencé dans Excel n'existe pas dans le ZIP **et** n'est pas une URL existante du produit → erreur ligne.
+
+## Validation (preview)
+
+Chaque ligne produit un objet `{row, severity, field, message}`. Vérifs :
+- Champs requis selon action.
+- Code produit/variante unicité dans le fichier.
+- Catégorie/sous-cat existante (sinon erreur).
+- Boutique existante + droits (vendeur ne peut écrire que sur sa boutique).
+- Prix numérique > 0, stock entier ≥ 0.
+- Statut autorisé (vendeur → forcé `pending` quoi qu'il arrive ; admin libre).
+- Images : tous les IDs résolus.
+- Doublons Code variante.
+
+Résumé : `{ totalRows, parents, variants, toCreate, toUpdate, toDelete, errors, warnings }`.
+
+## Commit
+
+Transactionnel par produit (try/catch par parent). Si une variante échoue, le produit parent reste cohérent (rollback ses propres variantes). Logs détaillés dans `product_imports.errors`.
+
+Vendeur : `status='pending'` forcé. Admin : valeur du fichier respectée.
+
+## UI flow (mobile-first)
+
+1. Page d'accueil avec 4 cartes : Exporter / Importer / Modèle / Historique.
+2. Importer : drop file → loader parse → tableau prévisualisation (verts = create, bleus = update, rouges = erreurs).
+3. Bouton "Confirmer l'import (N produits)" désactivé tant qu'il reste des erreurs bloquantes.
+4. Après commit : toast + redirection vers historique.
+
+## Technique
+
+- Lib Excel : **`exceljs`** (compatible Cloudflare Worker via WASM-free build) — sinon fallback `xlsx` (SheetJS community).
+- Lib ZIP : **`jszip`** (pur JS, OK Worker).
+- Tout passe par `createServerFn` avec `requireSupabaseAuth`.
+- Limites : 5000 lignes / 100 MB ZIP côté serveur (refus poli au-delà).
+- Streaming : non v1 (acceptable jusqu'à 5k lignes).
+
+## Fichiers touchés
+
+**Nouveaux**
+- `src/lib/import-export.functions.ts`
+- `src/lib/import-export-schema.ts` (constantes colonnes + Zod row schema)
+- `src/components/import-export/ImportExportPanel.tsx`
+- `src/components/import-export/ImportPreviewTable.tsx`
+- `src/components/import-export/ExportFilters.tsx`
+- `src/routes/admin.shops_.$shopId.import-export.tsx`
+- `src/routes/vendor.import-export.tsx`
+- Migration : table `product_imports` + bucket `product-imports`.
+
+**Modifiés**
+- `src/routes/admin.tsx` (lien menu)
+- `src/routes/vendor.tsx` (lien menu)
+- `package.json` (`exceljs`, `jszip`)
+
+## Hors-scope explicite v1
+
+- Création de catégories par l'import (sécurité — pollution).
+- Création de boutiques par l'import.
+- Import de personnalisations (fonts, couleurs autorisées) — colonne ignorée si présente, ajoutée v2.
+- Import de codes-barres scannables — réutilise `code` produit existant.
+- Update partiel d'images (v1 : replace complet de la galerie si colonne fournie, sinon ignore).
+
+## Confirmation demandée
+
+Avant de coder, je voudrais valider :
+1. **Lib Excel** : OK pour `exceljs` (plus pro mais ~500KB) ou préférence pour `xlsx` (plus léger) ?
+2. **Catégories** : confirmer qu'on **n'autorise pas** la création par import (refuser ligne si catégorie inconnue) ?
+3. **Personnalisations produit** (polices/couleurs/messages) : v2 ou bloquant pour v1 ?

@@ -31,6 +31,7 @@ import { Route as VendorPreparationRouteImport } from './routes/vendor.preparati
 import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
 import { Route as VendorNotificationsRouteImport } from './routes/vendor.notifications'
 import { Route as VendorMessagesRouteImport } from './routes/vendor.messages'
+import { Route as VendorImportExportRouteImport } from './routes/vendor.import-export'
 import { Route as ShopVendorIdRouteImport } from './routes/shop.$vendorId'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CCategoryIdRouteImport } from './routes/c.$categoryId'
@@ -59,6 +60,7 @@ import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commiss
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
 import { Route as VendorProductsProductIdEditRouteImport } from './routes/vendor.products.$productId.edit'
 import { Route as AdminShopsShopIdManageRouteImport } from './routes/admin.shops_.$shopId.manage'
+import { Route as AdminShopsShopIdImportExportRouteImport } from './routes/admin.shops_.$shopId.import-export'
 import { Route as AdminShopsShopIdGeneratorRouteImport } from './routes/admin.shops_.$shopId.generator'
 import { Route as AdminProductsProductIdModerateRouteImport } from './routes/admin.products.$productId.moderate'
 import { Route as AdminProductsProductIdEditRouteImport } from './routes/admin.products.$productId.edit'
@@ -172,6 +174,11 @@ const VendorNotificationsRoute = VendorNotificationsRouteImport.update({
 const VendorMessagesRoute = VendorMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorImportExportRoute = VendorImportExportRouteImport.update({
+  id: '/import-export',
+  path: '/import-export',
   getParentRoute: () => VendorRoute,
 } as any)
 const ShopVendorIdRoute = ShopVendorIdRouteImport.update({
@@ -315,6 +322,12 @@ const AdminShopsShopIdManageRoute = AdminShopsShopIdManageRouteImport.update({
   path: '/shops/$shopId/manage',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminShopsShopIdImportExportRoute =
+  AdminShopsShopIdImportExportRouteImport.update({
+    id: '/shops_/$shopId/import-export',
+    path: '/shops/$shopId/import-export',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const AdminShopsShopIdGeneratorRoute =
   AdminShopsShopIdGeneratorRouteImport.update({
     id: '/shops_/$shopId/generator',
@@ -373,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -392,6 +406,7 @@ export interface FileRoutesByFullPath {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -426,6 +441,7 @@ export interface FileRoutesByTo {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -445,6 +461,7 @@ export interface FileRoutesByTo {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -483,6 +500,7 @@ export interface FileRoutesById {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -502,6 +520,7 @@ export interface FileRoutesById {
   '/admin/products/$productId/edit': typeof AdminProductsProductIdEditRoute
   '/admin/products/$productId/moderate': typeof AdminProductsProductIdModerateRoute
   '/admin/shops_/$shopId/generator': typeof AdminShopsShopIdGeneratorRoute
+  '/admin/shops_/$shopId/import-export': typeof AdminShopsShopIdImportExportRoute
   '/admin/shops_/$shopId/manage': typeof AdminShopsShopIdManageRoute
   '/vendor/products/$productId/edit': typeof VendorProductsProductIdEditRoute
   '/admin/shops_/$shopId/products/new': typeof AdminShopsShopIdProductsNewRoute
@@ -541,6 +560,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -560,6 +580,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
+    | '/admin/shops/$shopId/import-export'
     | '/admin/shops/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops/$shopId/products/new'
@@ -594,6 +615,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -613,6 +635,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops/$shopId/generator'
+    | '/admin/shops/$shopId/import-export'
     | '/admin/shops/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops/$shopId/products/new'
@@ -650,6 +673,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -669,6 +693,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId/edit'
     | '/admin/products/$productId/moderate'
     | '/admin/shops_/$shopId/generator'
+    | '/admin/shops_/$shopId/import-export'
     | '/admin/shops_/$shopId/manage'
     | '/vendor/products/$productId/edit'
     | '/admin/shops_/$shopId/products/new'
@@ -848,6 +873,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/vendor/messages'
       preLoaderRoute: typeof VendorMessagesRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/import-export': {
+      id: '/vendor/import-export'
+      path: '/import-export'
+      fullPath: '/vendor/import-export'
+      preLoaderRoute: typeof VendorImportExportRouteImport
       parentRoute: typeof VendorRoute
     }
     '/shop/$vendorId': {
@@ -1046,6 +1078,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminShopsShopIdManageRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/shops_/$shopId/import-export': {
+      id: '/admin/shops_/$shopId/import-export'
+      path: '/shops/$shopId/import-export'
+      fullPath: '/admin/shops/$shopId/import-export'
+      preLoaderRoute: typeof AdminShopsShopIdImportExportRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/shops_/$shopId/generator': {
       id: '/admin/shops_/$shopId/generator'
       path: '/shops/$shopId/generator'
@@ -1137,6 +1176,7 @@ interface AdminRouteChildren {
   AdminVendorsRoute: typeof AdminVendorsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminShopsShopIdGeneratorRoute: typeof AdminShopsShopIdGeneratorRoute
+  AdminShopsShopIdImportExportRoute: typeof AdminShopsShopIdImportExportRoute
   AdminShopsShopIdManageRoute: typeof AdminShopsShopIdManageRoute
   AdminShopsShopIdProductsNewRoute: typeof AdminShopsShopIdProductsNewRoute
 }
@@ -1160,6 +1200,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminVendorsRoute: AdminVendorsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminShopsShopIdGeneratorRoute: AdminShopsShopIdGeneratorRoute,
+  AdminShopsShopIdImportExportRoute: AdminShopsShopIdImportExportRoute,
   AdminShopsShopIdManageRoute: AdminShopsShopIdManageRoute,
   AdminShopsShopIdProductsNewRoute: AdminShopsShopIdProductsNewRoute,
 }
@@ -1167,6 +1208,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface VendorRouteChildren {
+  VendorImportExportRoute: typeof VendorImportExportRoute
   VendorMessagesRoute: typeof VendorMessagesRoute
   VendorNotificationsRoute: typeof VendorNotificationsRoute
   VendorOrdersRoute: typeof VendorOrdersRoute
@@ -1181,6 +1223,7 @@ interface VendorRouteChildren {
 }
 
 const VendorRouteChildren: VendorRouteChildren = {
+  VendorImportExportRoute: VendorImportExportRoute,
   VendorMessagesRoute: VendorMessagesRoute,
   VendorNotificationsRoute: VendorNotificationsRoute,
   VendorOrdersRoute: VendorOrdersRoute,
@@ -1219,13 +1262,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

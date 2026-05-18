@@ -943,6 +943,51 @@ export type Database = {
           },
         ]
       }
+      product_imports: {
+        Row: {
+          committed_at: string | null
+          created_at: string
+          errors: Json
+          file_name: string
+          id: string
+          image_map: Json
+          rows: Json
+          scope: string
+          shop_id: string | null
+          status: string
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          committed_at?: string | null
+          created_at?: string
+          errors?: Json
+          file_name: string
+          id?: string
+          image_map?: Json
+          rows?: Json
+          scope: string
+          shop_id?: string | null
+          status?: string
+          summary?: Json
+          user_id: string
+        }
+        Update: {
+          committed_at?: string | null
+          created_at?: string
+          errors?: Json
+          file_name?: string
+          id?: string
+          image_map?: Json
+          rows?: Json
+          scope?: string
+          shop_id?: string | null
+          status?: string
+          summary?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       product_moderation_feedback: {
         Row: {
           admin_id: string

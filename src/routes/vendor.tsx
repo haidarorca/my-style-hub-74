@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag } from "lucide-react";
+import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag, FileSpreadsheet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,6 +17,7 @@ const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?:
   { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
   { to: "/vendor/products", labelKey: "vendor.products", icon: Package, exact: true },
   { to: "/vendor/products/new", labelKey: "vendor.products.new_title", icon: Plus },
+  { to: "/vendor/import-export", labelKey: "vendor.import_export", icon: FileSpreadsheet },
   { to: "/vendor/reviews", labelKey: "vendor.reviews", icon: Star },
   { to: "/vendor/reports", labelKey: "vendor.reports", icon: Flag },
   { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },

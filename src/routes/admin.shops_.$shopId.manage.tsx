@@ -2,7 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, Store, PackagePlus, ShoppingBag } from "lucide-react";
+import { ChevronLeft, Store, PackagePlus, ShoppingBag, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ShopOverviewCards } from "@/components/shop/ShopOverviewCards";
@@ -47,6 +47,11 @@ function AdminShopManagePage() {
           <Button asChild variant="outline" size="sm">
             <Link to="/shop/$vendorId" params={{ vendorId: shopId }}>
               <ShoppingBag className="mr-1 h-4 w-4" /> Voir publiquement
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/shops/$shopId/import-export" params={{ shopId }}>
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Import/Export
             </Link>
           </Button>
           <Button asChild size="sm">
