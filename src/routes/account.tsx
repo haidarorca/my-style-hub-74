@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
 import { useServerFn } from "@tanstack/react-start";
 import { removeVendorAccount } from "@/lib/vendor-offboarding.functions";
+import { UpdateAppButton } from "@/components/UpdateAppButton";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
