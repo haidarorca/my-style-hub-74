@@ -335,7 +335,7 @@ function EditProductPage() {
           <div>
             <Label>Prix (FCFA) *</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            <CommissionPricePreview vendorId={user?.id} basePrice={price} categoryId={(data?.product as any)?.category_id ?? null} />
+            <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
           </div>
         </CardContent>
       </Card>
