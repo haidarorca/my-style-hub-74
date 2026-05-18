@@ -18,7 +18,7 @@ export function useDeliverableVendorIds(): {
   vendorIds: string[] | null;
   ready: boolean;
 } {
-  const { countryId, ready } = useDeliveryCountry();
+  const { countryId, ready, isManual } = useDeliveryCountry();
 
   const { data, isLoading } = useQuery({
     queryKey: ["deliverable-vendors", countryId],
@@ -46,10 +46,20 @@ export function useDeliverableVendorIds(): {
     },
   });
 
-  // Strict filtering: only show products from vendors who actually deliver
-  // to the selected country. If none, the catalogue is empty by design —
-  // the visitor can change country manually from the header.
-  const vendorIds = countryId ? (data ?? null) : null;
+  // Strict filtering only when the visitor explicitly picked a country.
+  // For auto-detected country (geo-IP / default address), if no vendor
+  // delivers there we fall back to no filter rather than hide the entire
+  // catalogue — otherwise a wrong IP geo-location ("Aucun produit publié")
+  // makes the site look empty even though products exist.
+  let vendorIds: string[] | null = null;
+  if (countryId) {
+    const list = data ?? null;
+    if (isManual) {
+      vendorIds = list; // strict when user chose the country
+    } else {
+      vendorIds = list && list.length > 0 ? list : null; // graceful fallback
+    }
+  }
 
   return {
     countryId,

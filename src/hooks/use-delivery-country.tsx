@@ -11,6 +11,7 @@ interface Ctx {
   countryId: string | null;
   setCountryId: (id: string | null) => void;
   ready: boolean;
+  isManual: boolean;
 }
 
 const DeliveryCountryContext = createContext<Ctx | undefined>(undefined);
@@ -110,7 +111,7 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
     qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && (q.queryKey.includes("display-prices") || q.queryKey.includes("display-price-lines") || q.queryKey.includes("deliverable-vendors")) });
   }, [qc]);
 
-  const value = useMemo(() => ({ countryId, setCountryId, ready }), [countryId, setCountryId, ready]);
+  const value = useMemo(() => ({ countryId, setCountryId, ready, isManual }), [countryId, setCountryId, ready, isManual]);
   return <DeliveryCountryContext.Provider value={value}>{children}</DeliveryCountryContext.Provider>;
 }
 
