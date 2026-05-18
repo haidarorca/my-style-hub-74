@@ -796,6 +796,16 @@ function AdminEditProductPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AiCopyGeneratorDialog
+        open={aiCopyOpen}
+        onOpenChange={setAiCopyOpen}
+        onApply={(r) => {
+          if (r.name) setName(r.name);
+          if (r.designation) setDesignation(r.designation);
+          if (r.description) setDescription(r.description);
+        }}
+      />
     </form>
   );
 }
