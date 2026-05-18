@@ -308,8 +308,14 @@ function VendorOrders() {
                   <div className="border-b bg-primary/5 px-3 py-2 text-xs">
                     <div className="font-semibold text-primary">Commande plateforme</div>
                     <div className="mt-0.5 text-muted-foreground">
-                      Les coordonnées du client sont gérées par l'administration. Vous recevrez les instructions de préparation par WhatsApp.
+                      Les coordonnées du client sont gérées par l'administration. Pour toute question, ouvrez une conversation de support.
                     </div>
+                    <Link
+                      to="/vendor/messages"
+                      className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10"
+                    >
+                      <MessageCircle className="h-3 w-3" /> Ouvrir le canal support
+                    </Link>
                   </div>
                 ) : (
                   <div className="border-b bg-muted/20 px-3 py-2 text-xs">
