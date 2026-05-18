@@ -362,7 +362,7 @@ export function SearchAutocomplete() {
                             >
                               <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-xs font-bold">
                                 {s.shop_logo_url ? (
-                                  <img src={s.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                                  <img src={s.shop_logo_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                                 ) : (
                                   s.shop_name?.charAt(0) ?? "?"
                                 )}
