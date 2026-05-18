@@ -154,6 +154,7 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
+  const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const unitPrice = (it: any) => {
     const productId = it.products?.id ?? it.product_id;
