@@ -158,6 +158,52 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
+  // === Selection state (defaults: tout coché) ===
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const allIds = useMemo(() => items.map((it: any) => it.id as string), [items]);
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      const known = new Set(allIds);
+      // keep previously selected ids that still exist
+      prev.forEach((id) => { if (known.has(id)) next.add(id); });
+      // auto-select any newly added item
+      allIds.forEach((id) => { if (!prev.has(id) && !next.has(id)) next.add(id); });
+      // first load: prev is empty -> select all
+      if (prev.size === 0) allIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [allIds]);
+
+  const isSelected = (id: string) => selectedIds.has(id);
+  const toggleItem = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const groupSelectionState = (groupItems: any[]): boolean | "indeterminate" => {
+    const total = groupItems.length;
+    const sel = groupItems.filter((it) => selectedIds.has(it.id)).length;
+    if (sel === 0) return false;
+    if (sel === total) return true;
+    return "indeterminate";
+  };
+  const toggleGroup = (groupItems: any[], checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      groupItems.forEach((it) => { if (checked) next.add(it.id); else next.delete(it.id); });
+      return next;
+    });
+  };
+
+  const selectedItems = useMemo(
+    () => items.filter((it: any) => selectedIds.has(it.id)),
+    [items, selectedIds],
+  );
+  const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
+
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const unitPrice = (it: any) => {
@@ -166,7 +212,7 @@ function CartPage() {
     const resolved = displayPriceLines.get(key)?.final_price;
     return resolved ?? (pricesReady ? fallbackUnitPrice(it) : 0);
   };
-  const grandTotal = items.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
+  const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
