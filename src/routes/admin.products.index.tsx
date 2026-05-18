@@ -36,7 +36,7 @@ const searchSchema = z.object({
   page: fallback(z.number().int().min(1), 1).default(1),
   q: fallback(z.string(), "").default(""),
   // moderation
-  status: fallback(z.enum(["all", "pending", "approved", "rejected"]), "pending").default("pending"),
+  status: fallback(z.enum(["all", "pending", "approved", "rejected", "archived"]), "pending").default("pending"),
   kind: fallback(z.enum(["all", "new", "edit"]), "all").default("all"),
   sort: fallback(z.enum(["created_at", "updated_at", "price", "name"]), "created_at").default("created_at"),
   dir: fallback(z.enum(["asc", "desc"]), "desc").default("desc"),
