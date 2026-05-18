@@ -37,6 +37,7 @@ import { Route as ShopVendorIdRouteImport } from './routes/shop.$vendorId'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CCategoryIdRouteImport } from './routes/c.$categoryId'
 import { Route as AdminVendorsRouteImport } from './routes/admin.vendors'
+import { Route as AdminSupportRouteImport } from './routes/admin.support'
 import { Route as AdminShopsRouteImport } from './routes/admin.shops'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
@@ -205,6 +206,11 @@ const CCategoryIdRoute = CCategoryIdRouteImport.update({
 const AdminVendorsRoute = AdminVendorsRouteImport.update({
   id: '/vendors',
   path: '/vendors',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSupportRoute = AdminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminShopsRoute = AdminShopsRouteImport.update({
@@ -389,6 +395,7 @@ export interface FileRoutesByFullPath {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -445,6 +452,7 @@ export interface FileRoutesByTo {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -505,6 +513,7 @@ export interface FileRoutesById {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -566,6 +575,7 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/admin/settings'
     | '/admin/shops'
+    | '/admin/support'
     | '/admin/vendors'
     | '/c/$categoryId'
     | '/product/$productId'
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/admin/settings'
     | '/admin/shops'
+    | '/admin/support'
     | '/admin/vendors'
     | '/c/$categoryId'
     | '/product/$productId'
@@ -681,6 +692,7 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/admin/settings'
     | '/admin/shops'
+    | '/admin/support'
     | '/admin/vendors'
     | '/c/$categoryId'
     | '/product/$productId'
@@ -928,6 +940,13 @@ declare module '@tanstack/react-router' {
       path: '/vendors'
       fullPath: '/admin/vendors'
       preLoaderRoute: typeof AdminVendorsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/support': {
+      id: '/admin/support'
+      path: '/support'
+      fullPath: '/admin/support'
+      preLoaderRoute: typeof AdminSupportRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/shops': {
@@ -1193,6 +1212,7 @@ interface AdminRouteChildren {
   AdminReviewsRoute: typeof AdminReviewsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminShopsRoute: typeof AdminShopsRoute
+  AdminSupportRoute: typeof AdminSupportRoute
   AdminVendorsRoute: typeof AdminVendorsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminShopsShopIdGeneratorRoute: typeof AdminShopsShopIdGeneratorRoute
@@ -1217,6 +1237,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReviewsRoute: AdminReviewsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminShopsRoute: AdminShopsRoute,
+  AdminSupportRoute: AdminSupportRoute,
   AdminVendorsRoute: AdminVendorsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminShopsShopIdGeneratorRoute: AdminShopsShopIdGeneratorRoute,
