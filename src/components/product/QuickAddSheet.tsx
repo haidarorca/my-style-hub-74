@@ -112,7 +112,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
           <div className="mt-3 space-y-4">
             <div className="flex gap-3">
               <div className="h-20 w-20 overflow-hidden rounded-lg bg-muted">
-                {img && <img src={img} alt={productName} className="h-full w-full object-cover" />}
+                {img && <img src={img} alt={productName} loading="lazy" decoding="async" className="h-full w-full object-cover" />}
               </div>
               <div className="flex-1">
                 <p className="line-clamp-2 text-sm font-medium">{productName}</p>
