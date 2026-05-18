@@ -1,134 +1,164 @@
 ## Objectif
 
-Permettre aux vendeurs et admins d'importer/exporter en masse les produits + variantes via Excel/CSV, avec import groupé d'images via ZIP, sans répéter les infos communes et sans casser le formulaire existant.
+Mettre en place un système professionnel et entièrement configurable de :
+- Service client centralisé (WhatsApp, email, formulaire)
+- Messagerie interne (tickets) client ↔ boutique ↔ admin
+- Contrôle granulaire des contacts (site / boutique / produit / commission)
+- Protection stricte des coordonnées vendeur quand commission active (sécurité backend, pas juste UI)
 
 ## Périmètre (v1)
 
-- **Produits + variantes** (parent/enfant via `Code produit`).
-- **Images via ZIP** avec système d'Image IDs stables (IMG001, IMG002…).
-- **Catégories et boutiques** : résolues par nom/slug existants (pas créées par l'import — sécurité).
-- **Hors v1** (à signaler) : import de nouvelles catégories et nouvelles boutiques (création) — restera manuel pour éviter pollution. Confirmable plus tard.
+Inclus :
+- Tables support / messagerie + RLS strictes
+- Réglages globaux + par boutique + par produit
+- Logique automatique commission → contact vendeur masqué côté API
+- Centre support admin (liste, filtres, réponse, assignation, transfert, notes)
+- Espace messages vendeur (déjà existant en stub) → vrai
+- Boutons contextuels client (WhatsApp / Message / Service client)
+- Notifications + compteurs non-lus
+
+Hors v1 (mentionné pour suite) :
+- Réponses automatiques avancées (templates oui, AI auto-reply non)
+- Telegram / Messenger : on stocke les liens et on affiche les boutons, pas d'intégration API
+- Webhook WhatsApp Business API (juste deeplinks `wa.me` v1)
 
 ## Architecture
 
-### Nouvelle page
-`src/routes/admin.shops_.$shopId.import-export.tsx` (admin/boutique admin)
-`src/routes/vendor.import-export.tsx` (vendeur)
+### 1. Base de données (migration)
 
-Une UI partagée : `src/components/import-export/ImportExportPanel.tsx` avec props (scope: 'vendor' | 'admin', shopId).
+**Table `contact_settings`** (singleton id='main', réglages globaux)
+- whatsapp_support_numbers jsonb (liste { label, number, country_id, enabled })
+- support_emails jsonb
+- telegram_url, messenger_url
+- support_hours_i18n jsonb, auto_reply_message_i18n jsonb
+- support_enabled, whatsapp_enabled, internal_messaging_enabled, vendor_contact_enabled (booleans globaux)
+- commission_hides_vendor_contact bool (défaut true) — switch maître protection commission
+- default_assigned_admin_ids uuid[]
 
-### Onglets
-1. **Exporter** — filtres (catégorie, sous-cat, statut, pays, commission, boutique côté admin) → bouton "Télécharger Excel".
-2. **Importer** — upload `.xlsx`/`.csv` + ZIP images optionnel → prévisualisation → confirmation.
-3. **Modèle** — bouton "Télécharger modèle vide" + "Exporter structure type".
-4. **Historique** — liste des imports passés (table `product_imports`).
+**Extension `profiles`** (boutique)
+- contact_mode enum ('direct', 'internal_only', 'admin_only', 'blocked', 'after_order_only')
+- show_whatsapp bool, show_email bool, show_phone bool, show_address bool (par défaut false si commission)
+- assigned_support_admin_ids uuid[]
 
-### Server functions (nouveau fichier `src/lib/import-export.functions.ts`)
+**Extension `products`**
+- contact_override enum ('inherit', 'allowed', 'blocked', 'support_only')
 
-- `exportProducts({ scope, filters })` → renvoie un Blob Excel (xlsx via `exceljs`, déjà compatible Worker — sinon `xlsx` lib légère).
-- `previewImport({ fileContent, imageManifest })` → parse, valide, renvoie diff (nouveaux, MAJ, erreurs ligne par ligne).
-- `commitImport({ importId })` → applique les changements après confirmation utilisateur.
-- `uploadImportImages({ zipFile })` → décompresse côté serveur, upload sur Supabase Storage bucket `product-imports`, renvoie map `{ IMG001: publicUrl }`.
+**Table `support_conversations`**
+- id, subject, status (new/open/answered/closed/urgent), priority (low/normal/high/urgent)
+- client_id, vendor_id (nullable), product_id (nullable), order_id (nullable)
+- assigned_admin_id, type ('client_support', 'client_vendor', 'vendor_admin')
+- is_commission_protected bool (snapshot au moment de création)
+- last_message_at, unread_count_client, unread_count_vendor, unread_count_admin
+- created_at, updated_at, closed_at
 
-### Storage
-- Bucket existant `product-images` réutilisé pour stockage final.
-- Nouveau bucket `product-imports` (temporaire, RLS vendor/admin) pour ZIP staging.
+**Table `support_messages`**
+- conversation_id, sender_id, sender_role enum, body, attachments jsonb
+- is_internal_note bool (visible admins only), read_by jsonb
 
-### Nouvelle table `product_imports`
-Colonnes : id, user_id, scope (vendor/admin), shop_id, file_name, status (preview/committed/failed), summary jsonb (counts), errors jsonb, created_at, committed_at.
+**Table `support_admin_assignments`**
+- conversation_id, admin_id, assigned_at, assigned_by
 
-## Structure Excel
+### 2. RLS — protection stricte coordonnées vendeur
 
-### Colonnes (ordre fixe)
-```
-Type | Action | Code produit | Code variante | Boutique | Désignation | Nom |
-Description | Catégorie | Sous-catégorie | Sous-sous-catégorie | Prix affiché |
-Prix variante | Stock | Nom option 1 | Valeur option 1 | Nom option 2 |
-Valeur option 2 | Nom option 3 | Valeur option 3 | Images produit |
-Image variante | Pays livraison | Statut
-```
+**Vue `public_vendor_contacts`** (SECURITY DEFINER) qui retourne whatsapp/email/phone/address **uniquement si** :
+- `commission_hides_vendor_contact = false` OU
+- vendeur en mode `no_commission` OU
+- override admin pour la boutique
 
-### Règles de parsing
-- `Type` = `parent` | `variant`.
-- Lignes `variant` héritent de la ligne `parent` la plus récente avec le même `Code produit` (pas besoin de répéter désignation/description/catégorie).
-- `Action` ∈ {`create`, `update`, `delete`, `ignore`}.
-- Couleur/Taille extraites des paires "Nom option N / Valeur option N" — mappage souple (Couleur→color, Taille→size, autre→color_hex ignoré v1).
-- `Images produit` = liste séparée par virgules d'Image IDs (IMG001,IMG002).
-- `Image variante` = un seul Image ID.
+Tous les composants front lisent cette vue, pas `profiles` directement, pour les champs sensibles.
 
-## Logique Image ID
+**Fonction `can_contact_vendor(_client_id, _vendor_id, _product_id)`** retourne enum résolu (direct/internal/support_only/blocked) en combinant : global → boutique → produit → commission.
 
-- Pendant l'export : chaque URL existante reçoit un Image ID stable (hash court de l'URL) noté dans le fichier.
-- Pendant l'import :
-  1. L'utilisateur upload le ZIP en parallèle.
-  2. Le serveur dézippe, calcule pour chaque fichier l'Image ID = basename sans extension (`IMG001.jpg` → `IMG001`).
-  3. Upload sur `product-images` avec le nom `{shopId}/{importId}/{imageId}.{ext}`.
-  4. Map `{IMG001 → publicUrl}` injectée lors du commit.
-- Si un Image ID référencé dans Excel n'existe pas dans le ZIP **et** n'est pas une URL existante du produit → erreur ligne.
+### 3. Server functions (`src/lib/support.functions.ts`)
 
-## Validation (preview)
+- `getContactPolicy({ vendorId, productId })` → résout règles, renvoie ce que le client a le droit de voir
+- `getPublicVendorContacts({ vendorId })` → coordonnées filtrées (via vue)
+- `createConversation({ vendorId?, productId?, orderId?, subject, body, type })` → nouvelle conv
+- `replyConversation({ conversationId, body, attachments?, isInternalNote? })`
+- `listConversations({ scope: 'client'|'vendor'|'admin', filters })`
+- `assignConversation`, `transferConversation`, `closeConversation`, `setPriority`, `markRead`
+- `getContactSettings`, `updateContactSettings` (super admin)
+- `updateShopContactPolicy({ shopId, ... })` (admin)
 
-Chaque ligne produit un objet `{row, severity, field, message}`. Vérifs :
-- Champs requis selon action.
-- Code produit/variante unicité dans le fichier.
-- Catégorie/sous-cat existante (sinon erreur).
-- Boutique existante + droits (vendeur ne peut écrire que sur sa boutique).
-- Prix numérique > 0, stock entier ≥ 0.
-- Statut autorisé (vendeur → forcé `pending` quoi qu'il arrive ; admin libre).
-- Images : tous les IDs résolus.
-- Doublons Code variante.
+Toutes protégées par `requireSupabaseAuth` + vérifications de rôle. Les server fns ne retournent JAMAIS les coordonnées vendeur si la policy l'interdit, même pour un admin client.
 
-Résumé : `{ totalRows, parents, variants, toCreate, toUpdate, toDelete, errors, warnings }`.
+### 4. Composants UI
 
-## Commit
+**Côté client** (`src/components/support/`)
+- `ContactActions.tsx` — boutons contextuels (WhatsApp support, message boutique, service client) selon `getContactPolicy`
+- `VendorContactCard.tsx` — affiche uniquement champs autorisés (basé sur server response, pas masquage CSS)
+- `NewConversationDialog.tsx` — créer un ticket
+- `ConversationView.tsx` — thread message
 
-Transactionnel par produit (try/catch par parent). Si une variante échoue, le produit parent reste cohérent (rollback ses propres variantes). Logs détaillés dans `product_imports.errors`.
+**Routes**
+- `src/routes/_authenticated/messages.tsx` — boîte messages client
+- `src/routes/_authenticated/messages.$conversationId.tsx`
+- `src/routes/support.tsx` — page contact public (FAQ + WhatsApp + formulaire)
+- `src/routes/vendor.messages.tsx` — refonte (remplace stub existant)
+- `src/routes/admin.support.tsx` — centre support (liste + filtres + assignation)
+- `src/routes/admin.support.$conversationId.tsx` — détail conversation
+- `src/routes/admin.contact-settings.tsx` — réglages globaux + matrice par boutique
 
-Vendeur : `status='pending'` forcé. Admin : valeur du fichier respectée.
+**Admin shop manage** (édition par boutique) : nouvel onglet "Contact" dans `admin.shops_.$shopId.manage.tsx` pour overrides par boutique (mode, visibilité champs, admins assignés).
 
-## UI flow (mobile-first)
+### 5. Notifications + badges
 
-1. Page d'accueil avec 4 cartes : Exporter / Importer / Modèle / Historique.
-2. Importer : drop file → loader parse → tableau prévisualisation (verts = create, bleus = update, rouges = erreurs).
-3. Bouton "Confirmer l'import (N produits)" désactivé tant qu'il reste des erreurs bloquantes.
-4. Après commit : toast + redirection vers historique.
+- Trigger Postgres → `notifications` à chaque nouveau message
+- Compteurs non-lus dans `AppHeader`, `MobileBottomNav`, sidebar admin
+- Realtime sur `support_messages` pour live update
 
-## Technique
+### 6. WhatsApp deeplinks
 
-- Lib Excel : **`exceljs`** (compatible Cloudflare Worker via WASM-free build) — sinon fallback `xlsx` (SheetJS community).
-- Lib ZIP : **`jszip`** (pur JS, OK Worker).
-- Tout passe par `createServerFn` avec `requireSupabaseAuth`.
-- Limites : 5000 lignes / 100 MB ZIP côté serveur (refus poli au-delà).
-- Streaming : non v1 (acceptable jusqu'à 5k lignes).
+Helper `src/lib/whatsapp.ts` (existe déjà) étendu :
+- `buildSupportLink({ context: 'product'|'order'|'general', product?, order? })`
+- Sélectionne le bon numéro support (général / pays / commission) depuis `contact_settings`
+- Préremplit message selon contexte et langue active
+
+## Sécurité (point critique)
+
+1. Les colonnes `phone`, `shop_whatsapp`, `email`, `address` de `profiles` **ne sont jamais sélectionnées** par les requêtes publiques. RLS interdit aux non-admins/non-propriétaires de les lire.
+2. Une vue dédiée `public_vendor_contacts` applique la logique commission côté DB.
+3. `ProductCard`, page produit, page boutique : suppression des `select('*')` sur profiles → projection explicite via server fn.
+4. Audit migration : revoke select sur colonnes sensibles, recréer policies projetées.
 
 ## Fichiers touchés
 
 **Nouveaux**
-- `src/lib/import-export.functions.ts`
-- `src/lib/import-export-schema.ts` (constantes colonnes + Zod row schema)
-- `src/components/import-export/ImportExportPanel.tsx`
-- `src/components/import-export/ImportPreviewTable.tsx`
-- `src/components/import-export/ExportFilters.tsx`
-- `src/routes/admin.shops_.$shopId.import-export.tsx`
-- `src/routes/vendor.import-export.tsx`
-- Migration : table `product_imports` + bucket `product-imports`.
+- Migration SQL (table contact_settings, support_conversations, support_messages, ajout colonnes profiles/products, vue + fonctions)
+- `src/lib/support.functions.ts`
+- `src/lib/contact-policy.ts` (types partagés)
+- `src/components/support/ContactActions.tsx`
+- `src/components/support/VendorContactCard.tsx`
+- `src/components/support/ConversationView.tsx`
+- `src/components/support/NewConversationDialog.tsx`
+- `src/routes/_authenticated/messages.tsx` + `.$conversationId.tsx`
+- `src/routes/support.tsx`
+- `src/routes/admin.support.tsx` + `.$conversationId.tsx`
+- `src/routes/admin.contact-settings.tsx`
 
 **Modifiés**
-- `src/routes/admin.tsx` (lien menu)
-- `src/routes/vendor.tsx` (lien menu)
-- `package.json` (`exceljs`, `jszip`)
+- `src/routes/vendor.messages.tsx` (remplacement stub)
+- `src/routes/admin.shops_.$shopId.manage.tsx` (onglet Contact)
+- `src/routes/shop.$vendorId.tsx`, `src/routes/product.$productId.tsx` (utiliser getContactPolicy/VendorContactCard)
+- `src/components/layout/AppHeader.tsx`, `MobileBottomNav.tsx` (badges messages)
+- `src/lib/whatsapp.ts` (helpers contextuels)
+- `src/routes/admin.tsx`, `src/routes/vendor.tsx` (entrées menu)
+- `src/hooks/use-auth.tsx` (nouvelle permission `manage_support`)
 
-## Hors-scope explicite v1
+## Étapes d'exécution
 
-- Création de catégories par l'import (sécurité — pollution).
-- Création de boutiques par l'import.
-- Import de personnalisations (fonts, couleurs autorisées) — colonne ignorée si présente, ajoutée v2.
-- Import de codes-barres scannables — réutilise `code` produit existant.
-- Update partiel d'images (v1 : replace complet de la galerie si colonne fournie, sinon ignore).
+1. Migration DB + RLS + vue + fonctions résolution policy
+2. Server functions support + types
+3. UI admin (réglages + centre support)
+4. UI client (page support, ContactActions, messagerie)
+5. UI vendeur (refonte messages)
+6. Intégration produit/boutique (VendorContactCard sécurisé)
+7. Notifications + badges + realtime
+8. Tests : commission → coordonnées masquées dans API ; sans commission → tout visible si autorisé
 
-## Confirmation demandée
+## Questions avant de coder
 
-Avant de coder, je voudrais valider :
-1. **Lib Excel** : OK pour `exceljs` (plus pro mais ~500KB) ou préférence pour `xlsx` (plus léger) ?
-2. **Catégories** : confirmer qu'on **n'autorise pas** la création par import (refuser ligne si catégorie inconnue) ?
-3. **Personnalisations produit** (polices/couleurs/messages) : v2 ou bloquant pour v1 ?
+1. **WhatsApp Business API** : v1 = simples `wa.me` deeplinks (gratuit, ouvre app du client). Tu confirmes ? (API officielle = payante + setup Meta)
+2. **Pièces jointes messages** : autoriser upload (images uniquement, 5 MB max) dans la messagerie interne v1 ?
+3. **Mode par défaut nouvelles boutiques commission** : `support_only` (client ↔ admin seulement) ou `internal_only` (messagerie interne, admin voit tout) ?
+4. **Page `/support` publique** : accessible sans login ? (formulaire crée un ticket avec email seulement, pas de compte requis)

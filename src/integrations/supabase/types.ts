@@ -136,6 +136,13 @@ export type Database = {
             foreignKeyName: "cart_items_user_id_profiles_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "cart_items_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
@@ -360,6 +367,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      contact_settings: {
+        Row: {
+          auto_reply_message_i18n: Json
+          commission_hides_vendor_contact: boolean
+          created_at: string
+          default_assigned_admin_ids: string[]
+          id: string
+          internal_messaging_enabled: boolean
+          messenger_url: string | null
+          support_emails: Json
+          support_enabled: boolean
+          support_hours_i18n: Json
+          telegram_url: string | null
+          updated_at: string
+          vendor_contact_enabled: boolean
+          whatsapp_enabled: boolean
+          whatsapp_support_numbers: Json
+        }
+        Insert: {
+          auto_reply_message_i18n?: Json
+          commission_hides_vendor_contact?: boolean
+          created_at?: string
+          default_assigned_admin_ids?: string[]
+          id?: string
+          internal_messaging_enabled?: boolean
+          messenger_url?: string | null
+          support_emails?: Json
+          support_enabled?: boolean
+          support_hours_i18n?: Json
+          telegram_url?: string | null
+          updated_at?: string
+          vendor_contact_enabled?: boolean
+          whatsapp_enabled?: boolean
+          whatsapp_support_numbers?: Json
+        }
+        Update: {
+          auto_reply_message_i18n?: Json
+          commission_hides_vendor_contact?: boolean
+          created_at?: string
+          default_assigned_admin_ids?: string[]
+          id?: string
+          internal_messaging_enabled?: boolean
+          messenger_url?: string | null
+          support_emails?: Json
+          support_enabled?: boolean
+          support_hours_i18n?: Json
+          telegram_url?: string | null
+          updated_at?: string
+          vendor_contact_enabled?: boolean
+          whatsapp_enabled?: boolean
+          whatsapp_support_numbers?: Json
+        }
+        Relationships: []
       }
       countries: {
         Row: {
@@ -1109,6 +1170,13 @@ export type Database = {
             foreignKeyName: "product_reports_reporter_id_profiles_fkey"
             columns: ["reporter_id"]
             isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "product_reports_reporter_id_profiles_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
             referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
@@ -1173,6 +1241,13 @@ export type Database = {
             foreignKeyName: "product_reviews_user_id_profiles_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
@@ -1226,6 +1301,7 @@ export type Database = {
         Row: {
           category_id: string | null
           code: string
+          contact_override: Database["public"]["Enums"]["product_contact_override"]
           content_hash: string | null
           created_at: string
           description: string | null
@@ -1249,6 +1325,7 @@ export type Database = {
         Insert: {
           category_id?: string | null
           code: string
+          contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
           description?: string | null
@@ -1272,6 +1349,7 @@ export type Database = {
         Update: {
           category_id?: string | null
           code?: string
+          contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
           description?: string | null
@@ -1325,6 +1403,13 @@ export type Database = {
             foreignKeyName: "products_vendor_id_profiles_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "products_vendor_id_profiles_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
             referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
@@ -1336,8 +1421,10 @@ export type Database = {
           access_starts_at: string | null
           address: string | null
           allowed_destination_country_ids: string[]
+          assigned_support_admin_ids: string[]
           blocked_at: string | null
           blocked_reason: string | null
+          contact_mode: Database["public"]["Enums"]["shop_contact_mode"]
           created_at: string
           email: string | null
           full_name: string | null
@@ -1360,6 +1447,10 @@ export type Database = {
           shop_logo_url: string | null
           shop_name: string | null
           shop_whatsapp: string | null
+          show_address: boolean
+          show_email: boolean
+          show_phone: boolean
+          show_whatsapp: boolean
           source_country_id: string | null
           suspended_at: string | null
           suspended_reason: string | null
@@ -1372,8 +1463,10 @@ export type Database = {
           access_starts_at?: string | null
           address?: string | null
           allowed_destination_country_ids?: string[]
+          assigned_support_admin_ids?: string[]
           blocked_at?: string | null
           blocked_reason?: string | null
+          contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1396,6 +1489,10 @@ export type Database = {
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
+          show_address?: boolean
+          show_email?: boolean
+          show_phone?: boolean
+          show_whatsapp?: boolean
           source_country_id?: string | null
           suspended_at?: string | null
           suspended_reason?: string | null
@@ -1408,8 +1505,10 @@ export type Database = {
           access_starts_at?: string | null
           address?: string | null
           allowed_destination_country_ids?: string[]
+          assigned_support_admin_ids?: string[]
           blocked_at?: string | null
           blocked_reason?: string | null
+          contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1432,6 +1531,10 @@ export type Database = {
           shop_logo_url?: string | null
           shop_name?: string | null
           shop_whatsapp?: string | null
+          show_address?: boolean
+          show_email?: boolean
+          show_phone?: boolean
+          show_whatsapp?: boolean
           source_country_id?: string | null
           suspended_at?: string | null
           suspended_reason?: string | null
@@ -1545,6 +1648,116 @@ export type Database = {
         }
         Relationships: []
       }
+      support_conversations: {
+        Row: {
+          assigned_admin_id: string | null
+          client_email: string | null
+          client_id: string | null
+          client_name: string | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          is_commission_protected: boolean
+          last_message_at: string
+          last_message_preview: string | null
+          order_id: string | null
+          priority: Database["public"]["Enums"]["support_priority"]
+          product_id: string | null
+          status: Database["public"]["Enums"]["support_conv_status"]
+          subject: string
+          type: Database["public"]["Enums"]["support_conv_type"]
+          unread_count_admin: number
+          unread_count_client: number
+          unread_count_vendor: number
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          assigned_admin_id?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          is_commission_protected?: boolean
+          last_message_at?: string
+          last_message_preview?: string | null
+          order_id?: string | null
+          priority?: Database["public"]["Enums"]["support_priority"]
+          product_id?: string | null
+          status?: Database["public"]["Enums"]["support_conv_status"]
+          subject?: string
+          type: Database["public"]["Enums"]["support_conv_type"]
+          unread_count_admin?: number
+          unread_count_client?: number
+          unread_count_vendor?: number
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          assigned_admin_id?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          is_commission_protected?: boolean
+          last_message_at?: string
+          last_message_preview?: string | null
+          order_id?: string | null
+          priority?: Database["public"]["Enums"]["support_priority"]
+          product_id?: string | null
+          status?: Database["public"]["Enums"]["support_conv_status"]
+          subject?: string
+          type?: Database["public"]["Enums"]["support_conv_type"]
+          unread_count_admin?: number
+          unread_count_client?: number
+          unread_count_vendor?: number
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          is_internal_note: boolean
+          sender_id: string | null
+          sender_role: Database["public"]["Enums"]["support_sender_role"]
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean
+          sender_id?: string | null
+          sender_role: Database["public"]["Enums"]["support_sender_role"]
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean
+          sender_id?: string | null
+          sender_role?: Database["public"]["Enums"]["support_sender_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ui_overrides: {
         Row: {
           key: string
@@ -1603,6 +1816,13 @@ export type Database = {
             foreignKeyName: "user_roles_user_id_profiles_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
@@ -1656,6 +1876,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      public_vendor_contacts: {
+        Row: {
+          address: string | null
+          contact_mode: Database["public"]["Enums"]["shop_contact_mode"] | null
+          email: string | null
+          latitude: number | null
+          longitude: number | null
+          phone: string | null
+          shop_banner_url: string | null
+          shop_description: string | null
+          shop_description_i18n: Json | null
+          shop_hours: string | null
+          shop_hours_i18n: Json | null
+          shop_hours_schedule: Json | null
+          shop_logo_url: string | null
+          shop_name: string | null
+          shop_whatsapp: string | null
+          vendor_id: string | null
+          vendor_mode: Database["public"]["Enums"]["vendor_mode"] | null
+        }
+        Insert: {
+          address?: never
+          contact_mode?: Database["public"]["Enums"]["shop_contact_mode"] | null
+          email?: never
+          latitude?: never
+          longitude?: never
+          phone?: never
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_description_i18n?: Json | null
+          shop_hours?: string | null
+          shop_hours_i18n?: Json | null
+          shop_hours_schedule?: Json | null
+          shop_logo_url?: string | null
+          shop_name?: string | null
+          shop_whatsapp?: never
+          vendor_id?: string | null
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"] | null
+        }
+        Update: {
+          address?: never
+          contact_mode?: Database["public"]["Enums"]["shop_contact_mode"] | null
+          email?: never
+          latitude?: never
+          longitude?: never
+          phone?: never
+          shop_banner_url?: string | null
+          shop_description?: string | null
+          shop_description_i18n?: Json | null
+          shop_hours?: string | null
+          shop_hours_i18n?: Json | null
+          shop_hours_schedule?: Json | null
+          shop_logo_url?: string | null
+          shop_name?: string | null
+          shop_whatsapp?: never
+          vendor_id?: string | null
+          vendor_mode?: Database["public"]["Enums"]["vendor_mode"] | null
+        }
+        Relationships: []
       }
       public_vendor_profiles: {
         Row: {
@@ -1863,6 +2143,20 @@ export type Database = {
               rule_id: string
             }[]
           }
+      resolve_contact_policy: {
+        Args: { _product_id?: string; _vendor_id: string }
+        Returns: {
+          can_contact_vendor: boolean
+          can_use_internal_messaging: boolean
+          can_use_support: boolean
+          contact_mode: Database["public"]["Enums"]["shop_contact_mode"]
+          is_commission: boolean
+          show_address: boolean
+          show_email: boolean
+          show_phone: boolean
+          show_whatsapp: boolean
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       upsert_commission_rule: {
@@ -1899,6 +2193,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      vendor_contacts_visible: {
+        Args: { _vendor_id: string }
+        Returns: boolean
+      }
       vendor_is_active: { Args: { _user_id: string }; Returns: boolean }
       vendor_publicly_visible: { Args: { _user_id: string }; Returns: boolean }
     }
@@ -1930,8 +2228,23 @@ export type Database = {
         | "variants"
         | "countries"
         | "global"
+      product_contact_override:
+        | "inherit"
+        | "allowed"
+        | "blocked"
+        | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
+      shop_contact_mode:
+        | "direct"
+        | "internal_only"
+        | "admin_only"
+        | "blocked"
+        | "after_order_only"
+      support_conv_status: "new" | "open" | "answered" | "closed" | "urgent"
+      support_conv_type: "client_support" | "client_vendor" | "vendor_admin"
+      support_priority: "low" | "normal" | "high" | "urgent"
+      support_sender_role: "client" | "vendor" | "admin" | "system"
       user_sex: "homme" | "femme"
       vendor_account_status:
         | "active"
@@ -2096,8 +2409,25 @@ export const Constants = {
         "countries",
         "global",
       ],
+      product_contact_override: [
+        "inherit",
+        "allowed",
+        "blocked",
+        "support_only",
+      ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
+      shop_contact_mode: [
+        "direct",
+        "internal_only",
+        "admin_only",
+        "blocked",
+        "after_order_only",
+      ],
+      support_conv_status: ["new", "open", "answered", "closed", "urgent"],
+      support_conv_type: ["client_support", "client_vendor", "vendor_admin"],
+      support_priority: ["low", "normal", "high", "urgent"],
+      support_sender_role: ["client", "vendor", "admin", "system"],
       user_sex: ["homme", "femme"],
       vendor_account_status: [
         "active",
