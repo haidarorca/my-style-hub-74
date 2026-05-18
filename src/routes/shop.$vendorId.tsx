@@ -72,24 +72,7 @@ function ShopPage() {
   const address = v.address as string | undefined;
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
-  const hideContact = !!v.hide_contact_publicly || v.vendor_mode === "commission";
-  const whatsapp = hideContact ? "" : ((v.shop_whatsapp as string) || (v.phone as string) || "");
   const schedule = normalizeSchedule(v.shop_hours_schedule);
-  const scheduleLabels: ScheduleLabels = {
-    closed: t("shop.closed_day"),
-    short: {
-      mon: t("shop.day.mon"), tue: t("shop.day.tue"), wed: t("shop.day.wed"),
-      thu: t("shop.day.thu"), fri: t("shop.day.fri"), sat: t("shop.day.sat"), sun: t("shop.day.sun"),
-    },
-  };
-  const scheduleSummary = summarizeSchedule(schedule, scheduleLabels);
-  const openNow = isOpenNow(schedule);
-  const verified = !!v.is_verified;
-  const productCount = products?.length ?? 0;
-
-  const waLink = whatsapp
-    ? `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(t("shop.wa_message").replace("{name}", shopName))}`
-    : null;
 
   return (
     <div className="min-h-screen bg-background">
