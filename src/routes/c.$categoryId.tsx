@@ -15,6 +15,39 @@ import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 
 export const Route = createFileRoute("/c/$categoryId")({
   component: CategoryPage,
+  loader: async ({ params }) => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("id", params.categoryId)
+        .maybeSingle();
+      return { seo: data ?? null };
+    } catch {
+      return { seo: null };
+    }
+  },
+  head: ({ params, loaderData }) => {
+    const seo = (loaderData as { seo?: { name?: string } | null } | undefined)?.seo;
+    const name = seo?.name ?? "Catégorie";
+    const title = `${name} — Kawzone`;
+    const desc = `Découvrez ${name} sur Kawzone : produits, vendeurs et livraison au Sénégal.`;
+    const url = `https://kawzone.com/c/${params.categoryId}`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: desc },
+        { property: "og:title", content: title },
+        { property: "og:description", content: desc },
+        { property: "og:url", content: url },
+        { property: "og:type", content: "website" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: desc },
+      ],
+      links: [{ rel: "canonical", href: url }],
+    };
+  },
 });
 
 function CategoryPage() {
