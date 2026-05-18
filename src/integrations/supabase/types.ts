@@ -2067,6 +2067,12 @@ export type Database = {
           product_count: number
         }[]
       }
+      get_deliverable_vendor_ids: {
+        Args: { _country_id: string }
+        Returns: {
+          id: string
+        }[]
+      }
       get_display_prices: {
         Args: { _destination_country_id?: string; _product_ids: string[] }
         Returns: {
