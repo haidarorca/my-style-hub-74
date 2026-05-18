@@ -311,10 +311,9 @@ function CartPage() {
 
   const buildDispatchGroups = (orderId: string, addr: Address): DispatchGroup[] => {
     const groups: DispatchGroup[] = [];
-    // 1) Per non-commission vendor — each gets only their items, with full customer info, sent to their shop_whatsapp
     const byVendor = new Map<string, any[]>();
     const commissionItems: any[] = [];
-    for (const it of items) {
+    for (const it of selectedItems) {
       if (isCommissionItem(it)) commissionItems.push(it);
       else {
         const vid = (it as any).products?.vendor_id;
@@ -337,7 +336,6 @@ function CartPage() {
       });
       groups.push({ id: `vendor-${vid}`, label: shopName, whatsappNumber: wa, message: msg, isAdmin: false });
     }
-    // 2) Single admin group for all commission items
     if (commissionItems.length > 0) {
       const msg = buildWhatsAppMessage(commissionItems.map(lineFor), {
         name: addr.full_name,
@@ -359,7 +357,7 @@ function CartPage() {
   };
 
   const submitOrder = async () => {
-    if (items.length === 0) return;
+    if (selectedItems.length === 0) return;
     if (!pricesReady) {
       console.info("[checkout] blocked: prices not ready", { itemCount: items.length, destinationCountryId });
       toast.error(t("common.loading"));
