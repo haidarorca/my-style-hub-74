@@ -204,7 +204,7 @@ function OrdersPage() {
       if (vendorIds.length > 0) {
         const { data: vendors } = await supabase
           .from("profiles")
-          .select("id, shop_name, full_name, shop_whatsapp, phone, hide_contact_publicly, shop_logo_url")
+          .select("id, shop_name, full_name, shop_logo_url")
           .in("id", vendorIds as string[]);
         (vendors ?? []).forEach((v: any) => vendorsMap.set(v.id, v));
       }
