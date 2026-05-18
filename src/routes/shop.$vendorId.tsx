@@ -101,7 +101,7 @@ function ShopPage() {
             <div className="-mt-10 flex items-end gap-3">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted shadow">
                 {logo ? (
-                  <img src={logo} alt={shopName} className="h-full w-full object-cover" />
+                  <img src={logo} alt={shopName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <Store className="h-8 w-8 text-muted-foreground" />
                 )}
