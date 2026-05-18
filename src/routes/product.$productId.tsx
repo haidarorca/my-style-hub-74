@@ -35,6 +35,68 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
+  loader: async ({ params }) => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, description, price, product_images(url)")
+        .eq("id", params.productId)
+        .eq("status", "approved")
+        .maybeSingle();
+      return { seo: data ?? null };
+    } catch {
+      return { seo: null };
+    }
+  },
+  head: ({ params, loaderData }) => {
+    const seo = (loaderData as { seo?: { name?: string; description?: string | null; price?: number | null; product_images?: Array<{ url: string }> } | null } | undefined)?.seo;
+    const name = seo?.name ?? "Produit";
+    const title = `${name} — Kawzone`;
+    const desc = (seo?.description ?? `${name} disponible sur Kawzone, votre marketplace au Sénégal.`).slice(0, 160);
+    const img = seo?.product_images?.[0]?.url;
+    const url = `https://kawzone.com/product/${params.productId}`;
+    const meta = [
+      { title },
+      { name: "description", content: desc },
+      { property: "og:title", content: title },
+      { property: "og:description", content: desc },
+      { property: "og:url", content: url },
+      { property: "og:type", content: "product" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: desc },
+    ];
+    if (img) {
+      meta.push({ property: "og:image", content: img });
+      meta.push({ name: "twitter:image", content: img });
+    }
+    const scripts: Array<{ type: string; children: string }> = [];
+    if (seo) {
+      scripts.push({
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name,
+          description: desc,
+          image: img ? [img] : undefined,
+          offers: seo.price != null ? {
+            "@type": "Offer",
+            price: seo.price,
+            priceCurrency: "XOF",
+            availability: "https://schema.org/InStock",
+            url,
+          } : undefined,
+        }),
+      });
+    }
+    return {
+      meta,
+      links: [{ rel: "canonical", href: url }],
+      scripts,
+    };
+  },
 });
 
 interface Variant {
