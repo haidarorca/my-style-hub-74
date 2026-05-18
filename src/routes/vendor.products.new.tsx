@@ -625,8 +625,18 @@ function NewProductPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">{t("vendor.new.variants")}</CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setOcrOpen(true)}
+            className="gap-1"
+          >
+            <Camera className="h-4 w-4" />
+            Importer depuis images
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
