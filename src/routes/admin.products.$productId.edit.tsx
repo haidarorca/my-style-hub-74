@@ -80,6 +80,7 @@ function AdminEditProductPage() {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [rejectionReason, setRejectionReason] = useState("");
   const [vendorId, setVendorId] = useState<string>("");
+  const [aiCopyOpen, setAiCopyOpen] = useState(false);
 
   // Category 3 levels (approved only)
   const [cat1, setCat1] = useState<CatPick>("");
