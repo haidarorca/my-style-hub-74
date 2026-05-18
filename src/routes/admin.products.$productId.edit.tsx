@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
 
 export const Route = createFileRoute("/admin/products/$productId/edit")({
   component: AdminEditProductPage,
@@ -523,7 +524,12 @@ function AdminEditProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Informations</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base">Informations</CardTitle>
+          <Button type="button" size="sm" variant="outline" onClick={() => setAiCopyOpen(true)} className="gap-1">
+            <Sparkles className="h-4 w-4" /> Générer avec l'IA
+          </Button>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div><Label>Nom *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
