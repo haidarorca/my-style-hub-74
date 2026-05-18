@@ -48,6 +48,7 @@ import { useSiteSettings } from "@/hooks/use-site-settings";
 import { cn } from "@/lib/utils";
 import { ReviewDialog } from "@/components/orders/ReviewDialog";
 import { ReportDialog } from "@/components/orders/ReportDialog";
+import { ContactActions } from "@/components/support/ContactActions";
 
 export const Route = createFileRoute("/orders")({
   component: OrdersPage,
