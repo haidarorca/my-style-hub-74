@@ -51,23 +51,23 @@ export const getDisplayPrices = createServerFn({ method: "POST" })
 export const getDisplayPriceLines = createServerFn({ method: "POST" })
   .inputValidator((input) => LinesInputSchema.parse(input))
   .handler(async ({ data }): Promise<DisplayPrice[]> => {
-    const rows = await Promise.all(data.lines.map(async (line) => {
-      const args: Record<string, string | null> = {
-        _product_id: line.productId,
-        _variant_id: line.variantId ?? null,
-        _destination_country_id: data.destinationCountryId ?? null,
-      };
-      const { data: result, error } = await (supabaseAdmin as any).rpc("get_product_display_price", args);
-      if (error) throw new Error(error.message);
-      const r = Array.isArray(result) ? result[0] : null;
-      return {
-        product_id: line.productId,
-        variant_id: line.variantId ?? null,
-        base_price: Number(r?.base_price ?? 0),
-        final_price: Number(r?.final_price ?? 0),
-        commission_rate: Number(r?.commission_rate ?? 0),
-        commission_amount: Number(r?.commission_amount ?? 0),
-      };
+    // Optimisation: un seul appel RPC batch au lieu de N appels en parallèle.
+    // Résultat identique à get_product_display_price ligne par ligne.
+    const payload = data.lines.map((line) => ({
+      product_id: line.productId,
+      variant_id: line.variantId ?? null,
     }));
-    return rows;
+    const { data: rows, error } = await (supabaseAdmin as any).rpc("get_display_price_lines_batch", {
+      _lines: payload,
+      _destination_country_id: data.destinationCountryId ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return ((rows ?? []) as any[]).map((r) => ({
+      product_id: r.product_id,
+      variant_id: r.variant_id ?? null,
+      base_price: Number(r.base_price ?? 0),
+      final_price: Number(r.final_price ?? 0),
+      commission_rate: Number(r.commission_rate ?? 0),
+      commission_amount: Number(r.commission_amount ?? 0),
+    }));
   });
