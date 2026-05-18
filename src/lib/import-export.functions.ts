@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -42,6 +42,20 @@ function toStr(v: unknown): string | undefined {
   return s.length ? s : undefined;
 }
 
+// Build an XLSX workbook from arrays-of-arrays sheets, returning base64.
+// SheetJS works in the Cloudflare Workers runtime (pure JS, no native deps).
+function buildXlsxBase64(sheets: { name: string; rows: (string | number)[][] }[]): string {
+  const wb = XLSX.utils.book_new();
+  for (const { name, rows } of sheets) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
+  const out = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+  return out as string;
+}
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Export
 
@@ -82,11 +96,6 @@ export const exportProducts = createServerFn({ method: "POST" })
     const { data: products, error } = await query;
     if (error) throw new Error(error.message);
 
-    // Build category lookup for parent chain
-    const catIds = new Set<string>();
-    for (const p of (products ?? []) as any[]) {
-      if (p.category_id) catIds.add(p.category_id);
-    }
     const { data: allCats } = await supabaseAdmin.from("categories").select("id, name, parent_id, level");
     const catMap = new Map<string, { id: string; name: string; parent_id: string | null; level: number }>();
     for (const c of (allCats ?? []) as any[]) catMap.set(c.id, c);
@@ -103,7 +112,6 @@ export const exportProducts = createServerFn({ method: "POST" })
       return [path[0] ?? "", path[1] ?? "", path[2] ?? ""];
     }
 
-    // Map image URL → stable image ID (per export)
     const imageIdMap = new Map<string, string>();
     let imgCounter = 0;
     function idForUrl(url: string): string {
@@ -115,10 +123,7 @@ export const exportProducts = createServerFn({ method: "POST" })
       return id;
     }
 
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("Produits");
-    ws.addRow([...IMPORT_COLUMNS]);
-    ws.getRow(1).font = { bold: true };
+    const productRows: (string | number)[][] = [[...IMPORT_COLUMNS]];
 
     for (const p of (products ?? []) as any[]) {
       const [c1, c2, c3] = categoryPath(p.category_id);
@@ -127,76 +132,40 @@ export const exportProducts = createServerFn({ method: "POST" })
         .map((i: any) => idForUrl(i.url))
         .join(",");
 
-      ws.addRow([
-        "parent",
-        "update",
-        p.code,
-        "",
-        "",
-        p.designation ?? "",
-        p.name ?? "",
-        p.description ?? "",
-        c1,
-        c2,
-        c3,
-        p.price ?? 0,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        images,
-        "",
-        "",
-        p.status ?? "",
+      productRows.push([
+        "parent", "update", p.code ?? "", "", "",
+        p.designation ?? "", p.name ?? "", p.description ?? "",
+        c1, c2, c3,
+        p.price ?? 0, "", "",
+        "", "", "", "", "", "",
+        images, "", "", p.status ?? "",
       ]);
 
       for (const v of (p.product_variants ?? []) as any[]) {
         const variantImg = v.image_url ? idForUrl(v.image_url) : "";
-        ws.addRow([
-          "variant",
-          "update",
-          p.code,
-          v.id, // variant code = variant uuid for update
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          v.price_override ?? "",
-          v.stock ?? 0,
-          v.color ? "Couleur" : "",
-          v.color ?? "",
-          v.size ? "Taille" : "",
-          v.size ?? "",
-          "",
-          "",
-          "",
-          variantImg,
-          "",
-          "",
+        productRows.push([
+          "variant", "update", p.code ?? "", v.id, "",
+          "", "", "", "", "", "",
+          "", v.price_override ?? "", v.stock ?? 0,
+          v.color ? "Couleur" : "", v.color ?? "",
+          v.size ? "Taille" : "", v.size ?? "",
+          "", "", "", variantImg, "", "",
         ]);
       }
     }
 
-    // Image legend sheet
-    const ws2 = wb.addWorksheet("Images");
-    ws2.addRow(["Image ID", "URL"]);
-    ws2.getRow(1).font = { bold: true };
-    for (const [url, id] of imageIdMap.entries()) ws2.addRow([id, url]);
+    const imageRows: (string | number)[][] = [["Image ID", "URL"]];
+    for (const [url, id] of imageIdMap.entries()) imageRows.push([id, url]);
 
-    const buf = await wb.xlsx.writeBuffer();
-    const base64 = Buffer.from(buf).toString("base64");
+    const base64 = buildXlsxBase64([
+      { name: "Produits", rows: productRows },
+      { name: "Images", rows: imageRows },
+    ]);
+
     return {
       fileName: `produits-${new Date().toISOString().slice(0, 10)}.xlsx`,
       base64,
-      mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      mime: XLSX_MIME,
       count: (products ?? []).length,
     };
   });
@@ -207,28 +176,27 @@ export const exportProducts = createServerFn({ method: "POST" })
 export const downloadTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("Produits");
-    ws.addRow([...IMPORT_COLUMNS]);
-    ws.getRow(1).font = { bold: true };
-    ws.addRow([
-      "parent", "create", "P001", "", "", "Housse DJI", "Housse DJI Osmo Pocket 3",
-      "Description du produit", "Électronique", "Accessoires", "Caméra",
-      11220, "", "", "", "", "", "", "", "", "IMG001,IMG002", "", "Sénégal", "pending",
-    ]);
-    ws.addRow([
-      "variant", "create", "P001", "P001-NOIR", "", "", "", "", "", "", "",
-      "", 11220, 10, "Couleur", "Noir", "Taille", "M", "", "", "", "IMG003", "", "active",
-    ]);
-    ws.addRow([
-      "variant", "create", "P001", "P001-BLANC", "", "", "", "", "", "", "",
-      "", 5440, 5, "Couleur", "Blanc", "Taille", "L", "", "", "", "IMG004", "", "active",
-    ]);
-    const buf = await wb.xlsx.writeBuffer();
+    const rows: (string | number)[][] = [
+      [...IMPORT_COLUMNS],
+      [
+        "parent", "create", "P001", "", "", "Housse DJI", "Housse DJI Osmo Pocket 3",
+        "Description du produit", "Électronique", "Accessoires", "Caméra",
+        11220, "", "", "", "", "", "", "", "", "IMG001,IMG002", "", "Sénégal", "pending",
+      ],
+      [
+        "variant", "create", "P001", "P001-NOIR", "", "", "", "", "", "", "",
+        "", 11220, 10, "Couleur", "Noir", "Taille", "M", "", "", "", "IMG003", "", "active",
+      ],
+      [
+        "variant", "create", "P001", "P001-BLANC", "", "", "", "", "", "", "",
+        "", 5440, 5, "Couleur", "Blanc", "Taille", "L", "", "", "", "IMG004", "", "active",
+      ],
+    ];
+    const base64 = buildXlsxBase64([{ name: "Produits", rows }]);
     return {
       fileName: "modele-import-produits.xlsx",
-      base64: Buffer.from(buf).toString("base64"),
-      mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      base64,
+      mime: XLSX_MIME,
     };
   });
 
@@ -243,47 +211,36 @@ const PreviewInput = z.object({
   zipBase64: z.string().optional(),
 });
 
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; continue; }
+    if (ch === '"') { inQ = !inQ; continue; }
+    if (ch === "," && !inQ) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
 async function parseFile(base64: string, fileName: string): Promise<string[][]> {
-  const buf = Buffer.from(base64, "base64");
   if (fileName.toLowerCase().endsWith(".csv")) {
+    const buf = Buffer.from(base64, "base64");
     const text = buf.toString("utf-8");
     return text
       .split(/\r?\n/)
       .filter((l) => l.trim().length > 0)
-      .map((line) => {
-        // simple CSV parser handling quoted fields
-        const out: string[] = [];
-        let cur = "";
-        let inQ = false;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; continue; }
-          if (ch === '"') { inQ = !inQ; continue; }
-          if (ch === "," && !inQ) { out.push(cur); cur = ""; continue; }
-          cur += ch;
-        }
-        out.push(cur);
-        return out;
-      });
+      .map(parseCsvLine);
   }
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as any);
-  const ws = wb.worksheets[0];
-  const rows: string[][] = [];
-  ws.eachRow((row) => {
-    const arr: string[] = [];
-    const len = Math.max(IMPORT_COLUMNS.length, row.cellCount);
-    for (let i = 1; i <= len; i++) {
-      const cell = row.getCell(i);
-      const v = cell.value;
-      if (v === null || v === undefined) arr.push("");
-      else if (typeof v === "object" && "text" in (v as any)) arr.push(String((v as any).text ?? ""));
-      else if (typeof v === "object" && "result" in (v as any)) arr.push(String((v as any).result ?? ""));
-      else arr.push(String(v));
-    }
-    rows.push(arr);
-  });
-  return rows;
+  // XLSX (SheetJS) — Worker-compatible
+  const wb = XLSX.read(base64, { type: "base64" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return [];
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false, defval: "" });
+  return aoa.map((row) => (row ?? []).map((c) => (c === null || c === undefined ? "" : String(c))));
 }
 
 function parseRows(matrix: string[][]): { rows: ParsedRow[]; errors: PreviewError[] } {
@@ -381,12 +338,10 @@ export const previewImport = createServerFn({ method: "POST" })
     const matrix = await parseFile(data.fileBase64, data.fileName);
     const { rows, errors } = parseRows(matrix);
 
-    // Categories existence check
     const { data: allCats } = await supabaseAdmin.from("categories").select("id, name, parent_id, level");
     const catByName = new Map<string, { id: string; parent_id: string | null; level: number }>();
     for (const c of (allCats ?? []) as any[]) catByName.set(c.name.toLowerCase(), c);
 
-    // Existing product codes for this shop
     const codes = Array.from(new Set(rows.map((r) => r.productCode)));
     const { data: existing } = await supabaseAdmin
       .from("products")
@@ -395,7 +350,6 @@ export const previewImport = createServerFn({ method: "POST" })
       .in("code", codes);
     const existingCodes = new Set(((existing ?? []) as any[]).map((p) => p.code));
 
-    // Image IDs referenced
     const referencedIds = new Set<string>();
     for (const r of rows) {
       r.productImages.forEach((id) => referencedIds.add(id));
@@ -405,7 +359,6 @@ export const previewImport = createServerFn({ method: "POST" })
     const imageMap = await buildImageMap(data.zipBase64);
     const imageIds = Array.from(referencedIds).map((id) => ({ id, resolved: !!imageMap[id] }));
 
-    // Validate each row
     let toCreate = 0, toUpdate = 0, toDelete = 0, parents = 0, variants = 0;
     for (const r of rows) {
       if (r.type === "parent") parents++; else variants++;
@@ -452,7 +405,6 @@ export const previewImport = createServerFn({ method: "POST" })
       warnings: errors.filter((e) => e.severity === "warning").length,
     };
 
-    // Persist preview
     const { data: ins, error: insErr } = await supabaseAdmin
       .from("product_imports")
       .insert({
@@ -496,12 +448,10 @@ export const commitImport = createServerFn({ method: "POST" })
     const imageMap = (row.image_map ?? {}) as Record<string, string>;
     const isAdmin = row.scope === "admin";
 
-    // Build category lookup
     const { data: allCats } = await supabaseAdmin.from("categories").select("id, name");
     const catByName = new Map<string, string>();
     for (const c of (allCats ?? []) as any[]) catByName.set(c.name.toLowerCase(), c.id);
 
-    // Group rows by product code
     const groups = new Map<string, ParsedRow[]>();
     for (const r of rows) {
       if (r.action === "ignore") continue;
@@ -517,7 +467,6 @@ export const commitImport = createServerFn({ method: "POST" })
         const parent = group.find((g) => g.type === "parent");
         const variants = group.filter((g) => g.type === "variant");
 
-        // Resolve / create product
         const { data: existing } = await supabaseAdmin
           .from("products")
           .select("id")
@@ -573,7 +522,6 @@ export const commitImport = createServerFn({ method: "POST" })
           continue;
         }
 
-        // Images : if parent provides images, replace gallery
         if (parent && parent.productImages.length) {
           const urls = parent.productImages.map((id) => imageMap[id]).filter(Boolean);
           if (urls.length) {
@@ -584,7 +532,6 @@ export const commitImport = createServerFn({ method: "POST" })
           }
         }
 
-        // Variants
         for (const v of variants) {
           if (v.action === "delete" && v.variantCode) {
             await supabaseAdmin.from("product_variants").delete().eq("id", v.variantCode).eq("product_id", productId);
@@ -641,7 +588,6 @@ export const listImports = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // Restrict to own imports unless admin
     const { data: roles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
