@@ -1,6 +1,8 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, MessageSquare, LifeBuoy } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
@@ -9,6 +11,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { SearchAutocomplete } from "@/components/layout/SearchAutocomplete";
 import { Button } from "@/components/ui/button";
+import { getUnreadCount } from "@/lib/support.functions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +30,13 @@ export function AppHeader() {
   const { t } = useI18n();
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const unreadFn = useServerFn(getUnreadCount);
+  const { data: unread = 0 } = useQuery({
+    queryKey: ["support-unread", user?.id ?? "anon"],
+    queryFn: () => unreadFn(),
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,8 +87,13 @@ export function AppHeader() {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
+                <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full sm:h-9 sm:w-9">
                   <User className="h-[18px] w-[18px]" />
+                  {unread > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -93,7 +108,12 @@ export function AppHeader() {
                   <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/messages"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</Link>
+                  <Link to="/messages" className="flex items-center justify-between gap-2 w-full">
+                    <span className="flex items-center"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</span>
+                    {unread > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{unread}</span>
+                    )}
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/support"><LifeBuoy className="mr-2 h-4 w-4" /> Support</Link>

@@ -12,7 +12,6 @@ import {
   Home,
   XCircle,
   RefreshCcw,
-  MessageCircle,
   Phone,
   Star,
   ChevronRight,
@@ -48,6 +47,7 @@ import { useSiteSettings } from "@/hooks/use-site-settings";
 import { cn } from "@/lib/utils";
 import { ReviewDialog } from "@/components/orders/ReviewDialog";
 import { ReportDialog } from "@/components/orders/ReportDialog";
+import { ContactActions } from "@/components/support/ContactActions";
 
 export const Route = createFileRoute("/orders")({
   component: OrdersPage,
@@ -203,7 +203,7 @@ function OrdersPage() {
       if (vendorIds.length > 0) {
         const { data: vendors } = await supabase
           .from("profiles")
-          .select("id, shop_name, full_name, shop_whatsapp, phone, hide_contact_publicly, shop_logo_url")
+          .select("id, shop_name, full_name, shop_logo_url")
           .in("id", vendorIds as string[]);
         (vendors ?? []).forEach((v: any) => vendorsMap.set(v.id, v));
       }
@@ -260,14 +260,6 @@ function OrdersPage() {
     const ok = await updateStatus(confirmAction.orderId, "delivered");
     if (ok) toast.success("Réception confirmée. Merci !");
     setConfirmAction(null);
-  };
-
-  const buildWa = (phone: string, orderId: string, vendorName?: string) => {
-    const clean = cleanPhone(phone);
-    const msg = encodeURIComponent(
-      `Bonjour${vendorName ? ` ${vendorName}` : ""}, je vous contacte au sujet de ma commande #${orderId.slice(0, 8)}.`,
-    );
-    return `https://wa.me/${clean.replace("+", "")}?text=${msg}`;
   };
 
   if (!user) {
@@ -436,12 +428,7 @@ function OrdersPage() {
               (s: number, i: any) => s + Number(i.unit_price) * i.quantity,
               0,
             );
-            const vendorWa = (v: any) => {
-              if (!v) return "";
-              if (v.hide_contact_publicly) return "";
-              return (v.shop_whatsapp as string) || (v.phone as string) || "";
-            };
-            const supportWa = settings?.whatsapp_number || "";
+            
             const uniqueVendors = Array.from(
               new Map(openOrder.items.map((i: any) => [i.vendor_id, i.vendor])).values(),
             ).filter(Boolean);
@@ -491,18 +478,13 @@ function OrdersPage() {
                         <XCircle className="mr-1.5 h-4 w-4" /> Annuler
                       </Button>
                     )}
-                    {supportWa && (
-                      <a
-                        href={`https://wa.me/${cleanPhone(supportWa).replace("+", "")}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide concernant ma commande #${openOrder.id.slice(0, 8)}.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cn(canCancel ? "" : "col-span-2")}
-                      >
-                        <Button variant="outline" className="w-full rounded-xl border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700">
-                          <MessageCircle className="mr-1.5 h-4 w-4" /> Support
-                        </Button>
-                      </a>
-                    )}
+                    <div className={cn("col-span-2 flex flex-wrap gap-2")}>
+                      <ContactActions
+                        vendorId={openOrder.items[0]?.vendor_id ?? ""}
+                        orderId={openOrder.id}
+                        productName={`Commande #${openOrder.id.slice(0, 8)}`}
+                      />
+                    </div>
                   </section>
 
                   {/* Articles groupés par vendeur */}
@@ -512,7 +494,6 @@ function OrdersPage() {
                     </h3>
                     {uniqueVendors.map((v: any) => {
                       const vendorItems = openOrder.items.filter((i: any) => i.vendor_id === v.id);
-                      const wa = vendorWa(v);
                       return (
                         <div key={v.id} className="overflow-hidden rounded-xl border bg-card">
                           <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
@@ -539,16 +520,7 @@ function OrdersPage() {
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                             </Link>
                             <div className="flex shrink-0 items-center gap-1.5">
-                              {wa && (
-                                <a
-                                  href={buildWa(wa, openOrder.id, v.shop_name)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                                >
-                                  <MessageCircle className="h-3 w-3" /> WhatsApp
-                                </a>
-                              )}
+                              <ContactActions vendorId={v.id} orderId={openOrder.id} productName={v.shop_name ?? "Boutique"} className="flex flex-wrap gap-1" />
                               {canReview && (
                                 <button
                                   onClick={() =>

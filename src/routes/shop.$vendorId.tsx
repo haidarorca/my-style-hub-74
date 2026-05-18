@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Store, BadgeCheck, Clock, MapPin, Phone } from "lucide-react";
+import { Store, BadgeCheck, Clock, MapPin } from "lucide-react";
+import { ContactActions } from "@/components/support/ContactActions";
 import { useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -71,8 +72,6 @@ function ShopPage() {
   const address = v.address as string | undefined;
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
-  const hideContact = !!v.hide_contact_publicly || v.vendor_mode === "commission";
-  const whatsapp = hideContact ? "" : ((v.shop_whatsapp as string) || (v.phone as string) || "");
   const schedule = normalizeSchedule(v.shop_hours_schedule);
   const scheduleLabels: ScheduleLabels = {
     closed: t("shop.closed_day"),
@@ -85,10 +84,6 @@ function ShopPage() {
   const openNow = isOpenNow(schedule);
   const verified = !!v.is_verified;
   const productCount = products?.length ?? 0;
-
-  const waLink = whatsapp
-    ? `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(t("shop.wa_message").replace("{name}", shopName))}`
-    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -130,16 +125,9 @@ function ShopPage() {
               {address && <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{address}</span></div>}
             </div>
 
-            {waLink && (
-              <a
-                href={waLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-sm font-semibold text-white shadow active:scale-[0.99]"
-              >
-                <Phone className="h-4 w-4" /> {t("shop.contact_wa")}
-              </a>
-            )}
+            <div className="mt-4">
+              <ContactActions vendorId={vendorId} productName={shopName} className="flex flex-wrap gap-2" />
+            </div>
           </div>
         </section>
 
