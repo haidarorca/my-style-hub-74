@@ -31,6 +31,7 @@ import { Route as VendorPreparationRouteImport } from './routes/vendor.preparati
 import { Route as VendorOrdersRouteImport } from './routes/vendor.orders'
 import { Route as VendorNotificationsRouteImport } from './routes/vendor.notifications'
 import { Route as VendorMessagesRouteImport } from './routes/vendor.messages'
+import { Route as VendorImportExportRouteImport } from './routes/vendor.import-export'
 import { Route as ShopVendorIdRouteImport } from './routes/shop.$vendorId'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CCategoryIdRouteImport } from './routes/c.$categoryId'
@@ -172,6 +173,11 @@ const VendorNotificationsRoute = VendorNotificationsRouteImport.update({
 const VendorMessagesRoute = VendorMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => VendorRoute,
+} as any)
+const VendorImportExportRoute = VendorImportExportRouteImport.update({
+  id: '/import-export',
+  path: '/import-export',
   getParentRoute: () => VendorRoute,
 } as any)
 const ShopVendorIdRoute = ShopVendorIdRouteImport.update({
@@ -373,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -426,6 +433,7 @@ export interface FileRoutesByTo {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -483,6 +491,7 @@ export interface FileRoutesById {
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/shop/$vendorId': typeof ShopVendorIdRoute
+  '/vendor/import-export': typeof VendorImportExportRoute
   '/vendor/messages': typeof VendorMessagesRoute
   '/vendor/notifications': typeof VendorNotificationsRoute
   '/vendor/orders': typeof VendorOrdersRoute
@@ -541,6 +550,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -594,6 +604,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -650,6 +661,7 @@ export interface FileRouteTypes {
     | '/c/$categoryId'
     | '/product/$productId'
     | '/shop/$vendorId'
+    | '/vendor/import-export'
     | '/vendor/messages'
     | '/vendor/notifications'
     | '/vendor/orders'
@@ -848,6 +860,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/vendor/messages'
       preLoaderRoute: typeof VendorMessagesRouteImport
+      parentRoute: typeof VendorRoute
+    }
+    '/vendor/import-export': {
+      id: '/vendor/import-export'
+      path: '/import-export'
+      fullPath: '/vendor/import-export'
+      preLoaderRoute: typeof VendorImportExportRouteImport
       parentRoute: typeof VendorRoute
     }
     '/shop/$vendorId': {
@@ -1167,6 +1186,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface VendorRouteChildren {
+  VendorImportExportRoute: typeof VendorImportExportRoute
   VendorMessagesRoute: typeof VendorMessagesRoute
   VendorNotificationsRoute: typeof VendorNotificationsRoute
   VendorOrdersRoute: typeof VendorOrdersRoute
@@ -1181,6 +1201,7 @@ interface VendorRouteChildren {
 }
 
 const VendorRouteChildren: VendorRouteChildren = {
+  VendorImportExportRoute: VendorImportExportRoute,
   VendorMessagesRoute: VendorMessagesRoute,
   VendorNotificationsRoute: VendorNotificationsRoute,
   VendorOrdersRoute: VendorOrdersRoute,
