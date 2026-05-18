@@ -21,7 +21,7 @@ const ModerationInput = z.object({
   page: z.number().int().min(1).max(10_000).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   q: z.string().trim().max(200).default(""),
-  status: z.enum(["all", "pending", "approved", "rejected"]).default("pending"),
+  status: z.enum(["all", "pending", "approved", "rejected", "archived"]).default("pending"),
   kind: z.enum(["all", "new", "edit"]).default("all"),
   sort: z.enum(["created_at", "updated_at", "price", "name"]).default("created_at"),
   dir: z.enum(["asc", "desc"]).default("desc"),
@@ -34,6 +34,7 @@ export type AdminProductRow = {
   price: number;
   status: "pending" | "approved" | "rejected";
   is_edit: boolean | null;
+  is_archived: boolean;
   rejection_reason: string | null;
   vendor_id: string;
   vendor_shop_name: string | null;
@@ -49,7 +50,7 @@ export type AdminProductsPage = {
   total: number;
   page: number;
   pageSize: number;
-  totals: { pending: number; approved: number; rejected: number; edits_pending: number };
+  totals: { pending: number; approved: number; rejected: number; edits_pending: number; archived: number };
 };
 
 export const listAdminProducts = createServerFn({ method: "POST" })
