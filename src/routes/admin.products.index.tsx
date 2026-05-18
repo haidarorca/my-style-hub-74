@@ -243,10 +243,11 @@ function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelP
             >
               <SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="all">Actifs (non archivés)</SelectItem>
                 <SelectItem value="pending">À valider</SelectItem>
                 <SelectItem value="approved">Approuvés</SelectItem>
                 <SelectItem value="rejected">Rejetés</SelectItem>
+                <SelectItem value="archived">Archivés</SelectItem>
               </SelectContent>
             </Select>
             <Select
