@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { CommissionPricePreview } from "@/components/product/CommissionPricePreview";
+
 
 export const Route = createFileRoute("/vendor/products/new")({
   component: NewProductPage,
