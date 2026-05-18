@@ -1299,6 +1299,7 @@ export type Database = {
       }
       products: {
         Row: {
+          archived_at: string | null
           category_id: string | null
           code: string
           contact_override: Database["public"]["Enums"]["product_contact_override"]
@@ -1323,6 +1324,7 @@ export type Database = {
           views_count: number
         }
         Insert: {
+          archived_at?: string | null
           category_id?: string | null
           code: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
@@ -1347,6 +1349,7 @@ export type Database = {
           views_count?: number
         }
         Update: {
+          archived_at?: string | null
           category_id?: string | null
           code?: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
