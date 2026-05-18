@@ -1455,6 +1455,7 @@ export type Database = {
           suspended_at: string | null
           suspended_reason: string | null
           updated_at: string
+          vendor_contact_force_visible: boolean
           vendor_mode: Database["public"]["Enums"]["vendor_mode"]
           vendor_status: Database["public"]["Enums"]["vendor_account_status"]
         }
@@ -1497,6 +1498,7 @@ export type Database = {
           suspended_at?: string | null
           suspended_reason?: string | null
           updated_at?: string
+          vendor_contact_force_visible?: boolean
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
           vendor_status?: Database["public"]["Enums"]["vendor_account_status"]
         }
@@ -1539,6 +1541,7 @@ export type Database = {
           suspended_at?: string | null
           suspended_reason?: string | null
           updated_at?: string
+          vendor_contact_force_visible?: boolean
           vendor_mode?: Database["public"]["Enums"]["vendor_mode"]
           vendor_status?: Database["public"]["Enums"]["vendor_account_status"]
         }
