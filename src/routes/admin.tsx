@@ -87,7 +87,9 @@ function AdminLayout() {
         </nav>
       </header>
       <main className="mx-auto max-w-7xl p-3 pb-safe">
-        <Outlet />
+        <ErrorBoundary label="Admin" resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );
