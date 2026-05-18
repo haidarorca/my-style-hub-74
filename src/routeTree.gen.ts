@@ -59,6 +59,7 @@ import { Route as VendorProductsIndexRouteImport } from './routes/vendor.product
 import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
+import { Route as AdminSupportConversationIdRouteImport } from './routes/admin.support.$conversationId'
 import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.customers.$userId'
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
 import { Route as AdminCommissionsHubRouteImport } from './routes/admin.commissions.hub'
@@ -320,6 +321,12 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSupportConversationIdRoute =
+  AdminSupportConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AdminSupportRoute,
+  } as any)
 const AdminCustomersUserIdRoute = AdminCustomersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
@@ -409,7 +416,7 @@ export interface FileRoutesByFullPath {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
-  '/admin/support': typeof AdminSupportRoute
+  '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -427,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
@@ -468,7 +476,7 @@ export interface FileRoutesByTo {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
-  '/admin/support': typeof AdminSupportRoute
+  '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -486,6 +494,7 @@ export interface FileRoutesByTo {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products': typeof AdminProductsIndexRoute
@@ -531,7 +540,7 @@ export interface FileRoutesById {
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shops': typeof AdminShopsRoute
-  '/admin/support': typeof AdminSupportRoute
+  '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
   '/c/$categoryId': typeof CCategoryIdRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -549,6 +558,7 @@ export interface FileRoutesById {
   '/admin/commissions/hub': typeof AdminCommissionsHubRoute
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
+  '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
@@ -613,6 +623,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/admin/support/$conversationId'
     | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products/'
@@ -672,6 +683,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/admin/support/$conversationId'
     | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products'
@@ -734,6 +746,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/hub'
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
+    | '/admin/support/$conversationId'
     | '/api/public/inngest'
     | '/vendor/products/new'
     | '/admin/products/'
@@ -1121,6 +1134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/support/$conversationId': {
+      id: '/admin/support/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/admin/support/$conversationId'
+      preLoaderRoute: typeof AdminSupportConversationIdRouteImport
+      parentRoute: typeof AdminSupportRoute
+    }
     '/admin/customers/$userId': {
       id: '/admin/customers/$userId'
       path: '/$userId'
@@ -1235,6 +1255,18 @@ const AdminProductsRouteWithChildren = AdminProductsRoute._addFileChildren(
   AdminProductsRouteChildren,
 )
 
+interface AdminSupportRouteChildren {
+  AdminSupportConversationIdRoute: typeof AdminSupportConversationIdRoute
+}
+
+const AdminSupportRouteChildren: AdminSupportRouteChildren = {
+  AdminSupportConversationIdRoute: AdminSupportConversationIdRoute,
+}
+
+const AdminSupportRouteWithChildren = AdminSupportRoute._addFileChildren(
+  AdminSupportRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
@@ -1252,7 +1284,7 @@ interface AdminRouteChildren {
   AdminReviewsRoute: typeof AdminReviewsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminShopsRoute: typeof AdminShopsRoute
-  AdminSupportRoute: typeof AdminSupportRoute
+  AdminSupportRoute: typeof AdminSupportRouteWithChildren
   AdminVendorsRoute: typeof AdminVendorsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminShopsShopIdGeneratorRoute: typeof AdminShopsShopIdGeneratorRoute
@@ -1278,7 +1310,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReviewsRoute: AdminReviewsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminShopsRoute: AdminShopsRoute,
-  AdminSupportRoute: AdminSupportRoute,
+  AdminSupportRoute: AdminSupportRouteWithChildren,
   AdminVendorsRoute: AdminVendorsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminShopsShopIdGeneratorRoute: AdminShopsShopIdGeneratorRoute,
