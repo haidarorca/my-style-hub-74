@@ -259,6 +259,103 @@ function NewProductPage() {
   const toggleColor = (c: string) =>
     setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
+  // ---------------------- OCR variantes (vendeur) ----------------------
+  function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+    setOcrFiles((prev) => [...prev, ...files].slice(0, 10));
+    e.target.value = "";
+  }
+  async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("Lecture image impossible"));
+      r.readAsDataURL(file);
+    });
+  }
+  async function handleOcrAnalyze() {
+    if (ocrFiles.length === 0) return;
+    setOcrLoading(true);
+    setOcrError(null);
+    setOcrResult(null);
+    const progressToast = toast.loading("Analyse des images…");
+    try {
+      const dataUrls = await Promise.all(ocrFiles.map(fileToDataUrl));
+      const r = (await Promise.race([
+        analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } }),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("Analyse OCR a expiré.")), OCR_TIMEOUT_MS),
+        ),
+      ])) as { variants: OcrVariant[] };
+      toast.dismiss(progressToast);
+      const safe = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
+      setOcrResult({ variants: safe });
+      setOcrSelected(new Set(safe.map((_, i) => i)));
+      if (safe.length === 0) toast.warning("Aucune variante détectée.");
+      else toast.success(`${safe.length} variante(s) détectée(s).`);
+    } catch (err) {
+      toast.dismiss(progressToast);
+      logError({
+        type: "manual",
+        message: err instanceof Error ? err.message : "Échec OCR",
+        stack: err instanceof Error ? err.stack : undefined,
+        url: window.location.href,
+      });
+      const msg = humanizeOcrError(err);
+      setOcrError(msg);
+      toast.error(msg);
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+  function applyOcrVariants(onlySelected = false) {
+    if (!ocrResult) return;
+    const sourceFiles = ocrFiles.slice();
+    const picked = onlySelected
+      ? ocrResult.variants.filter((_, i) => ocrSelected.has(i))
+      : ocrResult.variants;
+    if (picked.length === 0) { toast.error("Aucune variante sélectionnée."); return; }
+    const rows: VariantInput[] = picked.map((v) => {
+      const idx = v.source_image_index;
+      const file = idx !== null && idx !== undefined ? sourceFiles[idx] ?? null : null;
+      return {
+        size: v.size,
+        color: v.color || v.name,
+        color_hex: "",
+        stock: 0,
+        price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+        image_file: file,
+      };
+    });
+    setImages((prev) => {
+      const next = [...prev];
+      const keys = new Set(next.map((f) => `${f.name}|${f.size}`));
+      const referenced = new Set<number>();
+      for (const v of picked) {
+        if (v.source_image_index !== null && v.source_image_index !== undefined) {
+          referenced.add(v.source_image_index);
+        }
+      }
+      for (const i of referenced) {
+        const f = sourceFiles[i];
+        if (!f) continue;
+        if (next.length >= 8) break;
+        const k = `${f.name}|${f.size}`;
+        if (!keys.has(k)) { next.push(f); keys.add(k); }
+      }
+      return next;
+    });
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setOcrOpen(false);
+    setOcrFiles([]);
+    setOcrResult(null);
+    setOcrSelected(new Set());
+    setOcrHint("");
+  }
+  // ---------------------- /OCR variantes ----------------------
+
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
