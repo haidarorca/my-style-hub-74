@@ -144,22 +144,53 @@ function AuthTicketForm() {
 
 function PublicTicketForm() {
   const createFn = useServerFn(createPublicSupportTicket);
-  const [name, setName] = useState(""); const [email, setEmail] = useState("");
-  const [subject, setSubject] = useState(""); const [body, setBody] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
+  const nameTrimmed = name.trim();
+  const emailTrimmed = email.trim();
+  const subjectTrimmed = subject.trim();
+  const bodyTrimmed = body.trim();
+
+  const nameError = nameTrimmed.length === 0 && name.length > 0 ? "Le nom est requis." : null;
+  const emailError = emailTrimmed.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed) ? "Veuillez saisir une adresse email valide." : null;
+  const subjectError = subjectTrimmed.length === 1 ? "Le sujet doit contenir au moins 2 caractères." : null;
+  const bodyError = bodyTrimmed.length === 0 && body.length > 0 ? "Le message ne peut pas être vide." : null;
+
+  const canSubmit = nameTrimmed.length >= 1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed) && (subjectTrimmed.length === 0 || subjectTrimmed.length >= 2) && bodyTrimmed.length >= 1;
+
   const m = useMutation({
-    mutationFn: () => createFn({ data: { name: name.trim(), email: email.trim(), subject: subject.trim() || "Demande", body: body.trim() } }),
+    mutationFn: () => createFn({ data: { name: nameTrimmed, email: emailTrimmed, subject: subjectTrimmed || "Demande", body: bodyTrimmed } }),
     onSuccess: () => { toast.success("Demande envoyée. Nous vous répondrons par email."); setName(""); setEmail(""); setSubject(""); setBody(""); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyFormError(e)),
   });
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
-        <div><Label>Nom</Label><Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} /></div>
-        <div><Label>Email</Label><Input type="email" value={email} maxLength={200} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div>
+          <Label>Nom</Label>
+          <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+          {nameError && <p className="mt-1 text-xs text-destructive">{nameError}</p>}
+        </div>
+        <div>
+          <Label>Email</Label>
+          <Input type="email" value={email} maxLength={200} onChange={(e) => setEmail(e.target.value)} />
+          {emailError && <p className="mt-1 text-xs text-destructive">{emailError}</p>}
+        </div>
       </div>
-      <div><Label>Sujet</Label><Input value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} /></div>
-      <div><Label>Message</Label><Textarea rows={5} maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)} /></div>
-      <Button onClick={() => m.mutate()} disabled={!name.trim() || !email.trim() || !body.trim() || m.isPending} className="w-full gap-2">
+      <div>
+        <Label>Sujet</Label>
+        <Input value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+        {subjectError && <p className="mt-1 text-xs text-destructive">{subjectError}</p>}
+      </div>
+      <div>
+        <Label>Message</Label>
+        <Textarea rows={5} maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)} />
+        {bodyError && <p className="mt-1 text-xs text-destructive">{bodyError}</p>}
+      </div>
+      <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending} className="w-full gap-2">
         <Send className="h-4 w-4" /> Envoyer
       </Button>
       <p className="text-[10px] text-muted-foreground">Connectez-vous pour suivre vos demandes dans Mes messages.</p>
