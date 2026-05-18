@@ -1,10 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X, Sparkles, Clock } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Upload,
+  X,
+  Sparkles,
+  Clock,
+  Camera,
+  Loader2,
+  Wand2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { autoTranslateProduct } from "@/lib/auto-translate";
+import { analyzeVariantsFromImages } from "@/lib/admin-generator.functions";
+import { humanizeOcrError } from "@/lib/admin-error-messages";
+import { logError } from "@/lib/error-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
@@ -18,6 +32,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 
 export const Route = createFileRoute("/vendor/products/new")({
@@ -85,6 +106,29 @@ function NewProductPage() {
   const [allowAllColors, setAllowAllColors] = useState(false);
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // OCR: import des variantes depuis des captures (taille / couleur / prix)
+  const analyzeVariantsImg = useServerFn(analyzeVariantsFromImages);
+  const OCR_TIMEOUT_MS = 45_000;
+  type OcrVariant = {
+    name: string; color: string; size: string;
+    price_xof_detected: number; source_image_index: number | null;
+  };
+  const [ocrOpen, setOcrOpen] = useState(false);
+  const [ocrFiles, setOcrFiles] = useState<File[]>([]);
+  const [ocrHint, setOcrHint] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ variants: OcrVariant[] } | null>(null);
+  const [ocrSelected, setOcrSelected] = useState<Set<number>>(new Set());
+
+  const ocrFileUrls = useMemo(
+    () => ocrFiles.map((f) => URL.createObjectURL(f)),
+    [ocrFiles],
+  );
+  useEffect(() => {
+    return () => { ocrFileUrls.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [ocrFileUrls]);
 
   // Approved categories (all levels)
   const { data: cats } = useQuery({
@@ -214,6 +258,103 @@ function NewProductPage() {
     setAllowedFonts((prev) => (checked ? [...prev, f] : prev.filter((x) => x !== f)));
   const toggleColor = (c: string) =>
     setAllowedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+
+  // ---------------------- OCR variantes (vendeur) ----------------------
+  function onPickOcrFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+    setOcrFiles((prev) => [...prev, ...files].slice(0, 10));
+    e.target.value = "";
+  }
+  async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("Lecture image impossible"));
+      r.readAsDataURL(file);
+    });
+  }
+  async function handleOcrAnalyze() {
+    if (ocrFiles.length === 0) return;
+    setOcrLoading(true);
+    setOcrError(null);
+    setOcrResult(null);
+    const progressToast = toast.loading("Analyse des images…");
+    try {
+      const dataUrls = await Promise.all(ocrFiles.map(fileToDataUrl));
+      const r = (await Promise.race([
+        analyzeVariantsImg({ data: { images: dataUrls, hint: ocrHint } }),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("Analyse OCR a expiré.")), OCR_TIMEOUT_MS),
+        ),
+      ])) as { variants: OcrVariant[] };
+      toast.dismiss(progressToast);
+      const safe = Array.isArray(r.variants) ? r.variants.slice(0, 60) : [];
+      setOcrResult({ variants: safe });
+      setOcrSelected(new Set(safe.map((_, i) => i)));
+      if (safe.length === 0) toast.warning("Aucune variante détectée.");
+      else toast.success(`${safe.length} variante(s) détectée(s).`);
+    } catch (err) {
+      toast.dismiss(progressToast);
+      logError({
+        type: "manual",
+        message: err instanceof Error ? err.message : "Échec OCR",
+        stack: err instanceof Error ? err.stack : undefined,
+        url: window.location.href,
+      });
+      const msg = humanizeOcrError(err);
+      setOcrError(msg);
+      toast.error(msg);
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+  function applyOcrVariants(onlySelected = false) {
+    if (!ocrResult) return;
+    const sourceFiles = ocrFiles.slice();
+    const picked = onlySelected
+      ? ocrResult.variants.filter((_, i) => ocrSelected.has(i))
+      : ocrResult.variants;
+    if (picked.length === 0) { toast.error("Aucune variante sélectionnée."); return; }
+    const rows: VariantInput[] = picked.map((v) => {
+      const idx = v.source_image_index;
+      const file = idx !== null && idx !== undefined ? sourceFiles[idx] ?? null : null;
+      return {
+        size: v.size,
+        color: v.color || v.name,
+        color_hex: "",
+        stock: 0,
+        price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
+        image_file: file,
+      };
+    });
+    setImages((prev) => {
+      const next = [...prev];
+      const keys = new Set(next.map((f) => `${f.name}|${f.size}`));
+      const referenced = new Set<number>();
+      for (const v of picked) {
+        if (v.source_image_index !== null && v.source_image_index !== undefined) {
+          referenced.add(v.source_image_index);
+        }
+      }
+      for (const i of referenced) {
+        const f = sourceFiles[i];
+        if (!f) continue;
+        if (next.length >= 8) break;
+        const k = `${f.name}|${f.size}`;
+        if (!keys.has(k)) { next.push(f); keys.add(k); }
+      }
+      return next;
+    });
+    setVariants((prev) => [...prev, ...rows]);
+    toast.success(`${rows.length} variante(s) ajoutée(s).`);
+    setOcrOpen(false);
+    setOcrFiles([]);
+    setOcrResult(null);
+    setOcrSelected(new Set());
+    setOcrHint("");
+  }
+  // ---------------------- /OCR variantes ----------------------
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -484,8 +625,18 @@ function NewProductPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">{t("vendor.new.variants")}</CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setOcrOpen(true)}
+            className="gap-1"
+          >
+            <Camera className="h-4 w-4" />
+            Importer depuis images
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
@@ -626,6 +777,170 @@ function NewProductPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={ocrOpen} onOpenChange={setOcrOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Importer les variantes depuis des images
+            </DialogTitle>
+            <DialogDescription>
+              Envoyez jusqu'à 10 captures qui montrent vos tailles, couleurs et prix.
+              L'IA détecte automatiquement les combinaisons et le prix en FCFA.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{ocrFiles.length} / 10 image(s)</span>
+              {ocrFiles.length > 0 && (
+                <button type="button" className="underline" onClick={() => setOcrFiles([])}>
+                  Tout retirer
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto rounded border bg-muted/20 p-2 sm:grid-cols-5">
+              {ocrFiles.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="relative aspect-square overflow-hidden rounded border bg-background">
+                  <img src={ocrFileUrls[i]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <span className="absolute left-0.5 top-0.5 rounded bg-background/85 px-1 text-[9px] font-medium">#{i + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => setOcrFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="absolute right-0 top-0 rounded-bl bg-background/85 p-0.5"
+                    aria-label="Retirer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {ocrFiles.length < 10 && (
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed text-[10px] text-muted-foreground hover:bg-accent">
+                  <Upload className="h-4 w-4" />
+                  Ajouter
+                  <input type="file" accept="image/*" multiple onChange={onPickOcrFiles} className="hidden" />
+                </label>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">Indice (optionnel)</Label>
+              <Input
+                value={ocrHint}
+                onChange={(e) => setOcrHint(e.target.value)}
+                placeholder="Ex. Couleurs en image 1, tailles en image 2"
+                className="h-8"
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleOcrAnalyze}
+              disabled={ocrLoading || ocrFiles.length === 0}
+              className="w-full gap-2"
+            >
+              {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {ocrLoading ? "Analyse…" : "Analyser les images"}
+            </Button>
+
+            {ocrError && (
+              <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                {ocrError}
+              </div>
+            )}
+
+            {ocrResult && ocrResult.variants.length > 0 && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>{ocrSelected.size} / {ocrResult.variants.length} sélectionnée(s)</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => setOcrSelected(new Set(ocrResult.variants.map((_, i) => i)))}
+                    >
+                      Tout cocher
+                    </button>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => setOcrSelected(new Set())}
+                    >
+                      Décocher
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto rounded border bg-background">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/80 text-left text-[10px] uppercase">
+                      <tr>
+                        <th className="w-7 p-1.5"></th>
+                        <th className="p-1.5">Variante</th>
+                        <th className="p-1.5">Image</th>
+                        <th className="p-1.5">Prix suggéré (FCFA)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ocrResult.variants.map((v, i) => {
+                        const checked = ocrSelected.has(i);
+                        const srcIdx = v.source_image_index;
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-t cursor-pointer ${checked ? "" : "opacity-50"}`}
+                            onClick={() => {
+                              setOcrSelected((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(i)) n.delete(i);
+                                else n.add(i);
+                                return n;
+                              });
+                            }}
+                          >
+                            <td className="p-1.5">
+                              <input type="checkbox" checked={checked} onChange={() => {}} className="h-3.5 w-3.5" />
+                            </td>
+                            <td className="p-1.5">{v.name}</td>
+                            <td className="p-1.5">
+                              {srcIdx !== null && srcIdx !== undefined && ocrFileUrls[srcIdx] ? (
+                                <img src={ocrFileUrls[srcIdx]} alt="" loading="lazy" className="h-7 w-7 rounded border object-cover" />
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="p-1.5 whitespace-nowrap">
+                              {v.price_xof_detected > 0 ? `${v.price_xof_detected.toLocaleString("fr-FR")} F` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setOcrResult(null); setOcrSelected(new Set()); }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={ocrSelected.size === 0}
+                    onClick={() => applyOcrVariants(true)}
+                  >
+                    Valider sélection ({ocrSelected.size})
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => applyOcrVariants(false)}>
+                    Tout appliquer
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
         <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">
