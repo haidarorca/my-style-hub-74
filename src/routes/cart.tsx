@@ -575,7 +575,7 @@ function CartPage() {
                           />
                         </div>
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-                          {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" / loading="lazy" decoding="async" >}
+                          {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                         </div>
                         <div className="flex flex-1 flex-col">
                           <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>

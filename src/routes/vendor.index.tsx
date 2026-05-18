@@ -156,7 +156,7 @@ function VendorHome() {
         <div className="flex items-end gap-3 px-4 pb-3">
           <div className="-mt-8 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted shadow">
             {logo ? (
-              <img src={logo} alt={shopName} className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+              <img src={logo} alt={shopName} className="h-full w-full object-cover" loading="lazy" decoding="async" />
             ) : (
               <Store className="h-7 w-7 text-muted-foreground" />
             )}

@@ -344,7 +344,7 @@ function VendorOrders() {
                       <li key={it.id} className="flex gap-3 border-b p-3 last:border-0">
                         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                           {it.product_image_url && (
-                            <img src={it.product_image_url} alt={it.product_name} className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+                            <img src={it.product_image_url} alt={it.product_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
@@ -385,7 +385,7 @@ function VendorOrders() {
                                 <div className="mt-2">
                                   <button onClick={() => setZoomImg(c.image_url)}
                                           className="group relative block h-24 w-24 overflow-hidden rounded border bg-muted">
-                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" / loading="lazy" decoding="async" >
+                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" />
                                     <span className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white group-hover:flex">
                                       <ImageIcon className="h-4 w-4" />
                                     </span>
@@ -502,7 +502,7 @@ function VendorOrders() {
                         <li key={it.id} className="flex gap-3 rounded-lg border bg-card p-2">
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                             {it.product_image_url && (
-                              <img src={it.product_image_url} alt={it.product_name} className="h-full w-full object-cover" / loading="lazy" decoding="async" >
+                              <img src={it.product_image_url} alt={it.product_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1 space-y-1">
@@ -541,7 +541,7 @@ function VendorOrders() {
                                 {c.image_url && (
                                   <button onClick={() => setZoomImg(c.image_url)}
                                           className="mt-2 block h-24 w-24 overflow-hidden rounded border bg-muted">
-                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" / loading="lazy" decoding="async" >
+                                    <img src={c.image_url} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" />
                                   </button>
                                 )}
                               </div>
@@ -583,7 +583,7 @@ function VendorOrders() {
           <DialogHeader><DialogTitle>Aperçu</DialogTitle></DialogHeader>
           {zoomImg && (
             <div className="space-y-3">
-              <img src={zoomImg} alt="" className="max-h-[70vh] w-full object-contain" / loading="lazy" decoding="async" >
+              <img src={zoomImg} alt="" className="max-h-[70vh] w-full object-contain" loading="lazy" decoding="async" />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Button
                   variant="default"
