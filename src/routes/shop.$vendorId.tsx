@@ -73,6 +73,17 @@ function ShopPage() {
   const logo = v.shop_logo_url as string | undefined;
   const banner = v.shop_banner_url as string | undefined;
   const schedule = normalizeSchedule(v.shop_hours_schedule);
+  const scheduleLabels: ScheduleLabels = {
+    closed: t("shop.closed_day"),
+    short: {
+      mon: t("shop.day.mon"), tue: t("shop.day.tue"), wed: t("shop.day.wed"),
+      thu: t("shop.day.thu"), fri: t("shop.day.fri"), sat: t("shop.day.sat"), sun: t("shop.day.sun"),
+    },
+  };
+  const scheduleSummary = summarizeSchedule(schedule, scheduleLabels);
+  const openNow = isOpenNow(schedule);
+  const verified = !!v.is_verified;
+  const productCount = products?.length ?? 0;
 
   return (
     <div className="min-h-screen bg-background">
