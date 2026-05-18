@@ -154,6 +154,7 @@ function CartPage() {
     groups.get(key)!.items.push(it);
   }
 
+  const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const unitPrice = (it: any) => {
     const productId = it.products?.id ?? it.product_id;
@@ -342,7 +343,10 @@ function CartPage() {
           note: addr.note,
           destination_country_id: destinationCountryId,
         } as any);
-      if (oErr) throw oErr;
+      if (oErr) {
+        console.error("[checkout] orders.insert failed", oErr);
+        throw oErr;
+      }
 
       const rows = items.map((it: any) => ({
         order_id: orderId,
@@ -360,7 +364,12 @@ function CartPage() {
         customization: it.customization ?? null,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(rows);
-      if (iErr) throw iErr;
+      if (iErr) {
+        console.error("[checkout] order_items.insert failed", iErr, { rows });
+        // Roll back the parent order so we don't leave orphans
+        await supabase.from("orders").delete().eq("id", orderId);
+        throw iErr;
+      }
 
       // Build dispatch groups BEFORE clearing the cart
       const groups = buildDispatchGroups(orderId, addr);
@@ -374,9 +383,10 @@ function CartPage() {
       toast.success(t("checkout.order_saved_pending"));
       setSentIds(new Set());
       setDispatch({ groups, orderId });
-    } catch (e) {
-      console.error(e);
-      toast.error(t("checkout.order_save_error"));
+    } catch (e: any) {
+      console.error("[checkout] submitOrder error", e);
+      const detail = e?.message || e?.error_description || e?.hint || "";
+      toast.error(detail ? `${t("checkout.order_save_error")} — ${detail}` : t("checkout.order_save_error"));
     } finally {
       setSubmitting(false);
     }
@@ -436,8 +446,12 @@ function CartPage() {
                           )}
                           {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
                           <div className="mt-auto flex items-end justify-between pt-2">
-                            <p className="text-sm font-bold text-primary">
-                              {price.toLocaleString("fr-FR")} FCFA
+                            <p className="text-sm font-bold text-primary min-h-5">
+                              {pricesReady ? (
+                                <>{price.toLocaleString("fr-FR")} FCFA</>
+                              ) : (
+                                <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
+                              )}
                             </p>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
@@ -470,11 +484,15 @@ function CartPage() {
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
             <div className="flex-1">
                 <p className="text-xs text-muted-foreground">{t("cart.total")}</p>
-              <p className="text-lg font-extrabold text-primary">
-                {grandTotal.toLocaleString("fr-FR")} FCFA
+              <p className="text-lg font-extrabold text-primary min-h-7">
+                {pricesReady ? (
+                  <>{grandTotal.toLocaleString("fr-FR")} FCFA</>
+                ) : (
+                  <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
+                )}
               </p>
             </div>
-            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)}>
+            <Button className="h-12 rounded-full px-6 text-sm font-semibold" onClick={() => setCheckoutOpen(true)} disabled={!pricesReady}>
               <EditableLabel uiKey="cart.checkout" defaultLabel={t("cart.checkout")} defaultSize="md" />
             </Button>
           </div>

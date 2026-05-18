@@ -51,7 +51,7 @@ export function useDisplayPriceLines(lines: Array<{ productId: string; variantId
     [stableLines],
   );
 
-  const { data } = useQuery({
+  const { data, isFetched } = useQuery({
     queryKey: ["display-price-lines", countryId, key],
     enabled: stableLines.length > 0,
     staleTime: 0,
@@ -62,9 +62,15 @@ export function useDisplayPriceLines(lines: Array<{ productId: string; variantId
     },
   });
 
-  return useMemo(() => {
-    const map = new Map<string, DisplayPrice>();
-    (data ?? []).forEach((r) => map.set(`${r.product_id}:${r.variant_id ?? ""}`, r));
-    return map;
+  const map = useMemo(() => {
+    const m = new Map<string, DisplayPrice>();
+    (data ?? []).forEach((r) => m.set(`${r.product_id}:${r.variant_id ?? ""}`, r));
+    return m;
   }, [data]);
+
+  // Backward-compat: behave like a Map for existing callers, but also expose
+  // `isReady` so the cart can avoid flicker between raw price and final price.
+  return Object.assign(map, {
+    isReady: stableLines.length === 0 || isFetched,
+  }) as Map<string, DisplayPrice> & { isReady: boolean };
 }
