@@ -343,7 +343,10 @@ function CartPage() {
           note: addr.note,
           destination_country_id: destinationCountryId,
         } as any);
-      if (oErr) throw oErr;
+      if (oErr) {
+        console.error("[checkout] orders.insert failed", oErr);
+        throw oErr;
+      }
 
       const rows = items.map((it: any) => ({
         order_id: orderId,
@@ -361,7 +364,12 @@ function CartPage() {
         customization: it.customization ?? null,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(rows);
-      if (iErr) throw iErr;
+      if (iErr) {
+        console.error("[checkout] order_items.insert failed", iErr, { rows });
+        // Roll back the parent order so we don't leave orphans
+        await supabase.from("orders").delete().eq("id", orderId);
+        throw iErr;
+      }
 
       // Build dispatch groups BEFORE clearing the cart
       const groups = buildDispatchGroups(orderId, addr);
@@ -375,9 +383,10 @@ function CartPage() {
       toast.success(t("checkout.order_saved_pending"));
       setSentIds(new Set());
       setDispatch({ groups, orderId });
-    } catch (e) {
-      console.error(e);
-      toast.error(t("checkout.order_save_error"));
+    } catch (e: any) {
+      console.error("[checkout] submitOrder error", e);
+      const detail = e?.message || e?.error_description || e?.hint || "";
+      toast.error(detail ? `${t("checkout.order_save_error")} — ${detail}` : t("checkout.order_save_error"));
     } finally {
       setSubmitting(false);
     }
