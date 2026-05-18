@@ -39,6 +39,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
 
 
 export const Route = createFileRoute("/vendor/products/new")({
@@ -106,6 +107,7 @@ function NewProductPage() {
   const [allowAllColors, setAllowAllColors] = useState(false);
   const [allowedColors, setAllowedColors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [aiCopyOpen, setAiCopyOpen] = useState(false);
 
   // OCR: import des variantes depuis des captures (taille / couleur / prix)
   const analyzeVariantsImg = useServerFn(analyzeVariantsFromImages);
@@ -530,7 +532,12 @@ function NewProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{t("vendor.new.info")}</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base">{t("vendor.new.info")}</CardTitle>
+          <Button type="button" size="sm" variant="outline" onClick={() => setAiCopyOpen(true)} className="gap-1">
+            <Sparkles className="h-4 w-4" /> Générer avec l'IA
+          </Button>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div>
             <Label>{t("vendor.new.code_label")}</Label>
@@ -941,6 +948,17 @@ function NewProductPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AiCopyGeneratorDialog
+        open={aiCopyOpen}
+        onOpenChange={setAiCopyOpen}
+        onApply={(r) => {
+          if (r.name) setName(r.name);
+          if (r.designation) setDesignation(r.designation);
+          if (r.description) setDescription(r.description);
+        }}
+      />
+
 
       <div className="sticky bottom-0 -mx-3 border-t bg-background/95 p-3 backdrop-blur" style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom, 0px))" }}>
         <Button type="submit" disabled={submitting} className="h-12 w-full rounded-full text-sm font-semibold">

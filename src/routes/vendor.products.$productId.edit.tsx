@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload, X } from "lucide-react";
+import { Plus, Trash2, Upload, X, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
 
 
 export const Route = createFileRoute("/vendor/products/$productId/edit")({
@@ -77,6 +78,7 @@ function EditProductPage() {
   const [originalVariantsKey, setOriginalVariantsKey] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+  const [aiCopyOpen, setAiCopyOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["vendor-edit-product", productId],
@@ -327,7 +329,12 @@ function EditProductPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Informations</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base">Informations</CardTitle>
+          <Button type="button" size="sm" variant="outline" onClick={() => setAiCopyOpen(true)} className="gap-1">
+            <Sparkles className="h-4 w-4" /> Générer avec l'IA
+          </Button>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div><Label>Nom *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
           <div><Label>Désignation</Label><Input value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
@@ -406,6 +413,16 @@ function EditProductPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <AiCopyGeneratorDialog
+        open={aiCopyOpen}
+        onOpenChange={setAiCopyOpen}
+        onApply={(r) => {
+          if (r.name) setName(r.name);
+          if (r.designation) setDesignation(r.designation);
+          if (r.description) setDescription(r.description);
+        }}
+      />
 
       <div className="flex gap-2">
         <Button type="button" variant="outline" onClick={() => router.navigate({ to: "/vendor" })}>Annuler</Button>
