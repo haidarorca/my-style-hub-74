@@ -77,6 +77,7 @@ function CartPage() {
   const settings = useSiteSettings();
   const router = useRouter();
   const createOrder = useServerFn(createCheckoutOrder);
+  const fetchVendorContacts = useServerFn(getPublicVendorContacts);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
