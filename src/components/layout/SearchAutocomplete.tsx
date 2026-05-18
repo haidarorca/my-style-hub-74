@@ -329,7 +329,7 @@ export function SearchAutocomplete() {
                                 className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-accent"
                               >
                                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
-                                  {img && <img src={img} alt="" className="h-full w-full object-cover" />}
+                                  {img && <img src={img} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-sm">{name}</div>
@@ -362,7 +362,7 @@ export function SearchAutocomplete() {
                             >
                               <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-xs font-bold">
                                 {s.shop_logo_url ? (
-                                  <img src={s.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                                  <img src={s.shop_logo_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                                 ) : (
                                   s.shop_name?.charAt(0) ?? "?"
                                 )}

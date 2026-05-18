@@ -329,7 +329,7 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
         <div className="-mt-8 mb-2 flex items-end gap-3">
           <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-4 border-card bg-muted">
             {row.shop_logo_url ? (
-              <img src={row.shop_logo_url} alt={row.shop_name ?? ""} className="h-full w-full object-cover" />
+              <img src={row.shop_logo_url} alt={row.shop_name ?? ""} className="h-full w-full object-cover" / loading="lazy" decoding="async" >
             ) : (
               <div className="flex h-full w-full items-center justify-center">
                 <Store className="h-5 w-5 text-muted-foreground" />
@@ -504,7 +504,7 @@ function ShopFormDialog({
             <div className="mt-1 flex items-center gap-2">
               <div className="h-14 w-14 overflow-hidden rounded-full border bg-muted">
                 {f.shop_logo_url ? (
-                  <img src={f.shop_logo_url} alt="logo" className="h-full w-full object-cover" />
+                  <img src={f.shop_logo_url} alt="logo" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
                 ) : (
                   <div className="flex h-full w-full items-center justify-center"><ImageIcon className="h-5 w-5 text-muted-foreground" /></div>
                 )}

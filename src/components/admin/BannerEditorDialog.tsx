@@ -343,7 +343,7 @@ export function BannerEditorDialog({ open, onOpenChange, banner, nextPosition, o
                   ].map(({ key, label }) => (
                     <label key={key} className="cursor-pointer rounded border p-2 text-center text-xs hover:bg-accent">
                       {draft[key] ? (
-                        <img src={draft[key] as string} alt="" className="mx-auto mb-1 h-12 w-full rounded object-cover" />
+                        <img src={draft[key] as string} alt="" className="mx-auto mb-1 h-12 w-full rounded object-cover" / loading="lazy" decoding="async" >
                       ) : (
                         <div className="mx-auto mb-1 flex h-12 items-center justify-center rounded bg-muted text-muted-foreground">—</div>
                       )}

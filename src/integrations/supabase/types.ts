@@ -2060,6 +2060,18 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      get_admin_vendor_product_stats: {
+        Args: never
+        Returns: {
+          approved: number
+          email: string
+          full_name: string
+          pending: number
+          shop_name: string
+          total: number
+          user_id: string
+        }[]
+      }
       get_category_product_counts: {
         Args: never
         Returns: {

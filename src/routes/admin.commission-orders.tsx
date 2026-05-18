@@ -467,7 +467,7 @@ function CommissionOrders() {
                             <li key={it.id} className="flex gap-3 p-3">
                               <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                                 {it.product_image_url && (
-                                  <img src={it.product_image_url} alt="" className="h-full w-full object-cover" />
+                                  <img src={it.product_image_url} alt="" className="h-full w-full object-cover" / loading="lazy" decoding="async" >
                                 )}
                               </div>
                               <div className="min-w-0 flex-1 space-y-0.5 text-xs">

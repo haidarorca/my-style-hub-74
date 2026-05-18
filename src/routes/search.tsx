@@ -472,7 +472,7 @@ function SearchPage() {
                       params={{ categoryId: c.id }}
                       className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-accent"
                     >
-                      {c.logo_url && <img src={c.logo_url} alt="" className="h-5 w-5 rounded-full object-cover" />}
+                      {c.logo_url && <img src={c.logo_url} alt="" loading="lazy" decoding="async" className="h-5 w-5 rounded-full object-cover" />}
                       {pickI18n(c.name, c.name_i18n, lang)}
                     </Link>
                   ))}
@@ -496,7 +496,7 @@ function SearchPage() {
                     >
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
                         {s.shop_logo_url ? (
-                          <img src={s.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                          <img src={s.shop_logo_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs font-bold">
                             {s.shop_name?.charAt(0) ?? "?"}
@@ -532,7 +532,7 @@ function SearchPage() {
                         >
                           <div className="aspect-square overflow-hidden bg-muted">
                             {p.product_images?.[0]?.url ? (
-                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
+                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                             ) : null}
                           </div>
                           <div className="p-2">

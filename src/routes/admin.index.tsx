@@ -66,36 +66,24 @@ function Dashboard() {
   const vendorStats = useQuery({
     queryKey: ["admin", "vendor-stats"],
     queryFn: async () => {
-      const { data: roles, error: rErr } = await supabase
-        .from("user_roles")
-        .select("user_id, profiles:profiles!inner(shop_name, full_name, email)")
-        .eq("role", "vendeur");
-      if (rErr) throw rErr;
-      const list = (roles ?? []) as unknown as Array<{
+      const { data, error } = await supabase.rpc("get_admin_vendor_product_stats");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
         user_id: string;
-        profiles: { shop_name: string | null; full_name: string | null; email: string | null } | null;
+        shop_name: string | null;
+        full_name: string | null;
+        email: string | null;
+        total: number | string;
+        approved: number | string;
+        pending: number | string;
       }>;
-      const ids = list.map((v) => v.user_id);
-      const countsByVendor: Record<string, { total: number; approved: number; pending: number }> = {};
-      if (ids.length > 0) {
-        const { data: prods } = await supabase
-          .from("products")
-          .select("vendor_id, status")
-          .in("vendor_id", ids);
-        for (const p of prods ?? []) {
-          const v = (p as { vendor_id: string }).vendor_id;
-          const s = (p as { status: string }).status;
-          countsByVendor[v] ??= { total: 0, approved: 0, pending: 0 };
-          countsByVendor[v].total += 1;
-          if (s === "approved") countsByVendor[v].approved += 1;
-          if (s === "pending") countsByVendor[v].pending += 1;
-        }
-      }
-      return list.map((v) => ({
+      return rows.map((v) => ({
         user_id: v.user_id,
-        name: v.profiles?.shop_name || v.profiles?.full_name || v.profiles?.email || "—",
-        email: v.profiles?.email,
-        ...(countsByVendor[v.user_id] ?? { total: 0, approved: 0, pending: 0 }),
+        name: v.shop_name || v.full_name || v.email || "—",
+        email: v.email,
+        total: Number(v.total) || 0,
+        approved: Number(v.approved) || 0,
+        pending: Number(v.pending) || 0,
       }));
     },
     staleTime: 5 * 60_000,
