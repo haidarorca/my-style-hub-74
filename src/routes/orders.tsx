@@ -492,18 +492,13 @@ function OrdersPage() {
                         <XCircle className="mr-1.5 h-4 w-4" /> Annuler
                       </Button>
                     )}
-                    {supportWa && (
-                      <a
-                        href={`https://wa.me/${cleanPhone(supportWa).replace("+", "")}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide concernant ma commande #${openOrder.id.slice(0, 8)}.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cn(canCancel ? "" : "col-span-2")}
-                      >
-                        <Button variant="outline" className="w-full rounded-xl border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700">
-                          <MessageCircle className="mr-1.5 h-4 w-4" /> Support
-                        </Button>
-                      </a>
-                    )}
+                    <div className={cn("col-span-2 flex flex-wrap gap-2")}>
+                      <ContactActions
+                        vendorId={openOrder.items[0]?.vendor_id ?? ""}
+                        orderId={openOrder.id}
+                        productName={`Commande #${openOrder.id.slice(0, 8)}`}
+                      />
+                    </div>
                   </section>
 
                   {/* Articles groupés par vendeur */}
@@ -513,7 +508,6 @@ function OrdersPage() {
                     </h3>
                     {uniqueVendors.map((v: any) => {
                       const vendorItems = openOrder.items.filter((i: any) => i.vendor_id === v.id);
-                      const wa = vendorWa(v);
                       return (
                         <div key={v.id} className="overflow-hidden rounded-xl border bg-card">
                           <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
