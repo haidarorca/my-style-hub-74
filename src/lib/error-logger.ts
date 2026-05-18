@@ -66,6 +66,59 @@ export function clearErrorLog() {
   }
 }
 
+// Detect stale-chunk errors from a previous deploy whose hashed JS/CSS files
+// no longer exist on the server. On installed PWAs and devices with aggressive
+// caching this leaves users on a blank page after deploy. We auto-recover by
+// purging caches and hard-reloading once (guarded via sessionStorage to avoid
+// reload loops).
+const STALE_RELOAD_KEY = "kawzone:stale-chunk-reload-at";
+const STALE_PATTERNS = [
+  "Failed to fetch dynamically imported module",
+  "Importing a module script failed",
+  "error loading dynamically imported module",
+  "Loading chunk",
+  "Loading CSS chunk",
+  "ChunkLoadError",
+];
+
+function looksLikeStaleChunkError(message: string): boolean {
+  if (!message) return false;
+  return STALE_PATTERNS.some((p) => message.includes(p));
+}
+
+async function purgeAndReload() {
+  try {
+    const last = Number(sessionStorage.getItem(STALE_RELOAD_KEY) || "0");
+    if (Date.now() - last < 30_000) return; // already tried recently
+    sessionStorage.setItem(STALE_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // ignore — still try to reload
+  }
+  try {
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister().catch(() => undefined)));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("_v", Date.now().toString());
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
+}
+
 let installed = false;
 export function installGlobalErrorLogger() {
   if (installed || typeof window === "undefined") return;
@@ -80,6 +133,9 @@ export function installGlobalErrorLogger() {
       source: e.filename,
       url: window.location.href,
     });
+    if (looksLikeStaleChunkError(message) || looksLikeStaleChunkError(e.error?.stack ?? "")) {
+      void purgeAndReload();
+    }
   });
 
   window.addEventListener("unhandledrejection", (e) => {
@@ -91,5 +147,8 @@ export function installGlobalErrorLogger() {
       stack: reason?.stack,
       url: window.location.href,
     });
+    if (looksLikeStaleChunkError(message) || looksLikeStaleChunkError(reason?.stack ?? "")) {
+      void purgeAndReload();
+    }
   });
 }
