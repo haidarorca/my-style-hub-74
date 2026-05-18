@@ -30,12 +30,12 @@ export const Route = createFileRoute("/sitemap.xml")({
         try {
           const { data: cats } = await supabase
             .from("categories")
-            .select("id, updated_at")
+            .select("id, created_at")
             .limit(1000);
           for (const c of cats ?? []) {
             entries.push({
               path: `/c/${c.id}`,
-              lastmod: (c as { updated_at?: string }).updated_at?.slice(0, 10),
+              lastmod: (c as { created_at?: string }).created_at?.slice(0, 10),
               changefreq: "weekly",
               priority: "0.7",
             });
