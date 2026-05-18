@@ -94,7 +94,10 @@ function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Tableau de bord</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <UpdateAppButton variant="outline" />
+      </div>
 
       <TranslationSyncCard />
 
