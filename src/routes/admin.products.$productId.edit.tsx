@@ -549,6 +549,15 @@ function AdminEditProductPage() {
             <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si ce produit nécessite un service de transport international (pesée à l'arrivée et validation client des frais réels).
+              </p>
+            </div>
+            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
+          </div>
         </CardContent>
       </Card>
 
