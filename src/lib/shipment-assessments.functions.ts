@@ -31,6 +31,8 @@ export interface ShipmentAssessment {
   client_validated_at: string | null;
   client_rejected_at: string | null;
   client_response_note: string | null;
+  shipping_service_id: string | null;
+  price_per_kg_snapshot: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

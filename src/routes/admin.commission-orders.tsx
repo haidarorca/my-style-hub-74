@@ -55,12 +55,32 @@ function CommissionOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [page, setPage] = useState(0);
   const archiveFn = useServerFn(setOrderArchived);
   const archiveBulkFn = useServerFn(setOrdersArchivedBulk);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, archiveFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, countryFilter, serviceFilter, archiveFilter]);
+
+  // Countries and shipping services for filters
+  const { data: countriesList } = useQuery({
+    queryKey: ["admin-commission-orders", "countries"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("countries").select("id, name, flag_emoji").order("name");
+      return (data ?? []) as { id: string; name: string; flag_emoji: string | null }[];
+    },
+  });
+  const { data: servicesList } = useQuery({
+    queryKey: ["admin-commission-orders", "services"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("shipping_services").select("id, name").order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
 
   // Vendors that have at least one commission order item
   const { data: vendorsList } = useQuery({
@@ -105,7 +125,7 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, archiveFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, countryFilter, serviceFilter, archiveFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
@@ -121,10 +141,15 @@ function CommissionOrders() {
 
       let oq = supabase
         .from("orders")
-        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at", { count: "exact" })
+        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at, destination_country_id, shipping_service_id", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (countryFilter !== "all") oq = oq.eq("destination_country_id", countryFilter);
+      if (serviceFilter !== "all") {
+        if (serviceFilter === "__none__") oq = oq.is("shipping_service_id", null);
+        else oq = oq.eq("shipping_service_id", serviceFilter);
+      }
       if (archiveFilter === "active") oq = oq.is("archived_at", null);
       else if (archiveFilter === "archived") oq = oq.not("archived_at", "is", null);
       if (restrictIds) oq = oq.in("id", restrictIds);
@@ -396,7 +421,27 @@ function CommissionOrders() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={countryFilter} onValueChange={setCountryFilter}>
+          <SelectTrigger className="sm:w-[180px]"><SelectValue placeholder="Pays destination" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les pays</SelectItem>
+            {(countriesList ?? []).map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={serviceFilter} onValueChange={setServiceFilter}>
+          <SelectTrigger className="sm:w-[180px]"><SelectValue placeholder="Service transport" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous services</SelectItem>
+            <SelectItem value="__none__">Sans service</SelectItem>
+            {(servicesList ?? []).map((s) => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
 
       <div className="-mx-3 overflow-x-auto px-3">
         <div className="flex gap-2">

@@ -32,6 +32,9 @@ import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
 import { getPublicVendorContacts } from "@/lib/support.functions";
+import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plane } from "lucide-react";
 
 interface DispatchGroup {
   id: string;
@@ -78,13 +81,14 @@ function CartPage() {
   const router = useRouter();
   const createOrder = useServerFn(createCheckoutOrder);
   const fetchVendorContacts = useServerFn(getPublicVendorContacts);
+  const fetchShippingServices = useServerFn(listShippingServices);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [shippingServiceId, setShippingServiceId] = useState<string | null>(null);
-  const [shippingServices, setShippingServices] = useState<any[]>([]);
+  const [shippingServices, setShippingServices] = useState<ShippingService[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"saved" | "new">("saved");
@@ -207,6 +211,51 @@ function CartPage() {
     [items, selectedIds],
   );
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
+
+  // International shipping detection
+  const needsIntlShipping = useMemo(
+    () => selectedItems.some((it: any) => it.products?.requires_international_shipping === true),
+    [selectedItems],
+  );
+  const intlSourceCountryIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of selectedItems) {
+      if (it.products?.requires_international_shipping && it.products?.profiles?.source_country_id) {
+        set.add(it.products.profiles.source_country_id);
+      }
+    }
+    return Array.from(set);
+  }, [selectedItems]);
+
+  // Load shipping services when intl needed
+  useEffect(() => {
+    if (!checkoutOpen || !needsIntlShipping || !destinationCountryId) {
+      if (!needsIntlShipping) setShippingServiceId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const services = await fetchShippingServices({
+          data: {
+            source_country_id: intlSourceCountryIds[0] ?? null,
+            destination_country_id: destinationCountryId,
+            only_enabled: true,
+          },
+        });
+        if (!cancelled) {
+          setShippingServices(services);
+          if (services.length > 0 && !shippingServiceId) {
+            setShippingServiceId(services[0].id);
+          }
+        }
+      } catch (e) {
+        console.error("[cart] load shipping services failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOpen, needsIntlShipping, destinationCountryId, intlSourceCountryIds.join(",")]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
@@ -384,6 +433,10 @@ function CartPage() {
       toast.error(t("checkout.country_required"));
       return;
     }
+    if (needsIntlShipping && !shippingServiceId) {
+      toast.error("Veuillez choisir un service de transport international.");
+      return;
+    }
     setSubmitting(true);
     try {
       const addr = await resolveAddress();
@@ -436,6 +489,7 @@ function CartPage() {
         const saved = await createOrder({
           data: {
             destinationCountryId,
+            shippingServiceId: needsIntlShipping ? shippingServiceId : null,
             address: {
               full_name: addr.full_name,
               phone: addr.phone,
@@ -466,6 +520,10 @@ function CartPage() {
             city: addr.city,
             note: addr.note,
             destination_country_id: destinationCountryId,
+            shipping_service_id: needsIntlShipping ? shippingServiceId : null,
+            shipping_estimate_note: needsIntlShipping && shippingServiceId
+              ? "Estimé — sera recalculé après pesée"
+              : null,
           } as any);
         if (oErr) {
           console.error("[checkout] guest orders.insert failed", oErr, debugPayload);
@@ -753,6 +811,49 @@ function CartPage() {
               placeholder={t("checkout.choose_delivery_country")}
             />
           </div>
+
+          {needsIntlShipping && (
+            <div className="space-y-1.5 rounded-xl border border-primary/30 bg-primary/5 p-3">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                <Plane className="h-4 w-4 text-primary" />
+                Service de transport international *
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Un ou plusieurs articles nécessitent une expédition internationale. Choisissez le service. Le tarif final sera recalculé après pesée réelle du colis.
+              </p>
+              {shippingServices.length === 0 ? (
+                <p className="text-xs text-destructive">
+                  Aucun service disponible pour cette destination. Contactez le support.
+                </p>
+              ) : (
+                <Select
+                  value={shippingServiceId ?? ""}
+                  onValueChange={(v) => setShippingServiceId(v || null)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choisir un service" /></SelectTrigger>
+                  <SelectContent>
+                    {shippingServices.map((s) => {
+                      const delay = s.delay_min_days && s.delay_max_days
+                        ? `${s.delay_min_days}-${s.delay_max_days} j`
+                        : s.delay_max_days ? `~${s.delay_max_days} j` : "délai variable";
+                      return (
+                        <SelectItem key={s.id} value={s.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit} · {delay}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+
 
           {addresses.length > 0 && (
             <div className="mb-2 flex gap-2 rounded-full bg-muted p-1">

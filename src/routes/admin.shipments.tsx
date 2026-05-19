@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   listShipmentAssessments,
   getOrCreateShipmentAssessment,
@@ -19,6 +20,7 @@ import {
   type ShipmentAssessment,
   type ShipmentAssessmentStatus,
 } from "@/lib/shipment-assessments.functions";
+import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
 import { buildShipmentValidationMessage, whatsappUrlTo } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/admin/shipments")({
@@ -191,6 +193,10 @@ function AssessmentDialog({
   const qc = useQueryClient();
   const updateFn = useServerFn(updateShipmentAssessment);
   const sendFn = useServerFn(sendShipmentForValidation);
+  const listServicesFn = useServerFn(listShippingServices);
+  const [services, setServices] = useState<ShippingService[]>([]);
+  const [serviceId, setServiceId] = useState<string | null>(assessment?.shipping_service_id ?? null);
+  const [autoCalc, setAutoCalc] = useState(true);
   const [form, setForm] = useState({
     real_weight_kg: assessment?.real_weight_kg ?? "",
     volumetric_weight_kg: assessment?.volumetric_weight_kg ?? "",
@@ -204,6 +210,28 @@ function AssessmentDialog({
     parcel_photo_url: assessment?.parcel_photo_url ?? "",
   });
   const [saving, setSaving] = useState(false);
+
+  // Load enabled services (admin sees all enabled)
+  useEffect(() => {
+    listServicesFn({ data: { source_country_id: null, destination_country_id: null, only_enabled: true } })
+      .then(setServices)
+      .catch(() => setServices([]));
+  }, [listServicesFn]);
+
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === serviceId) ?? null,
+    [services, serviceId],
+  );
+
+  // Auto-compute air_freight_fee from weight × price/kg
+  useEffect(() => {
+    if (!autoCalc || !selectedService) return;
+    const w = Number(form.real_weight_kg || 0);
+    if (!Number.isFinite(w) || w <= 0) return;
+    const fee = Math.round(w * Number(selectedService.price_per_kg));
+    setForm((f) => ({ ...f, air_freight_fee: fee as any }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCalc, selectedService?.id, form.real_weight_kg]);
 
   const total = useMemo(
     () =>
@@ -238,6 +266,8 @@ function AssessmentDialog({
           extra_fees: num(form.extra_fees as any),
           admin_comment: form.admin_comment || null,
           parcel_photo_url: form.parcel_photo_url || null,
+          shipping_service_id: serviceId,
+          price_per_kg_snapshot: selectedService ? Number(selectedService.price_per_kg) : null,
           ...(nextStatus ? { status: nextStatus } : {}),
         },
       });
@@ -289,6 +319,29 @@ function AssessmentDialog({
             <div><strong>Statut actuel :</strong> <Badge variant={STATUS_VARIANTS[assessment.status]}>{STATUS_LABELS[assessment.status]}</Badge></div>
           </div>
 
+          <div className="space-y-2 rounded border border-primary/30 bg-primary/5 p-3">
+            <label className="text-xs font-semibold">Service de transport</label>
+            <Select value={serviceId ?? ""} onValueChange={(v) => setServiceId(v || null)}>
+              <SelectTrigger><SelectValue placeholder="Choisir un service" /></SelectTrigger>
+              <SelectContent>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} — {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedService && (
+              <p className="text-[11px] text-muted-foreground">
+                Calcul auto : poids × {Number(selectedService.price_per_kg).toLocaleString("fr-FR")} FCFA/{selectedService.pricing_unit}
+              </p>
+            )}
+            <label className="flex items-center gap-2 text-[11px]">
+              <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} />
+              Recalculer automatiquement les frais avion quand le poids change
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <NumField label="Poids réel (kg)" value={form.real_weight_kg} onChange={(v) => setForm({ ...form, real_weight_kg: v })} />
             <NumField label="Poids volum. (kg)" value={form.volumetric_weight_kg} onChange={(v) => setForm({ ...form, volumetric_weight_kg: v })} />
@@ -298,10 +351,11 @@ function AssessmentDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => setForm({ ...form, air_freight_fee: v })} />
+            <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => { setAutoCalc(false); setForm({ ...form, air_freight_fee: v }); }} />
             <NumField label="Frais service (FCFA)" value={form.service_fee} onChange={(v) => setForm({ ...form, service_fee: v })} />
             <NumField label="Frais extra (FCFA)" value={form.extra_fees} onChange={(v) => setForm({ ...form, extra_fees: v })} />
           </div>
+
 
           <div className="rounded bg-primary/10 p-3 text-sm font-semibold">
             TOTAL à valider : {fmt(total)}
