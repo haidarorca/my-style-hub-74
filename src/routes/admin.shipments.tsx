@@ -266,6 +266,8 @@ function AssessmentDialog({
           extra_fees: num(form.extra_fees as any),
           admin_comment: form.admin_comment || null,
           parcel_photo_url: form.parcel_photo_url || null,
+          shipping_service_id: serviceId,
+          price_per_kg_snapshot: selectedService ? Number(selectedService.price_per_kg) : null,
           ...(nextStatus ? { status: nextStatus } : {}),
         },
       });
