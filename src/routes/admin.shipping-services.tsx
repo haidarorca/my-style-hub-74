@@ -39,7 +39,7 @@ function ShippingServicesPage() {
   const listFn = useServerFn(listShippingServices);
   const delFn = useServerFn(deleteShippingService);
   const [editing, setEditing] = useState<ShippingService | "new" | null>(null);
-  const { countries } = useCountries({ includeDisabled: true });
+  const { data: countries = [] } = useCountries({ onlyEnabled: false });
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-shipping-services"],
@@ -50,7 +50,7 @@ function ShippingServicesPage() {
   });
 
   const countryName = (id: string | null) =>
-    id ? countries.find((c) => c.id === id)?.name ?? "—" : "Tous";
+    id ? countries.find((c: { id: string; name: string }) => c.id === id)?.name ?? "—" : "Tous";
 
   async function onDelete(id: string) {
     if (!confirm("Supprimer ce service de transport ?")) return;
