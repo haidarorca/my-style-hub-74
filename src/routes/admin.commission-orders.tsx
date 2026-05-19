@@ -344,11 +344,35 @@ function CommissionOrders() {
           <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
             <SendIcon className="h-4 w-4" /> Envoyer aux vendeurs
           </Button>
+          {archiveFilter === "archived" ? (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => archiveSelection(false)}>
+              <ArchiveRestore className="h-4 w-4" /> Désarchiver
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => archiveSelection(true)}>
+              <Archive className="h-4 w-4" /> Archiver
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={clearSelection}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       )}
+
+      <div className="flex gap-1 rounded-lg border bg-card p-1 w-fit">
+        {(["active", "archived", "all"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setArchiveFilter(k)}
+            className={cn(
+              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              archiveFilter === k ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+            )}
+          >
+            {k === "active" ? "Actives" : k === "archived" ? "Archivées" : "Toutes"}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
