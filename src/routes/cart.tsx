@@ -32,6 +32,9 @@ import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
 import { getPublicVendorContacts } from "@/lib/support.functions";
+import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plane } from "lucide-react";
 
 interface DispatchGroup {
   id: string;
