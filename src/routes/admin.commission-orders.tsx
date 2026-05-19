@@ -421,7 +421,27 @@ function CommissionOrders() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={countryFilter} onValueChange={setCountryFilter}>
+          <SelectTrigger className="sm:w-[180px]"><SelectValue placeholder="Pays destination" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les pays</SelectItem>
+            {(countriesList ?? []).map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={serviceFilter} onValueChange={setServiceFilter}>
+          <SelectTrigger className="sm:w-[180px]"><SelectValue placeholder="Service transport" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous services</SelectItem>
+            <SelectItem value="__none__">Sans service</SelectItem>
+            {(servicesList ?? []).map((s) => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
 
       <div className="-mx-3 overflow-x-auto px-3">
         <div className="flex gap-2">
