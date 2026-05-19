@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   listShipmentAssessments,
   getOrCreateShipmentAssessment,
@@ -19,6 +20,7 @@ import {
   type ShipmentAssessment,
   type ShipmentAssessmentStatus,
 } from "@/lib/shipment-assessments.functions";
+import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
 import { buildShipmentValidationMessage, whatsappUrlTo } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/admin/shipments")({
