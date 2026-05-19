@@ -55,12 +55,32 @@ function CommissionOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [page, setPage] = useState(0);
   const archiveFn = useServerFn(setOrderArchived);
   const archiveBulkFn = useServerFn(setOrdersArchivedBulk);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, archiveFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, countryFilter, serviceFilter, archiveFilter]);
+
+  // Countries and shipping services for filters
+  const { data: countriesList } = useQuery({
+    queryKey: ["admin-commission-orders", "countries"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("countries").select("id, name, flag_emoji").order("name");
+      return (data ?? []) as { id: string; name: string; flag_emoji: string | null }[];
+    },
+  });
+  const { data: servicesList } = useQuery({
+    queryKey: ["admin-commission-orders", "services"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("shipping_services").select("id, name").order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
 
   // Vendors that have at least one commission order item
   const { data: vendorsList } = useQuery({
