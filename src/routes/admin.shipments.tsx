@@ -193,6 +193,10 @@ function AssessmentDialog({
   const qc = useQueryClient();
   const updateFn = useServerFn(updateShipmentAssessment);
   const sendFn = useServerFn(sendShipmentForValidation);
+  const listServicesFn = useServerFn(listShippingServices);
+  const [services, setServices] = useState<ShippingService[]>([]);
+  const [serviceId, setServiceId] = useState<string | null>(assessment?.shipping_service_id ?? null);
+  const [autoCalc, setAutoCalc] = useState(true);
   const [form, setForm] = useState({
     real_weight_kg: assessment?.real_weight_kg ?? "",
     volumetric_weight_kg: assessment?.volumetric_weight_kg ?? "",
@@ -206,6 +210,28 @@ function AssessmentDialog({
     parcel_photo_url: assessment?.parcel_photo_url ?? "",
   });
   const [saving, setSaving] = useState(false);
+
+  // Load enabled services (admin sees all enabled)
+  useEffect(() => {
+    listServicesFn({ data: { source_country_id: null, destination_country_id: null, only_enabled: true } })
+      .then(setServices)
+      .catch(() => setServices([]));
+  }, [listServicesFn]);
+
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === serviceId) ?? null,
+    [services, serviceId],
+  );
+
+  // Auto-compute air_freight_fee from weight × price/kg
+  useEffect(() => {
+    if (!autoCalc || !selectedService) return;
+    const w = Number(form.real_weight_kg || 0);
+    if (!Number.isFinite(w) || w <= 0) return;
+    const fee = Math.round(w * Number(selectedService.price_per_kg));
+    setForm((f) => ({ ...f, air_freight_fee: fee as any }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCalc, selectedService?.id, form.real_weight_kg]);
 
   const total = useMemo(
     () =>
