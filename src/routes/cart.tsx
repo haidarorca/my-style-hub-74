@@ -227,13 +227,14 @@ function CartPage() {
     return Array.from(set);
   }, [selectedItems]);
 
-  // Load shipping services when intl needed.
+  // Load shipping services as soon as an international product is selected.
   // Note: we don't pre-filter by source country — admins may set up services
   // without a fixed source. We always filter by destination + enabled, so the
   // client sees every available option (Express, Fret normal, Bateau, …).
   useEffect(() => {
-    if (!checkoutOpen || !needsIntlShipping || !destinationCountryId) {
-      if (!needsIntlShipping) setShippingServiceId(null);
+    if (!needsIntlShipping || !destinationCountryId) {
+      setShippingServices([]);
+      setShippingServiceId(null);
       return;
     }
     let cancelled = false;
@@ -248,8 +249,8 @@ function CartPage() {
         });
         if (!cancelled) {
           setShippingServices(services);
-          if (services.length > 0 && !shippingServiceId) {
-            setShippingServiceId(services[0].id);
+          if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
+            setShippingServiceId(null);
           }
         }
       } catch (e) {
@@ -258,7 +259,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutOpen, needsIntlShipping, destinationCountryId]);
+  }, [needsIntlShipping, destinationCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
