@@ -85,6 +85,7 @@ function NewProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
   const [pick1, setPick1] = useState<Pick>("");
