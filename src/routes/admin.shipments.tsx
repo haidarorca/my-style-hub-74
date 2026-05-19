@@ -319,6 +319,29 @@ function AssessmentDialog({
             <div><strong>Statut actuel :</strong> <Badge variant={STATUS_VARIANTS[assessment.status]}>{STATUS_LABELS[assessment.status]}</Badge></div>
           </div>
 
+          <div className="space-y-2 rounded border border-primary/30 bg-primary/5 p-3">
+            <label className="text-xs font-semibold">Service de transport</label>
+            <Select value={serviceId ?? ""} onValueChange={(v) => setServiceId(v || null)}>
+              <SelectTrigger><SelectValue placeholder="Choisir un service" /></SelectTrigger>
+              <SelectContent>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} — {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedService && (
+              <p className="text-[11px] text-muted-foreground">
+                Calcul auto : poids × {Number(selectedService.price_per_kg).toLocaleString("fr-FR")} FCFA/{selectedService.pricing_unit}
+              </p>
+            )}
+            <label className="flex items-center gap-2 text-[11px]">
+              <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} />
+              Recalculer automatiquement les frais avion quand le poids change
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <NumField label="Poids réel (kg)" value={form.real_weight_kg} onChange={(v) => setForm({ ...form, real_weight_kg: v })} />
             <NumField label="Poids volum. (kg)" value={form.volumetric_weight_kg} onChange={(v) => setForm({ ...form, volumetric_weight_kg: v })} />
@@ -328,10 +351,11 @@ function AssessmentDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => setForm({ ...form, air_freight_fee: v })} />
+            <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => { setAutoCalc(false); setForm({ ...form, air_freight_fee: v }); }} />
             <NumField label="Frais service (FCFA)" value={form.service_fee} onChange={(v) => setForm({ ...form, service_fee: v })} />
             <NumField label="Frais extra (FCFA)" value={form.extra_fees} onChange={(v) => setForm({ ...form, extra_fees: v })} />
           </div>
+
 
           <div className="rounded bg-primary/10 p-3 text-sm font-semibold">
             TOTAL à valider : {fmt(total)}
