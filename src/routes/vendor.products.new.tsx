@@ -408,6 +408,7 @@ function NewProductPage() {
           price: priceNum,
           category_id,
           pending_category_request_id,
+          requires_international_shipping: requiresIntlShipping,
           status: "pending",
         })
         .select("id")
