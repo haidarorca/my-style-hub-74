@@ -217,23 +217,19 @@ function CartPage() {
     () => selectedItems.some((it: any) => it.products?.requires_international_shipping === true),
     [selectedItems],
   );
-  const intlSourceCountryIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const it of selectedItems) {
-      if (it.products?.requires_international_shipping && it.products?.profiles?.source_country_id) {
-        set.add(it.products.profiles.source_country_id);
-      }
-    }
-    return Array.from(set);
-  }, [selectedItems]);
+  const selectedShippingService = useMemo(
+    () => shippingServices.find((service) => service.id === shippingServiceId) ?? null,
+    [shippingServices, shippingServiceId],
+  );
 
-  // Load shipping services when intl needed.
+  // Load shipping services as soon as an international product is selected.
   // Note: we don't pre-filter by source country — admins may set up services
   // without a fixed source. We always filter by destination + enabled, so the
   // client sees every available option (Express, Fret normal, Bateau, …).
   useEffect(() => {
-    if (!checkoutOpen || !needsIntlShipping || !destinationCountryId) {
-      if (!needsIntlShipping) setShippingServiceId(null);
+    if (!needsIntlShipping || !destinationCountryId) {
+      setShippingServices([]);
+      setShippingServiceId(null);
       return;
     }
     let cancelled = false;
@@ -248,8 +244,8 @@ function CartPage() {
         });
         if (!cancelled) {
           setShippingServices(services);
-          if (services.length > 0 && !shippingServiceId) {
-            setShippingServiceId(services[0].id);
+          if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
+            setShippingServiceId(null);
           }
         }
       } catch (e) {
@@ -258,7 +254,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutOpen, needsIntlShipping, destinationCountryId]);
+  }, [needsIntlShipping, destinationCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
@@ -269,6 +265,56 @@ function CartPage() {
     return resolved ?? (pricesReady ? fallbackUnitPrice(it) : 0);
   };
   const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
+
+  const renderShippingServiceSelector = () => {
+    if (!needsIntlShipping) return null;
+    return (
+      <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <Label className="flex items-center gap-2 text-sm font-semibold">
+          <Plane className="h-4 w-4 text-primary" />
+          Choisissez votre service de transport *
+        </Label>
+        <p className="text-[11px] text-muted-foreground">
+          Les frais seront calculés après pesée réelle du colis. La commande est bloquée tant qu’aucun service n’est choisi.
+        </p>
+        {!destinationCountryId ? (
+          <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>
+        ) : shippingServices.length === 0 ? (
+          <p className="text-xs text-destructive">
+            Aucun service actif disponible pour cette destination. Contactez le support.
+          </p>
+        ) : (
+          <Select value={shippingServiceId ?? ""} onValueChange={(v) => setShippingServiceId(v || null)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choisir un service" />
+            </SelectTrigger>
+            <SelectContent>
+              {shippingServices.map((s) => {
+                const delay = s.delay_min_days && s.delay_max_days
+                  ? `${s.delay_min_days}-${s.delay_max_days} j`
+                  : s.delay_max_days ? `~${s.delay_max_days} j` : "délai variable";
+                return (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit} · {delay}
+                      </span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        )}
+        {selectedShippingService && (
+          <p className="text-[11px] text-muted-foreground">
+            Service sélectionné : <span className="font-medium text-foreground">{selectedShippingService.name}</span>
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
@@ -682,6 +728,7 @@ function CartPage() {
               </section>
               );
             })}
+            {needsIntlShipping && renderShippingServiceSelector()}
           </div>
         )}
       </main>
@@ -723,7 +770,7 @@ function CartPage() {
             <Button
               className="h-12 rounded-full px-5 text-sm font-semibold"
               onClick={() => setCheckoutOpen(true)}
-              disabled={!pricesReady || selectedItems.length === 0}
+              disabled={!pricesReady || selectedItems.length === 0 || (needsIntlShipping && !shippingServiceId)}
             >
               {selectedItems.length === 0
                 ? t("cart.checkout")
@@ -815,46 +862,7 @@ function CartPage() {
             />
           </div>
 
-          {needsIntlShipping && (
-            <div className="space-y-1.5 rounded-xl border border-primary/30 bg-primary/5 p-3">
-              <Label className="flex items-center gap-2 text-sm font-semibold">
-                <Plane className="h-4 w-4 text-primary" />
-                Service de transport international *
-              </Label>
-              <p className="text-[11px] text-muted-foreground">
-                Un ou plusieurs articles nécessitent une expédition internationale. Choisissez le service. Le tarif final sera recalculé après pesée réelle du colis.
-              </p>
-              {shippingServices.length === 0 ? (
-                <p className="text-xs text-destructive">
-                  Aucun service disponible pour cette destination. Contactez le support.
-                </p>
-              ) : (
-                <Select
-                  value={shippingServiceId ?? ""}
-                  onValueChange={(v) => setShippingServiceId(v || null)}
-                >
-                  <SelectTrigger><SelectValue placeholder="Choisir un service" /></SelectTrigger>
-                  <SelectContent>
-                    {shippingServices.map((s) => {
-                      const delay = s.delay_min_days && s.delay_max_days
-                        ? `${s.delay_min_days}-${s.delay_max_days} j`
-                        : s.delay_max_days ? `~${s.delay_max_days} j` : "délai variable";
-                      return (
-                        <SelectItem key={s.id} value={s.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{s.name}</span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit} · {delay}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          )}
+          {renderShippingServiceSelector()}
 
 
 

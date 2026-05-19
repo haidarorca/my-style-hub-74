@@ -186,6 +186,7 @@ function NewAdminShopProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState(false);
 
   // Admin-only
   const [sourceUrl, setSourceUrl] = useState("");
@@ -751,6 +752,7 @@ function NewAdminShopProductPage() {
           price: priceNum,
           category_id,
           pending_category_request_id,
+          requires_international_shipping: requiresIntlShipping,
           status: "approved",
         })
         .select("id")
@@ -1009,6 +1011,15 @@ function NewAdminShopProductPage() {
               basePrice={price}
               categoryId={deepestPick && !isReq(deepestPick) ? idOf(deepestPick) : null}
             />
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si ce produit doit afficher le choix Express, Fret ou Bateau dans le panier.
+              </p>
+            </div>
+            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
           </div>
         </CardContent>
       </Card>
