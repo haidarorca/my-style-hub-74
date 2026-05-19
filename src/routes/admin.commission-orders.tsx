@@ -276,7 +276,7 @@ function CommissionOrders() {
         .in("id", Array.from(orderIdsToMark));
     }
     if (missing.length > 0) {
-      toast.warning(`WhatsApp manquant pour : ${missing.join(", ")}`);
+      toast.warning(`${NO_WHATSAPP_MSG} (${missing.join(", ")})`);
     } else {
       toast.success(`Envoi groupé préparé pour ${byVendor.size} vendeur${byVendor.size > 1 ? "s" : ""}.`);
     }
