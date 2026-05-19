@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Briefcase, Phone, MapPin, Search, MessageCircle, Send, Clock, CheckCircle2,
   ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck, ClipboardList,
+  Archive, ArchiveRestore,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
+import { setOrderArchived, setOrdersArchivedBulk } from "@/lib/admin-archive.functions";
 import { cn } from "@/lib/utils";
 import { Send as SendIcon, X } from "lucide-react";
 
@@ -52,9 +55,12 @@ function CommissionOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [page, setPage] = useState(0);
+  const archiveFn = useServerFn(setOrderArchived);
+  const archiveBulkFn = useServerFn(setOrdersArchivedBulk);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, archiveFilter]);
 
   // Vendors that have at least one commission order item
   const { data: vendorsList } = useQuery({
@@ -99,7 +105,7 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, archiveFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
@@ -115,10 +121,12 @@ function CommissionOrders() {
 
       let oq = supabase
         .from("orders")
-        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at", { count: "exact" })
+        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (archiveFilter === "active") oq = oq.is("archived_at", null);
+      else if (archiveFilter === "archived") oq = oq.not("archived_at", "is", null);
       if (restrictIds) oq = oq.in("id", restrictIds);
       if (q) {
         const esc = q.replace(/[%,()]/g, " ");
@@ -170,6 +178,28 @@ function CommissionOrders() {
     if (error) return toast.error(error.message);
     toast.success("Statut mis à jour");
     qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+  };
+
+  const toggleArchive = async (orderId: string, archived: boolean) => {
+    try {
+      await archiveFn({ data: { order_id: orderId, archived } });
+      toast.success(archived ? "Commande archivée" : "Commande désarchivée");
+      qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    }
+  };
+
+  const archiveSelection = async (archived: boolean) => {
+    if (selected.size === 0) return;
+    try {
+      await archiveBulkFn({ data: { order_ids: Array.from(selected), archived } });
+      toast.success(`${selected.size} commande(s) ${archived ? "archivée(s)" : "désarchivée(s)"}`);
+      clearSelection();
+      qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    }
   };
 
   const resolveVendorWhatsApp = (vendor: any): string => {
@@ -314,11 +344,35 @@ function CommissionOrders() {
           <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={sendGroupedForSelection}>
             <SendIcon className="h-4 w-4" /> Envoyer aux vendeurs
           </Button>
+          {archiveFilter === "archived" ? (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => archiveSelection(false)}>
+              <ArchiveRestore className="h-4 w-4" /> Désarchiver
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => archiveSelection(true)}>
+              <Archive className="h-4 w-4" /> Archiver
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={clearSelection}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       )}
+
+      <div className="flex gap-1 rounded-lg border bg-card p-1 w-fit">
+        {(["active", "archived", "all"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setArchiveFilter(k)}
+            className={cn(
+              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              archiveFilter === k ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+            )}
+          >
+            {k === "active" ? "Actives" : k === "archived" ? "Archivées" : "Toutes"}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
@@ -528,9 +582,20 @@ function CommissionOrders() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
                   <span className="text-muted-foreground">Total commande</span>
-                  <span className="font-bold text-primary">
-                    {Number(o.total).toLocaleString(locale)} FCFA
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">
+                      {Number(o.total).toLocaleString(locale)} FCFA
+                    </span>
+                    {o.archived_at ? (
+                      <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => toggleArchive(o.id, false)}>
+                        <ArchiveRestore className="h-3 w-3" /> Désarchiver
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => toggleArchive(o.id, true)}>
+                        <Archive className="h-3 w-3" /> Archiver
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {waClient && (

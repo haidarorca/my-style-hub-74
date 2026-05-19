@@ -801,8 +801,10 @@ export type Database = {
           length_cm: number | null
           order_id: string
           parcel_photo_url: string | null
+          price_per_kg_snapshot: number | null
           real_weight_kg: number | null
           service_fee: number | null
+          shipping_service_id: string | null
           status: Database["public"]["Enums"]["shipment_assessment_status"]
           total_fees: number | null
           updated_at: string
@@ -823,8 +825,10 @@ export type Database = {
           length_cm?: number | null
           order_id: string
           parcel_photo_url?: string | null
+          price_per_kg_snapshot?: number | null
           real_weight_kg?: number | null
           service_fee?: number | null
+          shipping_service_id?: string | null
           status?: Database["public"]["Enums"]["shipment_assessment_status"]
           total_fees?: number | null
           updated_at?: string
@@ -845,8 +849,10 @@ export type Database = {
           length_cm?: number | null
           order_id?: string
           parcel_photo_url?: string | null
+          price_per_kg_snapshot?: number | null
           real_weight_kg?: number | null
           service_fee?: number | null
+          shipping_service_id?: string | null
           status?: Database["public"]["Enums"]["shipment_assessment_status"]
           total_fees?: number | null
           updated_at?: string
@@ -885,6 +891,7 @@ export type Database = {
       orders: {
         Row: {
           address: string | null
+          archived_at: string | null
           buyer_id: string | null
           city: string | null
           created_at: string
@@ -895,11 +902,14 @@ export type Database = {
           id: string
           is_commission: boolean
           note: string | null
+          shipping_estimate_note: string | null
+          shipping_service_id: string | null
           status: string
           total: number
         }
         Insert: {
           address?: string | null
+          archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
           created_at?: string
@@ -910,11 +920,14 @@ export type Database = {
           id?: string
           is_commission?: boolean
           note?: string | null
+          shipping_estimate_note?: string | null
+          shipping_service_id?: string | null
           status?: string
           total?: number
         }
         Update: {
           address?: string | null
+          archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
           created_at?: string
@@ -925,6 +938,8 @@ export type Database = {
           id?: string
           is_commission?: boolean
           note?: string | null
+          shipping_estimate_note?: string | null
+          shipping_service_id?: string | null
           status?: string
           total?: number
         }
@@ -1386,6 +1401,7 @@ export type Database = {
           pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
+          requires_international_shipping: boolean
           status: Database["public"]["Enums"]["product_status"]
           translated_hash: string | null
           updated_at: string
@@ -1411,6 +1427,7 @@ export type Database = {
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
+          requires_international_shipping?: boolean
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
@@ -1436,6 +1453,7 @@ export type Database = {
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
+          requires_international_shipping?: boolean
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
@@ -1626,6 +1644,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_services: {
+        Row: {
+          created_at: string
+          delay_max_days: number | null
+          delay_min_days: number | null
+          description: string | null
+          destination_country_id: string | null
+          id: string
+          is_enabled: boolean
+          name: string
+          position: number
+          price_per_kg: number
+          pricing_unit: string
+          source_country_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_max_days?: number | null
+          delay_min_days?: number | null
+          description?: string | null
+          destination_country_id?: string | null
+          id?: string
+          is_enabled?: boolean
+          name: string
+          position?: number
+          price_per_kg?: number
+          pricing_unit?: string
+          source_country_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_max_days?: number | null
+          delay_min_days?: number | null
+          description?: string | null
+          destination_country_id?: string | null
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          position?: number
+          price_per_kg?: number
+          pricing_unit?: string
+          source_country_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       site_settings: {
         Row: {

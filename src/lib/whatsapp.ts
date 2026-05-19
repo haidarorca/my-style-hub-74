@@ -127,12 +127,23 @@ export function buildShipmentValidationMessage(opts: {
   orderShortId: string;
   totalFees: number;
   validationUrl: string;
+  serviceName?: string | null;
+  realWeightKg?: number | null;
+  pricePerKg?: number | null;
+  delayMinDays?: number | null;
+  delayMaxDays?: number | null;
 }): string {
   const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
   let msg = `Bonjour ${opts.customerName},\n\n`;
   msg += `Votre article de la commande *${opts.orderShortId}* est arrivé à notre entrepôt en Chine.\n\n`;
-  msg += `Après pesée, les frais d'expédition par avion sont de *${fmt(opts.totalFees)}*.\n\n`;
-  msg += "Merci de valider ces frais pour que nous puissions embarquer votre colis vers le Sénégal.\n\n";
+  if (opts.serviceName) msg += `🚚 Service : *${opts.serviceName}*\n`;
+  if (opts.realWeightKg != null) msg += `⚖️ Poids réel : *${opts.realWeightKg} kg*\n`;
+  if (opts.pricePerKg != null) msg += `💵 Prix : *${fmt(opts.pricePerKg)} / kg*\n`;
+  msg += `\nFrais d'expédition totaux : *${fmt(opts.totalFees)}*.\n`;
+  if (opts.delayMinDays != null || opts.delayMaxDays != null) {
+    msg += `⏱️ Délai estimé : ${opts.delayMinDays ?? "?"}–${opts.delayMaxDays ?? "?"} jours.\n`;
+  }
+  msg += "\nMerci de valider ces frais pour que nous puissions embarquer votre colis.\n\n";
   msg += `🔗 Lien de validation :\n${opts.validationUrl}\n\n`;
   msg += "⚠️ Important : le colis ne sera pas embarqué avant votre validation.";
   return msg;
