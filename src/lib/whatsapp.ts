@@ -120,3 +120,20 @@ export function buildVendorForwardMessage(
   msg += "Merci de préparer la commande. La livraison est gérée par la plateforme.";
   return msg;
 }
+
+/** Build a WhatsApp validation message for "fees after weighing" workflow. */
+export function buildShipmentValidationMessage(opts: {
+  customerName: string;
+  orderShortId: string;
+  totalFees: number;
+  validationUrl: string;
+}): string {
+  const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
+  let msg = `Bonjour ${opts.customerName},\n\n`;
+  msg += `Votre article de la commande *${opts.orderShortId}* est arrivé à notre entrepôt en Chine.\n\n`;
+  msg += `Après pesée, les frais d'expédition par avion sont de *${fmt(opts.totalFees)}*.\n\n`;
+  msg += "Merci de valider ces frais pour que nous puissions embarquer votre colis vers le Sénégal.\n\n";
+  msg += `🔗 Lien de validation :\n${opts.validationUrl}\n\n`;
+  msg += "⚠️ Important : le colis ne sera pas embarqué avant votre validation.";
+  return msg;
+}

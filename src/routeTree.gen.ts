@@ -41,6 +41,7 @@ import { Route as CCategoryIdRouteImport } from './routes/c.$categoryId'
 import { Route as AdminVendorsRouteImport } from './routes/admin.vendors'
 import { Route as AdminSupportRouteImport } from './routes/admin.support'
 import { Route as AdminShopsRouteImport } from './routes/admin.shops'
+import { Route as AdminShipmentsRouteImport } from './routes/admin.shipments'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
@@ -59,6 +60,7 @@ import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as VendorProductsIndexRouteImport } from './routes/vendor.products.index'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.index'
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
+import { Route as OrdersOrderIdValidateShipmentRouteImport } from './routes/orders.$orderId.validate-shipment'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as AdminSupportConversationIdRouteImport } from './routes/admin.support.$conversationId'
 import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.customers.$userId'
@@ -232,6 +234,11 @@ const AdminShopsRoute = AdminShopsRouteImport.update({
   path: '/shops',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminShipmentsRoute = AdminShipmentsRouteImport.update({
+  id: '/shipments',
+  path: '/shipments',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -322,6 +329,12 @@ const VendorProductsNewRoute = VendorProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => VendorRoute,
 } as any)
+const OrdersOrderIdValidateShipmentRoute =
+  OrdersOrderIdValidateShipmentRouteImport.update({
+    id: '/$orderId/validate-shipment',
+    path: '/$orderId/validate-shipment',
+    getParentRoute: () => OrdersRoute,
+  } as any)
 const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   id: '/api/public/inngest',
   path: '/api/public/inngest',
@@ -400,7 +413,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
@@ -422,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/shipments': typeof AdminShipmentsRoute
   '/admin/shops': typeof AdminShopsRoute
   '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
@@ -443,6 +457,7 @@ export interface FileRoutesByFullPath {
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -463,7 +478,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
@@ -483,6 +498,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/shipments': typeof AdminShipmentsRoute
   '/admin/shops': typeof AdminShopsRoute
   '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
@@ -504,6 +520,7 @@ export interface FileRoutesByTo {
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products': typeof AdminProductsIndexRoute
   '/vendor/products': typeof VendorProductsIndexRoute
@@ -526,7 +543,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
@@ -548,6 +565,7 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/shipments': typeof AdminShipmentsRoute
   '/admin/shops': typeof AdminShopsRoute
   '/admin/support': typeof AdminSupportRouteWithChildren
   '/admin/vendors': typeof AdminVendorsRoute
@@ -569,6 +587,7 @@ export interface FileRoutesById {
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
   '/admin/products/': typeof AdminProductsIndexRoute
   '/vendor/products/': typeof VendorProductsIndexRoute
@@ -614,6 +633,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/settings'
+    | '/admin/shipments'
     | '/admin/shops'
     | '/admin/support'
     | '/admin/vendors'
@@ -635,6 +655,7 @@ export interface FileRouteTypes {
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
     | '/api/public/inngest'
+    | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -675,6 +696,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/settings'
+    | '/admin/shipments'
     | '/admin/shops'
     | '/admin/support'
     | '/admin/vendors'
@@ -696,6 +718,7 @@ export interface FileRouteTypes {
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
     | '/api/public/inngest'
+    | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
     | '/admin/products'
     | '/vendor/products'
@@ -739,6 +762,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/settings'
+    | '/admin/shipments'
     | '/admin/shops'
     | '/admin/support'
     | '/admin/vendors'
@@ -760,6 +784,7 @@ export interface FileRouteTypes {
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
     | '/api/public/inngest'
+    | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
     | '/admin/products/'
     | '/vendor/products/'
@@ -782,7 +807,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
-  OrdersRoute: typeof OrdersRoute
+  OrdersRoute: typeof OrdersRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SearchRoute: typeof SearchRoute
   SignupRoute: typeof SignupRoute
@@ -1021,6 +1046,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminShopsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/shipments': {
+      id: '/admin/shipments'
+      path: '/shipments'
+      fullPath: '/admin/shipments'
+      preLoaderRoute: typeof AdminShipmentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/settings': {
       id: '/admin/settings'
       path: '/settings'
@@ -1146,6 +1178,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/vendor/products/new'
       preLoaderRoute: typeof VendorProductsNewRouteImport
       parentRoute: typeof VendorRoute
+    }
+    '/orders/$orderId/validate-shipment': {
+      id: '/orders/$orderId/validate-shipment'
+      path: '/$orderId/validate-shipment'
+      fullPath: '/orders/$orderId/validate-shipment'
+      preLoaderRoute: typeof OrdersOrderIdValidateShipmentRouteImport
+      parentRoute: typeof OrdersRoute
     }
     '/api/public/inngest': {
       id: '/api/public/inngest'
@@ -1303,6 +1342,7 @@ interface AdminRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminReviewsRoute: typeof AdminReviewsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminShipmentsRoute: typeof AdminShipmentsRoute
   AdminShopsRoute: typeof AdminShopsRoute
   AdminSupportRoute: typeof AdminSupportRouteWithChildren
   AdminVendorsRoute: typeof AdminVendorsRoute
@@ -1329,6 +1369,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminReviewsRoute: AdminReviewsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminShipmentsRoute: AdminShipmentsRoute,
   AdminShopsRoute: AdminShopsRoute,
   AdminSupportRoute: AdminSupportRouteWithChildren,
   AdminVendorsRoute: AdminVendorsRoute,
@@ -1340,6 +1381,17 @@ const AdminRouteChildren: AdminRouteChildren = {
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface OrdersRouteChildren {
+  OrdersOrderIdValidateShipmentRoute: typeof OrdersOrderIdValidateShipmentRoute
+}
+
+const OrdersRouteChildren: OrdersRouteChildren = {
+  OrdersOrderIdValidateShipmentRoute: OrdersOrderIdValidateShipmentRoute,
+}
+
+const OrdersRouteWithChildren =
+  OrdersRoute._addFileChildren(OrdersRouteChildren)
 
 interface VendorRouteChildren {
   VendorImportExportRoute: typeof VendorImportExportRoute
@@ -1384,7 +1436,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
-  OrdersRoute: OrdersRoute,
+  OrdersRoute: OrdersRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SearchRoute: SearchRoute,
   SignupRoute: SignupRoute,
@@ -1399,13 +1451,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
