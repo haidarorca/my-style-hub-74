@@ -113,9 +113,31 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
       .maybeSingle();
     if (existing) return existing as ShipmentAssessment;
 
+    // Pre-fill shipping_service_id from the order (chosen at checkout)
+    const { data: order } = await (supabaseAdmin as any)
+      .from("orders")
+      .select("shipping_service_id")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    let svcPrice: number | null = null;
+    if (order?.shipping_service_id) {
+      const { data: svc } = await (supabaseAdmin as any)
+        .from("shipping_services")
+        .select("price_per_kg")
+        .eq("id", order.shipping_service_id)
+        .maybeSingle();
+      if (svc?.price_per_kg != null) svcPrice = Number(svc.price_per_kg);
+    }
+
     const { data: created, error } = await (supabaseAdmin as any)
       .from("order_shipment_assessments")
-      .insert({ order_id: data.order_id, created_by: context.userId, status: "awaiting_weighing" })
+      .insert({
+        order_id: data.order_id,
+        created_by: context.userId,
+        status: "awaiting_weighing",
+        shipping_service_id: order?.shipping_service_id ?? null,
+        price_per_kg_snapshot: svcPrice,
+      })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
