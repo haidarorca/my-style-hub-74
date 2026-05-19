@@ -133,6 +133,8 @@ const UpdateSchema = z.object({
   extra_fees: z.number().min(0).nullable().optional(),
   admin_comment: z.string().max(2000).nullable().optional(),
   parcel_photo_url: z.string().url().nullable().optional(),
+  shipping_service_id: z.string().uuid().nullable().optional(),
+  price_per_kg_snapshot: z.number().min(0).nullable().optional(),
   status: z
     .enum([
       "pending_arrival",
