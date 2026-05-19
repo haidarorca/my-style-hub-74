@@ -485,6 +485,7 @@ function CartPage() {
         const saved = await createOrder({
           data: {
             destinationCountryId,
+            shippingServiceId: needsIntlShipping ? shippingServiceId : null,
             address: {
               full_name: addr.full_name,
               phone: addr.phone,
@@ -515,6 +516,10 @@ function CartPage() {
             city: addr.city,
             note: addr.note,
             destination_country_id: destinationCountryId,
+            shipping_service_id: needsIntlShipping ? shippingServiceId : null,
+            shipping_estimate_note: needsIntlShipping && shippingServiceId
+              ? "Estimé — sera recalculé après pesée"
+              : null,
           } as any);
         if (oErr) {
           console.error("[checkout] guest orders.insert failed", oErr, debugPayload);
