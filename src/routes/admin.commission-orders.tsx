@@ -629,11 +629,37 @@ function CommissionOrders() {
                 })}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
-                  <span className="text-muted-foreground">Total commande</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Total commande</span>
+                    {o.shipping_service_id && (
+                      <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5 text-primary text-[10px]">
+                        <Plane className="h-3 w-3" />
+                        {(servicesList ?? []).find((s) => s.id === o.shipping_service_id)?.name ?? "Service intl"}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-primary">
                       {Number(o.total).toLocaleString(locale)} FCFA
                     </span>
+                    {o.shipping_service_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1 text-[11px]"
+                        onClick={async () => {
+                          try {
+                            await startAssessmentFn({ data: { order_id: o.id } });
+                            toast.success("Évaluation prête — ouverture des expéditions");
+                            router.navigate({ to: "/admin/shipments" });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Erreur");
+                          }
+                        }}
+                      >
+                        <Scale className="h-3 w-3" /> Peser / Évaluer
+                      </Button>
+                    )}
                     {o.archived_at ? (
                       <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => toggleArchive(o.id, false)}>
                         <ArchiveRestore className="h-3 w-3" /> Désarchiver
@@ -645,6 +671,7 @@ function CommissionOrders() {
                     )}
                   </div>
                 </div>
+
 
                 {waClient && (
                   <a
