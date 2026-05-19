@@ -1,11 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Briefcase, Phone, MapPin, Search, MessageCircle, Send, Clock, CheckCircle2,
   ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck, ClipboardList,
-  Archive, ArchiveRestore,
+  Archive, ArchiveRestore, Plane, Scale,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
 import { setOrderArchived, setOrdersArchivedBulk } from "@/lib/admin-archive.functions";
+import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { cn } from "@/lib/utils";
 import { Send as SendIcon, X } from "lucide-react";
 
