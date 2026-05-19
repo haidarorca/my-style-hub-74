@@ -347,6 +347,22 @@ function EditProductPage() {
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
             <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
           </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si le colis doit être pesé à l'arrivée. Le client choisira un service de transport au panier et les frais réels seront calculés après pesée.
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={requiresIntlShipping}
+                onChange={(e) => setRequiresIntlShipping(e.target.checked)}
+              />
+            </label>
+          </div>
         </CardContent>
       </Card>
 
