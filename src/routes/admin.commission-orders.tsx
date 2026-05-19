@@ -237,7 +237,7 @@ function CommissionOrders() {
     const missing: string[] = [];
     const orderIdsToMark = new Set<string>();
     for (const [, { vendor, entries }] of byVendor) {
-      const num = (vendor?.shop_whatsapp || vendor?.phone || "").replace(/\D/g, "");
+      const num = resolveVendorWhatsApp(vendor);
       if (!num) { missing.push(vendor?.shop_name || vendor?.full_name || "Boutique"); continue; }
       // Build cumulative message: one section per order
       const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
