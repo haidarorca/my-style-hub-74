@@ -565,6 +565,15 @@ function NewProductPage() {
               Ce prix sera affiché tel quel au client (FCFA).
             </p>
           </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si le colis doit être pesé à l'arrivée (ex : Chine → Sénégal). Le client choisira un service de transport et les frais réels seront calculés après pesée.
+              </p>
+            </div>
+            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
+          </div>
         </CardContent>
       </Card>
 
