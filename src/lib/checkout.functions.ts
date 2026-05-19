@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const CheckoutSchema = z.object({
   destinationCountryId: z.string().uuid(),
+  shippingServiceId: z.string().uuid().nullable().optional(),
   address: z.object({
     full_name: z.string().trim().min(2).max(100),
     phone: z.string().trim().min(7).max(20),
