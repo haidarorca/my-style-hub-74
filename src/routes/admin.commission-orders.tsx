@@ -105,7 +105,7 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, archiveFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
@@ -121,10 +121,12 @@ function CommissionOrders() {
 
       let oq = supabase
         .from("orders")
-        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at", { count: "exact" })
+        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (archiveFilter === "active") oq = oq.is("archived_at", null);
+      else if (archiveFilter === "archived") oq = oq.not("archived_at", "is", null);
       if (restrictIds) oq = oq.in("id", restrictIds);
       if (q) {
         const esc = q.replace(/[%,()]/g, " ");
