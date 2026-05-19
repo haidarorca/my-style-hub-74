@@ -808,6 +808,49 @@ function CartPage() {
             />
           </div>
 
+          {needsIntlShipping && (
+            <div className="space-y-1.5 rounded-xl border border-primary/30 bg-primary/5 p-3">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                <Plane className="h-4 w-4 text-primary" />
+                Service de transport international *
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Un ou plusieurs articles nécessitent une expédition internationale. Choisissez le service. Le tarif final sera recalculé après pesée réelle du colis.
+              </p>
+              {shippingServices.length === 0 ? (
+                <p className="text-xs text-destructive">
+                  Aucun service disponible pour cette destination. Contactez le support.
+                </p>
+              ) : (
+                <Select
+                  value={shippingServiceId ?? ""}
+                  onValueChange={(v) => setShippingServiceId(v || null)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choisir un service" /></SelectTrigger>
+                  <SelectContent>
+                    {shippingServices.map((s) => {
+                      const delay = s.delay_min_days && s.delay_max_days
+                        ? `${s.delay_min_days}-${s.delay_max_days} j`
+                        : s.delay_max_days ? `~${s.delay_max_days} j` : "délai variable";
+                      return (
+                        <SelectItem key={s.id} value={s.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit} · {delay}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+
+
           {addresses.length > 0 && (
             <div className="mb-2 flex gap-2 rounded-full bg-muted p-1">
               <button
