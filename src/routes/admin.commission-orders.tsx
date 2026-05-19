@@ -55,9 +55,12 @@ function CommissionOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [page, setPage] = useState(0);
+  const archiveFn = useServerFn(setOrderArchived);
+  const archiveBulkFn = useServerFn(setOrdersArchivedBulk);
 
-  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, vendorFilter, archiveFilter]);
 
   // Vendors that have at least one commission order item
   const { data: vendorsList } = useQuery({
