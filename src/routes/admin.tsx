@@ -23,6 +23,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
   { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
   { to: "/admin/commission-orders", label: "Commandes commission", icon: Briefcase, perm: "orders" },
+  { to: "/admin/shipments", label: "Expéditions Chine", icon: PackageCheck, perm: "orders" },
   { to: "/admin/commissions/hub", label: "Commissions", icon: Percent, superOnly: true },
   { to: "/admin/reports", label: "Signalements", icon: Flag, perm: "support" },
   { to: "/admin/reviews", label: "Avis", icon: MessageSquare, perm: "support" },
