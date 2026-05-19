@@ -212,6 +212,51 @@ function CartPage() {
   );
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
+  // International shipping detection
+  const needsIntlShipping = useMemo(
+    () => selectedItems.some((it: any) => it.products?.requires_international_shipping === true),
+    [selectedItems],
+  );
+  const intlSourceCountryIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of selectedItems) {
+      if (it.products?.requires_international_shipping && it.products?.profiles?.source_country_id) {
+        set.add(it.products.profiles.source_country_id);
+      }
+    }
+    return Array.from(set);
+  }, [selectedItems]);
+
+  // Load shipping services when intl needed
+  useEffect(() => {
+    if (!checkoutOpen || !needsIntlShipping || !destinationCountryId) {
+      if (!needsIntlShipping) setShippingServiceId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const services = await fetchShippingServices({
+          data: {
+            source_country_id: intlSourceCountryIds[0] ?? null,
+            destination_country_id: destinationCountryId,
+            only_enabled: true,
+          },
+        });
+        if (!cancelled) {
+          setShippingServices(services);
+          if (services.length > 0 && !shippingServiceId) {
+            setShippingServiceId(services[0].id);
+          }
+        }
+      } catch (e) {
+        console.error("[cart] load shipping services failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOpen, needsIntlShipping, destinationCountryId, intlSourceCountryIds.join(",")]);
+
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
   const unitPrice = (it: any) => {
