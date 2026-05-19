@@ -214,7 +214,10 @@ function CartPage() {
 
   // International shipping detection
   const needsIntlShipping = useMemo(
-    () => selectedItems.some((it: any) => it.products?.requires_international_shipping === true),
+    () => selectedItems.some((it: any) =>
+      it.products?.profiles?.ships_internationally === true ||
+      it.products?.requires_international_shipping === true
+    ),
     [selectedItems],
   );
   const selectedShippingService = useMemo(
