@@ -83,6 +83,8 @@ function CartPage() {
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [shippingServiceId, setShippingServiceId] = useState<string | null>(null);
+  const [shippingServices, setShippingServices] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"saved" | "new">("saved");
