@@ -252,6 +252,7 @@ function EditProductPage() {
         designation: designation.trim() || null,
         description: description.trim() || null,
         price: Number(price) || 0,
+        requires_international_shipping: requiresIntlShipping,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
