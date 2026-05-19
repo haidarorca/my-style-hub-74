@@ -449,6 +449,7 @@ function AdminEditProductPage() {
         name: string; code: string; designation: string | null; description: string | null;
         price: number; category_id: string | null; pending_category_request_id: string | null; vendor_id: string;
         status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
+        requires_international_shipping: boolean;
         is_edit?: boolean;
       } = {
         name: name.trim(),
@@ -461,6 +462,7 @@ function AdminEditProductPage() {
         vendor_id: vendorId,
         status: (["pending","approved","rejected"].includes(status) ? status : "pending"),
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
+        requires_international_shipping: requiresIntlShipping,
       };
       if (status === "approved") updatePayload.is_edit = false;
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
