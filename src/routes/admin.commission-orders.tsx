@@ -125,7 +125,7 @@ function CommissionOrders() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, archiveFilter, page }],
+    queryKey: ["admin-commission-orders", "page", { search: search.trim(), statusFilter, vendorFilter, countryFilter, serviceFilter, archiveFilter, page }],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const q = search.trim();
@@ -141,10 +141,15 @@ function CommissionOrders() {
 
       let oq = supabase
         .from("orders")
-        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at", { count: "exact" })
+        .select("id, status, created_at, customer_name, customer_phone, address, city, note, total, forwarded_to_vendor_at, archived_at, destination_country_id, shipping_service_id", { count: "exact" })
         .eq("is_commission", true)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") oq = oq.eq("status", statusFilter);
+      if (countryFilter !== "all") oq = oq.eq("destination_country_id", countryFilter);
+      if (serviceFilter !== "all") {
+        if (serviceFilter === "__none__") oq = oq.is("shipping_service_id", null);
+        else oq = oq.eq("shipping_service_id", serviceFilter);
+      }
       if (archiveFilter === "active") oq = oq.is("archived_at", null);
       else if (archiveFilter === "archived") oq = oq.not("archived_at", "is", null);
       if (restrictIds) oq = oq.in("id", restrictIds);
