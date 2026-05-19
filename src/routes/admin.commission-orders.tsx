@@ -1,11 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Briefcase, Phone, MapPin, Search, MessageCircle, Send, Clock, CheckCircle2,
   ChefHat, Truck, PackageCheck, Ban, RotateCcw, Store, CheckCheck, ClipboardList,
-  Archive, ArchiveRestore,
+  Archive, ArchiveRestore, Plane, Scale,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
 import { setOrderArchived, setOrdersArchivedBulk } from "@/lib/admin-archive.functions";
+import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { cn } from "@/lib/utils";
 import { Send as SendIcon, X } from "lucide-react";
 
@@ -48,6 +49,8 @@ const PAGE_SIZE = 20;
 
 function CommissionOrders() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const startAssessmentFn = useServerFn(getOrCreateShipmentAssessment);
   const { lang } = useI18n();
   const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
   const locale = localeMap[lang] ?? "fr-FR";
@@ -626,11 +629,37 @@ function CommissionOrders() {
                 })}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
-                  <span className="text-muted-foreground">Total commande</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Total commande</span>
+                    {o.shipping_service_id && (
+                      <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5 text-primary text-[10px]">
+                        <Plane className="h-3 w-3" />
+                        {(servicesList ?? []).find((s) => s.id === o.shipping_service_id)?.name ?? "Service intl"}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-primary">
                       {Number(o.total).toLocaleString(locale)} FCFA
                     </span>
+                    {o.shipping_service_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1 text-[11px]"
+                        onClick={async () => {
+                          try {
+                            await startAssessmentFn({ data: { order_id: o.id } });
+                            toast.success("Évaluation prête — ouverture des expéditions");
+                            router.navigate({ to: "/admin/shipments" });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Erreur");
+                          }
+                        }}
+                      >
+                        <Scale className="h-3 w-3" /> Peser / Évaluer
+                      </Button>
+                    )}
                     {o.archived_at ? (
                       <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => toggleArchive(o.id, false)}>
                         <ArchiveRestore className="h-3 w-3" /> Désarchiver
@@ -642,6 +671,7 @@ function CommissionOrders() {
                     )}
                   </div>
                 </div>
+
 
                 {waClient && (
                   <a
