@@ -180,6 +180,28 @@ function CommissionOrders() {
     qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
   };
 
+  const toggleArchive = async (orderId: string, archived: boolean) => {
+    try {
+      await archiveFn({ data: { order_id: orderId, archived } });
+      toast.success(archived ? "Commande archivée" : "Commande désarchivée");
+      qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    }
+  };
+
+  const archiveSelection = async (archived: boolean) => {
+    if (selected.size === 0) return;
+    try {
+      await archiveBulkFn({ data: { order_ids: Array.from(selected), archived } });
+      toast.success(`${selected.size} commande(s) ${archived ? "archivée(s)" : "désarchivée(s)"}`);
+      clearSelection();
+      qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    }
+  };
+
   const resolveVendorWhatsApp = (vendor: any): string => {
     const candidates = [vendor?.shop_whatsapp, vendor?.phone];
     for (const c of candidates) {
