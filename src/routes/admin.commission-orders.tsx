@@ -172,15 +172,30 @@ function CommissionOrders() {
     qc.invalidateQueries({ queryKey: ["admin-commission-orders"] });
   };
 
+  const resolveVendorWhatsApp = (vendor: any): string => {
+    const candidates = [vendor?.shop_whatsapp, vendor?.phone];
+    for (const c of candidates) {
+      const num = (c ?? "").toString().replace(/\D/g, "");
+      if (num.length >= 6) return num;
+    }
+    return "";
+  };
+
+  const NO_WHATSAPP_MSG =
+    "Le vendeur n'a pas encore ajouté de numéro WhatsApp. Veuillez l'ajouter dans sa fiche boutique.";
+
   const forwardToVendor = async (
     orderId: string,
     vendorId: string,
     vendor: any,
     items: any[],
   ) => {
-    const num = (vendor?.shop_whatsapp || vendor?.phone || "").replace(/\D/g, "");
+    if (!vendor) {
+      return toast.error("Vendeur introuvable pour cette commande.");
+    }
+    const num = resolveVendorWhatsApp(vendor);
     if (!num) {
-      return toast.error("Ce vendeur n'a pas de numéro WhatsApp configuré.");
+      return toast.error(NO_WHATSAPP_MSG);
     }
     const lines: WhatsAppLine[] = items.map((it) => ({
       shopName: vendor?.shop_name || vendor?.full_name || "Boutique",
