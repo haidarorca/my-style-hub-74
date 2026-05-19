@@ -186,6 +186,7 @@ function NewAdminShopProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState(false);
 
   // Admin-only
   const [sourceUrl, setSourceUrl] = useState("");
@@ -751,6 +752,7 @@ function NewAdminShopProductPage() {
           price: priceNum,
           category_id,
           pending_category_request_id,
+          requires_international_shipping: requiresIntlShipping,
           status: "approved",
         })
         .select("id")
