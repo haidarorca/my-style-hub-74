@@ -433,6 +433,10 @@ function CartPage() {
       toast.error(t("checkout.country_required"));
       return;
     }
+    if (needsIntlShipping && !shippingServiceId) {
+      toast.error("Veuillez choisir un service de transport international.");
+      return;
+    }
     setSubmitting(true);
     try {
       const addr = await resolveAddress();
