@@ -786,6 +786,75 @@ export type Database = {
           },
         ]
       }
+      order_shipment_assessments: {
+        Row: {
+          admin_comment: string | null
+          air_freight_fee: number | null
+          client_rejected_at: string | null
+          client_response_note: string | null
+          client_validated_at: string | null
+          created_at: string
+          created_by: string | null
+          extra_fees: number | null
+          height_cm: number | null
+          id: string
+          length_cm: number | null
+          order_id: string
+          parcel_photo_url: string | null
+          real_weight_kg: number | null
+          service_fee: number | null
+          status: Database["public"]["Enums"]["shipment_assessment_status"]
+          total_fees: number | null
+          updated_at: string
+          volumetric_weight_kg: number | null
+          width_cm: number | null
+        }
+        Insert: {
+          admin_comment?: string | null
+          air_freight_fee?: number | null
+          client_rejected_at?: string | null
+          client_response_note?: string | null
+          client_validated_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          extra_fees?: number | null
+          height_cm?: number | null
+          id?: string
+          length_cm?: number | null
+          order_id: string
+          parcel_photo_url?: string | null
+          real_weight_kg?: number | null
+          service_fee?: number | null
+          status?: Database["public"]["Enums"]["shipment_assessment_status"]
+          total_fees?: number | null
+          updated_at?: string
+          volumetric_weight_kg?: number | null
+          width_cm?: number | null
+        }
+        Update: {
+          admin_comment?: string | null
+          air_freight_fee?: number | null
+          client_rejected_at?: string | null
+          client_response_note?: string | null
+          client_validated_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          extra_fees?: number | null
+          height_cm?: number | null
+          id?: string
+          length_cm?: number | null
+          order_id?: string
+          parcel_photo_url?: string | null
+          real_weight_kg?: number | null
+          service_fee?: number | null
+          status?: Database["public"]["Enums"]["shipment_assessment_status"]
+          total_fees?: number | null
+          updated_at?: string
+          volumetric_weight_kg?: number | null
+          width_cm?: number | null
+        }
+        Relationships: []
+      }
       order_status_history: {
         Row: {
           changed_by: string | null
@@ -2271,6 +2340,15 @@ export type Database = {
         | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
+      shipment_assessment_status:
+        | "pending_arrival"
+        | "awaiting_weighing"
+        | "fees_calculated"
+        | "awaiting_client_validation"
+        | "validated"
+        | "rejected"
+        | "ready_to_ship"
+        | "shipped"
       shop_contact_mode:
         | "direct"
         | "internal_only"
@@ -2453,6 +2531,16 @@ export const Constants = {
       ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
+      shipment_assessment_status: [
+        "pending_arrival",
+        "awaiting_weighing",
+        "fees_calculated",
+        "awaiting_client_validation",
+        "validated",
+        "rejected",
+        "ready_to_ship",
+        "shipped",
+      ],
       shop_contact_mode: [
         "direct",
         "internal_only",
