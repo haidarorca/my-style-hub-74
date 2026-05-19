@@ -67,6 +67,7 @@ function EditProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
