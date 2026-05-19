@@ -108,7 +108,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         city: data.address.city,
         note: data.address.note ?? null,
         destination_country_id: data.destinationCountryId,
-      });
+        shipping_service_id: data.shippingServiceId ?? null,
+        shipping_estimate_note: data.shippingServiceId
+          ? "Estimé — sera recalculé après pesée"
+          : null,
+      } as any);
       if (orderError) throw new Error(`Création commande: ${orderError.message}`);
 
       const { error: itemsError } = await supabaseAdmin
