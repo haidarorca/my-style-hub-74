@@ -56,7 +56,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     supabase
       .from("products")
       .select(
-        `id, name, name_i18n, code, price, vendor_id, requires_international_shipping, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)`,
+        `id, name, name_i18n, code, price, vendor_id, requires_international_shipping, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id, ships_internationally)`,
       )
       .in("id", productIds),
     variantIds.length
