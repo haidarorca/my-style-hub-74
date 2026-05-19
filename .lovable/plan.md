@@ -1,87 +1,97 @@
-# Plan — Pays dynamiques + Validation frais après pesée
+# Plan — Améliorations Commandes Commission (additif, sans casse)
 
-Approche **strictement additive**. Aucune suppression, aucun changement de logique métier existante. Tous les nouveaux champs sont nullable, tous les nouveaux statuts coexistent avec les anciens.
-
----
-
-## Partie A — Pays dynamiques (vérification + petits ajustements)
-
-La table `countries` et la page `/admin/countries` existent déjà et fonctionnent. Travail à faire :
-
-1. **Audit lecture seule** : vérifier que tous les sélecteurs de pays (commission source/destination, livraison, profil vendeur, adresses client) lisent bien depuis le hook `useCountries` (table `countries`) et **non depuis une liste codée en dur**.
-2. **Corriger les endroits où une liste fixe est utilisée**, le cas échéant — en gardant exactement la même UI, juste la source de données change.
-3. **S'assurer du filtre `is_enabled = true`** côté client (formulaires publics / checkout / livraison). Côté admin commission : afficher TOUS les pays (actifs + inactifs) pour permettre la gestion.
-4. **Ajouter un lien rapide "Gérer les pays"** dans la page `/admin/commissions` (vers `/admin/countries`), sans modifier la logique de commission.
-
-Aucune migration nécessaire pour cette partie.
+Approche : 100% additive. Aucune table existante modifiée de manière destructive. Aucun statut existant renommé. Tout nouveau champ est nullable avec défaut sûr.
 
 ---
 
-## Partie B — Validation frais après pesée (Chine → Sénégal)
+## 1. Archive des commandes commission
 
-### Étape 1 — Migration DB (additive uniquement)
+**DB (migration additive)**
+- Ajouter `orders.archived_at timestamptz NULL` (nullable, défaut NULL)
+- Index partiel sur `archived_at IS NULL` pour la liste active
 
-Nouvelle table `order_shipment_assessments` (1 ligne par commande qui nécessite une pesée) :
+**UI `/admin/commission-orders`**
+- Ajouter un filtre tabs : **Actives** (défaut, `archived_at IS NULL`) / **Archivées** (`archived_at IS NOT NULL`) / **Toutes**
+- Bouton "Archiver" par commande (visible sur livrée/annulée — mais autorisé partout)
+- Bouton "Désarchiver" dans la vue Archivées
+- Aucune suppression. Données préservées.
 
-```text
-id, order_id (FK orders, unique)
-status: nouveau enum shipment_assessment_status
-  ('pending_arrival','awaiting_weighing','fees_calculated',
-   'awaiting_client_validation','validated','rejected',
-   'ready_to_ship','shipped')
-real_weight_kg, volumetric_weight_kg, length_cm, width_cm, height_cm
-air_freight_fee, service_fee, extra_fees, total_fees
-admin_comment, parcel_photo_url
-client_validated_at, client_rejected_at, client_response_note
-created_by (admin), created_at, updated_at
+**Server functions** : ajouter `archiveOrder` / `unarchiveOrder` dans `src/lib/admin-orders.functions.ts` (admin only).
+
+---
+
+## 2. Services de transport (admin)
+
+**DB nouvelle table `shipping_services`** :
 ```
+id, name, source_country_id, destination_country_id,
+price_per_kg numeric, pricing_unit text default 'kg' ('kg'|'m3'),
+delay_min_days int, delay_max_days int,
+is_enabled bool default true, position int, created_at, updated_at
+```
+- RLS : lecture publique (clients doivent voir au panier), écriture admin only.
 
-RLS :
-- Admin : ALL
-- Client (`orders.buyer_id = auth.uid()`) : SELECT + UPDATE limité aux champs de validation
-- Vendeur : aucun accès (logique 100% admin/commission/import international)
-
-**Aucune modification de la table `orders`** — pas de nouveau statut ajouté à `orders.status`. L'état de la pesée est totalement séparé.
-
-### Étape 2 — UI Admin
-
-Dans `/admin/commission-orders` (ou nouvelle section `/admin/shipments`) :
-- Encart par commande "Évaluation expédition"
-- Formulaire : poids réel, poids volumétrique, dimensions, frais avion, frais service, frais extras, commentaire, upload photo
-- Calcul automatique du total
-- Bouton **"Envoyer validation WhatsApp"** (utilise le numéro client de la commande)
-
-### Étape 3 — Message WhatsApp
-
-Nouvelle fonction dans `src/lib/whatsapp.ts` : `buildShipmentValidationMessage(order, assessment)` qui produit exactement le format demandé, avec lien `https://kawzone.com/orders/<id>/validate-shipment`.
-
-### Étape 4 — UI Client
-
-Nouvelle page `src/routes/orders.$orderId.validate-shipment.tsx` :
-- Affiche la commande, le détail des frais, la photo
-- Deux boutons : **"Valider les frais"** / **"Refuser"**
-- Champ note optionnel
-- Verrou : si déjà validé/refusé, affiche le statut
-
-Server function `validateShipmentAssessment` (avec `requireSupabaseAuth`) qui vérifie que `auth.uid() = order.buyer_id`.
-
-### Étape 5 — Aucun impact sur le reste
-
-- Checkout : inchangé
-- Commandes vendeur : inchangées
-- Commandes commission existantes : inchangées (assessment optionnel, créé seulement quand l'admin clique "Démarrer évaluation")
-- WhatsApp existant : intact, juste un nouveau builder ajouté
-- Anciens statuts `orders.status` : intacts (new/confirmed/delivered/cancelled)
+**Nouvelle page `/admin/shipping-services`** (lien dans nav admin sous "Pays") :
+- CRUD : créer, éditer prix/kg, délais, activer/désactiver, choisir pays source+dest.
 
 ---
 
-## Livraison étape par étape
+## 3. Choix client au panier / checkout
 
-Je propose de faire **dans l'ordre, avec validation entre chaque** :
+**Produit** : nouveau champ `products.requires_international_shipping bool default false` (additif).
 
-1. **Partie A** (pays dynamiques) — petit, sans risque, je commence par là
-2. **Migration DB Partie B** (table + RLS + enum) — vous validez la migration
-3. **UI Admin** (formulaire pesée + bouton WhatsApp)
-4. **UI Client** (page de validation)
+**Checkout** :
+- Si le panier contient au moins 1 produit avec `requires_international_shipping = true`, afficher un sélecteur de service de transport (filtré par source produit / destination client).
+- Stockage du choix : nouveau champ `orders.shipping_service_id uuid NULL` + `orders.shipping_estimate_note text NULL` ("Estimé — sera recalculé après pesée").
+- Le checkout existant continue à fonctionner exactement comme avant pour les autres produits.
 
-Confirmez-vous cet ordre ? Si oui, je commence par la Partie A immédiatement après votre approbation du plan.
+---
+
+## 4. Pesée + calcul automatique (extension du système existant)
+
+Réutiliser la table existante `order_shipment_assessments` déjà en place. Ajouter 2 colonnes additives :
+- `shipping_service_id uuid NULL` (référence au service choisi)
+- `price_per_kg_snapshot numeric NULL` (figé au moment du calcul)
+
+UI `/admin/shipments` : pré-remplir `air_freight_fee = real_weight_kg × price_per_kg` du service choisi. Garder `extra_fees`, `service_fee`, `admin_comment`.
+
+---
+
+## 5. Validation WhatsApp (déjà en place)
+
+Étendre `buildShipmentValidationMessage` dans `src/lib/whatsapp.ts` pour inclure :
+- service choisi, poids réel, prix/kg, délai estimé.
+Aucune nouvelle table. La page client `/orders/$orderId/validate-shipment` existe déjà — j'ajoute juste l'affichage du service+délai.
+
+---
+
+## 6. Option côté produit (vendeur + admin)
+
+- Case à cocher "Ce produit nécessite des frais internationaux après pesée" dans :
+  - formulaire vendeur (`vendor.products.new` + `vendor.products.$productId.edit`)
+  - formulaire admin (`admin.products.$productId.edit`)
+- Par défaut **désactivée** → comportement actuel inchangé.
+
+---
+
+## 7. Ce qui N'EST PAS touché
+
+- Statuts `orders.status` (new/confirmed/delivered/cancelled) : intacts
+- Logique commission / `resolve_commission` / `commission_rules` : intacte
+- Checkout pour produits sans `requires_international_shipping` : intact
+- Commandes vendeur classiques : intactes
+- WhatsApp existant (`buildWhatsAppMessage`, `buildVendorForwardMessage`) : intacts
+- Système de pays, de commissions : intact
+
+---
+
+## Ordre de livraison (validation entre chaque)
+
+1. **Migration DB** (archive + shipping_services + 2 colonnes additives sur products/orders/assessments) — vous validez
+2. **Archive UI** sur `/admin/commission-orders` (filtre + bouton)
+3. **Page `/admin/shipping-services`** (CRUD)
+4. **Option produit** (case à cocher vendeur + admin)
+5. **Sélecteur transport au checkout**
+6. **Intégration pesée + WhatsApp étendu**
+
+Confirmez-vous ce plan et l'ordre ? Je commence par l'étape 1 (migration) dès votre approbation.
