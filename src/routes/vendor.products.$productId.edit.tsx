@@ -67,6 +67,7 @@ function EditProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
@@ -106,6 +107,7 @@ function EditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
+    setRequiresIntlShipping(Boolean((p as any).requires_international_shipping));
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
     const drafts = data.variants.map(fromExisting);
@@ -250,6 +252,7 @@ function EditProductPage() {
         designation: designation.trim() || null,
         description: description.trim() || null,
         price: Number(price) || 0,
+        requires_international_shipping: requiresIntlShipping,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
@@ -343,6 +346,22 @@ function EditProductPage() {
             <Label>Prix (FCFA) *</Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
             <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si le colis doit être pesé à l'arrivée. Le client choisira un service de transport au panier et les frais réels seront calculés après pesée.
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={requiresIntlShipping}
+                onChange={(e) => setRequiresIntlShipping(e.target.checked)}
+              />
+            </label>
           </div>
         </CardContent>
       </Card>

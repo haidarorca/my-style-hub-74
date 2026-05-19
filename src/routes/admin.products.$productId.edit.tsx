@@ -77,6 +77,7 @@ function AdminEditProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [rejectionReason, setRejectionReason] = useState("");
   const [vendorId, setVendorId] = useState<string>("");
@@ -168,6 +169,7 @@ function AdminEditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
+    setRequiresIntlShipping(Boolean((p as any).requires_international_shipping));
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setRejectionReason(p.rejection_reason ?? "");
     setVendorId(p.vendor_id ?? "");
@@ -447,6 +449,7 @@ function AdminEditProductPage() {
         name: string; code: string; designation: string | null; description: string | null;
         price: number; category_id: string | null; pending_category_request_id: string | null; vendor_id: string;
         status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
+        requires_international_shipping: boolean;
         is_edit?: boolean;
       } = {
         name: name.trim(),
@@ -459,6 +462,7 @@ function AdminEditProductPage() {
         vendor_id: vendorId,
         status: (["pending","approved","rejected"].includes(status) ? status : "pending"),
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
+        requires_international_shipping: requiresIntlShipping,
       };
       if (status === "approved") updatePayload.is_edit = false;
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
@@ -544,6 +548,15 @@ function AdminEditProductPage() {
           <div>
             <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Activez si ce produit nécessite un service de transport international (pesée à l'arrivée et validation client des frais réels).
+              </p>
+            </div>
+            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
           </div>
         </CardContent>
       </Card>

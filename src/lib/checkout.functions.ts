@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const CheckoutSchema = z.object({
   destinationCountryId: z.string().uuid(),
+  shippingServiceId: z.string().uuid().nullable().optional(),
   address: z.object({
     full_name: z.string().trim().min(2).max(100),
     phone: z.string().trim().min(7).max(20),
@@ -107,7 +108,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         city: data.address.city,
         note: data.address.note ?? null,
         destination_country_id: data.destinationCountryId,
-      });
+        shipping_service_id: data.shippingServiceId ?? null,
+        shipping_estimate_note: data.shippingServiceId
+          ? "Estimé — sera recalculé après pesée"
+          : null,
+      } as any);
       if (orderError) throw new Error(`Création commande: ${orderError.message}`);
 
       const { error: itemsError } = await supabaseAdmin
