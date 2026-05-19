@@ -107,6 +107,7 @@ function EditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
+    setRequiresIntlShipping(Boolean((p as any).requires_international_shipping));
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
     const drafts = data.variants.map(fromExisting);
