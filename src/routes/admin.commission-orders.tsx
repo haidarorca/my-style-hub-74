@@ -49,6 +49,8 @@ const PAGE_SIZE = 20;
 
 function CommissionOrders() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const startAssessmentFn = useServerFn(getOrCreateShipmentAssessment);
   const { lang } = useI18n();
   const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
   const locale = localeMap[lang] ?? "fr-FR";
