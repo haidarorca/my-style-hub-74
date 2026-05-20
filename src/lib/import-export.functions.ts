@@ -374,8 +374,14 @@ export const previewImport = createServerFn({ method: "POST" })
         if (r.displayPrice === undefined || r.displayPrice < 0)
           errors.push({ row: r.rowIndex, field: "Prix affiché", severity: "error", message: "Prix invalide" });
         const cat = r.subSubCategory ?? r.subCategory ?? r.category;
-        if (cat && !catByName.has(cat.toLowerCase()))
-          errors.push({ row: r.rowIndex, field: "Catégorie", severity: "error", message: `Catégorie inconnue : ${cat}` });
+        if (cat && !catByName.has(cat.toLowerCase())) {
+          errors.push({
+            row: r.rowIndex,
+            field: "Catégorie",
+            severity: "warning",
+            message: `Nouvelle catégorie détectée : ${cat}`,
+          });
+        }
       } else if (r.action === "update") {
         toUpdate++;
       } else if (r.action === "delete") {
@@ -447,9 +453,74 @@ export const commitImport = createServerFn({ method: "POST" })
     const imageMap = (row.image_map ?? {}) as Record<string, string>;
     const isAdmin = row.scope === "admin";
 
-    const { data: allCats } = await supabaseAdmin.from("categories").select("id, name");
-    const catByName = new Map<string, string>();
-    for (const c of (allCats ?? []) as any[]) catByName.set(c.name.toLowerCase(), c.id);
+    const { data: allCats } = await supabaseAdmin
+      .from("categories")
+      .select("id, name, parent_id, level");
+
+    const catByName = new Map<string, any>();
+
+    for (const c of (allCats ?? []) as any[]) {
+      catByName.set(c.name.toLowerCase(), c);
+    }
+
+    function slugifyCat(s: string) {
+      return s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    async function getOrCreateCategory(
+      name: string,
+      level: number,
+      parentId: string | null
+    ) {
+      const key = name.toLowerCase().trim();
+      const existing = catByName.get(key);
+
+      if (existing) return existing.id;
+
+      const { data: created, error } = await supabaseAdmin
+        .from("categories")
+        .insert({
+          name: name.trim(),
+          slug: `${slugifyCat(name)}-${Date.now()}`,
+          level,
+          parent_id: parentId,
+        })
+        .select("id, name, parent_id, level")
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      catByName.set(key, created);
+
+      return created.id;
+    }
+
+    async function resolveCategoryId(parent?: ParsedRow) {
+      if (!parent) return null;
+
+      let level1Id: string | null = null;
+      let level2Id: string | null = null;
+      let level3Id: string | null = null;
+
+      if (parent.category) {
+        level1Id = await getOrCreateCategory(parent.category, 1, null);
+      }
+
+      if (parent.subCategory) {
+        level2Id = await getOrCreateCategory(parent.subCategory, 2, level1Id);
+      }
+
+      if (parent.subSubCategory) {
+        level3Id = await getOrCreateCategory(parent.subSubCategory, 3, level2Id);
+      }
+
+      return level3Id ?? level2Id ?? level1Id;
+    }
 
     const groups = new Map<string, ParsedRow[]>();
     for (const r of rows) {
@@ -474,10 +545,7 @@ export const commitImport = createServerFn({ method: "POST" })
           .maybeSingle();
         let productId = (existing as any)?.id as string | undefined;
 
-        const cat = parent
-          ? parent.subSubCategory ?? parent.subCategory ?? parent.category
-          : undefined;
-        const categoryId = cat ? catByName.get(cat.toLowerCase()) ?? null : null;
+        const categoryId = await resolveCategoryId(parent);
 
         if (parent && parent.action === "delete" && productId) {
           await supabaseAdmin.from("products").delete().eq("id", productId);
