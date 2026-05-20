@@ -374,14 +374,14 @@ export const previewImport = createServerFn({ method: "POST" })
         if (r.displayPrice === undefined || r.displayPrice < 0)
           errors.push({ row: r.rowIndex, field: "Prix affiché", severity: "error", message: "Prix invalide" });
         const cat = r.subSubCategory ?? r.subCategory ?? r.category;
-        if (cat && !catByName.has(cat.toLowerCase())) {
-          errors.push({
-            row: r.rowIndex,
-            field: "Catégorie",
-            severity: "warning",
-            message: `Nouvelle catégorie détectée : ${cat}`,
-          });
-        }
+if (cat && !catByName.has(cat.toLowerCase())) {
+  errors.push({
+    row: r.rowIndex,
+    field: "Catégorie",
+    severity: "warning",
+    message: `Nouvelle catégorie détectée : ${cat}`,
+  });
+}
       } else if (r.action === "update") {
         toUpdate++;
       } else if (r.action === "delete") {
