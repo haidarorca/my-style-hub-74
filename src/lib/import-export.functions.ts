@@ -486,7 +486,7 @@ export const commitImport = createServerFn({ method: "POST" })
         .from("categories")
         .insert({
           name: name.trim(),
-          slug: `${slugifyCat(name)}-${Date.now()}`,
+          .insert({   name: name.trim(),   level,   parent_id: parentId, })
           level,
           parent_id: parentId,
         })
