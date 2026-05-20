@@ -483,15 +483,14 @@ export const commitImport = createServerFn({ method: "POST" })
       if (existing) return existing.id;
 
       const { data: created, error } = await supabaseAdmin
-        .from("categories")
-        .insert({
-          name: name.trim(),
-          .insert({   name: name.trim(),   level,   parent_id: parentId, })
-          level,
-          parent_id: parentId,
-        })
-        .select("id, name, parent_id, level")
-        .single();
+  .from("categories")
+  .insert({
+    name: name.trim(),
+    level,
+    parent_id: parentId,
+  })
+  .select("id, name, parent_id, level")
+  .single();
 
       if (error) throw new Error(error.message);
 
