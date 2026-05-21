@@ -113,6 +113,11 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
     );
   };
 
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+    setSelectedProducts([]);
+  };
+
   const handleBulkDelete = async () => {
     setIsBulkDeleting(true);
     try {
@@ -377,7 +382,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
                   size="icon"
                   variant="outline"
                   disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
+                  onClick={() => goToPage(page - 1)}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -385,7 +390,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
                   size="icon"
                   variant="outline"
                   disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => goToPage(page + 1)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
