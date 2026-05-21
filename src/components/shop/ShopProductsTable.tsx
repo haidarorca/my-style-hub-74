@@ -80,7 +80,11 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (productId: string) => deleteFn({ data: { productId } }),
+    mutationFn: async (productId: string) => {
+      const result = await deleteFn({ data: { productId } });
+      if (!result.ok) throw new Error(result.message ?? "Suppression impossible.");
+      return result;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shop-products", shopId] });
       qc.invalidateQueries({ queryKey: ["shop-overview", shopId] });
@@ -92,13 +96,14 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const isAllSelected = rows.length > 0 && selectedProducts.length === rows.length;
+  const rowIds = rows.map((p) => p.id);
+  const isAllSelected = rowIds.length > 0 && rowIds.every((id) => selectedProducts.includes(id));
 
   const handleSelectAll = () => {
     if (isAllSelected) {
-      setSelectedProducts([]);
+      setSelectedProducts((prev) => prev.filter((id) => !rowIds.includes(id)));
     } else {
-      setSelectedProducts(rows.map((p) => p.id));
+      setSelectedProducts((prev) => Array.from(new Set([...prev, ...rowIds])));
     }
   };
 
