@@ -1009,6 +1009,7 @@ export const commitImport = createServerFn({
           .from("categories")
           .insert({
             name: cleanName,
+            slug: cleanName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `cat-${Date.now()}`,
             level,
             parent_id: parentId,
           })

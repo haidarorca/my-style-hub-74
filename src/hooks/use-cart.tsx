@@ -126,7 +126,15 @@ export function useCart() {
 
   const count = (items ?? []).reduce((s: number, i: any) => s + (i.quantity ?? 0), 0);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["cart"] });
+  const refresh = async () => {
+    // Force a refetch (not just invalidate) so the cart selector — including
+    // ships_internationally / requires_international_shipping flags — updates
+    // immediately after add/update/remove, even when the cart query has no
+    // active observer yet (e.g. user is still on the product page).
+    await qc.refetchQueries({ queryKey: ["cart"], type: "all" });
+    // Display prices depend on cart line composition; refresh them too.
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+  };
 
   const addToCart = async (input: AddToCartInput) => {
     const qty = input.quantity ?? 1;

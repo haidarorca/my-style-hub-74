@@ -424,4 +424,19 @@ function ProductMobileCard({
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <Switch checked={row.is_active} onCheckedChange={
+          <Switch checked={row.is_active} onCheckedChange={onToggle} />
+          <span>{row.is_active ? "Actif" : "Inactif"}</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <Link to={editTo} params={{ productId: row.id }} className="text-xs underline">
+            Éditer
+          </Link>
+          <button onClick={onDelete} className="text-xs text-destructive underline">
+            Supprimer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
