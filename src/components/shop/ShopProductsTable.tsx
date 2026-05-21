@@ -37,8 +37,13 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  
+  // États de sélection et de popups
   const [deleteTarget, setDeleteTarget] = useState<ShopProductRow | null>(null);
-const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  
   const pageSize = 20;
 
   const { data, isLoading } = useQuery({
@@ -56,10 +61,8 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const deleteMut = useMutation({
     mutationFn: (productId: string) => deleteFn({ data: { productId } }),
     onSuccess: () => {
-      toast.success("Produit supprimé.");
       qc.invalidateQueries({ queryKey: ["shop-products", shopId] });
       qc.invalidateQueries({ queryKey: ["shop-overview", shopId] });
-      setDeleteTarget(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -68,20 +71,60 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  // Logique utilitaire pour gérer les sélections
+  const isAllSelected = rows.length > 0 && selectedProducts.length === rows.length;
+  
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(rows.map((p) => p.id));
+    }
+  };
+
+  const handleSelectOne = (productId: string) => {
+    setSelectedProducts((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  // Traitement optimisé de la suppression groupée en arrière-plan
+  const handleBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    try {
+      // Exécution parallèle des requêtes pour des performances maximales
+      await Promise.all(selectedProducts.map((id) => deleteMut.mutateAsync(id)));
+      
+      toast.success("Produits sélectionnés supprimés.");
+      setSelectedProducts([]);
+      
+      // Rafraîchissement du cache de données (une seule fois à la fin)
+      qc.invalidateQueries({ queryKey: ["shop-products", shopId] });
+      qc.invalidateQueries({ queryKey: ["shop-overview", shopId] });
+    } catch (error) {
+      // Les erreurs individuelles sont gérées par le onError de deleteMut
+    } finally {
+      setIsBulkDeleting(false);
+      setIsBulkDeleteOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
-      {/* Filters */}
+      {/* Filtres */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Rechercher (nom ou code)…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); setSelectedProducts([]); }}
             className="pl-8"
           />
         </div>
-        <Select value={status} onValueChange={(v: any) => { setStatus(v); setPage(1); }}>
+        <Select value={status} onValueChange={(v: any) => { setStatus(v); setPage(1); setSelectedProducts([]); }}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous statuts</SelectItem>
@@ -90,7 +133,7 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
             <SelectItem value="rejected">Refusés</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={activeFilter} onValueChange={(v: any) => { setActiveFilter(v); setPage(1); }}>
+        <Select value={activeFilter} onValueChange={(v: any) => { setActiveFilter(v); setPage(1); setSelectedProducts([]); }}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous (actifs+inactifs)</SelectItem>
@@ -107,7 +150,24 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
         )}
       </div>
 
-      {/* Empty / loading */}
+      {/* Barre d'action de groupe (S'affiche dès qu'un produit au moins est sélectionné) */}
+      {selectedProducts.length > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 p-3 animate-in fade-in-50 duration-200">
+          <span className="text-sm font-medium text-destructive">
+            {selectedProducts.length} produit(s) sélectionné(s)
+          </span>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsBulkDeleteOpen(true)}
+          >
+            Supprimer les produits sélectionnés
+          </Button>
+        </div>
+      )}
+
+      {/* Chargement / Liste vide */}
       {isLoading ? (
         <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
           Chargement…
@@ -119,100 +179,86 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
         </div>
       ) : (
         <>
-          {/* Mobile cards */}
- <ul className="space-y-2 md:hidden">
-<div className="mb-4 rounded-xl border bg-card p-3 md:hidden">
-  <label className="mb-3 flex items-center gap-2 text-sm font-medium">
-    <input
-      type="checkbox"
-      checked={rows.length > 0 && selectedProducts.length === rows.length}
-      onChange={() => {
-        if (selectedProducts.length === rows.length) {
-          setSelectedProducts([]);
-        } else {
-          setSelectedProducts(rows.map((p) => p.id));
-        }
-      }}
-      className="h-5 w-5"
-    />
-    Sélectionner tout
-  </label>
+          {/* VERSION MOBILE (Téléphones) */}
+          <div className="space-y-3 md:hidden">
+            <div className="flex items-center p-1">
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={handleSelectAll}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                Sélectionner tout ({rows.length})
+              </label>
+            </div>
 
-  <Button
-    type="button"
-    variant="destructive"
-    disabled={selectedProducts.length === 0}
-    className="w-full"
-    onClick={async () => {
-      const confirmed = window.confirm(
-        "Voulez-vous vraiment supprimer les produits sélectionnés ? Cette action est irréversible."
-      );
+            <ul className="space-y-2">
+              {rows.map((p) => (
+                <li key={p.id} className="flex items-start gap-2">
+                  <div className="pt-4 pl-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.includes(p.id)}
+                      onChange={() => handleSelectOne(p.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <ProductMobileCard
+                      row={p}
+                      editTo={editTo}
+                      onToggle={(v) =>
+                        toggleMut.mutate({
+                          productId: p.id,
+                          isActive: v,
+                        })
+                      }
+                      onDelete={() => setDeleteTarget(p)}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-      if (!confirmed) return;
-
-      for (const productId of selectedProducts) {
-        await deleteMut.mutateAsync(productId);
-      }
-
-      setSelectedProducts([]);
-    }}
-  >
-    Supprimer les produits sélectionnés
-  </Button>
-</div>
-  {rows.map((p) => (
-    <div key={p.id} className="flex items-start gap-2">
-      <input
-        type="checkbox"
-  checked={selectedProducts.includes(p.id)}
-  onChange={() => {
-    setSelectedProducts((prev) =>
-      prev.includes(p.id)
-        ? prev.filter((id) => id !== p.id)
-        : [...prev, p.id]
-    );
-  }}
-  className="mt-3 h-5 w-5 border-2 border-black"
- />
-
-      <div className="flex-1">
-        <ProductMobileCard
-          row={p}
-          editTo={editTo}
-          onToggle={(v) =>
-            toggleMut.mutate({
-              productId: p.id,
-              isActive: v,
-            })
-          }
-          onDelete={() => setDeleteTarget(p)}
-        />
-      </div>
-    </div>
-  ))}
-</ul>
-
-          {/* Desktop table */}
+          {/* VERSION DESKTOP (Ordinateurs) */}
           <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="p-2">Produit</th>
-                  <th className="p-2">Code</th>
-                  <th className="p-2">Prix</th>
-                  <th className="p-2">Stock</th>
-                  <th className="p-2">Variantes</th>
-                  <th className="p-2">Statut</th>
-                  <th className="p-2" title="Privé">Vues</th>
-                  <th className="p-2" title="Privé">Ventes</th>
-                  <th className="p-2">Actif</th>
-                  <th className="p-2">Actions</th>
+                  <th className="p-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </th>
+                  <th className="p-3">Produit</th>
+                  <th className="p-3">Code</th>
+                  <th className="p-3">Prix</th>
+                  <th className="p-3">Stock</th>
+                  <th className="p-3">Variantes</th>
+                  <th className="p-3">Statut</th>
+                  <th className="p-3" title="Privé">Vues</th>
+                  <th className="p-3" title="Privé">Ventes</th>
+                  <th className="p-3">Actif</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((p) => (
-                  <tr key={p.id} className="border-t">
-                    <td className="p-2">
+                  <tr key={p.id} className={`border-t transition-colors hover:bg-muted/30 ${selectedProducts.includes(p.id) ? 'bg-muted/50' : ''}`}>
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(p.id)}
+                        onChange={() => handleSelectOne(p.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                    </td>
+                    <td className="p-3">
                       <div className="flex items-center gap-2">
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-muted">
                           {p.image_url && <img src={p.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />}
@@ -225,21 +271,21 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
                         </div>
                       </div>
                     </td>
-                    <td className="p-2 font-mono text-xs">{p.code}</td>
-                    <td className="p-2">{p.price.toLocaleString("fr-FR")} F</td>
-                    <td className="p-2">{p.stock_total}</td>
-                    <td className="p-2">{p.variant_count}</td>
-                    <td className="p-2"><StatusBadge status={p.status} /></td>
-                    <td className="p-2 text-xs text-muted-foreground">{p.views_count}</td>
-                    <td className="p-2 text-xs text-muted-foreground">{p.sales_count}</td>
-                    <td className="p-2">
+                    <td className="p-3 font-mono text-xs">{p.code}</td>
+                    <td className="p-3">{p.price.toLocaleString("fr-FR")} F</td>
+                    <td className="p-3">{p.stock_total}</td>
+                    <td className="p-3">{p.variant_count}</td>
+                    <td className="p-3"><StatusBadge status={p.status} /></td>
+                    <td className="p-3 text-xs text-muted-foreground">{p.views_count}</td>
+                    <td className="p-3 text-xs text-muted-foreground">{p.sales_count}</td>
+                    <td className="p-3">
                       <Switch
                         checked={p.is_active}
                         onCheckedChange={(v) => toggleMut.mutate({ productId: p.id, isActive: v })}
                       />
                     </td>
-                    <td className="p-2">
-                      <div className="flex items-center gap-1">
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Modifier">
                           <Link to={editTo} params={{ productId: p.id }}>
                             <Pencil className="h-4 w-4" />
@@ -286,6 +332,7 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
         </>
       )}
 
+      {/* POPUP DE CONFIRMATION : Suppression d'un seul produit */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -299,9 +346,38 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => { e.preventDefault(); if (deleteTarget) deleteMut.mutate(deleteTarget.id); }}
+              onClick={(e) => { 
+                e.preventDefault(); 
+                if (deleteTarget) {
+                  deleteMut.mutate(deleteTarget.id, {
+                    onSuccess: () => setDeleteTarget(null)
+                  });
+                }
+              }}
             >
               {deleteMut.isPending ? "Suppression…" : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* POPUP DE CONFIRMATION : Suppression groupée */}
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer les produits sélectionnés ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment supprimer les produits sélectionnés ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? "Suppression…" : "Supprimer les articles"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -325,7 +401,7 @@ function ProductMobileCard({
   onDelete: () => void;
 }) {
   return (
-    <li className="rounded-xl border bg-card p-3">
+    <div className="rounded-xl border bg-card p-3">
       <div className="flex items-start gap-3">
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
           {row.image_url && <img src={row.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />}
@@ -347,22 +423,5 @@ function ProductMobileCard({
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-xs">
-          <Switch checked={row.is_active} onCheckedChange={onToggle} />
-          <span className="text-muted-foreground">{row.is_active ? "Actif" : "Caché"}</span>
-        </label>
-        <div className="flex gap-1">
-          <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-            <Link to={editTo} params={{ productId: row.id }}><Pencil className="h-4 w-4" /></Link>
-          </Button>
-          <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-            <Link to="/product/$productId" params={{ productId: row.id }}><Eye className="h-4 w-4" /></Link>
-          </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </li>
-  );
-}
+        <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <Switch checked={row.is_active} onCheckedChange={
