@@ -122,23 +122,28 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
           {/* Mobile cards */}
      {/* Mobile cards */}
 
-<div className="mb-4 flex items-center gap-2">
-  <input
-    type="checkbox"
-    checked={
-      rows.length > 0 &&
-      selectedProducts.length === rows.length
-    }
-    onChange={() => {
-      if (selectedProducts.length === rows.length) {
-        setSelectedProducts([]);
-      } else {
-        setSelectedProducts(rows.map((p) => p.id));
-      }
-    }}
-  />
+<div className="mb-4 rounded-xl border bg-card p-3 md:hidden">
+  <label className="mb-3 flex items-center gap-2 text-sm font-medium">
+    <input
+      type="checkbox"
+      checked={rows.length > 0 && selectedProducts.length === rows.length}
+      onChange={() => {
+        if (selectedProducts.length === rows.length) {
+          setSelectedProducts([]);
+        } else {
+          setSelectedProducts(rows.map((p) => p.id));
+        }
+      }}
+      className="h-5 w-5"
+    />
+    Sélectionner tout
+  </label>
 
-  <button
+  <Button
+    type="button"
+    variant="destructive"
+    disabled={selectedProducts.length === 0}
+    className="w-full"
     onClick={async () => {
       const confirmed = window.confirm(
         "Voulez-vous vraiment supprimer les produits sélectionnés ? Cette action est irréversible."
@@ -146,39 +151,30 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
       if (!confirmed) return;
 
-      try {
-        for (const productId of selectedProducts) {
-          await deleteMut.mutateAsync(productId);
-        }
-
-        setSelectedProducts([]);
-
-      } catch (error) {
-        console.error(error);
+      for (const productId of selectedProducts) {
+        await deleteMut.mutateAsync(productId);
       }
+
+      setSelectedProducts([]);
     }}
-    disabled={selectedProducts.length === 0}
-    className="rounded bg-red-600 px-3 py-2 text-white disabled:opacity-50"
   >
     Supprimer les produits sélectionnés
-  </button>
+  </Button>
 </div>
-
-<ul className="space-y-2 md:hidden">
   {rows.map((p) => (
     <div key={p.id} className="flex items-start gap-2">
       <input
         type="checkbox"
-        checked={selectedProducts.includes(p.id)}
-        onChange={() => {
-          setSelectedProducts((prev) =>
-            prev.includes(p.id)
-              ? prev.filter((id) => id !== p.id)
-              : [...prev, p.id]
-          );
-        }}
-        className="mt-3"
-      />
+  checked={selectedProducts.includes(p.id)}
+  onChange={() => {
+    setSelectedProducts((prev) =>
+      prev.includes(p.id)
+        ? prev.filter((id) => id !== p.id)
+        : [...prev, p.id]
+    );
+  }}
+  className="mt-3 h-5 w-5 border-2 border-black"
+ />
 
       <div className="flex-1">
         <ProductMobileCard
