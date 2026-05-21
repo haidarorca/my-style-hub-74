@@ -120,8 +120,7 @@ const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
       ) : (
         <>
           {/* Mobile cards */}
-     {/* Mobile cards */}
-
+ <ul className="space-y-2 md:hidden">
 <div className="mb-4 rounded-xl border bg-card p-3 md:hidden">
   <label className="mb-3 flex items-center gap-2 text-sm font-medium">
     <input
