@@ -428,7 +428,7 @@ function ProductMobileCard({
           <span>{row.is_active ? "Actif" : "Inactif"}</span>
         </label>
         <div className="flex items-center gap-2">
-          <Link to={editTo.to} params={{ ...(editTo.params ?? {}), productId: row.id } as any} className="text-xs underline">
+          <Link to={editTo} params={{ productId: row.id }} className="text-xs underline">
             Éditer
           </Link>
           <button onClick={onDelete} className="text-xs text-destructive underline">
