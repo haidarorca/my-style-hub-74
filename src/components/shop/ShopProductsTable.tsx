@@ -60,12 +60,11 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const [status, setStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
   
-  // États de sélection et de popups
   const [deleteTarget, setDeleteTarget] = useState<ShopProductRow | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  
+
   const pageSize = 20;
 
   const { data, isLoading } = useQuery({
@@ -93,9 +92,8 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // Logique utilitaire pour gérer les sélections
   const isAllSelected = rows.length > 0 && selectedProducts.length === rows.length;
-  
+
   const handleSelectAll = () => {
     if (isAllSelected) {
       setSelectedProducts([]);
@@ -112,21 +110,15 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
     );
   };
 
-  // Traitement optimisé de la suppression groupée en arrière-plan
   const handleBulkDelete = async () => {
     setIsBulkDeleting(true);
     try {
-      // Exécution parallèle des requêtes pour des performances maximales
       await Promise.all(selectedProducts.map((id) => deleteMut.mutateAsync(id)));
-      
+
       toast.success("Produits sélectionnés supprimés.");
       setSelectedProducts([]);
-      
-      // Rafraîchissement du cache de données (une seule fois à la fin)
-      qc.invalidateQueries({ queryKey: ["shop-products", shopId] });
-      qc.invalidateQueries({ queryKey: ["shop-overview", shopId] });
     } catch (error) {
-      // Les erreurs individuelles sont gérées par le onError de deleteMut
+      toast.error(error instanceof Error ? error.message : "Suppression impossible.");
     } finally {
       setIsBulkDeleting(false);
       setIsBulkDeleteOpen(false);
