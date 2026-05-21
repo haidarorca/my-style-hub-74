@@ -3,21 +3,43 @@ import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Pencil, Eye, Trash2, Search, Package, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
-  listShopProducts, toggleProductActive, deleteShopProduct,
+  Pencil,
+  Eye,
+  Trash2,
+  Search,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
+import {
+  listShopProducts,
+  toggleProductActive,
+  deleteShopProduct,
   type ShopProductRow,
 } from "@/lib/shop-management.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
 interface Props {
