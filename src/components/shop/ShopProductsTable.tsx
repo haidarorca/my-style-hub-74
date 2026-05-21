@@ -38,7 +38,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const [status, setStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
   const [deleteTarget, setDeleteTarget] = useState<ShopProductRow | null>(null);
-
+const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const pageSize = 20;
 
   const { data, isLoading } = useQuery({
@@ -120,17 +120,82 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
       ) : (
         <>
           {/* Mobile cards */}
-          <ul className="space-y-2 md:hidden">
-            {rows.map((p) => (
-              <ProductMobileCard
-                key={p.id}
-                row={p}
-                editTo={editTo}
-                onToggle={(v) => toggleMut.mutate({ productId: p.id, isActive: v })}
-                onDelete={() => setDeleteTarget(p)}
-              />
-            ))}
-          </ul>
+     {/* Mobile cards */}
+
+<div className="mb-4 flex items-center gap-2">
+  <input
+    type="checkbox"
+    checked={
+      rows.length > 0 &&
+      selectedProducts.length === rows.length
+    }
+    onChange={() => {
+      if (selectedProducts.length === rows.length) {
+        setSelectedProducts([]);
+      } else {
+        setSelectedProducts(rows.map((p) => p.id));
+      }
+    }}
+  />
+
+  <button
+    onClick={async () => {
+      const confirmed = window.confirm(
+        "Voulez-vous vraiment supprimer les produits sélectionnés ? Cette action est irréversible."
+      );
+
+      if (!confirmed) return;
+
+      try {
+        for (const productId of selectedProducts) {
+          await deleteMut.mutateAsync(productId);
+        }
+
+        setSelectedProducts([]);
+
+      } catch (error) {
+        console.error(error);
+      }
+    }}
+    disabled={selectedProducts.length === 0}
+    className="rounded bg-red-600 px-3 py-2 text-white disabled:opacity-50"
+  >
+    Supprimer les produits sélectionnés
+  </button>
+</div>
+
+<ul className="space-y-2 md:hidden">
+  {rows.map((p) => (
+    <div key={p.id} className="flex items-start gap-2">
+      <input
+        type="checkbox"
+        checked={selectedProducts.includes(p.id)}
+        onChange={() => {
+          setSelectedProducts((prev) =>
+            prev.includes(p.id)
+              ? prev.filter((id) => id !== p.id)
+              : [...prev, p.id]
+          );
+        }}
+        className="mt-3"
+      />
+
+      <div className="flex-1">
+        <ProductMobileCard
+          row={p}
+          editTo={editTo}
+          onToggle={(v) =>
+            toggleMut.mutate({
+              productId: p.id,
+              isActive: v,
+            })
+          }
+          onDelete={() => setDeleteTarget(p)}
+        />
+      </div>
+    </div>
+  ))}
+</ul>
 
           {/* Desktop table */}
           <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
