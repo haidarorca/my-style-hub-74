@@ -202,12 +202,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
           <div className="space-y-3 md:hidden">
             <div className="flex items-center p-1">
               <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isAllSelected}
-                  onChange={handleSelectAll}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
+                <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
                 Sélectionner tout ({rows.length})
               </label>
             </div>
@@ -216,11 +211,9 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
               {rows.map((p) => (
                 <li key={p.id} className="flex items-start gap-2">
                   <div className="pt-4 pl-1">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={selectedProducts.includes(p.id)}
-                      onChange={() => handleSelectOne(p.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      onCheckedChange={() => handleSelectOne(p.id)}
                     />
                   </div>
                   <div className="flex-1">
@@ -247,12 +240,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="p-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={handleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
+                    <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} />
                   </th>
                   <th className="p-3">Produit</th>
                   <th className="p-3">Code</th>
@@ -270,11 +258,9 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
                 {rows.map((p) => (
                   <tr key={p.id} className={`border-t transition-colors hover:bg-muted/30 ${selectedProducts.includes(p.id) ? 'bg-muted/50' : ''}`}>
                     <td className="p-3">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedProducts.includes(p.id)}
-                        onChange={() => handleSelectOne(p.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        onCheckedChange={() => handleSelectOne(p.id)}
                       />
                     </td>
                     <td className="p-3">
