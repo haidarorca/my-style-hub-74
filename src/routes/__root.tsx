@@ -192,6 +192,7 @@ function RootComponent() {
                   <SwipeNavigator><Outlet /></SwipeNavigator>
                 </ErrorBoundary>
                 <MobileBottomNav />
+                <AutoUpdatePrompt />
                 <Toaster richColors position="top-center" />
               </DeliveryCountryProvider>
             </UiOverridesProvider>
