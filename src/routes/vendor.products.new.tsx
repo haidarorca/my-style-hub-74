@@ -21,6 +21,7 @@ import { humanizeOcrError } from "@/lib/admin-error-messages";
 import { logError } from "@/lib/error-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
+import { useImageCompression } from "@/hooks/use-image-compression";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,7 @@ type ReqRow = { id: string; name: string; level: number; parent_id: string | nul
 function NewProductPage() {
   const { user } = useAuth();
   const { t, lang } = useI18n();
+  const { compress, compressMultiple } = useImageCompression();
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -421,9 +423,16 @@ function NewProductPage() {
       }
       const productId = prod.id as string;
 
+      // COMPRESSION automatique des images produit avant upload
       const imageRows: { product_id: string; url: string; position: number }[] = [];
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
+      const compressedImages = images.length > 0 ? await compressMultiple(images, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.85,
+        maxSizeMB: 5,
+      }) : [];
+      for (let i = 0; i < compressedImages.length; i++) {
+        const file = compressedImages[i];
         const ext = file.name.split(".").pop() || "jpg";
         const path = `${user.id}/${productId}/${Date.now()}-${i}.${ext}`;
         const { error: upErr } = await supabase.storage.from("product-images").upload(path, file);
@@ -444,9 +453,16 @@ function NewProductPage() {
           const v = variants[i];
           let image_url: string | null = null;
           if (v.image_file) {
-            const ext = v.image_file.name.split(".").pop() || "jpg";
+            // COMPRESSION automatique de l'image variante avant upload
+            const compressedVariant = await compress(v.image_file, {
+              maxWidth: 800,
+              maxHeight: 800,
+              quality: 0.85,
+              maxSizeMB: 3,
+            });
+            const ext = compressedVariant.name.split(".").pop() || "jpg";
             const path = `${user.id}/${productId}/variants/${Date.now()}-${i}.${ext}`;
-            const { error: upErr } = await supabase.storage.from("product-images").upload(path, v.image_file);
+            const { error: upErr } = await supabase.storage.from("product-images").upload(path, compressedVariant);
             if (upErr) throw upErr;
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
@@ -1063,3 +1079,4 @@ function CategoryLevel({
     </div>
   );
 }
+
