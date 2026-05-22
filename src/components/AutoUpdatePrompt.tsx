@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { RefreshCw, X } from "lucide-react";
 
-// Vérifie l'empreinte des assets de la page courante vs celle servie
-// par le proxy. On réutilise la même logique que build-version-watcher
-// pour ne pas dépendre d'un Service Worker de cache (le projet en a
-// volontairement supprimé pour éviter les écrans figés).
+// Verifie l'empreinte des assets de la page courante vs celle servie
+// par le proxy. On reutilise la meme logique que build-version-watcher
+// pour ne pas dependre d'un Service Worker de cache (le projet en a
+// volontairement supprime pour eviter les ecrans figes).
 
 const CHECK_INTERVAL_MS = 60_000; // 1 min
 const AUTO_RELOAD_DELAY_S = 10;
@@ -66,7 +66,7 @@ async function hardReload() {
   try {
     if ("serviceWorker" in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      // Demande au SW kill-switch d'activer immédiatement la nouvelle version
+      // Demande au SW kill-switch d'activer immediatement la nouvelle version
       regs.forEach((r) => {
         try {
           r.waiting?.postMessage({ type: "SKIP_WAITING" });
@@ -99,7 +99,7 @@ export default function AutoUpdatePrompt() {
     void hardReload();
   }, []);
 
-  // 1. Initialise l'empreinte et lance la vérification périodique
+  // 1. Initialise l'empreinte et lance la verification periodique
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -114,11 +114,18 @@ export default function AutoUpdatePrompt() {
     if (!initialFp.current) return;
 
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    // CORRECTION: try/catch pour eviter que le setInterval ne s'arrete sur erreur reseau
     const check = async () => {
       if (cancelled || nouvelleVersion) return;
-      const remote = await remoteFingerprint();
-      if (!remote || !initialFp.current) return;
-      if (remote !== initialFp.current) setNouvelleVersion(true);
+      try {
+        const remote = await remoteFingerprint();
+        if (cancelled || !remote || !initialFp.current) return;
+        if (remote !== initialFp.current) setNouvelleVersion(true);
+      } catch {
+        // Ignorer les erreurs reseau pendant la verification
+      }
     };
 
     const id = window.setInterval(check, CHECK_INTERVAL_MS);
@@ -127,18 +134,20 @@ export default function AutoUpdatePrompt() {
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    // Premier check rapide
-    window.setTimeout(check, 15_000);
+
+    // CORRECTION: Stocker le timeout pour le nettoyer dans le cleanup
+    timeoutId = window.setTimeout(check, 15_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(timeoutId); // CORRECTION: Nettoyage du timeout initial
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
   }, [nouvelleVersion]);
 
-  // 2. Compteur 10s avec reset sur activité
+  // 2. Compteur 10s avec reset sur activite
   const startCompteur = useCallback(() => {
     if (compteurInterval.current) clearInterval(compteurInterval.current);
     setCompteur(AUTO_RELOAD_DELAY_S);
@@ -177,7 +186,7 @@ export default function AutoUpdatePrompt() {
           <div className="flex-1">
             <p className="text-sm font-semibold">Nouvelle version disponible</p>
             <p className="mt-1 text-xs opacity-90">
-              Mise à jour automatique dans{" "}
+              Mise a jour automatique dans{" "}
               <span className="font-bold">{compteur}s</span>
             </p>
             <div className="mt-2 flex gap-2">
@@ -185,7 +194,7 @@ export default function AutoUpdatePrompt() {
                 onClick={effectuerMiseAJour}
                 className="rounded bg-background px-3 py-1.5 text-xs font-bold text-foreground transition hover:opacity-90"
               >
-                Mettre à jour maintenant
+                Mettre a jour maintenant
               </button>
               <button
                 onClick={fermerBouton}

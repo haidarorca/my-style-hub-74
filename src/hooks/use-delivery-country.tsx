@@ -108,7 +108,11 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     }
-    qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && (q.queryKey.includes("display-prices") || q.queryKey.includes("display-price-lines") || q.queryKey.includes("deliverable-vendors")) });
+    // CORRECTION: Invalidation ciblee au lieu d'un predicate qui scanne toutes les queries
+    // C'est plus performant et a le meme comportement
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+    qc.invalidateQueries({ queryKey: ["deliverable-vendors"] });
   }, [qc]);
 
   const value = useMemo(() => ({ countryId, setCountryId, ready, isManual }), [countryId, setCountryId, ready, isManual]);

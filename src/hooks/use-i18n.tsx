@@ -29,7 +29,7 @@ const Ctx = createContext<I18nCtx | null>(null);
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(DEFAULT_LANG);
 
-  // Detect on mount (client only — keeps SSR output stable in default lang)
+  // Detect on mount (client only - keeps SSR output stable in default lang)
   useEffect(() => {
     const l = detectLang();
     setLangState(l);
@@ -53,7 +53,9 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     [lang],
   );
 
-  const value = useMemo<I18nCtx>(() => ({ lang, setLang, t, dir: LANG_META[lang].dir }), [lang, setLang, t]);
+  // CORRECTION: Extraire dir dans un useMemo separe pour eviter le recalcul a chaque render
+  const dir = useMemo(() => LANG_META[lang].dir, [lang]);
+  const value = useMemo<I18nCtx>(() => ({ lang, setLang, t, dir }), [lang, setLang, t, dir]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
