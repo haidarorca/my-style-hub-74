@@ -25,6 +25,7 @@ export function AdminNotificationBell() {
     staleTime: 30_000,
   });
 
+  // Real-time updates via Supabase broadcast
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
