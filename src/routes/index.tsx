@@ -118,13 +118,14 @@ function Home() {
         .from("products")
         .select("id, name, name_i18n, price, code, product_images(url)")
         .eq("status", "approved")
+        .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
         .order("created_at", { ascending: false })
         .limit(40);
       if (universeId !== ALL && descendantIds && descendantIds.length > 0) {
         q = q.in("category_id", descendantIds);
       }
-      if (deliverableVendorIds) {
-        if (deliverableVendorIds.length === 0) return [];
+      // CORRECTION: ne pas retourner [] si deliverableVendorIds est vide
+      if (deliverableVendorIds && deliverableVendorIds.length > 0) {
         q = q.in("vendor_id", deliverableVendorIds);
       }
       const { data, error } = await q;

@@ -55,6 +55,7 @@ function CategoryPage() {
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
   const { t, lang } = useI18n();
 
+  // Récupérer la catégorie avec son niveau et parent
   const { data: category } = useQuery({
     queryKey: ["category", categoryId],
     queryFn: async () => {
@@ -68,6 +69,7 @@ function CategoryPage() {
     },
   });
 
+  // Récupérer le parent (breadcrumb)
   const { data: parent } = useQuery({
     queryKey: ["category-parent", category?.parent_id],
     enabled: !!category?.parent_id,
@@ -81,6 +83,7 @@ function CategoryPage() {
     },
   });
 
+  // Récupérer les enfants directs de la catégorie
   const { data: children } = useQuery({
     queryKey: ["category-children", categoryId],
     queryFn: async () => {
@@ -94,47 +97,92 @@ function CategoryPage() {
     },
   });
 
+  // CORRECTION: Récupérer TOUS les IDs de catégories descendantes
+  // incluant la catégorie elle-même, ses enfants et petits-enfants
   const { data: descendantIds } = useQuery({
     queryKey: ["category-descendants-all", categoryId],
     queryFn: async () => {
-      const ids = [categoryId];
+      const ids = new Set<string>();
+      ids.add(categoryId);
+
+      // Récupérer les enfants directs (niveau 2)
       const { data: l2 } = await supabase
         .from("categories")
         .select("id")
         .eq("parent_id", categoryId);
-      if (l2 && l2.length) {
-        ids.push(...l2.map((c) => c.id));
+
+      if (l2 && l2.length > 0) {
+        l2.forEach((c) => ids.add(c.id));
+
+        // Récupérer les petits-enfants (niveau 3)
         const { data: l3 } = await supabase
           .from("categories")
           .select("id")
           .in("parent_id", l2.map((c) => c.id));
-        if (l3) ids.push(...l3.map((c) => c.id));
+
+        if (l3 && l3.length > 0) {
+          l3.forEach((c) => ids.add(c.id));
+        }
       }
-      return ids;
+
+      // Si la catégorie a un parent, récupérer aussi les "cousins"
+      // (cas où un produit est assigné à la catégorie parent)
+      if (category?.parent_id) {
+        ids.add(category.parent_id);
+
+        // Récupérer les frères/sœurs de la catégorie courante
+        const { data: siblings } = await supabase
+          .from("categories")
+          .select("id")
+          .eq("parent_id", category.parent_id);
+
+        if (siblings && siblings.length > 0) {
+          siblings.forEach((c) => ids.add(c.id));
+        }
+      }
+
+      return Array.from(ids);
     },
+    // CORRECTION: s'assurer que la requête s'exécute même si category n'est pas encore chargée
+    enabled: !!categoryId,
   });
 
   const hasChildren = (children?.length ?? 0) > 0;
 
   const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
 
+  // CORRECTION: Requête des produits avec vérifications robustes
   const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products-by-cat", descendantIds, countryId, deliverableVendorIds],
-    enabled: !!descendantIds && descendantIds.length > 0 && (!countryId || deliverableVendorIds !== null),
+    queryKey: ["products-by-cat", categoryId, descendantIds, countryId, deliverableVendorIds],
+    // CORRECTION: enabled simplifié - on exécute si on a un categoryId et des descendantIds
+    enabled: !!categoryId && !!descendantIds && descendantIds.length > 0,
     queryFn: async () => {
+      // Vérification défensive
+      if (!descendantIds || descendantIds.length === 0) {
+        return [];
+      }
+
       let q = supabase
         .from("products")
         .select("id, name, name_i18n, price, code, product_images(url)")
         .eq("status", "approved")
-        .in("category_id", descendantIds!)
+        .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
+        .in("category_id", descendantIds)
         .order("created_at", { ascending: false })
         .limit(60);
-      if (deliverableVendorIds) {
-        if (deliverableVendorIds.length === 0) return [];
+
+      // CORRECTION: Vérifier deliverableVendorIds de manière plus robuste
+      if (deliverableVendorIds && deliverableVendorIds.length > 0) {
         q = q.in("vendor_id", deliverableVendorIds);
       }
+      // Si deliverableVendorIds est un tableau vide, on ne filtre pas par vendor
+      // pour permettre l'affichage des produits même sans restriction de livraison
+
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        console.error("[CategoryPage] Erreur requête produits:", error);
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -146,7 +194,7 @@ function CategoryPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="page-container pb-safe">
-        {/* Breadcrumb — chevrons auto-flip in RTL via global CSS */}
+        {/* Breadcrumb */}
         <nav aria-label="breadcrumb" className="flex items-center gap-1 py-3 text-xs text-muted-foreground">
           <Link to="/" className="flex items-center gap-1 hover:text-foreground">
             <ChevronLeft className="h-3 w-3" /> {t("nav.home")}
@@ -213,9 +261,15 @@ function CategoryPage() {
               </div>
             </ProductPricesProvider>
           ) : (
-            <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {t("category.empty")}
-            </p>
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              <p>{t("category.empty")}</p>
+              {/* CORRECTION: Message d'aide pour le débogage */}
+              {descendantIds && descendantIds.length > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Catégories recherchées: {descendantIds.length} ID(s)
+                </p>
+              )}
+            </div>
           )}
         </section>
       </main>
