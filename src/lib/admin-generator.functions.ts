@@ -1647,9 +1647,11 @@ export const analyzeVariantsFromImages = createServerFn({ method: "POST" })
 // ───────────────────────────────────────────────────────────
 
 const GenerateCopySchema = z.object({
-  mode: z.enum(["image", "text"]),
-  image_data_url: z.string().optional(),
-  description: z.string().max(4000).optional(),
+  mode: z.enum(["image", "text", "combined"]),
+  // Jusqu'a 10 images en data URL
+  image_data_urls: z.array(z.string()).max(10).optional(),
+  // Texte de description (notice, details, etc.)
+  description: z.string().max(20000).optional(),
 });
 
 export const generateProductCopy = createServerFn({ method: "POST" })
@@ -1665,22 +1667,62 @@ export const generateProductCopy = createServerFn({ method: "POST" })
       "et une description complète et professionnelle (200-500 caractères, ton commercial mais factuel, pas d'emoji, pas de prix). " +
       'Réponds STRICTEMENT en JSON sans texte autour : {"name":"","designation":"","description":""}';
 
-    type Msg = { role: string; content: unknown };
+    type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+    type Msg = { role: string; content: ContentPart[] | string };
     let messages: Msg[];
-    if (data.mode === "image") {
-      if (!data.image_data_url || !/^data:image\//.test(data.image_data_url)) {
-        throw new Error("Image invalide");
+
+    const hasImages = data.image_data_urls && data.image_data_urls.length > 0;
+    const hasText = data.description && data.description.trim().length > 0;
+
+    // Mode combine : images + texte
+    if (data.mode === "combined" || (hasImages && hasText)) {
+      const validImages = (data.image_data_urls ?? []).filter(
+        (url) => /^data:image\//.test(url),
+      );
+      if (validImages.length === 0 && !hasText) {
+        throw new Error("Ajoutez au moins une image ou un texte.");
       }
-      messages = [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userText + "\n\nAnalyse cette image du produit et déduis matière, usage et public visible." },
-            { type: "image_url", image_url: { url: data.image_data_url } },
-          ],
-        },
-      ];
-    } else {
+
+      const contentParts: ContentPart[] = [];
+
+      // Texte d'instruction + description utilisateur
+      let promptText = userText;
+      if (hasText) {
+        promptText += `\n\nDétails fournis par le vendeur :\n${data.description!.trim()}`;
+      }
+      if (validImages.length > 0) {
+        promptText += `\n\nAnalyse ${validImages.length > 1 ? "ces images" : "cette image"} du produit pour en déduire la matière, l'usage et le public cible.`;
+      }
+      contentParts.push({ type: "text", text: promptText });
+
+      // Ajouter toutes les images
+      for (const imgUrl of validImages) {
+        contentParts.push({ type: "image_url", image_url: { url: imgUrl } });
+      }
+
+      messages = [{ role: "user", content: contentParts }];
+    }
+    // Mode image uniquement
+    else if (hasImages) {
+      const validImages = (data.image_data_urls ?? []).filter(
+        (url) => /^data:image\//.test(url),
+      );
+      if (validImages.length === 0) throw new Error("Image invalide");
+
+      const contentParts: ContentPart[] = [];
+      const imgText = validImages.length > 1
+        ? `\n\nAnalyse ces ${validImages.length} images du produit et déduis-en la matière, l'usage et le public visible.`
+        : "\n\nAnalyse cette image du produit et déduis matière, usage et public visible.";
+      contentParts.push({ type: "text", text: userText + imgText });
+
+      for (const imgUrl of validImages) {
+        contentParts.push({ type: "image_url", image_url: { url: imgUrl } });
+      }
+
+      messages = [{ role: "user", content: contentParts }];
+    }
+    // Mode texte uniquement
+    else {
       const txt = (data.description ?? "").trim();
       if (txt.length < 3) throw new Error("Décrivez le produit (au moins quelques mots)");
       messages = [

@@ -23,6 +23,7 @@ import { analyzeSourceUrl, analyzeVariantsFromImages } from "@/lib/admin-generat
 import { humanizeOcrError, humanizeUrlError } from "@/lib/admin-error-messages";
 
 import { VariantImageEditor } from "@/components/admin/VariantImageEditor";
+import { AiCopyGeneratorDialog } from "@/components/ai/AiCopyGeneratorDialog";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import {
   Dialog,
@@ -185,6 +186,7 @@ function NewAdminShopProductPage() {
   const [code, setCode] = useState("");
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
   const [price, setPrice] = useState<string>("");
   const [requiresIntlShipping, setRequiresIntlShipping] = useState(false);
 
@@ -970,8 +972,18 @@ function NewAdminShopProductPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">{t("vendor.new.info")}</CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setAiOpen(true)}
+            className="gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Generer avec l'IA
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -1761,6 +1773,18 @@ function NewAdminShopProductPage() {
           {submitting ? t("vendor.new.submitting") : "Publier le produit"}
         </Button>
       </div>
+      {/* Dialog IA - Generateur de fiche produit */}
+      <AiCopyGeneratorDialog
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        onApply={(r) => {
+          if (r.name) setName(r.name);
+          if (r.designation) setDesignation(r.designation);
+          if (r.description) setDescription(r.description);
+          toast.success("Fiche produit generee ! Verifiez et ajustez si besoin.");
+        }}
+        title="Generer la fiche produit avec l'IA"
+      />
     </form>
   );
 }
