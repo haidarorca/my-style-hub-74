@@ -52,7 +52,7 @@ import {
   useSlashCommands,
   DEFAULT_PRODUCT_COMMANDS,
 } from "@/hooks/use-slash-commands";
-import { SlashCommandMenu } from "./SlashCommandMenu";
+import { SlashCommandMenu } from "@/components/ai/SlashCommandMenu";
 
 type Result = { name: string; designation: string; description: string };
 type Mode = "image" | "text" | "combined";
