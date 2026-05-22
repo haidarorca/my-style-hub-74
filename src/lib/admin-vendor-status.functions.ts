@@ -55,7 +55,8 @@ export const setVendorStatus = createServerFn({ method: "POST" })
     // NOTIFIER le vendeur du changement de statut
     if (data.status === "active" || data.status === "suspended" || data.status === "blocked") {
       try {
-        await notifyVendorStatusChange(data.user_id, data.status);
+        const notifStatus = data.status === "active" ? "approved" : data.status === "blocked" ? "rejected" : "suspended";
+        await notifyVendorStatusChange(data.user_id, notifStatus);
       } catch (notifyError) {
         console.error("[admin-vendor-status] notification vendeur echouee", { userId: data.user_id, status: data.status, error: notifyError });
       }
