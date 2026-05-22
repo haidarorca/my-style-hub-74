@@ -26,6 +26,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import AutoUpdatePrompt from "@/components/AutoUpdatePrompt";
 
 function NotFoundComponent() {
   return (
