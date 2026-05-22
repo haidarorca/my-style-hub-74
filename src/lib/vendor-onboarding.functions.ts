@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { notifyNewVendorSignup } from "@/lib/notifications.functions";
 
 const BecomeVendorSchema = z.object({
   shop_name: z.string().trim().min(1).max(120),
@@ -56,6 +57,13 @@ export const becomeVendor = createServerFn({ method: "POST" })
       const { error: roleErr } = await supabaseAdmin
         .from("user_roles").insert({ user_id: userId, role: "vendeur" });
       if (roleErr) throw new Error(roleErr.message);
+
+      // NOTIFIER les super admins qu'un nouveau vendeur s'est inscrit
+      try {
+        await notifyNewVendorSignup(userId, data.shop_name);
+      } catch (notifyError) {
+        console.error("[vendor-onboarding] notification admin echouee", { userId, error: notifyError });
+      }
     }
 
     return { ok: true };

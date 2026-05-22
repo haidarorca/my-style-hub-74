@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { notifyVendorStatusChange } from "@/lib/notifications.functions";
 
 type ProfilePatch = Partial<{
   vendor_status: "active" | "pending" | "suspended" | "expired" | "blocked";
@@ -50,6 +51,16 @@ export const setVendorStatus = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.user_id);
     if (error) throw new Error(error.message);
+
+    // NOTIFIER le vendeur du changement de statut
+    if (data.status === "active" || data.status === "suspended" || data.status === "blocked") {
+      try {
+        await notifyVendorStatusChange(data.user_id, data.status);
+      } catch (notifyError) {
+        console.error("[admin-vendor-status] notification vendeur echouee", { userId: data.user_id, status: data.status, error: notifyError });
+      }
+    }
+
     return { ok: true };
   });
 

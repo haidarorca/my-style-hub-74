@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { notifyCustomerOrderStatus } from "@/lib/notifications.functions";
 
 const ListSchema = z.object({
   page: z.number().int().min(1).default(1),
@@ -148,10 +149,33 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+
+    // Recuperer la commande avant modification pour avoir les infos
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("buyer_id, customer_name, status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+
     const { error } = await supabaseAdmin
       .from("orders")
       .update({ status: data.status })
       .eq("id", data.order_id);
     if (error) throw new Error(error.message);
+
+    // NOTIFIER le client du changement de statut
+    if (order?.buyer_id) {
+      try {
+        await notifyCustomerOrderStatus(
+          data.order_id,
+          order.buyer_id,
+          data.status,
+          "Kawzone",
+        );
+      } catch (notifyError) {
+        console.error("[admin-orders] notification client echouee", { orderId: data.order_id, error: notifyError });
+      }
+    }
+
     return { ok: true };
   });

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { notifyVendorNewOrder } from "@/lib/notifications.functions";
 
 const CheckoutSchema = z.object({
   destinationCountryId: z.string().uuid(),
@@ -121,6 +122,23 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (itemsError) {
         await supabaseAdmin.from("orders").delete().eq("id", orderId);
         throw new Error(`Création articles commande: ${itemsError.message}`);
+      }
+
+      // NOTIFIER les vendeurs concernes par la commande
+      try {
+        const vendorIds = Array.from(new Set(orderRows.map((r) => r.vendor_id)));
+        for (const vendorId of vendorIds) {
+          const vendorItems = orderRows.filter((r) => r.vendor_id === vendorId);
+          const itemCount = vendorItems.reduce((sum, r) => sum + r.quantity, 0);
+          await notifyVendorNewOrder(
+            orderId,
+            vendorId,
+            data.address.full_name,
+          );
+        }
+      } catch (notifyError) {
+        // Ne pas faire echouer la commande si la notification echoue
+        console.error("[checkout.server] notification vendeur echouee", { orderId, error: notifyError });
       }
 
       console.info("[checkout.server] create saved", { requestId, orderId, buyerId: context.userId, total, itemCount: orderRows.length });
