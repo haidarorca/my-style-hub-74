@@ -1,0 +1,30 @@
+{
+  "name": "Kawzone - Marketplace Shopping",
+  "short_name": "Kawzone",
+  "description": "Marketplace moderne au Senegal : vetements, accessoires, maison, electronique et plus.",
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#e5277a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "lifestyle"],
+  "lang": "fr",
+  "dir": "ltr",
+  "related_applications": [],
+  "prefer_related_applications": false
+}

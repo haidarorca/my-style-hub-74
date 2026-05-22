@@ -106,8 +106,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      // Manifest volontairement retiré : empêche l'installation PWA qui
-      // gardait une ancienne coque sans catégories ni produits.
+      // CORRECTION: Manifest.json rétabli avec un kill-switch Service Worker
+      // qui empêche les problèmes de cache (sw.js nettoie tout à chaque lancement)
+      { rel: "manifest", href: "/manifest.json" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
