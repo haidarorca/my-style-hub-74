@@ -58,7 +58,7 @@ export function useSlashCommands(): UseSlashCommandsReturn {
   const [filter, setFilter] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const commandsRef = useRef<SlashCommand[]>([]);
-  const onReplaceRef = useRef<(newValue: string) => void>();
+  const onReplaceRef = useRef<((newValue: string) => void) | undefined>(undefined);
   const lastValueRef = useRef("");
 
   const registerCommands = useCallback((commands: SlashCommand[]) => {
