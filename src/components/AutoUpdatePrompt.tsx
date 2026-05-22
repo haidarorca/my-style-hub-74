@@ -114,7 +114,7 @@ export default function AutoUpdatePrompt() {
     if (!initialFp.current) return;
 
     let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: number;
 
     // CORRECTION: try/catch pour eviter que le setInterval ne s'arrete sur erreur reseau
     const check = async () => {
