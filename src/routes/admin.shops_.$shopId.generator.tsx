@@ -17,6 +17,12 @@ import {
   analyzeSourceProduct, getExchangeRate, publishGeneratedProduct,
 } from "@/lib/admin-generator.functions";
 import { getAdminShop } from "@/lib/admin-shops.functions";
+import {
+  useSlashCommands,
+  DEFAULT_PRODUCT_COMMANDS,
+  DEFAULT_VARIANT_COMMANDS,
+} from "@/hooks/use-slash-commands";
+import { SlashCommandMenu } from "@/components/ai/SlashCommandMenu";
 
 export const Route = createFileRoute("/admin/shops_/$shopId/generator")({
   component: GeneratorPage,
@@ -52,6 +58,14 @@ function GeneratorPage() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [fxRate, setFxRate] = useState<number | null>(null);
   const [fxFetchedAt, setFxFetchedAt] = useState<string | null>(null);
+
+  // Slash commands pour les deux zones de texte
+  const rawSlash = useSlashCommands();
+  const descSlash = useSlashCommands();
+  useState(() => {
+    rawSlash.registerCommands([...DEFAULT_PRODUCT_COMMANDS, ...DEFAULT_VARIANT_COMMANDS]);
+    descSlash.registerCommands(DEFAULT_PRODUCT_COMMANDS);
+  });
 
   type VariantRow = {
     size: string; color: string; color_hex: string;
@@ -233,12 +247,32 @@ function GeneratorPage() {
           </div>
           <div>
             <Label>Texte source (titre, prix, description, URLs d'images…)</Label>
-            <Textarea
-              rows={8}
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              placeholder="Collez ici tout ce que vous avez copié du site source (Taobao, 1688, AliExpress…). L'IA extraira le nom, prix, description et images."
-            />
+            <div className="relative">
+              <Textarea
+                rows={8}
+                value={rawText}
+                onChange={(e) => {
+                  setRawText(e.target.value);
+                  rawSlash.handleInput(e.target.value, (v) => setRawText(v));
+                }}
+                placeholder="Collez ici tout ce que vous avez copie du site source (Taobao, 1688, AliExpress...). L'IA extraira le nom, prix, description et images. Tapez / pour les commandes rapides."
+              />
+              {rawSlash.menuOpen && (
+                <div className="absolute bottom-full left-0 mb-1 z-50">
+                  <SlashCommandMenu
+                    items={rawSlash.menuItems}
+                    onSelect={(cmd) => {
+                      const val = rawText;
+                      const lastSlash = val.lastIndexOf("/");
+                      if (lastSlash === -1) return;
+                      setRawText(val.substring(0, lastSlash) + cmd.text + val.substring(rawText.length));
+                      rawSlash.closeMenu();
+                    }}
+                    onClose={rawSlash.closeMenu}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <Button
             type="button"
@@ -266,9 +300,32 @@ function GeneratorPage() {
             <Label>Nom (FR) *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div>
+          <div className="relative">
             <Label>Description (FR)</Label>
-            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Textarea
+              rows={4}
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                descSlash.handleInput(e.target.value, (v) => setDescription(v));
+              }}
+              placeholder="Description du produit..."
+            />
+            {descSlash.menuOpen && (
+              <div className="absolute bottom-full left-0 mb-1 z-50">
+                <SlashCommandMenu
+                  items={descSlash.menuItems}
+                  onSelect={(cmd) => {
+                    const val = description;
+                    const lastSlash = val.lastIndexOf("/");
+                    if (lastSlash === -1) return;
+                    setDescription(val.substring(0, lastSlash) + cmd.text + val.substring(description.length));
+                    descSlash.closeMenu();
+                  }}
+                  onClose={descSlash.closeMenu}
+                />
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>

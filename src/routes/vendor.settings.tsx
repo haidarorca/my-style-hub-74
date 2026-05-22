@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
@@ -51,15 +50,12 @@ function VendorSettings() {
   });
   const [schedule, setSchedule] = useState<ShopSchedule>(DEFAULT_SCHEDULE);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<"logo" | "banner" | null>(null);
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [phoneLocal, setPhoneLocal] = useState("");
   const [waCountry, setWaCountry] = useState(DEFAULT_COUNTRY_CODE);
   const [waLocal, setWaLocal] = useState("");
   const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
   const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
-  const logoRef = useRef<HTMLInputElement>(null);
-  const bannerRef = useRef<HTMLInputElement>(null);
   const { compress } = useImageCompression();
 
   const DAY_T: Record<DayKey, string> = {
@@ -108,38 +104,6 @@ function VendorSettings() {
     toast.success(t("vset.copied_toast"));
   };
 
-  const upload = async (file: File, kind: "logo" | "banner") => {
-    if (!user) return;
-    setUploading(kind);
-    try {
-      // CORRECTION: Compression automatique avant upload
-      const isBanner = kind === "banner";
-      const compressed = await compress(file, {
-        maxWidth: isBanner ? 1200 : 400,
-        maxHeight: isBanner ? 400 : 400,
-        quality: 0.85,
-        maxSizeMB: 5,
-        outputType: "image/jpeg",
-      });
-
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const path = `vendors/${user.id}/${kind}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("site-assets").upload(path, compressed, { upsert: true });
-      if (error) {
-        toast.error(t("vset.upload_err") + error.message);
-        setUploading(null);
-        return;
-      }
-      const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
-      setF((prev) => ({ ...prev, [kind === "logo" ? "shop_logo_url" : "shop_banner_url"]: data.publicUrl }));
-      toast.success(kind === "logo" ? t("vset.logo_ready") : t("vset.banner_ready"));
-    } catch (err: any) {
-      toast.error(t("vset.upload_err") + (err.message || "Erreur de compression"));
-    } finally {
-      setUploading(null);
-    }
-  };
-
   const save = async () => {
     if (!user) return;
     if (!sourceCountryId) {
@@ -164,39 +128,35 @@ function VendorSettings() {
     <div className="mx-auto max-w-xl space-y-5">
       <h1 className="text-xl font-bold">{t("vset.title")}</h1>
 
-      {/* Banner + logo preview */}
+      {/* Banner + logo upload avec compression auto */}
       <div className="overflow-hidden rounded-2xl border bg-card">
-        <div
-          className="relative h-28 w-full bg-gradient-to-br from-primary/40 to-accent/40"
-          style={f.shop_banner_url ? { backgroundImage: `url(${f.shop_banner_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
-        >
-          <button
-            type="button"
-            onClick={() => bannerRef.current?.click()}
-            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            {uploading === "banner" ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
-            {t("vset.banner")}
-          </button>
-          <input ref={bannerRef} type="file" accept="image/*" hidden
-            onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "banner")} />
-        </div>
+        <SmartImageUpload
+          value={f.shop_banner_url}
+          onUpload={(url) => setF((prev) => ({ ...prev, shop_banner_url: url }))}
+          onRemove={() => setF((prev) => ({ ...prev, shop_banner_url: null }))}
+          bucket="site-assets"
+          folder={`vendors/${user?.id ?? "temp"}`}
+          maxWidth={1200}
+          maxHeight={400}
+          aspectRatio="wide"
+          label=""
+          className="rounded-none border-0"
+        />
         <div className="flex items-center gap-3 p-3">
-          <button
-            type="button"
-            onClick={() => logoRef.current?.click()}
-            className="relative -mt-10 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted"
-          >
-            {f.shop_logo_url ? (
-              <img src={f.shop_logo_url} alt={t("vset.logo_alt")} className="h-full w-full object-cover" />
-            ) : uploading === "logo" ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <ImagePlus className="h-5 w-5 text-muted-foreground" />
-            )}
-          </button>
-          <input ref={logoRef} type="file" accept="image/*" hidden
-            onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "logo")} />
+          <div className="relative -mt-10">
+            <SmartImageUpload
+              value={f.shop_logo_url}
+              onUpload={(url) => setF((prev) => ({ ...prev, shop_logo_url: url }))}
+              onRemove={() => setF((prev) => ({ ...prev, shop_logo_url: null }))}
+              bucket="site-assets"
+              folder={`vendors/${user?.id ?? "temp"}`}
+              maxWidth={400}
+              maxHeight={400}
+              aspectRatio="square"
+              label=""
+              className="h-16 w-16 rounded-full border-4 border-background"
+            />
+          </div>
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">{t("vset.touch_hint")}</p>
             <p className="text-[11px] text-muted-foreground">
