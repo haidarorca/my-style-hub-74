@@ -64,7 +64,7 @@ interface Props {
   title?: string;
 }
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = 5; // Limite pour eviter les requetes trop lourdes
 
 export function AiCopyGeneratorDialog({
   open,
@@ -99,13 +99,13 @@ export function AiCopyGeneratorDialog({
   // Convertir des fichiers en data URLs
   const filesToDataUrls = useCallback(
     async (files: File[]): Promise<string[]> => {
-      // Compresser d'abord les images
-      toast.info("Compression des images en cours...");
+      // Compression agressive pour l'envoi IA (les images ne sont pas stockees, juste analysees)
+      toast.info("Optimisation des images pour l'IA...");
       const compressed = await compressMultiple(files, {
-        maxWidth: 1200,
-        maxHeight: 1200,
-        quality: 0.7,
-        maxSizeMB: 2,
+        maxWidth: 800,        // Reduit pour limiter la taille de la requete
+        maxHeight: 800,
+        quality: 0.6,         // Qualite suffisante pour l'analyse IA
+        maxSizeMB: 1,         // Max 1MB par image apres compression
         outputType: "image/jpeg",
       });
 
@@ -175,13 +175,23 @@ export function AiCopyGeneratorDialog({
         return;
       }
 
+      // Convertir les images en data URLs
       let imageDataUrls: string[] | undefined;
       if (hasImages) {
         imageDataUrls = await filesToDataUrls(imageFiles);
+
+        // Verifier la taille totale des data URLs (limite ~20MB pour la requete)
+        const totalSize = imageDataUrls.reduce((sum, url) => sum + url.length, 0);
+        if (totalSize > 20 * 1024 * 1024) {
+          toast.error("Images trop lourdes. Essayez avec moins d'images ou utilisez uniquement le texte.");
+          setLoading(false);
+          return;
+        }
       }
 
       const actualMode = hasImages && hasText ? "combined" : hasImages ? "image" : "text";
 
+      // Envoyer la requete au serveur
       const r = await generate({
         data: {
           mode: actualMode as "image" | "text" | "combined",
@@ -194,7 +204,17 @@ export function AiCopyGeneratorDialog({
       toast.success("Proposition prete ! Verifiez et appliquez.");
     } catch (err: any) {
       console.error("[AiCopyGenerator] Erreur:", err);
-      toast.error(err instanceof Error ? err.message : "Erreur IA");
+
+      // Message d'erreur specifique selon le type d'erreur
+      if (err.message?.includes("Failed to fetch")) {
+        toast.error("La requete est trop lourde. Essayez avec moins d'images ou utilisez uniquement le texte.");
+      } else if (err.message?.includes("Limite IA")) {
+        toast.error(err.message);
+      } else if (err.message?.includes("Crédits")) {
+        toast.error(err.message);
+      } else {
+        toast.error(err instanceof Error ? err.message : "Erreur IA. Reessayez.");
+      }
     } finally {
       setLoading(false);
     }
