@@ -5,6 +5,7 @@ import { ImagePlus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
+import { useImageCompression } from "@/hooks/use-image-compression";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import {
   COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, splitPhone, joinPhone,
 } from "@/lib/phone-countries";
 import { CountrySelect } from "@/components/CountrySelect";
+import { SmartImageUpload } from "@/components/images/SmartImageUpload";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
@@ -58,6 +60,7 @@ function VendorSettings() {
   const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const { compress } = useImageCompression();
 
   const DAY_T: Record<DayKey, string> = {
     mon: t("vset.day.mon"), tue: t("vset.day.tue"), wed: t("vset.day.wed"),
@@ -108,18 +111,33 @@ function VendorSettings() {
   const upload = async (file: File, kind: "logo" | "banner") => {
     if (!user) return;
     setUploading(kind);
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `vendors/${user.id}/${kind}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("site-assets").upload(path, file, { upsert: true });
-    if (error) {
-      toast.error(t("vset.upload_err") + error.message);
+    try {
+      // CORRECTION: Compression automatique avant upload
+      const isBanner = kind === "banner";
+      const compressed = await compress(file, {
+        maxWidth: isBanner ? 1200 : 400,
+        maxHeight: isBanner ? 400 : 400,
+        quality: 0.85,
+        maxSizeMB: 5,
+        outputType: "image/jpeg",
+      });
+
+      const ext = compressed.name.split(".").pop() || "jpg";
+      const path = `vendors/${user.id}/${kind}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("site-assets").upload(path, compressed, { upsert: true });
+      if (error) {
+        toast.error(t("vset.upload_err") + error.message);
+        setUploading(null);
+        return;
+      }
+      const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
+      setF((prev) => ({ ...prev, [kind === "logo" ? "shop_logo_url" : "shop_banner_url"]: data.publicUrl }));
+      toast.success(kind === "logo" ? t("vset.logo_ready") : t("vset.banner_ready"));
+    } catch (err: any) {
+      toast.error(t("vset.upload_err") + (err.message || "Erreur de compression"));
+    } finally {
       setUploading(null);
-      return;
     }
-    const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
-    setF((prev) => ({ ...prev, [kind === "logo" ? "shop_logo_url" : "shop_banner_url"]: data.publicUrl }));
-    setUploading(null);
-    toast.success(kind === "logo" ? t("vset.logo_ready") : t("vset.banner_ready"));
   };
 
   const save = async () => {

@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  type CarouselApi,
-} from "@/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
 import { EditableLabel } from "@/components/admin/EditableLabel";
@@ -32,6 +26,7 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
+import { ProductGallery } from "@/components/images/ProductGallery";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
@@ -667,87 +662,5 @@ function ProductPage() {
   );
 }
 
-interface ProductGalleryProps {
-  urls: string[];
-  alt: string;
-  activeIndex: number;
-  onIndexChange: (i: number) => void;
-  dir: "ltr" | "rtl";
-}
-
-function ProductGallery({ urls, alt, activeIndex, onIndexChange, dir }: ProductGalleryProps) {
-  const [api, setApi] = useState<CarouselApi | null>(null);
-
-  useEffect(() => {
-    if (!api) return;
-    const onSelect = () => onIndexChange(api.selectedScrollSnap());
-    api.on("select", onSelect);
-    return () => {
-      api.off("select", onSelect);
-    };
-  }, [api, onIndexChange]);
-
-  useEffect(() => {
-    if (!api) return;
-    if (api.selectedScrollSnap() !== activeIndex) {
-      api.scrollTo(activeIndex);
-    }
-  }, [api, activeIndex]);
-
-  if (urls.length === 0) {
-    return (
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
-        <Link
-          to="/"
-          className={`absolute top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur ${dir === "rtl" ? "right-3" : "left-3"}`}
-        >
-          <ChevronLeft className={`h-5 w-5 ${dir === "rtl" ? "rotate-180" : ""}`} />
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <Carousel setApi={setApi} opts={{ loop: false, align: "start" }}>
-        <CarouselContent className="ml-0">
-          {urls.map((url, i) => (
-            <CarouselItem key={`${url}-${i}`} className="pl-0 basis-full">
-              <div className="relative aspect-square w-full overflow-hidden bg-muted">
-                <img
-                  src={url}
-                  alt={`${alt} ${i + 1}`}
-                  className="h-full w-full object-cover select-none"
-                  draggable={false}
-                />
-              </div>
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-      </Carousel>
-      <Link
-        to="/"
-        className={`absolute top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur ${dir === "rtl" ? "right-3" : "left-3"}`}
-      >
-        <ChevronLeft className={`h-5 w-5 ${dir === "rtl" ? "rotate-180" : ""}`} />
-      </Link>
-      {urls.length > 1 && (
-        <>
-          <div className="absolute right-3 top-3 z-10 rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium backdrop-blur">
-            {activeIndex + 1} / {urls.length}
-          </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1.5">
-            {urls.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === activeIndex ? "w-5 bg-primary" : "w-1.5 bg-background/70"
-                }`}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+// ProductGallery est maintenant importe depuis @/components/images/ProductGallery
+// avec lightbox integre, swipe navigation et support clavier
