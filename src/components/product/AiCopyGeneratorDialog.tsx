@@ -31,6 +31,7 @@ import {
   Trash2,
   Wand2,
   Zap,
+  Camera,
 } from "lucide-react";
 import { generateProductCopy } from "@/lib/admin-generator.functions";
 import { Button } from "@/components/ui/button";
@@ -257,15 +258,15 @@ export function AiCopyGeneratorDialog({
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="combined" className="gap-1">
-              <Layers className="h-4 w-4" /> Images + Notice
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 gap-1 h-auto">
+            <TabsTrigger value="combined" className="gap-1 text-xs sm:text-sm py-2">
+              <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Images + Notice
             </TabsTrigger>
-            <TabsTrigger value="image" className="gap-1">
-              <ImageIcon className="h-4 w-4" /> Images uniquement
+            <TabsTrigger value="image" className="gap-1 text-xs sm:text-sm py-2">
+              <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Images
             </TabsTrigger>
-            <TabsTrigger value="text" className="gap-1">
-              <FileText className="h-4 w-4" /> Notice uniquement
+            <TabsTrigger value="text" className="gap-1 text-xs sm:text-sm py-2">
+              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Notice
             </TabsTrigger>
           </TabsList>
 
@@ -284,7 +285,7 @@ export function AiCopyGeneratorDialog({
               ref={textAreaRef}
               text={text}
               onChange={handleTextChange}
-              placeholder="Ajoutez une notice, des details ou copiez-collez le texte du fournisseur.\n\nTapez / pour voir les commandes rapides..."
+              placeholder="Ajoutez une notice, des details ou copiez-collez le texte du fournisseur. Tapez / pour les commandes rapides."
               label="Notice / Description du produit"
               showSlashMenu={slashMenuOpen}
               slashMenuItems={slashMenuItems}
@@ -311,7 +312,7 @@ export function AiCopyGeneratorDialog({
               ref={textAreaRef}
               text={text}
               onChange={handleTextChange}
-              placeholder="Decrivez librement (matiere, couleur, taille, usage, public, details...)\n\nTapez / pour voir les commandes rapides..."
+              placeholder="Decrivez librement (matiere, couleur, taille, usage, public, details...). Tapez / pour les commandes rapides."
               label="Description du produit"
               showSlashMenu={slashMenuOpen}
               slashMenuItems={slashMenuItems}
@@ -434,7 +435,7 @@ function ImageUploadSection({
 
       {/* Grille de previews */}
       {imageFiles.length > 0 && (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {imagePreviews.map((preview, i) => (
             <div
               key={`${imageFiles[i].name}-${i}`}
@@ -455,43 +456,77 @@ function ImageUploadSection({
             </div>
           ))}
 
-          {/* Bouton ajouter */}
+          {/* Bouton ajouter (galerie) */}
           {imageFiles.length < maxImages && (
-            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-muted-foreground transition hover:border-primary hover:bg-primary/5">
-              <Upload className="h-4 w-4" />
-              <span className="text-[10px]">+</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={onImageSelect}
-              />
-            </label>
+            <>
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-muted-foreground transition hover:border-primary hover:bg-primary/5">
+                <Upload className="h-4 w-4" />
+                <span className="text-[10px]">+</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={onImageSelect}
+                />
+              </label>
+
+              {/* Bouton prendre une photo */}
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 text-primary transition hover:border-primary hover:bg-primary/10">
+                <Camera className="h-4 w-4" />
+                <span className="text-[10px]">Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={onImageSelect}
+                />
+              </label>
+            </>
           )}
         </div>
       )}
 
-      {/* Zone d'upload initiale */}
+      {/* Zone d'upload initiale : Galerie + Photo */}
       {imageFiles.length === 0 && (
-        <label
-          className={cn(
-            "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 py-8 text-muted-foreground transition hover:border-primary hover:bg-primary/5",
-          )}
-        >
-          <Upload className="h-6 w-6" />
-          <p className="text-sm font-medium">Cliquez ou glissez vos images ici</p>
-          <p className="text-xs text-muted-foreground">
-            Jusqu'a {maxImages} images - Compression automatique
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={onImageSelect}
-          />
-        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Bouton Galerie */}
+          <label
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 py-6 text-muted-foreground transition hover:border-primary hover:bg-primary/5",
+            )}
+          >
+            <Upload className="h-5 w-5" />
+            <p className="text-xs font-medium">Galerie</p>
+            <p className="text-[10px] text-muted-foreground">Choisir des images</p>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={onImageSelect}
+            />
+          </label>
+
+          {/* Bouton Prendre une photo */}
+          <label
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-6 text-primary transition hover:border-primary hover:bg-primary/10",
+            )}
+          >
+            <Camera className="h-5 w-5" />
+            <p className="text-xs font-medium">Prendre une photo</p>
+            <p className="text-[10px] text-primary/70">Appareil photo</p>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={onImageSelect}
+            />
+          </label>
+        </div>
       )}
     </div>
   );
@@ -535,8 +570,8 @@ const TextInputSection = forwardRef<
             rows={6}
             value={text}
             onChange={onChange}
-            placeholder={placeholder}
-            className="resize-none pr-3"
+            placeholder={placeholder.replace(/\\n/g, "\n")}
+            className="resize-none pr-3 leading-relaxed"
           />
           {showSlashMenu && (
             <div className="absolute bottom-full left-0 mb-1">
