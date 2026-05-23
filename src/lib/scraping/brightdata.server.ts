@@ -43,6 +43,15 @@ export interface NormalizedProduct {
   raw: unknown; // payload brut pour debug
 }
 
+export interface ImportAttemptLog {
+  initialUrl: string;
+  finalUrl: string;
+  source: NormalizedProduct["extractionSource"] | "none";
+  status: "success" | "login" | "blocked" | "captcha" | "invalid_data";
+  reason: string;
+  issues: string[];
+}
+
 export interface ProductValidationResult {
   valid: boolean;
   reason: string | null;
@@ -53,22 +62,41 @@ export interface ProductValidationResult {
 // Détection plateforme + résolution liens courts
 
 export function detectPlatform(url: string): Platform {
-  if (/(?:^|\.)1688\.com/i.test(url)) return "1688";
-  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\./i.test(url)) return "tmall";
-  if (/(?:^|\.)(?:taobao|tb|worldtaobao)\.(?:com|cn)|item\.taobao\./i.test(url)) return "taobao";
+  if (/(?:^|\.)(?:1688|alibaba)\.com|detail\.1688\.com/i.test(url)) return "1688";
+  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\.|tmall\.com\/item/i.test(url)) return "tmall";
+  if (/(?:^|\.)(?:taobao|tb|worldtaobao|m\.taobao|intl\.taobao)\.(?:com|cn)|item\.taobao\.|click\.world\.taobao\.com|s\.click\.taobao\.com|m\.tb\.cn|uland\.taobao\.com/i.test(url)) return "taobao";
   return "unknown";
+}
+
+export function extractFirstUrl(input: string): string {
+  const decoded = input.replace(/&amp;/g, "&");
+  const url = decoded.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? decoded.trim();
+  try {
+    return decodeURIComponent(url).replace(/[),.;]+$/g, "");
+  } catch {
+    return url.replace(/[),.;]+$/g, "");
+  }
 }
 
 function canonicalizeUrl(url: string): string {
   try {
-    const u = new URL(url.trim());
-    const id = u.searchParams.get("id") || u.searchParams.get("itemId") || u.searchParams.get("item_id");
+    const cleaned = extractFirstUrl(url);
+    const u = new URL(cleaned);
+    const decodedHref = decodeURIComponent(u.toString());
+    const id =
+      u.searchParams.get("id") ||
+      u.searchParams.get("itemId") ||
+      u.searchParams.get("item_id") ||
+      decodedHref.match(/[?&](?:id|itemId|item_id|itemid)=([0-9]{5,})/i)?.[1] ||
+      decodedHref.match(/(?:item|itemId|item_id|id)[=:]%?22?([0-9]{5,})/i)?.[1];
     const platform = detectPlatform(u.toString());
     if (id && /^\d{5,}$/.test(id) && (platform === "taobao" || platform === "tmall")) {
-      const host = platform === "tmall" ? "detail.tmall.com" : "item.taobao.com";
+      const host = platform === "tmall" || /tmall/i.test(decodedHref) ? "detail.tmall.com" : "item.taobao.com";
       return `https://${host}/item.htm?id=${id}`;
     }
-    return u.toString();
+    const offerId = decodedHref.match(/offer\/(\d{5,})\.html/i)?.[1] || decodedHref.match(/[?&]offerId=(\d{5,})/i)?.[1];
+    if (offerId && platform === "1688") return `https://detail.1688.com/offer/${offerId}.html`;
+    return u.toString().replace(/#.*$/, "");
   } catch {
     return url;
   }
@@ -79,32 +107,38 @@ function canonicalizeUrl(url: string): string {
  * Suit jusqu'à 5 redirections et renvoie l'URL finale item.htm.
  */
 export async function resolveTaobaoShortLink(url: string): Promise<string> {
-  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com)/i.test(url)) {
-    return canonicalizeUrl(url);
+  const initial = extractFirstUrl(url);
+  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com|1688\.com|alibaba\.com)/i.test(initial)) {
+    return canonicalizeUrl(initial);
   }
-  let current = url;
+  let current = initial;
   for (let i = 0; i < 8; i++) {
     try {
       const r = await fetch(current, {
-        method: i === 0 ? "GET" : "HEAD",
+        method: "GET",
         redirect: "manual",
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          Referer: "https://www.taobao.com/",
         },
       });
       const loc = r.headers.get("location");
       if (!loc) {
         const text = await r.text().catch(() => "");
-        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com)[^"'\\\s<>]+/i)?.[0]
+        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com|detail\.1688\.com|m\.taobao\.com|h5\.m\.taobao\.com)[^"'\\\s<>]+/i)?.[0]
           ?.replace(/\\\//g, "/")
           ?.replace(/&amp;/g, "&");
         if (embedded) current = embedded;
+        else {
+          const embeddedId = text.match(/(?:itemId|item_id|id)["'\s:=]+["']?(\d{5,})/i)?.[1];
+          if (embeddedId) current = /tmall/i.test(text) ? `https://detail.tmall.com/item.htm?id=${embeddedId}` : `https://item.taobao.com/item.htm?id=${embeddedId}`;
+        }
         break;
       }
       current = new URL(loc, current).toString();
-      if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm/i.test(current)) break;
+      if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm|detail\.1688\.com\/offer\//i.test(current)) break;
     } catch {
       break;
     }
@@ -259,13 +293,44 @@ function debugImport(stage: string, details: Record<string, unknown>) {
   console.info(`[TaobaoImport:${stage}]`, safe);
 }
 
-async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
+type BrowserFetchResult = { html: string; finalUrl: string; screenshotBase64?: string };
+
+function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFetchResult | null {
+  if (!text.trim()) return null;
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    const html =
+      (typeof json.body === "string" && json.body) ||
+      (typeof json.html === "string" && json.html) ||
+      (typeof json.content === "string" && json.content) ||
+      (typeof json.markdown === "string" && json.markdown) ||
+      "";
+    const finalUrl =
+      (typeof json.url === "string" && json.url) ||
+      (typeof json.final_url === "string" && json.final_url) ||
+      fallbackUrl;
+    return html ? { html, finalUrl } : null;
+  } catch {
+    return { html: text, finalUrl: fallbackUrl };
+  }
+}
+
+async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResult | null> {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
   if (!apiKey || !zone) {
     debugImport("browser.skip", { reason: "BRIGHTDATA_BROWSER_ZONE/WEB_UNLOCKER_ZONE absent", url });
     return null;
   }
+  const sessionId = `kawzone-${Math.abs([...url].reduce((n, c) => n + c.charCodeAt(0), 0))}-${Date.now().toString(36)}`;
+  const targetHeaders = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.7,en;q=0.6,fr;q=0.5",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    Referer: "https://www.taobao.com/",
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": "iOS",
+  };
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
@@ -276,9 +341,12 @@ async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
       body: JSON.stringify({
         zone,
         url,
-        format: "raw",
+        format: "json",
+        method: "GET",
         country: "cn",
         render: true,
+        session: sessionId,
+        headers: targetHeaders,
       }),
     });
     const text = await r.text();
@@ -286,10 +354,36 @@ async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
       debugImport("browser.error", { status: r.status, body: text.slice(0, 300), url });
       return null;
     }
-    debugImport("browser.ok", { bytes: text.length, url });
-    return text;
+    const parsed = normalizeUnlockerResponse(text, url);
+    if (!parsed?.html) {
+      debugImport("browser.empty", { bytes: text.length, url, responsePreview: text.slice(0, 200) });
+      return null;
+    }
+    debugImport("browser.ok", { bytes: parsed.html.length, url, finalUrl: parsed.finalUrl, session: sessionId });
+    return parsed;
   } catch (e) {
     debugImport("browser.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+async function fetchScreenshotWithBrightData(url: string): Promise<string | null> {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
+  if (!apiKey || !zone) return null;
+  try {
+    const r = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ zone, url, format: "raw", data_format: "screenshot", country: "cn", render: true }),
+    });
+    if (!r.ok) return null;
+    const ab = await r.arrayBuffer();
+    const base64 = Buffer.from(ab).toString("base64");
+    debugImport("screenshot.ok", { bytes: ab.byteLength, url });
+    return base64;
+  } catch (e) {
+    debugImport("screenshot.exception", { message: e instanceof Error ? e.message : String(e), url });
     return null;
   }
 }
@@ -336,14 +430,64 @@ function extractHtmlImages(html: string): string[] {
   return Array.from(new Set(out)).slice(0, 20);
 }
 
+function decodeHtmlText(value: string): string {
+  return value.replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).trim();
+}
+
+function extractJsonText(html: string, ...keys: string[]): string {
+  for (const key of keys) {
+    const m = html.match(new RegExp(`['"]${key}['"]\\s*:\\s*['"]([^'"]{2,500})['"]`, "i"));
+    if (m?.[1]) return decodeHtmlText(m[1]);
+  }
+  return "";
+}
+
+function extractJsonPrice(html: string): number {
+  const prices: number[] = [];
+  const re = /(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice|discountPrice|finalPrice|amount|value)['"\s:=]+['"]?([0-9]+(?:\.[0-9]{1,2})?)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0 && n < 1_000_000) prices.push(n);
+  }
+  return prices.length ? Math.min(...prices) : 0;
+}
+
+function extractJsonImages(html: string): string[] {
+  const out: string[] = [];
+  const re = /https?:\\?\/\\?\/[^"'\\\s<>]+\.(?:jpe?g|png|webp)(?:[^"'\\\s<>]*)?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let u = m[0].replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    if (/sprite|icon|logo|avatar|captcha|loading|blank|pixel/i.test(u)) continue;
+    u = u.replace(/_\d+x\d+(?:Q\d+)?\.(jpe?g|png|webp)(?:_\.webp)?$/i, ".$1");
+    out.push(u);
+  }
+  return Array.from(new Set(out)).slice(0, 20);
+}
+
+function extractHtmlVariants(html: string): NormalizedVariant[] {
+  const values = new Set<string>();
+  const re = /(?:valueName|name|text|title)['"]\s*:\s*['"]([^'"]{1,60})['"]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && values.size < 30) {
+    const value = decodeHtmlText(m[1]).replace(/\s+/g, " ").trim();
+    if (!value || /登录|淘宝|天猫|价格|库存|销量|客服|首页|详情|评价|captcha|login/i.test(value)) continue;
+    if (/^[\d.,]+$/.test(value)) continue;
+    values.add(value);
+  }
+  return Array.from(values).slice(0, 30).map((value) => ({ size: "", color: value, colorHex: "", stock: 0 }));
+}
+
 function normalizeFromHtml(html: string, url: string, platform: Platform, source: NormalizedProduct["extractionSource"]): NormalizedProduct {
   const titleTag = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i)?.[1]?.trim() ?? "";
-  const title = extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim();
-  const description = extractMeta(html, "og:description") || extractMeta(html, "description") || stripTags(html).slice(0, 800);
+  const jsonTitle = extractJsonText(html, "title", "itemTitle", "item_title", "subject", "productName", "name");
+  const title = decodeHtmlText(extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || jsonTitle || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim());
+  const description = decodeHtmlText(extractMeta(html, "og:description") || extractMeta(html, "description") || extractJsonText(html, "description", "desc", "subtitle") || stripTags(html).slice(0, 800));
   const image = extractMeta(html, "og:image");
-  const images = image ? [image, ...extractHtmlImages(html)] : extractHtmlImages(html);
-  const priceMatch = html.match(/(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice)["'\s:=]+["']?([0-9]+(?:\.[0-9]{1,2})?)/i);
-  const priceMin = priceMatch ? Number(priceMatch[1]) : 0;
+  const images = image ? [image, ...extractHtmlImages(html), ...extractJsonImages(html)] : [...extractHtmlImages(html), ...extractJsonImages(html)];
+  const priceMin = extractJsonPrice(html);
+  const variants = extractHtmlVariants(html);
   return {
     platform,
     sourceUrl: url,
@@ -354,11 +498,46 @@ function normalizeFromHtml(html: string, url: string, platform: Platform, source
     priceMax: Number.isFinite(priceMin) ? priceMin : 0,
     currency: platform === "unknown" ? "USD" : "CNY",
     images: Array.from(new Set(images)).slice(0, 15),
-    variants: [],
+    variants,
     vendorName: null,
     extractionSource: source,
-    raw: { html_preview: html.slice(0, 2000) },
+    raw: { html_preview: html.slice(0, 8000) },
   };
+}
+
+async function enhanceWithVision(product: NormalizedProduct, screenshotBase64: string): Promise<NormalizedProduct> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey || !screenshotBase64) return product;
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Analyse cette capture de page produit Taobao/Tmall/1688. Réponds uniquement en JSON strict: {\"is_product\":boolean,\"is_login\":boolean,\"is_captcha\":boolean,\"title\":string|null,\"price\":number|null,\"variants\":string[],\"reason\":string}. N'invente rien." },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${screenshotBase64}` } },
+          ],
+        }],
+      }),
+    });
+    if (!r.ok) return product;
+    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = JSON.parse(raw.replace(/^```json\s*/i, "").replace(/```$/i, "")) as Record<string, unknown>;
+    if (parsed.is_login || parsed.is_captcha || parsed.is_product === false) return product;
+    const title = typeof parsed.title === "string" && parsed.title.trim().length > product.title.length ? parsed.title.trim() : product.title;
+    const price = typeof parsed.price === "number" && parsed.price > 0 ? parsed.price : product.priceMin;
+    const variantValues = Array.isArray(parsed.variants) ? parsed.variants.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
+    const variants = product.variants.length > 0 ? product.variants : variantValues.slice(0, 30).map((v) => ({ size: "", color: v.slice(0, 60), colorHex: "", stock: 0 }));
+    debugImport("vision.ok", { title, price, variants: variants.length, url: product.sourceUrl });
+    return { ...product, title, priceMin: price, priceMax: price || product.priceMax, variants, raw: { ...(product.raw as Record<string, unknown>), vision: parsed } };
+  } catch (e) {
+    debugImport("vision.exception", { message: e instanceof Error ? e.message : String(e), url: product.sourceUrl });
+    return product;
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -503,9 +682,6 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
   const securitySignals = [
     "验证码", "captcha", "安全验证", "security check", "身份验证", "滑块", "sec.taobao", "punish", "被拦截", "访问受限", "verify",
   ];
-  if (loginSignals.some((s) => combined.includes(s))) issues.push("Page de connexion détectée");
-  if (securitySignals.some((s) => combined.includes(s))) issues.push("Page sécurité/captcha détectée");
-
   const cleanTitle = product.title.replace(/\s+/g, "").trim();
   if (!cleanTitle || cleanTitle.length < 4) issues.push("Titre produit absent ou trop court");
   if (["登录", "登陆", "login", "connexion", "tmall", "taobao"].includes(cleanTitle.toLowerCase())) issues.push("Titre non produit détecté");
@@ -519,10 +695,12 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
 
   if (product.platform !== "unknown" && !product.sourceProductId) issues.push("Identifiant produit source introuvable");
 
-  const validVariants = product.variants.filter((v) => v.size || v.color || v.sku || v.imageUrl || (v.price && v.price > 0));
-  if (product.platform === "taobao" || product.platform === "tmall" || product.platform === "1688") {
-    if (validVariants.length === 0) issues.push("Variantes/SKU produit introuvables");
-  }
+  const visibleLooksLogin = loginSignals.some((s) => text.includes(s));
+  const rawLooksLogin = loginSignals.some((s) => rawText.includes(s));
+  const looksSecurity = securitySignals.some((s) => combined.includes(s));
+  const hasCoreProductData = cleanTitle.length >= 4 && hasPrice && realImages.length > 0;
+  if (visibleLooksLogin || (rawLooksLogin && !hasCoreProductData)) issues.push("Page de connexion détectée");
+  if (looksSecurity && !hasCoreProductData) issues.push("Page sécurité/captcha détectée");
 
   return {
     valid: issues.length === 0,
@@ -538,26 +716,47 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
  * Scrape un produit unique Taobao/Tmall/1688.
  * Renvoie null si Bright Data n'est pas configuré, échoue, ou plateforme inconnue.
  */
-export async function scrapeProductWithBrightData(rawUrl: string): Promise<NormalizedProduct | null> {
+function statusFromIssues(issues: string[]): ImportAttemptLog["status"] {
+  const text = issues.join(" ").toLowerCase();
+  if (/captcha|sécurité|security|验证码/.test(text)) return "captcha";
+  if (/connexion|login|登录|登陆/.test(text)) return "login";
+  return "invalid_data";
+}
+
+export async function scrapeProductWithBrightDataDetailed(rawUrl: string): Promise<{ product: NormalizedProduct | null; log: ImportAttemptLog }> {
   const url = await resolveTaobaoShortLink(rawUrl);
   const platform = detectPlatform(url);
-  if (platform === "unknown") return null;
+  if (platform === "unknown") {
+    return { product: null, log: { initialUrl: rawUrl, finalUrl: url, source: "none", status: "blocked", reason: "Plateforme non supportée", issues: ["Plateforme non supportée"] } };
+  }
 
   debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
+  let lastLog: ImportAttemptLog = { initialUrl: rawUrl, finalUrl: url, source: "none", status: "invalid_data", reason: "Aucune extraction lancée", issues: [] };
 
-  const browserHtml = await fetchWithBrightDataBrowser(url);
-  if (browserHtml) {
-    const browserProduct = normalizeFromHtml(browserHtml, url, platform, "brightdata_browser");
-    const validation = validateNormalizedProduct(browserProduct);
+  const browserResult = await fetchWithBrightDataBrowser(url);
+  if (browserResult) {
+    const browserUrl = canonicalizeUrl(browserResult.finalUrl || url);
+    const browserPlatform = detectPlatform(browserUrl) === "unknown" ? platform : detectPlatform(browserUrl);
+    let browserProduct = normalizeFromHtml(browserResult.html, browserUrl, browserPlatform, "brightdata_browser");
+    let validation = validateNormalizedProduct(browserProduct);
+    if (!validation.valid && !validation.issues.some((issue) => /connexion|login|captcha|sécurité/i.test(issue))) {
+      const screenshot = browserResult.screenshotBase64 ?? await fetchScreenshotWithBrightData(browserUrl);
+      if (screenshot) {
+        browserProduct = await enhanceWithVision(browserProduct, screenshot);
+        validation = validateNormalizedProduct(browserProduct);
+      }
+    }
     debugImport("browser.validation", {
       valid: validation.valid,
       issues: validation.issues,
+      finalUrl: browserUrl,
       title: browserProduct.title,
       price: browserProduct.priceMin,
       images: browserProduct.images.length,
       variants: browserProduct.variants.length,
     });
-    if (validation.valid) return browserProduct;
+    lastLog = { initialUrl: rawUrl, finalUrl: browserUrl, source: "brightdata_browser", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+    if (validation.valid) return { product: browserProduct, log: lastLog };
   }
 
   const datasetId = datasetIdFor(platform);
@@ -579,7 +778,8 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
           images: product.images.length,
           variants: product.variants.length,
         });
-        if (validation.valid) return product;
+        lastLog = { initialUrl: rawUrl, finalUrl: url, source: "brightdata_dataset", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+        if (validation.valid) return { product, log: lastLog };
       }
     }
   }
@@ -596,11 +796,17 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
       images: product.images.length,
       variants: product.variants.length,
     });
-    if (validation.valid) return product;
+    lastLog = { initialUrl: rawUrl, finalUrl: url, source: "firecrawl", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+    if (validation.valid) return { product, log: lastLog };
   }
 
-  debugImport("failed", { url, platform, reason: "Aucune source n'a fourni un vrai produit validé" });
-  return null;
+  debugImport("failed", { url, platform, reason: lastLog.reason || "Aucune source n'a fourni un vrai produit validé", issues: lastLog.issues });
+  return { product: null, log: { ...lastLog, reason: lastLog.reason || "Aucune source n'a fourni un vrai produit validé" } };
+}
+
+export async function scrapeProductWithBrightData(rawUrl: string): Promise<NormalizedProduct | null> {
+  const result = await scrapeProductWithBrightDataDetailed(rawUrl);
+  return result.product;
 }
 
 /**
