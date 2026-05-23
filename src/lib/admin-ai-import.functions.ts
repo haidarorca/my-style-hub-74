@@ -19,6 +19,7 @@ import {
   detectPlatform,
   extractSourceProductId,
   validateNormalizedProduct,
+  diagnoseBrightDataConfig,
   type ImportAttemptLog,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
@@ -80,6 +81,23 @@ async function updateImportJob(jobId: string | null, patch: Record<string, unkno
   const { error } = await (supabaseAdmin as any).from("import_jobs").update(patch).eq("id", jobId);
   if (error) logImportDebug("job.update_failed", { jobId, message: error.message });
 }
+
+// ─────────────────────────────────────────────────────────────
+// 0. Diagnostic config Bright Data (ne crash jamais)
+
+export const checkBrightDataConfig = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    try {
+      return await diagnoseBrightDataConfig();
+    } catch (e) {
+      return {
+        apiKey: { present: false, valid: false, message: `Erreur diagnostic : ${e instanceof Error ? e.message : String(e)}` },
+        zone: { present: false, name: null, valid: false, message: "Diagnostic interrompu" },
+        datasets: [],
+      };
+    }
+  });
 
 // ─────────────────────────────────────────────────────────────
 // 1. Liste des boutiques admin (pour choisir où publier)

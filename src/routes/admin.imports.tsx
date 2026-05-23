@@ -39,6 +39,7 @@ import {
   listAdminShops,
   discoverShopProductLinks,
   cleanupFalseTaobaoImports,
+  checkBrightDataConfig,
   type AiDraft,
   type ImportUiLog,
 } from "@/lib/admin-ai-import.functions";
@@ -171,6 +172,23 @@ function AdminImports() {
   const fnListShops = useServerFn(listAdminShops);
   const fnDiscover = useServerFn(discoverShopProductLinks);
   const fnCleanupFalse = useServerFn(cleanupFalseTaobaoImports);
+  const fnCheckBd = useServerFn(checkBrightDataConfig);
+  const [bdDiag, setBdDiag] = useState<Awaited<ReturnType<typeof checkBrightDataConfig>> | null>(null);
+  const [bdChecking, setBdChecking] = useState(false);
+
+  const handleCheckBrightData = async () => {
+    setBdChecking(true);
+    try {
+      const r = await fnCheckBd({});
+      setBdDiag(r);
+      if (r.apiKey.valid && r.zone.valid) toast.success("Bright Data : configuration valide");
+      else toast.error(r.apiKey.message || r.zone.message || "Configuration Bright Data invalide");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Diagnostic échoué");
+    } finally {
+      setBdChecking(false);
+    }
+  };
 
   const shopsQuery = useQuery({
     queryKey: ["admin-shops-for-import"],
@@ -414,6 +432,43 @@ function AdminImports() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold">Diagnostic Bright Data</div>
+                    <p className="text-[11px] text-muted-foreground">Vérifie clé API + zone Web Unlocker avant tout import.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleCheckBrightData} disabled={bdChecking} className="gap-1">
+                    {bdChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Tester
+                  </Button>
+                </div>
+                {bdDiag && (
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex items-start gap-2">
+                      <Badge variant={bdDiag.apiKey.valid ? "default" : "destructive"} className="text-[10px]">API</Badge>
+                      <span className="flex-1">{bdDiag.apiKey.message}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Badge variant={bdDiag.zone.valid ? "default" : "destructive"} className="text-[10px]">Zone</Badge>
+                      <span className="flex-1">{bdDiag.zone.message}{bdDiag.zone.name ? ` (« ${bdDiag.zone.name} »)` : ""}</span>
+                    </div>
+                    {bdDiag.datasets.length > 0 && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-muted-foreground">Datasets ({bdDiag.datasets.filter(d => d.valid).length}/{bdDiag.datasets.length} valides)</summary>
+                        <ul className="mt-1 space-y-0.5 pl-3">
+                          {bdDiag.datasets.map((d) => (
+                            <li key={d.name} className={d.valid ? "text-green-700" : "text-muted-foreground"}>
+                              {d.valid ? "✓" : d.value ? "✗" : "—"} {d.name}{d.value ? ` = ${d.value}` : " (vide, ignoré)"}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-1 text-muted-foreground">Un dataset invalide ou « pending » est automatiquement ignoré. Le moteur utilise alors uniquement Web Unlocker + Firecrawl.</p>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Boutique de publication</label>
                 <Select value={selectedShopId} onValueChange={setSelectedShopId}>

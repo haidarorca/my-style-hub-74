@@ -208,6 +208,98 @@ export function shopDatasetIdFor(platform: Platform): string | null {
 }
 
 /**
+ * Diagnostic : teste API key + zone Web Unlocker sans crasher.
+ * Renvoie toujours un objet structuré.
+ */
+export async function diagnoseBrightDataConfig(): Promise<{
+  apiKey: { present: boolean; valid: boolean; message: string };
+  zone: { present: boolean; name: string | null; valid: boolean; message: string };
+  datasets: { name: string; value: string | null; valid: boolean }[];
+}> {
+  const apiKey = process.env.BRIGHTDATA_API_KEY?.trim() || "";
+  const zone = (process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE)?.trim() || "";
+
+  const datasetChecks = [
+    { name: "BRIGHTDATA_DATASET_TAOBAO_PRODUCT", value: process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT?.trim() || null },
+    { name: "BRIGHTDATA_DATASET_TMALL_PRODUCT", value: process.env.BRIGHTDATA_DATASET_TMALL_PRODUCT?.trim() || null },
+    { name: "BRIGHTDATA_DATASET_1688_PRODUCT", value: process.env.BRIGHTDATA_DATASET_1688_PRODUCT?.trim() || null },
+    { name: "BRIGHTDATA_DATASET_TAOBAO_SHOP", value: process.env.BRIGHTDATA_DATASET_TAOBAO_SHOP?.trim() || null },
+    { name: "BRIGHTDATA_DATASET_1688_SHOP", value: process.env.BRIGHTDATA_DATASET_1688_SHOP?.trim() || null },
+  ].map((d) => ({ ...d, valid: Boolean(d.value && /^gd_[a-z0-9_]+$/i.test(d.value)) }));
+
+  if (!apiKey) {
+    return {
+      apiKey: { present: false, valid: false, message: "BRIGHTDATA_API_KEY manquant" },
+      zone: { present: Boolean(zone), name: zone || null, valid: false, message: "Clé API requise pour tester la zone" },
+      datasets: datasetChecks,
+    };
+  }
+  if (/^wss?:\/\//i.test(zone)) {
+    return {
+      apiKey: { present: true, valid: false, message: "Clé présente mais zone invalide (voir ci-dessous)" },
+      zone: { present: true, name: zone, valid: false, message: "BRIGHTDATA_WEB_UNLOCKER_ZONE doit contenir uniquement le NOM de la zone (ex: taobao_unlocker), pas l'URL wss://" },
+      datasets: datasetChecks,
+    };
+  }
+  if (!zone) {
+    return {
+      apiKey: { present: true, valid: true, message: "Clé présente" },
+      zone: { present: false, name: null, valid: false, message: "BRIGHTDATA_WEB_UNLOCKER_ZONE manquant (créez une zone Web Unlocker dans Bright Data, ex: taobao_unlocker)" },
+      datasets: datasetChecks,
+    };
+  }
+
+  try {
+    const r = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ zone, url: "https://httpbin.org/ip", format: "json", method: "GET" }),
+    });
+    const text = await r.text();
+    let body: Record<string, unknown> | null = null;
+    try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* raw */ }
+    const statusCode = typeof body?.status_code === "number" ? body.status_code : r.status;
+    const errCode = typeof (body?.headers as Record<string, unknown> | undefined)?.["x-brd-err-code"] === "string"
+      ? String((body?.headers as Record<string, unknown>)["x-brd-err-code"])
+      : null;
+
+    if (r.status === 401 || statusCode === 401) {
+      return {
+        apiKey: { present: true, valid: false, message: "Clé API rejetée (401). Régénérez la clé dans Bright Data > Account > API Keys." },
+        zone: { present: true, name: zone, valid: false, message: "Test impossible : clé invalide" },
+        datasets: datasetChecks,
+      };
+    }
+    if (statusCode === 407 || errCode === "client_10001") {
+      return {
+        apiKey: { present: true, valid: false, message: "Bright Data refuse l'authentification proxy (407 client_10001). Vérifiez que la clé est de type 'API key' (Account Settings > API), pas un mot de passe de zone." },
+        zone: { present: true, name: zone, valid: false, message: `Zone "${zone}" inaccessible avec cette clé. Vérifiez : 1) zone existe, 2) zone activée, 3) clé liée au bon compte.` },
+        datasets: datasetChecks,
+      };
+    }
+    if (!r.ok && r.status !== 200) {
+      return {
+        apiKey: { present: true, valid: false, message: `Bright Data renvoie HTTP ${r.status}. Réponse: ${text.slice(0, 200)}` },
+        zone: { present: true, name: zone, valid: false, message: "Voir message clé API" },
+        datasets: datasetChecks,
+      };
+    }
+    return {
+      apiKey: { present: true, valid: true, message: "Clé API valide ✓" },
+      zone: { present: true, name: zone, valid: true, message: `Zone "${zone}" opérationnelle ✓` },
+      datasets: datasetChecks,
+    };
+  } catch (e) {
+    return {
+      apiKey: { present: true, valid: false, message: `Erreur réseau lors du test : ${e instanceof Error ? e.message : String(e)}` },
+      zone: { present: true, name: zone, valid: false, message: "Test non concluant" },
+      datasets: datasetChecks,
+    };
+  }
+}
+
+/**
  * Trigger un dataset Bright Data et poll jusqu'à récupération du snapshot.
  * Retourne le tableau d'enregistrements bruts ou null en cas d'échec.
  */
