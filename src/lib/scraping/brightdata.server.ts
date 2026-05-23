@@ -249,6 +249,118 @@ export async function triggerAndPoll(
   return null;
 }
 
+function debugImport(stage: string, details: Record<string, unknown>) {
+  const safe = Object.fromEntries(
+    Object.entries(details).map(([k, v]) => [
+      k,
+      typeof v === "string" && v.length > 500 ? `${v.slice(0, 500)}…` : v,
+    ]),
+  );
+  console.info(`[TaobaoImport:${stage}]`, safe);
+}
+
+async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
+  if (!apiKey || !zone) {
+    debugImport("browser.skip", { reason: "BRIGHTDATA_BROWSER_ZONE/WEB_UNLOCKER_ZONE absent", url });
+    return null;
+  }
+  try {
+    const r = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        zone,
+        url,
+        format: "raw",
+        country: "cn",
+        render: true,
+      }),
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      debugImport("browser.error", { status: r.status, body: text.slice(0, 300), url });
+      return null;
+    }
+    debugImport("browser.ok", { bytes: text.length, url });
+    return text;
+  } catch (e) {
+    debugImport("browser.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+async function fetchWithFirecrawl(url: string): Promise<string | null> {
+  const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+  if (!firecrawlKey) return null;
+  try {
+    const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url, formats: ["html", "markdown"], onlyMainContent: false, waitFor: 3000 }),
+    });
+    const j = (await r.json().catch(() => null)) as { data?: { html?: string; markdown?: string; metadata?: { title?: string; ogImage?: string } } } | null;
+    const html = j?.data?.html || j?.data?.markdown || "";
+    debugImport(r.ok ? "firecrawl.ok" : "firecrawl.error", { status: r.status, bytes: html.length, url });
+    return r.ok && html ? html : null;
+  } catch (e) {
+    debugImport("firecrawl.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractMeta(html: string, key: string): string {
+  const re = new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']{1,1000})["']`, "i");
+  const alt = new RegExp(`<meta[^>]+content=["']([^"']{1,1000})["'][^>]+(?:property|name)=["']${key}["']`, "i");
+  return (html.match(re)?.[1] || html.match(alt)?.[1] || "").replace(/&amp;/g, "&").trim();
+}
+
+function extractHtmlImages(html: string): string[] {
+  const out: string[] = [];
+  const re = /(?:src|data-src|data-ks-lazyload|data-lazyload|data-original)=['"]((?:https?:)?\/\/[^'"]+\.(?:jpe?g|png|webp)(?:[^'"]*)?)['"]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let u = m[1].replace(/&amp;/g, "&");
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (/sprite|icon|logo|avatar|captcha|loading|blank|pixel/i.test(u)) continue;
+    out.push(u.replace(/_\d+x\d+(?:Q\d+)?\.(jpe?g|png|webp)(?:_\.webp)?$/i, ".$1"));
+  }
+  return Array.from(new Set(out)).slice(0, 20);
+}
+
+function normalizeFromHtml(html: string, url: string, platform: Platform, source: NormalizedProduct["extractionSource"]): NormalizedProduct {
+  const titleTag = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i)?.[1]?.trim() ?? "";
+  const title = extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim();
+  const description = extractMeta(html, "og:description") || extractMeta(html, "description") || stripTags(html).slice(0, 800);
+  const image = extractMeta(html, "og:image");
+  const images = image ? [image, ...extractHtmlImages(html)] : extractHtmlImages(html);
+  const priceMatch = html.match(/(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice)["'\s:=]+["']?([0-9]+(?:\.[0-9]{1,2})?)/i);
+  const priceMin = priceMatch ? Number(priceMatch[1]) : 0;
+  return {
+    platform,
+    sourceUrl: url,
+    sourceProductId: extractSourceProductId(url, platform),
+    title,
+    description,
+    priceMin: Number.isFinite(priceMin) ? priceMin : 0,
+    priceMax: Number.isFinite(priceMin) ? priceMin : 0,
+    currency: platform === "unknown" ? "USD" : "CNY",
+    images: Array.from(new Set(images)).slice(0, 15),
+    variants: [],
+    vendorName: null,
+    extractionSource: source,
+    raw: { html_preview: html.slice(0, 2000) },
+  };
+}
+
 // ──────────────────────────────────────────────
 // Normalisation des records bruts → NormalizedProduct
 
