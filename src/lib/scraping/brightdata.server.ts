@@ -717,14 +717,25 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
   const visibleLooksLogin = loginSignals.some((s) => text.includes(s));
   const rawLooksLogin = loginSignals.some((s) => rawText.includes(s));
   const looksSecurity = securitySignals.some((s) => combined.includes(s));
-  const hasCoreProductData = cleanTitle.length >= 4 && hasPrice && realImages.length > 0;
-  if (visibleLooksLogin || (rawLooksLogin && !hasCoreProductData)) issues.push("Page de connexion détectée");
-  if (looksSecurity && !hasCoreProductData) issues.push("Page sécurité/captcha détectée");
+  const genericLoginShell = rawLooksLogin && /login|password|扫码登录|账户登录|验证码|captcha|security check|安全验证/i.test(combined);
+  if (visibleLooksLogin || genericLoginShell) issues.push("Page de connexion détectée");
+  if (looksSecurity) issues.push("Page sécurité/captcha détectée");
+  let confidence = 0;
+  if (cleanTitle.length >= 8) confidence += 25;
+  if (hasPrice) confidence += 25;
+  if (realImages.length >= 1) confidence += 20;
+  if (product.sourceProductId) confidence += 15;
+  if (product.variants.length > 0) confidence += 10;
+  if (product.extractionSource === "brightdata_dataset") confidence += 5;
+  if (visibleLooksLogin || genericLoginShell || looksSecurity) confidence -= 60;
+  confidence = Math.max(0, Math.min(100, confidence));
+  if (product.platform !== "unknown" && confidence < 70) issues.push(`Score de confiance insuffisant (${confidence}/100)`);
 
   return {
     valid: issues.length === 0,
     reason: issues[0] ?? null,
     issues,
+    confidence,
   };
 }
 
