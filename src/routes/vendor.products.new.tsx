@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -194,6 +194,51 @@ function NewProductPage() {
 
   // The "deepest" pick determines what goes onto the product
   const deepestPick = pick3 || pick2 || pick1 || "";
+
+  // Appliquer une categorie detectee par l'IA (recoit un UUID)
+  const handleCategoryApply = useCallback(
+    (categoryId: string) => {
+      const allCats = cats ?? [];
+      const cat = allCats.find((c) => c.id === categoryId);
+      if (!cat) {
+        toast.error("Categorie introuvable.");
+        return;
+      }
+
+      const catL3 = cat.level === 3 ? cat : null;
+      const catL2 =
+        cat.level === 3
+          ? allCats.find((c) => c.id === cat.parent_id)
+          : cat.level === 2
+            ? cat
+            : null;
+      const catL1 =
+        cat.level === 3
+          ? catL2
+            ? allCats.find((c) => c.id === catL2.parent_id)
+            : null
+          : cat.level === 2
+            ? allCats.find((c) => c.id === cat.parent_id)
+            : cat;
+
+      if (catL1) {
+        setPick1(`cat:${catL1.id}`);
+      }
+      if (catL2) {
+        setPick2(`cat:${catL2.id}`);
+      } else {
+        setPick2("");
+      }
+      if (catL3) {
+        setPick3(`cat:${catL3.id}`);
+      } else {
+        setPick3("");
+      }
+
+      toast.success("Categorie appliquée !");
+    },
+    [cats],
+  );
 
   function startNew(level: 1 | 2 | 3) {
     if (level === 2 && !pick1) return toast.error("Choisissez d'abord le rayon.");
@@ -984,6 +1029,7 @@ function NewProductPage() {
           if (r.designation) setDesignation(r.designation);
           if (r.description) setDescription(r.description);
         }}
+        onCategoryApply={handleCategoryApply}
       />
 
 
