@@ -145,10 +145,14 @@ function AdminImports() {
   const [iaLoading, setIaLoading] = useState(false);
   const [justImported, setJustImported] = useState<DraftProduct[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>("");
+  const [storeUrl, setStoreUrl] = useState("");
+  const [storeLimit, setStoreLimit] = useState(10);
+  const [storeLoading, setStoreLoading] = useState(false);
 
   const fnScrape = useServerFn(scrapeProductForAi);
   const fnPublish = useServerFn(publishImportedDraft);
   const fnListShops = useServerFn(listAdminShops);
+  const fnDiscover = useServerFn(discoverShopProductLinks);
 
   const shopsQuery = useQuery({
     queryKey: ["admin-shops-for-import"],
