@@ -543,16 +543,64 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
   const platform = detectPlatform(url);
   if (platform === "unknown") return null;
 
+  debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
+
+  const browserHtml = await fetchWithBrightDataBrowser(url);
+  if (browserHtml) {
+    const browserProduct = normalizeFromHtml(browserHtml, url, platform, "brightdata_browser");
+    const validation = validateNormalizedProduct(browserProduct);
+    debugImport("browser.validation", {
+      valid: validation.valid,
+      issues: validation.issues,
+      title: browserProduct.title,
+      price: browserProduct.priceMin,
+      images: browserProduct.images.length,
+      variants: browserProduct.variants.length,
+    });
+    if (validation.valid) return browserProduct;
+  }
+
   const datasetId = datasetIdFor(platform);
   if (!datasetId) {
     console.warn(`[BrightData] dataset non configuré pour ${platform}`);
-    return null;
+  } else {
+    debugImport("dataset.start", { platform, datasetId, url });
+    const records = await triggerAndPoll(datasetId, [{ url }]);
+    debugImport("dataset.result", { count: records?.length ?? 0, platform, datasetId });
+    if (records && records.length > 0) {
+      for (const rec of records) {
+        const product = normalizeRecord(rec, url, platform, "brightdata_dataset");
+        const validation = validateNormalizedProduct(product);
+        debugImport("dataset.validation", {
+          valid: validation.valid,
+          issues: validation.issues,
+          title: product.title,
+          price: product.priceMin,
+          images: product.images.length,
+          variants: product.variants.length,
+        });
+        if (validation.valid) return product;
+      }
+    }
   }
 
-  const records = await triggerAndPoll(datasetId, [{ url }]);
-  if (!records || records.length === 0) return null;
+  const firecrawlHtml = await fetchWithFirecrawl(url);
+  if (firecrawlHtml) {
+    const product = normalizeFromHtml(firecrawlHtml, url, platform, "firecrawl");
+    const validation = validateNormalizedProduct(product);
+    debugImport("firecrawl.validation", {
+      valid: validation.valid,
+      issues: validation.issues,
+      title: product.title,
+      price: product.priceMin,
+      images: product.images.length,
+      variants: product.variants.length,
+    });
+    if (validation.valid) return product;
+  }
 
-  return normalizeRecord(records[0], url, platform);
+  debugImport("failed", { url, platform, reason: "Aucune source n'a fourni un vrai produit validé" });
+  return null;
 }
 
 /**
