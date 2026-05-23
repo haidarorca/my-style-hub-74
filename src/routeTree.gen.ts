@@ -50,6 +50,7 @@ import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminPreparationRouteImport } from './routes/admin.preparation'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
+import { Route as AdminImportsRouteImport } from './routes/admin.imports'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCountriesRouteImport } from './routes/admin.countries'
 import { Route as AdminContactSettingsRouteImport } from './routes/admin.contact-settings'
@@ -280,6 +281,11 @@ const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminImportsRoute = AdminImportsRouteImport.update({
+  id: '/imports',
+  path: '/imports',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
@@ -434,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/imports': typeof AdminImportsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/preparation': typeof AdminPreparationRoute
@@ -499,6 +506,7 @@ export interface FileRoutesByTo {
   '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/imports': typeof AdminImportsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/preparation': typeof AdminPreparationRoute
@@ -566,6 +574,7 @@ export interface FileRoutesById {
   '/admin/contact-settings': typeof AdminContactSettingsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
+  '/admin/imports': typeof AdminImportsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/preparation': typeof AdminPreparationRoute
@@ -635,6 +644,7 @@ export interface FileRouteTypes {
     | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/imports'
     | '/admin/notifications'
     | '/admin/orders'
     | '/admin/preparation'
@@ -700,6 +710,7 @@ export interface FileRouteTypes {
     | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/imports'
     | '/admin/notifications'
     | '/admin/orders'
     | '/admin/preparation'
@@ -766,6 +777,7 @@ export interface FileRouteTypes {
     | '/admin/contact-settings'
     | '/admin/countries'
     | '/admin/customers'
+    | '/admin/imports'
     | '/admin/notifications'
     | '/admin/orders'
     | '/admin/preparation'
@@ -1121,6 +1133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNotificationsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/imports': {
+      id: '/admin/imports'
+      path: '/imports'
+      fullPath: '/admin/imports'
+      preLoaderRoute: typeof AdminImportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/customers': {
       id: '/admin/customers'
       path: '/customers'
@@ -1354,6 +1373,7 @@ interface AdminRouteChildren {
   AdminContactSettingsRoute: typeof AdminContactSettingsRoute
   AdminCountriesRoute: typeof AdminCountriesRoute
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
+  AdminImportsRoute: typeof AdminImportsRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminPreparationRoute: typeof AdminPreparationRoute
@@ -1382,6 +1402,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminContactSettingsRoute: AdminContactSettingsRoute,
   AdminCountriesRoute: AdminCountriesRoute,
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
+  AdminImportsRoute: AdminImportsRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminPreparationRoute: AdminPreparationRoute,
