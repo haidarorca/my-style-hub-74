@@ -964,8 +964,19 @@ export async function scrapeProductWithBrightDataDetailed(rawUrl: string): Promi
     return { product: null, log: { initialUrl: rawUrl, finalUrl: url, source: "none", status: "blocked", reason: "Plateforme non supportée", issues: ["Plateforme non supportée"] } };
   }
 
-  debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
   let lastLog: ImportAttemptLog = { initialUrl: rawUrl, finalUrl: url, source: "none", status: "invalid_data", reason: "Aucune extraction lancée", issues: [] };
+
+  // 1) Try Taobao/Tmall with the admin's saved session (when available).
+  const sessionResult = await fetchWithTaobaoSession(url, platform);
+  if (sessionResult) {
+    const sessUrl = canonicalizeUrl(sessionResult.finalUrl || url);
+    const sessPlatform = detectPlatform(sessUrl) === "unknown" ? platform : detectPlatform(sessUrl);
+    const sessProduct = normalizeFromHtml(sessionResult.html, sessUrl, sessPlatform, "brightdata_browser");
+    const sessValidation = validateNormalizedProduct(sessProduct);
+    debugImport("session.validation", { valid: sessValidation.valid, issues: sessValidation.issues, title: sessProduct.title, price: sessProduct.priceMin });
+    lastLog = { initialUrl: rawUrl, finalUrl: sessUrl, source: "brightdata_browser", status: sessValidation.valid ? "success" : statusFromIssues(sessValidation.issues), reason: sessValidation.reason ?? "OK", issues: sessValidation.issues };
+    if (sessValidation.valid) return { product: sessProduct, log: lastLog };
+  }
 
   const browserResult = await fetchWithBrightDataBrowser(url);
   if (browserResult) {
