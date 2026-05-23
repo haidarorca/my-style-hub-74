@@ -2146,6 +2146,42 @@ export type Database = {
           },
         ]
       }
+      taobao_sessions: {
+        Row: {
+          connected_at: string | null
+          cookies_encrypted: string | null
+          expires_at: string | null
+          id: string
+          last_check_at: string | null
+          nickname: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          connected_at?: string | null
+          cookies_encrypted?: string | null
+          expires_at?: string | null
+          id?: string
+          last_check_at?: string | null
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          cookies_encrypted?: string | null
+          expires_at?: string | null
+          id?: string
+          last_check_at?: string | null
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       ui_overrides: {
         Row: {
           key: string
@@ -2593,6 +2629,13 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      taobao_session_clear: { Args: never; Returns: undefined }
+      taobao_session_load: { Args: { _key: string }; Returns: Json }
+      taobao_session_mark_expired: { Args: never; Returns: undefined }
+      taobao_session_save: {
+        Args: { _cookies: Json; _key: string; _nickname: string; _ua: string }
+        Returns: undefined
+      }
       upsert_commission_rule: {
         Args: {
           _category_id?: string
