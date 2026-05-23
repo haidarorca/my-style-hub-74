@@ -54,9 +54,24 @@ export interface ProductValidationResult {
 
 export function detectPlatform(url: string): Platform {
   if (/(?:^|\.)1688\.com/i.test(url)) return "1688";
-  if (/(?:^|\.)tmall\.(?:com|hk)/i.test(url)) return "tmall";
-  if (/(?:^|\.)taobao\.com/i.test(url)) return "taobao";
+  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\./i.test(url)) return "tmall";
+  if (/(?:^|\.)(?:taobao|tb|worldtaobao)\.(?:com|cn)|item\.taobao\./i.test(url)) return "taobao";
   return "unknown";
+}
+
+function canonicalizeUrl(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    const id = u.searchParams.get("id") || u.searchParams.get("itemId") || u.searchParams.get("item_id");
+    const platform = detectPlatform(u.toString());
+    if (id && /^\d{5,}$/.test(id) && (platform === "taobao" || platform === "tmall")) {
+      const host = platform === "tmall" ? "detail.tmall.com" : "item.taobao.com";
+      return `https://${host}/item.htm?id=${id}`;
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -64,22 +79,37 @@ export function detectPlatform(url: string): Platform {
  * Suit jusqu'à 5 redirections et renvoie l'URL finale item.htm.
  */
 export async function resolveTaobaoShortLink(url: string): Promise<string> {
-  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|item\.world\.taobao\.com)/i.test(url)) {
-    return url;
+  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com)/i.test(url)) {
+    return canonicalizeUrl(url);
   }
   let current = url;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     try {
-      const r = await fetch(current, { method: "HEAD", redirect: "manual" });
+      const r = await fetch(current, {
+        method: i === 0 ? "GET" : "HEAD",
+        redirect: "manual",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
       const loc = r.headers.get("location");
-      if (!loc) break;
+      if (!loc) {
+        const text = await r.text().catch(() => "");
+        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com)[^"'\\\s<>]+/i)?.[0]
+          ?.replace(/\\\//g, "/")
+          ?.replace(/&amp;/g, "&");
+        if (embedded) current = embedded;
+        break;
+      }
       current = new URL(loc, current).toString();
       if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm/i.test(current)) break;
     } catch {
       break;
     }
   }
-  return current;
+  return canonicalizeUrl(current);
 }
 
 export function extractSourceProductId(url: string, platform: Platform): string | null {
