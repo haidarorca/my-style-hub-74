@@ -20,6 +20,7 @@ import {
   extractSourceProductId,
   validateNormalizedProduct,
   diagnoseBrightDataConfig,
+  normalizeImportInput,
   type ImportAttemptLog,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
