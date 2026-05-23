@@ -13,12 +13,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
-  scrapeProductWithBrightData,
+  scrapeProductWithBrightDataDetailed,
   discoverShopWithBrightData,
   resolveTaobaoShortLink,
   detectPlatform,
   extractSourceProductId,
   validateNormalizedProduct,
+  type ImportAttemptLog,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
 
@@ -50,6 +51,7 @@ export interface AiDraft {
   categoryName: string | null;
   isDuplicate: boolean;
   duplicateProductId?: string;
+  importLog: ImportAttemptLog;
 }
 
 // ─────────────────────────────────────────────────────────────
