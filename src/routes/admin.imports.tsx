@@ -146,7 +146,7 @@ function AdminImports() {
 
   const history = useQuery({
     queryKey: ["product-imports", "admin"],
-    queryFn: () => fnHistory({ data: { shopId: "" } }),
+    queryFn: () => fnHistory({ data: {} }),
     staleTime: 30_000,
   });
 
@@ -332,7 +332,7 @@ function AdminImports() {
                 <Button variant="outline" size="sm" onClick={() => fnTemplate({}).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
                   <Download className="mr-1 h-3.5 w-3.5" /> Modele
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", shopId: "", status: "any" } }).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
+                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", status: "any" } }).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
                   <Table2 className="mr-1 h-3.5 w-3.5" /> Exporter
                 </Button>
               </div>
@@ -347,7 +347,7 @@ function AdminImports() {
                   setPreviewLoading(true);
                   try {
                     const fileBase64 = await fileToBase64(excelFile);
-                    const r = await fnPreview({ data: { scope: "admin", shopId: "", fileBase64, fileName: excelFile.name } });
+                    const r = await fnPreview({ data: { scope: "admin", fileBase64, fileName: excelFile.name } });
                     setPreview(r);
                   } catch (e: any) { toast.error(e.message); }
                   setPreviewLoading(false);
@@ -371,7 +371,7 @@ function AdminImports() {
                     onClick={async () => {
                       try {
                         const fileBase64 = await fileToBase64(excelFile!);
-                        await fnCommit({ data: { scope: "admin", shopId: "", fileBase64, fileName: excelFile!.name } });
+                        await fnCommit({ data: { importId: preview.importId } });
                         toast.success("Importe !");
                         setPreview(null); setExcelFile(null);
                       } catch (e: any) { toast.error(e.message); }
