@@ -716,19 +716,36 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
  * Scrape un produit unique Taobao/Tmall/1688.
  * Renvoie null si Bright Data n'est pas configuré, échoue, ou plateforme inconnue.
  */
-export async function scrapeProductWithBrightData(rawUrl: string): Promise<NormalizedProduct | null> {
+function statusFromIssues(issues: string[]): ImportAttemptLog["status"] {
+  const text = issues.join(" ").toLowerCase();
+  if (/captcha|sécurité|security|验证码/.test(text)) return "captcha";
+  if (/connexion|login|登录|登陆/.test(text)) return "login";
+  return "invalid_data";
+}
+
+export async function scrapeProductWithBrightDataDetailed(rawUrl: string): Promise<{ product: NormalizedProduct | null; log: ImportAttemptLog }> {
   const url = await resolveTaobaoShortLink(rawUrl);
   const platform = detectPlatform(url);
-  if (platform === "unknown") return null;
+  if (platform === "unknown") {
+    return { product: null, log: { initialUrl: rawUrl, finalUrl: url, source: "none", status: "blocked", reason: "Plateforme non supportée", issues: ["Plateforme non supportée"] } };
+  }
 
   debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
+  let lastLog: ImportAttemptLog = { initialUrl: rawUrl, finalUrl: url, source: "none", status: "invalid_data", reason: "Aucune extraction lancée", issues: [] };
 
   const browserResult = await fetchWithBrightDataBrowser(url);
   if (browserResult) {
     const browserUrl = canonicalizeUrl(browserResult.finalUrl || url);
     const browserPlatform = detectPlatform(browserUrl) === "unknown" ? platform : detectPlatform(browserUrl);
-    const browserProduct = normalizeFromHtml(browserResult.html, browserUrl, browserPlatform, "brightdata_browser");
-    const validation = validateNormalizedProduct(browserProduct);
+    let browserProduct = normalizeFromHtml(browserResult.html, browserUrl, browserPlatform, "brightdata_browser");
+    let validation = validateNormalizedProduct(browserProduct);
+    if (!validation.valid && !validation.issues.some((issue) => /connexion|login|captcha|sécurité/i.test(issue))) {
+      const screenshot = browserResult.screenshotBase64 ?? await fetchScreenshotWithBrightData(browserUrl);
+      if (screenshot) {
+        browserProduct = await enhanceWithVision(browserProduct, screenshot);
+        validation = validateNormalizedProduct(browserProduct);
+      }
+    }
     debugImport("browser.validation", {
       valid: validation.valid,
       issues: validation.issues,
@@ -738,7 +755,8 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
       images: browserProduct.images.length,
       variants: browserProduct.variants.length,
     });
-    if (validation.valid) return browserProduct;
+    lastLog = { initialUrl: rawUrl, finalUrl: browserUrl, source: "brightdata_browser", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+    if (validation.valid) return { product: browserProduct, log: lastLog };
   }
 
   const datasetId = datasetIdFor(platform);
@@ -760,7 +778,8 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
           images: product.images.length,
           variants: product.variants.length,
         });
-        if (validation.valid) return product;
+        lastLog = { initialUrl: rawUrl, finalUrl: url, source: "brightdata_dataset", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+        if (validation.valid) return { product, log: lastLog };
       }
     }
   }
@@ -777,11 +796,17 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
       images: product.images.length,
       variants: product.variants.length,
     });
-    if (validation.valid) return product;
+    lastLog = { initialUrl: rawUrl, finalUrl: url, source: "firecrawl", status: validation.valid ? "success" : statusFromIssues(validation.issues), reason: validation.reason ?? "OK", issues: validation.issues };
+    if (validation.valid) return { product, log: lastLog };
   }
 
-  debugImport("failed", { url, platform, reason: "Aucune source n'a fourni un vrai produit validé" });
-  return null;
+  debugImport("failed", { url, platform, reason: lastLog.reason || "Aucune source n'a fourni un vrai produit validé", issues: lastLog.issues });
+  return { product: null, log: { ...lastLog, reason: lastLog.reason || "Aucune source n'a fourni un vrai produit validé" } };
+}
+
+export async function scrapeProductWithBrightData(rawUrl: string): Promise<NormalizedProduct | null> {
+  const result = await scrapeProductWithBrightDataDetailed(rawUrl);
+  return result.product;
 }
 
 /**
