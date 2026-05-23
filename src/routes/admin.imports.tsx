@@ -143,70 +143,99 @@ function AdminImports() {
   const [productUrl, setProductUrl] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
   const [justImported, setJustImported] = useState<DraftProduct[]>([]);
+  const [selectedShopId, setSelectedShopId] = useState<string>("");
+
+  const fnScrape = useServerFn(scrapeProductForAi);
+  const fnPublish = useServerFn(publishImportedDraft);
+  const fnListShops = useServerFn(listAdminShops);
+
+  const shopsQuery = useQuery({
+    queryKey: ["admin-shops-for-import"],
+    queryFn: () => fnListShops({}),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    const shops = shopsQuery.data;
+    if (shops && shops.length > 0 && !selectedShopId) setSelectedShopId(shops[0].id);
+  }, [shopsQuery.data, selectedShopId]);
 
   // ── Handlers ──
   const handleImportSingle = async () => {
+    if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
     const urls = productUrl.split("\n").map(l => l.trim()).filter(l => l.startsWith("http"));
     if (urls.length === 0) { toast.error("Aucun lien valide"); return; }
 
     setIaLoading(true);
     const imported: DraftProduct[] = [];
+    let dupCount = 0;
     for (const url of urls.slice(0, 10)) {
-      toast.loading(`Analyse de ${url.slice(0, 40)}...`);
-      const draft = await scrapeProductWithAI(url);
-      if (draft) {
+      const t = toast.loading(`Analyse de ${url.slice(0, 40)}...`);
+      try {
+        const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
+        toast.dismiss(t);
+        if (ai.isDuplicate) {
+          dupCount++;
+          toast.warning(`Doublon ignoré : ${url.slice(0, 40)}`);
+          continue;
+        }
+        const draft: DraftProduct = {
+          id: uid(),
+          name: ai.name,
+          description: ai.description,
+          price: ai.price,
+          sourcePrice: ai.sourcePrice,
+          sourceCurrency: ai.sourceCurrency,
+          images: ai.images,
+          variants: ai.variants,
+          sourceUrl: ai.sourceUrl,
+          categoryId: ai.categoryId,
+          categoryName: ai.categoryName,
+          status: "draft",
+          createdAt: Date.now(),
+        };
         imported.push(draft);
         setDrafts(prev => [draft, ...prev]);
+      } catch (e: unknown) {
+        toast.dismiss(t);
+        const msg = e instanceof Error ? e.message : "Erreur";
+        toast.error(`${url.slice(0, 30)}: ${msg}`);
       }
-      toast.dismiss();
     }
     setIaLoading(false);
     setJustImported(imported);
     setProductUrl("");
-    toast.success(`${imported.length} produit(s) importe(s)`);
+    toast.success(`${imported.length} importé(s)${dupCount ? ` · ${dupCount} doublon(s) ignoré(s)` : ""}`);
   };
 
   const handlePublish = async (draft: DraftProduct) => {
+    if (!selectedShopId) { toast.error("Sélectionnez une boutique"); return; }
     try {
-      // Insert directly to products table
-      const { data: product, error } = await supabase.from("products").insert({
-        name: draft.name,
-        description: draft.description,
-        price: draft.price,
-        status: "approved",
-        is_active: true,
-        category_id: draft.categoryId,
-        code: `IMP-${Date.now().toString(36).toUpperCase()}`,
-      }).select().single();
-
-      if (error) throw error;
-
-      // Insert images
-      if (draft.images.length > 0) {
-        await supabase.from("product_images").insert(
-          draft.images.map((url, i) => ({ product_id: product.id, url, position: i }))
-        );
+      const r = await fnPublish({
+        data: {
+          shopId: selectedShopId,
+          draft: {
+            name: draft.name,
+            description: draft.description,
+            price: draft.price,
+            images: draft.images,
+            variants: draft.variants,
+            sourceUrl: draft.sourceUrl,
+            categoryId: draft.categoryId,
+          },
+        },
+      });
+      if (r.duplicate) {
+        toast.warning("Doublon : ce produit existe déjà");
+      } else {
+        toast.success("Produit publié !");
       }
-
-      // Insert variants
-      if (draft.variants.length > 0) {
-        await supabase.from("product_variants").insert(
-          draft.variants.map(v => ({
-            product_id: product.id,
-            size: v.size,
-            color: v.color,
-            color_hex: v.colorHex || null,
-            stock: v.stock,
-          }))
-        );
-      }
-
       setDrafts(prev => prev.filter(d => d.id !== draft.id));
-      toast.success("Produit publie !");
-    } catch (e: any) {
-      toast.error(e.message || "Erreur");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
     }
   };
+
 
   const handleDiscard = (id: string) => {
     setDrafts(prev => prev.filter(d => d.id !== id));
