@@ -964,6 +964,7 @@ export async function scrapeProductWithBrightDataDetailed(rawUrl: string): Promi
     return { product: null, log: { initialUrl: rawUrl, finalUrl: url, source: "none", status: "blocked", reason: "Plateforme non supportée", issues: ["Plateforme non supportée"] } };
   }
 
+  debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
   let lastLog: ImportAttemptLog = { initialUrl: rawUrl, finalUrl: url, source: "none", status: "invalid_data", reason: "Aucune extraction lancée", issues: [] };
 
   // 1) Try Taobao/Tmall with the admin's saved session (when available).
