@@ -609,7 +609,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
     const limit = data.limit ?? 20;
 
     // 0) Nettoyage + résolution du lien boutique (texte partagé, liens courts...)
-    const norm = await normalizeImportInput(data.shopUrl);
+    const norm = await normalizeImportInput(shopUrl);
     console.log("[discoverShop] normalizeImportInput", {
       rawInput: norm.rawInput?.slice(0, 200),
       cleanedInput: norm.cleanedInput?.slice(0, 200),
@@ -617,7 +617,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
       canonicalUrl: norm.canonicalUrl,
       detectedPlatform: norm.detectedPlatform,
     });
-    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || data.shopUrl;
+    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || shopUrl;
     const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
     if (bdUrls && bdUrls.length > 0) {
       const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
@@ -634,7 +634,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
         const r = await fetch("https://api.firecrawl.dev/v2/map", {
           method: "POST",
           headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ url: data.shopUrl, limit: 500, includeSubdomains: true }),
+          body: JSON.stringify({ url: shopUrl, limit: 500, includeSubdomains: true }),
         });
         if (r.ok) {
           const j = (await r.json()) as { links?: string[]; data?: { links?: string[] } };
@@ -651,7 +651,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
           const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
             method: "POST",
             headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ url: data.shopUrl, formats: ["links", "html"], waitFor: 2000 }),
+            body: JSON.stringify({ url: shopUrl, formats: ["links", "html"], waitFor: 2000 }),
           });
           if (r.ok) {
             const j = (await r.json()) as { data?: { links?: string[]; html?: string } };
@@ -672,7 +672,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
     // 3) Dernier recours : fetch brut + regex
     if (collected.length === 0) {
       try {
-        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.shopUrl)}&timeout=10000`);
+        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(shopUrl)}&timeout=10000`);
         if (r.ok) {
           const html = await r.text();
           const re = /https?:\/\/[^\s"'<>]+/gi;
