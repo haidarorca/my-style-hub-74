@@ -18,6 +18,7 @@ import {
   resolveTaobaoShortLink,
   detectPlatform,
   extractSourceProductId,
+  validateNormalizedProduct,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
 
@@ -29,6 +30,10 @@ interface AiDraftVariant {
   color: string;
   colorHex: string;
   stock: number;
+}
+
+function logImportDebug(stage: string, details: Record<string, unknown>) {
+  console.info(`[AdminAiImport:${stage}]`, details);
 }
 
 export interface AiDraft {
