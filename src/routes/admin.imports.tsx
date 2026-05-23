@@ -469,6 +469,7 @@ function AdminImports() {
                   </div>
                 )}
               </div>
+              <TaobaoSessionCard />
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Boutique de publication</label>
                 <Select value={selectedShopId} onValueChange={setSelectedShopId}>
