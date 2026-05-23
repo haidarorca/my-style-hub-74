@@ -64,6 +64,7 @@ import { Route as AdminProductsIndexRouteImport } from './routes/admin.products.
 import { Route as VendorProductsNewRouteImport } from './routes/vendor.products.new'
 import { Route as OrdersOrderIdValidateShipmentRouteImport } from './routes/orders.$orderId.validate-shipment'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
+import { Route as ApiAdminTaobaoQrStreamRouteImport } from './routes/api/admin/taobao-qr-stream'
 import { Route as AdminSupportConversationIdRouteImport } from './routes/admin.support.$conversationId'
 import { Route as AdminCustomersUserIdRouteImport } from './routes/admin.customers.$userId'
 import { Route as AdminCommissionsViewRouteImport } from './routes/admin.commissions.view'
@@ -352,6 +353,11 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTaobaoQrStreamRoute = ApiAdminTaobaoQrStreamRouteImport.update({
+  id: '/api/admin/taobao-qr-stream',
+  path: '/api/admin/taobao-qr-stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSupportConversationIdRoute =
   AdminSupportConversationIdRouteImport.update({
     id: '/$conversationId',
@@ -470,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
+  '/api/admin/taobao-qr-stream': typeof ApiAdminTaobaoQrStreamRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -535,6 +542,7 @@ export interface FileRoutesByTo {
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
+  '/api/admin/taobao-qr-stream': typeof ApiAdminTaobaoQrStreamRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -604,6 +612,7 @@ export interface FileRoutesById {
   '/admin/commissions/view': typeof AdminCommissionsViewRoute
   '/admin/customers/$userId': typeof AdminCustomersUserIdRoute
   '/admin/support/$conversationId': typeof AdminSupportConversationIdRoute
+  '/api/admin/taobao-qr-stream': typeof ApiAdminTaobaoQrStreamRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/orders/$orderId/validate-shipment': typeof OrdersOrderIdValidateShipmentRoute
   '/vendor/products/new': typeof VendorProductsNewRoute
@@ -674,6 +683,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
+    | '/api/admin/taobao-qr-stream'
     | '/api/public/inngest'
     | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
@@ -739,6 +749,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
+    | '/api/admin/taobao-qr-stream'
     | '/api/public/inngest'
     | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
@@ -807,6 +818,7 @@ export interface FileRouteTypes {
     | '/admin/commissions/view'
     | '/admin/customers/$userId'
     | '/admin/support/$conversationId'
+    | '/api/admin/taobao-qr-stream'
     | '/api/public/inngest'
     | '/orders/$orderId/validate-shipment'
     | '/vendor/products/new'
@@ -841,6 +853,7 @@ export interface RootRouteChildren {
   CCategoryIdRoute: typeof CCategoryIdRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
   ShopVendorIdRoute: typeof ShopVendorIdRoute
+  ApiAdminTaobaoQrStreamRoute: typeof ApiAdminTaobaoQrStreamRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
 }
 
@@ -1231,6 +1244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/taobao-qr-stream': {
+      id: '/api/admin/taobao-qr-stream'
+      path: '/api/admin/taobao-qr-stream'
+      fullPath: '/api/admin/taobao-qr-stream'
+      preLoaderRoute: typeof ApiAdminTaobaoQrStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/support/$conversationId': {
       id: '/admin/support/$conversationId'
       path: '/$conversationId'
@@ -1488,6 +1508,7 @@ const rootRouteChildren: RootRouteChildren = {
   CCategoryIdRoute: CCategoryIdRoute,
   ProductProductIdRoute: ProductProductIdRoute,
   ShopVendorIdRoute: ShopVendorIdRoute,
+  ApiAdminTaobaoQrStreamRoute: ApiAdminTaobaoQrStreamRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
 }
 export const routeTree = rootRouteImport
