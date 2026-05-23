@@ -608,8 +608,16 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ urls: string[]; source: "brightdata" | "firecrawl" | "html" | "none" }> => {
     const limit = data.limit ?? 20;
 
-    // 0) Bright Data en priorité (dataset shop dédié Taobao/Tmall/1688)
-    const shopUrl = await resolveTaobaoShortLink(data.shopUrl);
+    // 0) Nettoyage + résolution du lien boutique (texte partagé, liens courts...)
+    const norm = await normalizeImportInput(data.shopUrl);
+    console.log("[discoverShop] normalizeImportInput", {
+      rawInput: norm.rawInput?.slice(0, 200),
+      cleanedInput: norm.cleanedInput?.slice(0, 200),
+      resolvedUrl: norm.resolvedUrl,
+      canonicalUrl: norm.canonicalUrl,
+      detectedPlatform: norm.detectedPlatform,
+    });
+    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || data.shopUrl;
     const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
     if (bdUrls && bdUrls.length > 0) {
       const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
