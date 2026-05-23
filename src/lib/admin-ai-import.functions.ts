@@ -18,6 +18,7 @@ import {
   resolveTaobaoShortLink,
   detectPlatform,
   extractSourceProductId,
+  validateNormalizedProduct,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
 
@@ -29,6 +30,10 @@ interface AiDraftVariant {
   color: string;
   colorHex: string;
   stock: number;
+}
+
+function logImportDebug(stage: string, details: Record<string, unknown>) {
+  console.info(`[AdminAiImport:${stage}]`, details);
 }
 
 export interface AiDraft {
@@ -209,6 +214,20 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     const sourceCurrency = bd?.currency || (platform === "unknown" ? "USD" : "CNY");
 
     if (bd) {
+      const validation = validateNormalizedProduct(bd);
+      logImportDebug("validation", {
+        valid: validation.valid,
+        issues: validation.issues,
+        source: bd.extractionSource,
+        url,
+        title: bd.title,
+        priceMin: bd.priceMin,
+        images: bd.images.length,
+        variants: bd.variants.length,
+      });
+      if (!validation.valid) {
+        throw new Error(`Import bloqué : ${validation.issues.join(" · ")}`);
+      }
       scrapedTitle = bd.title;
       scrapedDesc = bd.description;
       scrapedImages = bd.images;
@@ -224,6 +243,21 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       const fallback = await fetchHtml(url);
       scrapedTitle = fallback.title;
       scrapedImages = fallback.images;
+    }
+
+    const looksLikeLoginOrSecurity = /登录|登陆|connexion|login|sign in|验证码|captcha|安全验证|security check|访问受限|sec\.taobao|punish/i;
+    const titleText = scrapedTitle.trim();
+    if (!titleText || titleText.length < 4 || looksLikeLoginOrSecurity.test(`${titleText}\n${scrapedDesc}`)) {
+      throw new Error("Import bloqué : page de connexion ou sécurité détectée, aucun brouillon créé.");
+    }
+    if (platform !== "unknown" && scrapedPriceCny <= 0) {
+      throw new Error("Import bloqué : prix source valide introuvable, aucun brouillon créé.");
+    }
+    if (platform !== "unknown" && scrapedImages.length === 0) {
+      throw new Error("Import bloqué : image produit valide introuvable, aucun brouillon créé.");
+    }
+    if (platform !== "unknown" && scrapedVariants.length === 0) {
+      throw new Error("Import bloqué : variantes/SKU introuvables, aucun brouillon créé.");
     }
 
     // 3. Récupération des catégories (3 niveaux) pour mapping

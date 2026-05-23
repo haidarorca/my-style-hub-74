@@ -1,14 +1,15 @@
 /**
  * brightdata.server.ts
  * --------------------
- * Moteur de scraping Taobao / Tmall / 1688 via Bright Data Web Scraper API.
+ * Moteur de scraping Taobao / Tmall / 1688 via Bright Data.
  * Server-only — ne jamais importer côté client.
  *
  * Flow:
  *   1. Détecte la plateforme depuis l'URL.
- *   2. Trigger le dataset correspondant (POST /datasets/v3/trigger).
- *   3. Poll /datasets/v3/snapshot/{id} jusqu'à "ready" (timeout 60s).
- *   4. Normalise le JSON brut → NormalizedProduct unifié.
+ *   2. Essaie Bright Data Browser/Web Unlocker si une zone est configurée.
+ *   3. Essaie le dataset Bright Data correspondant.
+ *   4. Essaie Firecrawl en dernier recours.
+ *   5. Valide strictement avant de renvoyer un NormalizedProduct.
  *
  * Fallback : si Bright Data échoue ou n'est pas configuré, retourne null
  * (l'appelant peut alors basculer sur Firecrawl).
@@ -38,7 +39,14 @@ export interface NormalizedProduct {
   images: string[]; // HD, dédupliquées
   variants: NormalizedVariant[];
   vendorName: string | null;
+  extractionSource?: "brightdata_browser" | "brightdata_dataset" | "firecrawl" | "html";
   raw: unknown; // payload brut pour debug
+}
+
+export interface ProductValidationResult {
+  valid: boolean;
+  reason: string | null;
+  issues: string[];
 }
 
 // ──────────────────────────────────────────────
@@ -46,9 +54,24 @@ export interface NormalizedProduct {
 
 export function detectPlatform(url: string): Platform {
   if (/(?:^|\.)1688\.com/i.test(url)) return "1688";
-  if (/(?:^|\.)tmall\.(?:com|hk)/i.test(url)) return "tmall";
-  if (/(?:^|\.)taobao\.com/i.test(url)) return "taobao";
+  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\./i.test(url)) return "tmall";
+  if (/(?:^|\.)(?:taobao|tb|worldtaobao)\.(?:com|cn)|item\.taobao\./i.test(url)) return "taobao";
   return "unknown";
+}
+
+function canonicalizeUrl(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    const id = u.searchParams.get("id") || u.searchParams.get("itemId") || u.searchParams.get("item_id");
+    const platform = detectPlatform(u.toString());
+    if (id && /^\d{5,}$/.test(id) && (platform === "taobao" || platform === "tmall")) {
+      const host = platform === "tmall" ? "detail.tmall.com" : "item.taobao.com";
+      return `https://${host}/item.htm?id=${id}`;
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -56,22 +79,37 @@ export function detectPlatform(url: string): Platform {
  * Suit jusqu'à 5 redirections et renvoie l'URL finale item.htm.
  */
 export async function resolveTaobaoShortLink(url: string): Promise<string> {
-  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|item\.world\.taobao\.com)/i.test(url)) {
-    return url;
+  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com)/i.test(url)) {
+    return canonicalizeUrl(url);
   }
   let current = url;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     try {
-      const r = await fetch(current, { method: "HEAD", redirect: "manual" });
+      const r = await fetch(current, {
+        method: i === 0 ? "GET" : "HEAD",
+        redirect: "manual",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
       const loc = r.headers.get("location");
-      if (!loc) break;
+      if (!loc) {
+        const text = await r.text().catch(() => "");
+        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com)[^"'\\\s<>]+/i)?.[0]
+          ?.replace(/\\\//g, "/")
+          ?.replace(/&amp;/g, "&");
+        if (embedded) current = embedded;
+        break;
+      }
       current = new URL(loc, current).toString();
       if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm/i.test(current)) break;
     } catch {
       break;
     }
   }
-  return current;
+  return canonicalizeUrl(current);
 }
 
 export function extractSourceProductId(url: string, platform: Platform): string | null {
@@ -211,6 +249,118 @@ export async function triggerAndPoll(
   return null;
 }
 
+function debugImport(stage: string, details: Record<string, unknown>) {
+  const safe = Object.fromEntries(
+    Object.entries(details).map(([k, v]) => [
+      k,
+      typeof v === "string" && v.length > 500 ? `${v.slice(0, 500)}…` : v,
+    ]),
+  );
+  console.info(`[TaobaoImport:${stage}]`, safe);
+}
+
+async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
+  if (!apiKey || !zone) {
+    debugImport("browser.skip", { reason: "BRIGHTDATA_BROWSER_ZONE/WEB_UNLOCKER_ZONE absent", url });
+    return null;
+  }
+  try {
+    const r = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        zone,
+        url,
+        format: "raw",
+        country: "cn",
+        render: true,
+      }),
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      debugImport("browser.error", { status: r.status, body: text.slice(0, 300), url });
+      return null;
+    }
+    debugImport("browser.ok", { bytes: text.length, url });
+    return text;
+  } catch (e) {
+    debugImport("browser.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+async function fetchWithFirecrawl(url: string): Promise<string | null> {
+  const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+  if (!firecrawlKey) return null;
+  try {
+    const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url, formats: ["html", "markdown"], onlyMainContent: false, waitFor: 3000 }),
+    });
+    const j = (await r.json().catch(() => null)) as { data?: { html?: string; markdown?: string; metadata?: { title?: string; ogImage?: string } } } | null;
+    const html = j?.data?.html || j?.data?.markdown || "";
+    debugImport(r.ok ? "firecrawl.ok" : "firecrawl.error", { status: r.status, bytes: html.length, url });
+    return r.ok && html ? html : null;
+  } catch (e) {
+    debugImport("firecrawl.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractMeta(html: string, key: string): string {
+  const re = new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']{1,1000})["']`, "i");
+  const alt = new RegExp(`<meta[^>]+content=["']([^"']{1,1000})["'][^>]+(?:property|name)=["']${key}["']`, "i");
+  return (html.match(re)?.[1] || html.match(alt)?.[1] || "").replace(/&amp;/g, "&").trim();
+}
+
+function extractHtmlImages(html: string): string[] {
+  const out: string[] = [];
+  const re = /(?:src|data-src|data-ks-lazyload|data-lazyload|data-original)=['"]((?:https?:)?\/\/[^'"]+\.(?:jpe?g|png|webp)(?:[^'"]*)?)['"]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let u = m[1].replace(/&amp;/g, "&");
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (/sprite|icon|logo|avatar|captcha|loading|blank|pixel/i.test(u)) continue;
+    out.push(u.replace(/_\d+x\d+(?:Q\d+)?\.(jpe?g|png|webp)(?:_\.webp)?$/i, ".$1"));
+  }
+  return Array.from(new Set(out)).slice(0, 20);
+}
+
+function normalizeFromHtml(html: string, url: string, platform: Platform, source: NormalizedProduct["extractionSource"]): NormalizedProduct {
+  const titleTag = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i)?.[1]?.trim() ?? "";
+  const title = extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim();
+  const description = extractMeta(html, "og:description") || extractMeta(html, "description") || stripTags(html).slice(0, 800);
+  const image = extractMeta(html, "og:image");
+  const images = image ? [image, ...extractHtmlImages(html)] : extractHtmlImages(html);
+  const priceMatch = html.match(/(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice)["'\s:=]+["']?([0-9]+(?:\.[0-9]{1,2})?)/i);
+  const priceMin = priceMatch ? Number(priceMatch[1]) : 0;
+  return {
+    platform,
+    sourceUrl: url,
+    sourceProductId: extractSourceProductId(url, platform),
+    title,
+    description,
+    priceMin: Number.isFinite(priceMin) ? priceMin : 0,
+    priceMax: Number.isFinite(priceMin) ? priceMin : 0,
+    currency: platform === "unknown" ? "USD" : "CNY",
+    images: Array.from(new Set(images)).slice(0, 15),
+    variants: [],
+    vendorName: null,
+    extractionSource: source,
+    raw: { html_preview: html.slice(0, 2000) },
+  };
+}
+
 // ──────────────────────────────────────────────
 // Normalisation des records bruts → NormalizedProduct
 
@@ -232,6 +382,24 @@ function pickNum(o: Record<string, unknown>, ...keys: string[]): number {
     }
   }
   return 0;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function flattenRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...record };
+  const nestedKeys = ["product", "item", "data", "result", "details", "content", "offer"];
+  for (const key of nestedKeys) {
+    const v = record[key];
+    if (isPlainRecord(v)) {
+      for (const [nestedKey, nestedValue] of Object.entries(v)) {
+        if (out[nestedKey] == null || out[nestedKey] === "") out[nestedKey] = nestedValue;
+      }
+    }
+  }
+  return out;
 }
 
 function pickArray(o: Record<string, unknown>, ...keys: string[]): unknown[] {
@@ -293,12 +461,12 @@ function normalizeVariants(record: Record<string, unknown>): NormalizedVariant[]
   return out.slice(0, 50);
 }
 
-function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform): NormalizedProduct {
-  const r = (record && typeof record === "object" ? record : {}) as Record<string, unknown>;
-  const title = pickStr(r, "title", "name", "product_name", "item_title");
-  const description = pickStr(r, "description", "desc", "product_description", "details");
-  const priceMin = pickNum(r, "price_min", "min_price", "price", "current_price", "sale_price");
-  const priceMax = pickNum(r, "price_max", "max_price", "original_price") || priceMin;
+function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform, extractionSource: NormalizedProduct["extractionSource"] = "brightdata_dataset"): NormalizedProduct {
+  const r = flattenRecord((record && typeof record === "object" ? record : {}) as Record<string, unknown>);
+  const title = pickStr(r, "title", "name", "product_name", "item_title", "subject", "goods_title");
+  const description = pickStr(r, "description", "desc", "product_description", "details", "detail", "short_description");
+  const priceMin = pickNum(r, "price_min", "min_price", "price", "current_price", "sale_price", "promotion_price", "final_price");
+  const priceMax = pickNum(r, "price_max", "max_price", "original_price", "list_price") || priceMin;
   const currency = pickStr(r, "currency") || "CNY";
   const images = normalizeImages(r);
   const variants = normalizeVariants(r);
@@ -318,7 +486,48 @@ function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform)
     images,
     variants,
     vendorName,
+    extractionSource,
     raw: r,
+  };
+}
+
+export function validateNormalizedProduct(product: NormalizedProduct): ProductValidationResult {
+  const issues: string[] = [];
+  const text = `${product.title}\n${product.description}`.toLowerCase();
+  const rawText = JSON.stringify(product.raw ?? {}).slice(0, 20_000).toLowerCase();
+  const combined = `${text}\n${rawText}`;
+
+  const loginSignals = [
+    "登录", "登陆", "亲，请登录", "sign in", "login", "password", "扫码登录", "账户登录", "tmall login", "taobao login",
+  ];
+  const securitySignals = [
+    "验证码", "captcha", "安全验证", "security check", "身份验证", "滑块", "sec.taobao", "punish", "被拦截", "访问受限", "verify",
+  ];
+  if (loginSignals.some((s) => combined.includes(s))) issues.push("Page de connexion détectée");
+  if (securitySignals.some((s) => combined.includes(s))) issues.push("Page sécurité/captcha détectée");
+
+  const cleanTitle = product.title.replace(/\s+/g, "").trim();
+  if (!cleanTitle || cleanTitle.length < 4) issues.push("Titre produit absent ou trop court");
+  if (["登录", "登陆", "login", "connexion", "tmall", "taobao"].includes(cleanTitle.toLowerCase())) issues.push("Titre non produit détecté");
+  if (/^(登录|登陆|sign\s*in|login|connexion)$/i.test(product.title.trim())) issues.push("Titre de page login détecté");
+
+  const hasPrice = product.priceMin > 0 || product.priceMax > 0 || product.variants.some((v) => typeof v.price === "number" && v.price > 0);
+  if (!hasPrice) issues.push("Prix source valide introuvable");
+
+  const realImages = product.images.filter((u) => !/captcha|login|avatar|icon|logo|loading|blank|pixel|sprite/i.test(u));
+  if (realImages.length === 0) issues.push("Image produit valide introuvable");
+
+  if (product.platform !== "unknown" && !product.sourceProductId) issues.push("Identifiant produit source introuvable");
+
+  const validVariants = product.variants.filter((v) => v.size || v.color || v.sku || v.imageUrl || (v.price && v.price > 0));
+  if (product.platform === "taobao" || product.platform === "tmall" || product.platform === "1688") {
+    if (validVariants.length === 0) issues.push("Variantes/SKU produit introuvables");
+  }
+
+  return {
+    valid: issues.length === 0,
+    reason: issues[0] ?? null,
+    issues,
   };
 }
 
@@ -334,16 +543,64 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
   const platform = detectPlatform(url);
   if (platform === "unknown") return null;
 
+  debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
+
+  const browserHtml = await fetchWithBrightDataBrowser(url);
+  if (browserHtml) {
+    const browserProduct = normalizeFromHtml(browserHtml, url, platform, "brightdata_browser");
+    const validation = validateNormalizedProduct(browserProduct);
+    debugImport("browser.validation", {
+      valid: validation.valid,
+      issues: validation.issues,
+      title: browserProduct.title,
+      price: browserProduct.priceMin,
+      images: browserProduct.images.length,
+      variants: browserProduct.variants.length,
+    });
+    if (validation.valid) return browserProduct;
+  }
+
   const datasetId = datasetIdFor(platform);
   if (!datasetId) {
     console.warn(`[BrightData] dataset non configuré pour ${platform}`);
-    return null;
+  } else {
+    debugImport("dataset.start", { platform, datasetId, url });
+    const records = await triggerAndPoll(datasetId, [{ url }]);
+    debugImport("dataset.result", { count: records?.length ?? 0, platform, datasetId });
+    if (records && records.length > 0) {
+      for (const rec of records) {
+        const product = normalizeRecord(rec, url, platform, "brightdata_dataset");
+        const validation = validateNormalizedProduct(product);
+        debugImport("dataset.validation", {
+          valid: validation.valid,
+          issues: validation.issues,
+          title: product.title,
+          price: product.priceMin,
+          images: product.images.length,
+          variants: product.variants.length,
+        });
+        if (validation.valid) return product;
+      }
+    }
   }
 
-  const records = await triggerAndPoll(datasetId, [{ url }]);
-  if (!records || records.length === 0) return null;
+  const firecrawlHtml = await fetchWithFirecrawl(url);
+  if (firecrawlHtml) {
+    const product = normalizeFromHtml(firecrawlHtml, url, platform, "firecrawl");
+    const validation = validateNormalizedProduct(product);
+    debugImport("firecrawl.validation", {
+      valid: validation.valid,
+      issues: validation.issues,
+      title: product.title,
+      price: product.priceMin,
+      images: product.images.length,
+      variants: product.variants.length,
+    });
+    if (validation.valid) return product;
+  }
 
-  return normalizeRecord(records[0], url, platform);
+  debugImport("failed", { url, platform, reason: "Aucune source n'a fourni un vrai produit validé" });
+  return null;
 }
 
 /**
