@@ -505,6 +505,41 @@ function normalizeFromHtml(html: string, url: string, platform: Platform, source
   };
 }
 
+async function enhanceWithVision(product: NormalizedProduct, screenshotBase64: string): Promise<NormalizedProduct> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey || !screenshotBase64) return product;
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Analyse cette capture de page produit Taobao/Tmall/1688. Réponds uniquement en JSON strict: {\"is_product\":boolean,\"is_login\":boolean,\"is_captcha\":boolean,\"title\":string|null,\"price\":number|null,\"variants\":string[],\"reason\":string}. N'invente rien." },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${screenshotBase64}` } },
+          ],
+        }],
+      }),
+    });
+    if (!r.ok) return product;
+    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
+    const parsed = JSON.parse(raw.replace(/^```json\s*/i, "").replace(/```$/i, "")) as Record<string, unknown>;
+    if (parsed.is_login || parsed.is_captcha || parsed.is_product === false) return product;
+    const title = typeof parsed.title === "string" && parsed.title.trim().length > product.title.length ? parsed.title.trim() : product.title;
+    const price = typeof parsed.price === "number" && parsed.price > 0 ? parsed.price : product.priceMin;
+    const variantValues = Array.isArray(parsed.variants) ? parsed.variants.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
+    const variants = product.variants.length > 0 ? product.variants : variantValues.slice(0, 30).map((v) => ({ size: "", color: v.slice(0, 60), colorHex: "", stock: 0 }));
+    debugImport("vision.ok", { title, price, variants: variants.length, url: product.sourceUrl });
+    return { ...product, title, priceMin: price, priceMax: price || product.priceMax, variants, raw: { ...(product.raw as Record<string, unknown>), vision: parsed } };
+  } catch (e) {
+    debugImport("vision.exception", { message: e instanceof Error ? e.message : String(e), url: product.sourceUrl });
+    return product;
+  }
+}
+
 // ──────────────────────────────────────────────
 // Normalisation des records bruts → NormalizedProduct
 
