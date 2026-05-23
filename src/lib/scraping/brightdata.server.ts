@@ -69,14 +69,73 @@ export function detectPlatform(url: string): Platform {
   return "unknown";
 }
 
+/**
+ * Nettoie un input collé depuis Taobao/WeChat/partage mobile :
+ * - retire les guillemets chinois 「」『』【】《》
+ * - retire les emojis et caractères de contrôle
+ * - retire le texte de partage ("I shared a Taobao page...", "复制本条信息…")
+ * - décode les entités HTML basiques
+ */
+export function cleanShareInput(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/&amp;/g, "&")
+    .replace(/[「」『』【】《》]/g, " ")
+    .replace(/[\u2018\u2019\u201C\u201D]/g, " ")
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function extractFirstUrl(input: string): string {
-  const decoded = input.replace(/&amp;/g, "&");
-  const url = decoded.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? decoded.trim();
+  const decoded = cleanShareInput(input);
+  // Cherche une URL http(s) même collée à du texte chinois / ponctuation
+  const match = decoded.match(/https?:\/\/[^\s"'<>「」『』，。、；：!！?？()（）]+/i);
+  const url = match?.[0] ?? decoded.trim();
   try {
-    return decodeURIComponent(url).replace(/[),.;]+$/g, "");
+    return decodeURIComponent(url).replace(/[),.;，。、；]+$/g, "");
   } catch {
-    return url.replace(/[),.;]+$/g, "");
+    return url.replace(/[),.;，。、；]+$/g, "");
   }
+}
+
+/**
+ * Normalise un input utilisateur en URL canonique et renvoie un log debug complet.
+ * Ne lève jamais d'exception : retourne { canonicalUrl: "" } si rien d'exploitable.
+ */
+export async function normalizeImportInput(rawInput: string): Promise<{
+  rawInput: string;
+  cleanedInput: string;
+  extractedUrl: string;
+  resolvedUrl: string;
+  canonicalUrl: string;
+  detectedPlatform: Platform;
+  extractedItemId: string | null;
+  extractedShopId: string | null;
+  ok: boolean;
+  reason?: string;
+}> {
+  const cleanedInput = cleanShareInput(rawInput);
+  const extractedUrl = extractFirstUrl(cleanedInput);
+  if (!/^https?:\/\//i.test(extractedUrl)) {
+    return {
+      rawInput, cleanedInput, extractedUrl, resolvedUrl: "", canonicalUrl: "",
+      detectedPlatform: "unknown", extractedItemId: null, extractedShopId: null,
+      ok: false, reason: "Aucune URL valide détectée dans le texte collé",
+    };
+  }
+  let resolvedUrl = extractedUrl;
+  try { resolvedUrl = await resolveTaobaoShortLink(extractedUrl); } catch { /* keep extracted */ }
+  const canonicalUrl = canonicalizeUrl(resolvedUrl);
+  const detectedPlatform = detectPlatform(canonicalUrl);
+  const extractedItemId = extractSourceProductId(canonicalUrl, detectedPlatform);
+  const shopMatch = canonicalUrl.match(/[?&](?:shop_id|shopId|sellerId|user_id|userId)=([0-9]{4,})/i);
+  const extractedShopId = shopMatch?.[1] ?? null;
+  return {
+    rawInput, cleanedInput, extractedUrl, resolvedUrl, canonicalUrl,
+    detectedPlatform, extractedItemId, extractedShopId,
+    ok: detectedPlatform !== "unknown" || /^https?:\/\//i.test(canonicalUrl),
+  };
 }
 
 function canonicalizeUrl(url: string): string {
