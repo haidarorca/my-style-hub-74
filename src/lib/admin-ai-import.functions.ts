@@ -401,3 +401,87 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 
     return { duplicate: false, productId: product.id };
   });
+
+// ─────────────────────────────────────────────────────────────
+// 4. Découverte de liens produits depuis une URL de boutique (Taobao/1688)
+
+const DiscoverShopSchema = z.object({
+  shopUrl: z.string().url(),
+  limit: z.number().int().min(1).max(50).optional(),
+});
+
+function isProductLink(url: string): boolean {
+  return (
+    /item\.taobao\.com\/item\.htm/i.test(url) ||
+    /detail\.tmall\.com\/item\.htm/i.test(url) ||
+    /detail\.1688\.com\/offer\//i.test(url)
+  );
+}
+
+export const discoverShopProductLinks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => DiscoverShopSchema.parse(input))
+  .handler(async ({ data }): Promise<{ urls: string[]; source: "firecrawl" | "html" | "none" }> => {
+    const limit = data.limit ?? 20;
+    const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+    const collected: string[] = [];
+
+    // 1) Firecrawl map (rapide, basé sur sitemap + crawling)
+    if (firecrawlKey) {
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v2/map", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url: data.shopUrl, limit: 500, includeSubdomains: true }),
+        });
+        if (r.ok) {
+          const j = (await r.json()) as { links?: string[]; data?: { links?: string[] } };
+          const links = j.links ?? j.data?.links ?? [];
+          for (const l of links) if (isProductLink(l)) collected.push(l);
+        }
+      } catch {
+        // fallthrough
+      }
+
+      // 2) Fallback: scrape de la page boutique pour extraire les liens
+      if (collected.length === 0) {
+        try {
+          const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ url: data.shopUrl, formats: ["links", "html"], waitFor: 2000 }),
+          });
+          if (r.ok) {
+            const j = (await r.json()) as { data?: { links?: string[]; html?: string } };
+            const links = j.data?.links ?? [];
+            for (const l of links) if (isProductLink(l)) collected.push(l);
+            if (collected.length === 0 && j.data?.html) {
+              const re = /https?:\/\/[^\s"'<>]+/gi;
+              const m = j.data.html.match(re) ?? [];
+              for (const l of m) if (isProductLink(l)) collected.push(l);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 3) Dernier recours : fetch brut + regex
+    if (collected.length === 0) {
+      try {
+        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.shopUrl)}&timeout=10000`);
+        if (r.ok) {
+          const html = await r.text();
+          const re = /https?:\/\/[^\s"'<>]+/gi;
+          const m = html.match(re) ?? [];
+          for (const l of m) if (isProductLink(l)) collected.push(l);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const urls = Array.from(new Set(collected.map((u) => u.split("#")[0]))).slice(0, limit);
+    return { urls, source: firecrawlKey ? (urls.length ? "firecrawl" : "none") : (urls.length ? "html" : "none") };
+  });
