@@ -37,6 +37,7 @@ import {
   scrapeProductForAi,
   publishImportedDraft,
   listAdminShops,
+  discoverShopProductLinks,
   type AiDraft,
 } from "@/lib/admin-ai-import.functions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
