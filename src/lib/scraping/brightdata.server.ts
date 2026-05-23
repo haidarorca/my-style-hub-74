@@ -486,6 +486,55 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
   }
 }
 
+// Fetch a Taobao/Tmall page through Bright Data Scraping Browser (CDP) with
+// the admin's saved session cookies injected. Returns null when no session is
+// configured so the caller can fall back to other paths.
+async function fetchWithTaobaoSession(url: string, platform: Platform): Promise<BrowserFetchResult | null> {
+  if (platform !== "taobao" && platform !== "tmall") return null;
+  if (!process.env.BRIGHTDATA_BROWSER_WSS_URL) return null;
+  let cookies: import("./cdp-client.server").CdpCookie[] | null = null;
+  try {
+    const { loadTaobaoCookies } = await import("./taobao-session.server");
+    cookies = await loadTaobaoCookies();
+  } catch (e) {
+    debugImport("session.load.error", { message: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+  if (!cookies?.length) {
+    debugImport("session.skip", { reason: "no_session", url });
+    return null;
+  }
+  const { CdpClient } = await import("./cdp-client.server");
+  const { TAOBAO_MOBILE_UA, markTaobaoSessionExpired } = await import("./taobao-session.server");
+  let client: import("./cdp-client.server").CdpClient | null = null;
+  try {
+    client = CdpClient.fromEnv();
+    await client.connect();
+    await client.createPageTarget("about:blank");
+    await client.setUserAgent(TAOBAO_MOBILE_UA);
+    await client.setCookies(cookies);
+    await client.navigate(url, 6000);
+    const finalUrl = (await client.evaluate<string>(`location.href`)) || url;
+    if (/login\.taobao\.com|login\.tmall\.com|punish\?/i.test(finalUrl)) {
+      debugImport("session.expired", { finalUrl });
+      await markTaobaoSessionExpired().catch(() => undefined);
+      return null;
+    }
+    const html = (await client.evaluate<string>(`document.documentElement.outerHTML`)) || "";
+    if (!html || html.length < 500) {
+      debugImport("session.empty", { url, bytes: html.length });
+      return null;
+    }
+    debugImport("session.ok", { url, finalUrl, bytes: html.length });
+    return { html, finalUrl };
+  } catch (e) {
+    debugImport("session.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  } finally {
+    try { await client?.close(); } catch { /* ignore */ }
+  }
+}
+
 async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResult | null> {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
