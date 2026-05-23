@@ -337,14 +337,14 @@ function AdminImports() {
                 </div>
               )}
 
-              {history.data && (history.data as any[]).length > 0 && (
+              {history.data && history.data.rows.length > 0 && (
                 <>
                   <Separator />
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">Historique</h4>
                   <div className="space-y-1">
-                    {(history.data as any[]).slice(0, 5).map((h: any) => (
+                    {history.data.rows.slice(0, 5).map((h) => (
                       <div key={h.id} className="flex justify-between text-xs border-b py-1">
-                        <span>{h.file_name} - {h.inserted_count} produits</span>
+                        <span>{h.file_name}</span>
                         <Badge variant="outline" className="text-[10px]">{h.status}</Badge>
                       </div>
                     ))}
