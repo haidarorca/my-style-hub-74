@@ -1334,9 +1334,13 @@ export const listImports = createServerFn({
   .inputValidator((input: unknown) =>
     z
       .object({
-        shopId: z.string().uuid().optional(),
+        shopId: z
+          .string()
+          .uuid()
+          .optional()
+          .or(z.literal("").transform(() => undefined)),
       })
-      .parse(input)
+      .parse(input ?? {})
   )
   .handler(async ({ data, context }) => {
     let q = supabaseAdmin
