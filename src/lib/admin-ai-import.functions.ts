@@ -54,6 +54,11 @@ export interface AiDraft {
   importLog: ImportAttemptLog;
 }
 
+export interface ImportUiLog extends ImportAttemptLog {
+  id: string;
+  createdAt: number;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 1. Liste des boutiques admin (pour choisir où publier)
 
@@ -138,6 +143,53 @@ function safeJson(raw: string): Record<string, unknown> | null {
     return null;
   }
 }
+
+function isFalseImportedProduct(row: { name?: string | null; description?: string | null; price?: number | string | null }, imageUrls: string[]): boolean {
+  const text = `${row.name ?? ""}\n${row.description ?? ""}`.toLowerCase();
+  const price = Number(row.price ?? 0);
+  const loginOrSecurity = /登录|登陆|亲，请登录|connexion|login|sign in|验证码|captcha|安全验证|security check|访问受限|sec\.taobao|punish/i.test(text);
+  const badTitle = /^(登录|登陆|login|connexion|tmall|taobao)$/i.test(String(row.name ?? "").trim());
+  const badImages = imageUrls.length === 0 || imageUrls.every((u) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(u));
+  return badTitle || loginOrSecurity || price <= 0 || badImages;
+}
+
+export const cleanupFalseTaobaoImports = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<{ deleted: number }> => {
+    const { data: metas } = await supabaseAdmin
+      .from("product_admin_metadata")
+      .select("product_id, source_url, source_platform")
+      .or("source_platform.in.(taobao,tmall,1688),source_url.ilike.%taobao%,source_url.ilike.%tmall%,source_url.ilike.%1688%")
+      .limit(500);
+
+    const ids = Array.from(new Set((metas ?? []).map((m) => m.product_id as string).filter(Boolean)));
+    if (ids.length === 0) return { deleted: 0 };
+
+    const { data: products } = await supabaseAdmin
+      .from("products")
+      .select("id, name, description, price")
+      .in("id", ids);
+    const { data: images } = await supabaseAdmin
+      .from("product_images")
+      .select("product_id, url")
+      .in("product_id", ids);
+
+    const imagesByProduct = new Map<string, string[]>();
+    for (const img of images ?? []) {
+      const productId = img.product_id as string;
+      imagesByProduct.set(productId, [...(imagesByProduct.get(productId) ?? []), img.url as string]);
+    }
+
+    const deleteIds = (products ?? [])
+      .filter((p) => isFalseImportedProduct(p, imagesByProduct.get(p.id as string) ?? []))
+      .map((p) => p.id as string);
+
+    if (deleteIds.length === 0) return { deleted: 0 };
+    const { error } = await supabaseAdmin.from("products").delete().in("id", deleteIds);
+    if (error) throw new Error(error.message);
+    logImportDebug("cleanup", { deleted: deleteIds.length });
+    return { deleted: deleteIds.length };
+  });
 
 // ─────────────────────────────────────────────────────────────
 // 2. Scrape produit + IA + matching catégorie existante
