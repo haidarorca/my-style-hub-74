@@ -251,10 +251,27 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Assistant IA non configuré (LOVABLE_API_KEY)");
 
-    // 0. Normalisation URL (résout les liens courts click.world.taobao.com, m.tb.cn, etc.)
-    const url = await resolveTaobaoShortLink(data.url);
-    const platform = detectPlatform(url);
-    const sourceProductId = extractSourceProductId(url, platform);
+    // 0. Nettoyage + normalisation URL (extrait l'URL réelle d'un texte de partage Taobao,
+    //    résout les liens courts click.world.taobao.com / m.tb.cn / s.click.taobao.com / uland)
+    const norm = await normalizeImportInput(data.url);
+    console.log("[import] normalizeImportInput", {
+      rawInput: norm.rawInput?.slice(0, 200),
+      cleanedInput: norm.cleanedInput?.slice(0, 200),
+      extractedUrl: norm.extractedUrl,
+      resolvedUrl: norm.resolvedUrl,
+      canonicalUrl: norm.canonicalUrl,
+      detectedPlatform: norm.detectedPlatform,
+      extractedItemId: norm.extractedItemId,
+      extractedShopId: norm.extractedShopId,
+      ok: norm.ok,
+      reason: norm.reason,
+    });
+    if (!norm.ok || !norm.canonicalUrl) {
+      throw new Error(norm.reason || "URL invalide : collez un lien Taobao/Tmall/1688 valide");
+    }
+    const url = norm.canonicalUrl;
+    const platform = norm.detectedPlatform;
+    const sourceProductId = norm.extractedItemId;
     const baseLog: ImportAttemptLog = {
       initialUrl: data.url,
       finalUrl: url,
