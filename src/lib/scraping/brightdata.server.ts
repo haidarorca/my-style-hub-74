@@ -384,6 +384,24 @@ function pickNum(o: Record<string, unknown>, ...keys: string[]): number {
   return 0;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function flattenRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...record };
+  const nestedKeys = ["product", "item", "data", "result", "details", "content", "offer"];
+  for (const key of nestedKeys) {
+    const v = record[key];
+    if (isPlainRecord(v)) {
+      for (const [nestedKey, nestedValue] of Object.entries(v)) {
+        if (out[nestedKey] == null || out[nestedKey] === "") out[nestedKey] = nestedValue;
+      }
+    }
+  }
+  return out;
+}
+
 function pickArray(o: Record<string, unknown>, ...keys: string[]): unknown[] {
   for (const k of keys) {
     const v = o[k];
@@ -443,12 +461,12 @@ function normalizeVariants(record: Record<string, unknown>): NormalizedVariant[]
   return out.slice(0, 50);
 }
 
-function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform): NormalizedProduct {
-  const r = (record && typeof record === "object" ? record : {}) as Record<string, unknown>;
-  const title = pickStr(r, "title", "name", "product_name", "item_title");
-  const description = pickStr(r, "description", "desc", "product_description", "details");
-  const priceMin = pickNum(r, "price_min", "min_price", "price", "current_price", "sale_price");
-  const priceMax = pickNum(r, "price_max", "max_price", "original_price") || priceMin;
+function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform, extractionSource: NormalizedProduct["extractionSource"] = "brightdata_dataset"): NormalizedProduct {
+  const r = flattenRecord((record && typeof record === "object" ? record : {}) as Record<string, unknown>);
+  const title = pickStr(r, "title", "name", "product_name", "item_title", "subject", "goods_title");
+  const description = pickStr(r, "description", "desc", "product_description", "details", "detail", "short_description");
+  const priceMin = pickNum(r, "price_min", "min_price", "price", "current_price", "sale_price", "promotion_price", "final_price");
+  const priceMax = pickNum(r, "price_max", "max_price", "original_price", "list_price") || priceMin;
   const currency = pickStr(r, "currency") || "CNY";
   const images = normalizeImages(r);
   const variants = normalizeVariants(r);
@@ -468,7 +486,48 @@ function normalizeRecord(record: unknown, sourceUrl: string, platform: Platform)
     images,
     variants,
     vendorName,
+    extractionSource,
     raw: r,
+  };
+}
+
+export function validateNormalizedProduct(product: NormalizedProduct): ProductValidationResult {
+  const issues: string[] = [];
+  const text = `${product.title}\n${product.description}`.toLowerCase();
+  const rawText = JSON.stringify(product.raw ?? {}).slice(0, 20_000).toLowerCase();
+  const combined = `${text}\n${rawText}`;
+
+  const loginSignals = [
+    "登录", "登陆", "亲，请登录", "sign in", "login", "password", "扫码登录", "账户登录", "tmall login", "taobao login",
+  ];
+  const securitySignals = [
+    "验证码", "captcha", "安全验证", "security check", "身份验证", "滑块", "sec.taobao", "punish", "被拦截", "访问受限", "verify",
+  ];
+  if (loginSignals.some((s) => combined.includes(s))) issues.push("Page de connexion détectée");
+  if (securitySignals.some((s) => combined.includes(s))) issues.push("Page sécurité/captcha détectée");
+
+  const cleanTitle = product.title.replace(/\s+/g, "").trim();
+  if (!cleanTitle || cleanTitle.length < 4) issues.push("Titre produit absent ou trop court");
+  if (["登录", "登陆", "login", "connexion", "tmall", "taobao"].includes(cleanTitle.toLowerCase())) issues.push("Titre non produit détecté");
+  if (/^(登录|登陆|sign\s*in|login|connexion)$/i.test(product.title.trim())) issues.push("Titre de page login détecté");
+
+  const hasPrice = product.priceMin > 0 || product.priceMax > 0 || product.variants.some((v) => typeof v.price === "number" && v.price > 0);
+  if (!hasPrice) issues.push("Prix source valide introuvable");
+
+  const realImages = product.images.filter((u) => !/captcha|login|avatar|icon|logo|loading|blank|pixel|sprite/i.test(u));
+  if (realImages.length === 0) issues.push("Image produit valide introuvable");
+
+  if (product.platform !== "unknown" && !product.sourceProductId) issues.push("Identifiant produit source introuvable");
+
+  const validVariants = product.variants.filter((v) => v.size || v.color || v.sku || v.imageUrl || (v.price && v.price > 0));
+  if (product.platform === "taobao" || product.platform === "tmall" || product.platform === "1688") {
+    if (validVariants.length === 0) issues.push("Variantes/SKU produit introuvables");
+  }
+
+  return {
+    valid: issues.length === 0,
+    reason: issues[0] ?? null,
+    issues,
   };
 }
 
