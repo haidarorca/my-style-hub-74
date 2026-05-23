@@ -347,10 +347,11 @@ function AdminImports() {
               <Button
                 onClick={async () => {
                   if (!excelFile) return;
+                  if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
                   setPreviewLoading(true);
                   try {
                     const fileBase64 = await fileToBase64(excelFile);
-                    const r = await fnPreview({ data: { scope: "admin", fileBase64, fileName: excelFile.name } });
+                    const r = await fnPreview({ data: { scope: "admin", shopId: selectedShopId, fileBase64, fileName: excelFile.name } });
                     setPreview(r);
                   } catch (e: any) { toast.error(e.message); }
                   setPreviewLoading(false);
