@@ -161,6 +161,7 @@ function AdminImports() {
   const [storeLoading, setStoreLoading] = useState(false);
   const [importLogs, setImportLogs] = useState<ImportUiLog[]>([]);
   const [storeProgress, setStoreProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const cleanupRan = useRef(false);
 
   const fnScrape = useServerFn(scrapeProductForAi);
   const fnPublish = useServerFn(publishImportedDraft);
@@ -178,6 +179,15 @@ function AdminImports() {
     const shops = shopsQuery.data;
     if (shops && shops.length > 0 && !selectedShopId) setSelectedShopId(shops[0].id);
   }, [shopsQuery.data, selectedShopId]);
+
+  useEffect(() => {
+    if (cleanupRan.current) return;
+    cleanupRan.current = true;
+    setDrafts(prev => prev.filter((draft) => !isInvalidTaobaoDraft(draft)));
+    fnCleanupFalse({})
+      .then((r) => { if (r.deleted > 0) toast.success(`${r.deleted} faux import(s) supprimé(s)`); })
+      .catch(() => undefined);
+  }, [fnCleanupFalse]);
 
   const pushImportLog = useCallback((log: AiDraft["importLog"], sourceUrl?: string) => {
     const entry: ImportUiLog = {
@@ -551,6 +561,27 @@ function AdminImports() {
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">Produits importes ({justImported.length})</h4>
                   {justImported.map((p) => <DraftCard key={p.id} draft={p} onPublish={() => handlePublish(p)} onDiscard={() => { handleDiscard(p.id); setJustImported(prev => prev.filter(x => x.id !== p.id)); }} onEdit={() => setEditingId(p.id)} />)}
+                </div>
+              )}
+
+              {importLogs.length > 0 && (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">Logs d&apos;import</h4>
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {importLogs.slice(0, 20).map((log) => (
+                      <div key={log.id} className="rounded-md bg-muted/40 p-2 text-[11px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant={log.status === "success" ? "default" : "destructive"} className="text-[10px]">{log.status}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{log.source}</Badge>
+                          <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleTimeString("fr-FR")}</span>
+                        </div>
+                        <p className="mt-1 break-all text-muted-foreground">Initiale : {log.initialUrl}</p>
+                        <p className="break-all text-muted-foreground">Finale : {log.finalUrl}</p>
+                        <p className="mt-1 font-medium">{log.reason}</p>
+                        {log.issues.length > 0 && <p className="text-muted-foreground">{log.issues.join(" · ")}</p>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
