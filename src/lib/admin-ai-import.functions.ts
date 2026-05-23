@@ -270,6 +270,9 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       const scrapeResult = await scrapeProductWithBrightDataDetailed(url);
       bd = scrapeResult.product;
       importLog = scrapeResult.log;
+      if (!bd) {
+        throw new Error(`Import bloqué : ${importLog.reason || "aucune source n'a fourni un vrai produit validé"}`);
+      }
     }
 
     let scrapedTitle = "";
@@ -284,6 +287,7 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       logImportDebug("validation", {
         valid: validation.valid,
         issues: validation.issues,
+        confidence: validation.confidence,
         source: bd.extractionSource,
         url,
         title: bd.title,
