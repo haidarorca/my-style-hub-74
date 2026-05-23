@@ -284,13 +284,44 @@ function debugImport(stage: string, details: Record<string, unknown>) {
   console.info(`[TaobaoImport:${stage}]`, safe);
 }
 
-async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
+type BrowserFetchResult = { html: string; finalUrl: string; screenshotBase64?: string };
+
+function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFetchResult | null {
+  if (!text.trim()) return null;
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    const html =
+      (typeof json.body === "string" && json.body) ||
+      (typeof json.html === "string" && json.html) ||
+      (typeof json.content === "string" && json.content) ||
+      (typeof json.markdown === "string" && json.markdown) ||
+      "";
+    const finalUrl =
+      (typeof json.url === "string" && json.url) ||
+      (typeof json.final_url === "string" && json.final_url) ||
+      fallbackUrl;
+    return html ? { html, finalUrl } : null;
+  } catch {
+    return { html: text, finalUrl: fallbackUrl };
+  }
+}
+
+async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResult | null> {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
   if (!apiKey || !zone) {
     debugImport("browser.skip", { reason: "BRIGHTDATA_BROWSER_ZONE/WEB_UNLOCKER_ZONE absent", url });
     return null;
   }
+  const sessionId = `kawzone-${Math.abs([...url].reduce((n, c) => n + c.charCodeAt(0), 0))}-${Date.now().toString(36)}`;
+  const targetHeaders = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.7,en;q=0.6,fr;q=0.5",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    Referer: "https://www.taobao.com/",
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": "iOS",
+  };
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
@@ -301,9 +332,12 @@ async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
       body: JSON.stringify({
         zone,
         url,
-        format: "raw",
+        format: "json",
+        method: "GET",
         country: "cn",
         render: true,
+        session: sessionId,
+        headers: targetHeaders,
       }),
     });
     const text = await r.text();
@@ -311,10 +345,36 @@ async function fetchWithBrightDataBrowser(url: string): Promise<string | null> {
       debugImport("browser.error", { status: r.status, body: text.slice(0, 300), url });
       return null;
     }
-    debugImport("browser.ok", { bytes: text.length, url });
-    return text;
+    const parsed = normalizeUnlockerResponse(text, url);
+    if (!parsed?.html) {
+      debugImport("browser.empty", { bytes: text.length, url, responsePreview: text.slice(0, 200) });
+      return null;
+    }
+    debugImport("browser.ok", { bytes: parsed.html.length, url, finalUrl: parsed.finalUrl, session: sessionId });
+    return parsed;
   } catch (e) {
     debugImport("browser.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  }
+}
+
+async function fetchScreenshotWithBrightData(url: string): Promise<string | null> {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
+  if (!apiKey || !zone) return null;
+  try {
+    const r = await fetch("https://api.brightdata.com/request", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ zone, url, format: "raw", data_format: "screenshot", country: "cn", render: true }),
+    });
+    if (!r.ok) return null;
+    const ab = await r.arrayBuffer();
+    const base64 = Buffer.from(ab).toString("base64");
+    debugImport("screenshot.ok", { bytes: ab.byteLength, url });
+    return base64;
+  } catch (e) {
+    debugImport("screenshot.exception", { message: e instanceof Error ? e.message : String(e), url });
     return null;
   }
 }
