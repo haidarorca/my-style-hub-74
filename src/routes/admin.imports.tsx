@@ -33,7 +33,13 @@ import {
   commitImport,
   listImports,
 } from "@/lib/import-export.functions";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  scrapeProductForAi,
+  publishImportedDraft,
+  listAdminShops,
+  type AiDraft,
+} from "@/lib/admin-ai-import.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/imports")({
   component: () => (
@@ -100,129 +106,9 @@ function saveDrafts(drafts: DraftProduct[]) {
 let _id = Date.now();
 function uid() { return `draft-${++_id}`; }
 
-// ── Scrape product via AI ──
-async function scrapeProductWithAI(url: string): Promise<DraftProduct | null> {
-  // Step 1: Try to fetch the page
-  let html = "";
-  let title = "";
-  let images: string[] = [];
-  
-  try {
-    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}&timeout=10000`);
-    if (res.ok) {
-      html = await res.text();
-      const titleMatch = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
-      title = titleMatch?.[1]?.trim() || "";
-      // Extract images
-      const imgRe = /<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpe?g|png|webp))["']/gi;
-      let m: RegExpExecArray | null;
-      while ((m = imgRe.exec(html))) images.push(m[1]);
-      // Deduplicate
-      images = [...new Set(images)].slice(0, 8);
-    }
-  } catch {
-    // Fallback: use URL info only
-  }
+// Note: scraping IA is now server-side in src/lib/admin-ai-import.functions.ts
+// (uses LOVABLE_API_KEY server-side, anti-doublons, mapping catégories existantes).
 
-  // Step 2: Get categories from DB for AI
-  const { data: cats } = await supabase.from("categories").select("id, name").eq("level", 3).limit(100);
-  const catNames = (cats ?? []).map((c: any) => c.name).join(", ");
-
-  // Step 3: Call AI
-  const prompt = [
-    "Analyse ce produit e-commerce. Extrais les donnees en FRANCAIS.",
-    "Reponds UNIQUEMENT en JSON strict (pas de markdown):",
-    '{"name":"nom francais court max 60 caracteres","description":"description marketing francais","price_suggested":prix_vente_suggere_en_fcfa,"category":"categorie exacte","variants":[{"size":"taille","color":"couleur francaise","color_hex":"#rrggbb"}]}',
-    `Categories disponibles: ${catNames}`,
-    `URL: ${url}`,
-    title ? `Titre trouve: ${title}` : "",
-    images.length > 0 ? `Images trouvees: ${images.length}` : "",
-  ].filter(Boolean).join("\n");
-
-  try {
-    const apiKey = import.meta.env.VITE_LOVABLE_API_KEY || "";
-    if (!apiKey) {
-      // No API key - create basic draft from URL
-      return createBasicDraft(url, title, images);
-    }
-    
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "user", content: prompt }] }),
-    });
-    
-    if (!res.ok) return createBasicDraft(url, title, images);
-    
-    const json = await res.json();
-    const raw = json.choices?.[0]?.message?.content?.trim() || "";
-    
-    // Parse JSON
-    let aiResult: any = null;
-    try {
-      const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      aiResult = JSON.parse(cleaned);
-    } catch {
-      return createBasicDraft(url, title, images);
-    }
-
-    // Find category
-    let categoryId: string | null = null;
-    let categoryName: string | null = null;
-    if (aiResult.category && cats) {
-      const match = cats.find((c: any) => c.name.toLowerCase().includes(String(aiResult.category).toLowerCase().slice(0, 15)));
-      if (match) { categoryId = match.id; categoryName = match.name; }
-    }
-
-    // Parse variants
-    const rawVariants = Array.isArray(aiResult.variants) ? aiResult.variants : [];
-    const cleanVariants = rawVariants.map((v: any) => ({
-      size: String(v.size || "").slice(0, 40),
-      color: String(v.color || "").slice(0, 60),
-      colorHex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
-      stock: 0,
-    })).filter((v: any) => v.size || v.color);
-
-    return {
-      id: uid(),
-      name: String(aiResult.name || title || "Produit importe").slice(0, 100),
-      description: String(aiResult.description || "").slice(0, 2000),
-      price: Math.max(0, Number(aiResult.price_suggested) || 0),
-      sourcePrice: 0,
-      sourceCurrency: url.includes("1688") ? "CNY" : url.includes("taobao") ? "CNY" : "USD",
-      images: images.length > 0 ? images : [],
-      variants: cleanVariants,
-      sourceUrl: url,
-      categoryId,
-      categoryName,
-      status: "draft",
-      createdAt: Date.now(),
-    };
-  } catch {
-    return createBasicDraft(url, title, images);
-  }
-}
-
-function createBasicDraft(url: string, title: string, images: string[]): DraftProduct {
-  const urlObj = new URL(url);
-  const pathParts = urlObj.pathname.split("/").filter(Boolean);
-  const name = title || pathParts[pathParts.length - 1]?.replace(/-/g, " ") || "Produit importe";
-  return {
-    id: uid(),
-    name: name.slice(0, 100),
-    description: `Produit importe depuis ${urlObj.hostname}`,
-    price: 0,
-    sourcePrice: 0,
-    sourceCurrency: url.includes("1688") || url.includes("taobao") ? "CNY" : "USD",
-    images: images.slice(0, 8),
-    variants: [],
-    sourceUrl: url,
-    categoryId: null,
-    categoryName: null,
-    status: "draft",
-    createdAt: Date.now(),
-  };
-}
 
 function AdminImports() {
   const qc = useQueryClient();
@@ -257,70 +143,99 @@ function AdminImports() {
   const [productUrl, setProductUrl] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
   const [justImported, setJustImported] = useState<DraftProduct[]>([]);
+  const [selectedShopId, setSelectedShopId] = useState<string>("");
+
+  const fnScrape = useServerFn(scrapeProductForAi);
+  const fnPublish = useServerFn(publishImportedDraft);
+  const fnListShops = useServerFn(listAdminShops);
+
+  const shopsQuery = useQuery({
+    queryKey: ["admin-shops-for-import"],
+    queryFn: () => fnListShops({}),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    const shops = shopsQuery.data;
+    if (shops && shops.length > 0 && !selectedShopId) setSelectedShopId(shops[0].id);
+  }, [shopsQuery.data, selectedShopId]);
 
   // ── Handlers ──
   const handleImportSingle = async () => {
+    if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
     const urls = productUrl.split("\n").map(l => l.trim()).filter(l => l.startsWith("http"));
     if (urls.length === 0) { toast.error("Aucun lien valide"); return; }
 
     setIaLoading(true);
     const imported: DraftProduct[] = [];
+    let dupCount = 0;
     for (const url of urls.slice(0, 10)) {
-      toast.loading(`Analyse de ${url.slice(0, 40)}...`);
-      const draft = await scrapeProductWithAI(url);
-      if (draft) {
+      const t = toast.loading(`Analyse de ${url.slice(0, 40)}...`);
+      try {
+        const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
+        toast.dismiss(t);
+        if (ai.isDuplicate) {
+          dupCount++;
+          toast.warning(`Doublon ignoré : ${url.slice(0, 40)}`);
+          continue;
+        }
+        const draft: DraftProduct = {
+          id: uid(),
+          name: ai.name,
+          description: ai.description,
+          price: ai.price,
+          sourcePrice: ai.sourcePrice,
+          sourceCurrency: ai.sourceCurrency,
+          images: ai.images,
+          variants: ai.variants,
+          sourceUrl: ai.sourceUrl,
+          categoryId: ai.categoryId,
+          categoryName: ai.categoryName,
+          status: "draft",
+          createdAt: Date.now(),
+        };
         imported.push(draft);
         setDrafts(prev => [draft, ...prev]);
+      } catch (e: unknown) {
+        toast.dismiss(t);
+        const msg = e instanceof Error ? e.message : "Erreur";
+        toast.error(`${url.slice(0, 30)}: ${msg}`);
       }
-      toast.dismiss();
     }
     setIaLoading(false);
     setJustImported(imported);
     setProductUrl("");
-    toast.success(`${imported.length} produit(s) importe(s)`);
+    toast.success(`${imported.length} importé(s)${dupCount ? ` · ${dupCount} doublon(s) ignoré(s)` : ""}`);
   };
 
   const handlePublish = async (draft: DraftProduct) => {
+    if (!selectedShopId) { toast.error("Sélectionnez une boutique"); return; }
     try {
-      // Insert directly to products table
-      const { data: product, error } = await supabase.from("products").insert({
-        name: draft.name,
-        description: draft.description,
-        price: draft.price,
-        status: "approved",
-        is_active: true,
-        category_id: draft.categoryId,
-        code: `IMP-${Date.now().toString(36).toUpperCase()}`,
-      }).select().single();
-
-      if (error) throw error;
-
-      // Insert images
-      if (draft.images.length > 0) {
-        await supabase.from("product_images").insert(
-          draft.images.map((url, i) => ({ product_id: product.id, url, position: i }))
-        );
+      const r = await fnPublish({
+        data: {
+          shopId: selectedShopId,
+          draft: {
+            name: draft.name,
+            description: draft.description,
+            price: draft.price,
+            images: draft.images,
+            variants: draft.variants,
+            sourceUrl: draft.sourceUrl,
+            categoryId: draft.categoryId,
+          },
+        },
+      });
+      if (r.duplicate) {
+        toast.warning("Doublon : ce produit existe déjà");
+      } else {
+        toast.success("Produit publié !");
       }
-
-      // Insert variants
-      if (draft.variants.length > 0) {
-        await supabase.from("product_variants").insert(
-          draft.variants.map(v => ({
-            product_id: product.id,
-            size: v.size,
-            color: v.color,
-            color_hex: v.colorHex || null,
-            stock: v.stock,
-          }))
-        );
-      }
-
       setDrafts(prev => prev.filter(d => d.id !== draft.id));
-      toast.success("Produit publie !");
-    } catch (e: any) {
-      toast.error(e.message || "Erreur");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
     }
   };
+
 
   const handleDiscard = (id: string) => {
     setDrafts(prev => prev.filter(d => d.id !== id));
@@ -422,14 +337,14 @@ function AdminImports() {
                 </div>
               )}
 
-              {history.data && (history.data as any[]).length > 0 && (
+              {history.data && history.data.rows.length > 0 && (
                 <>
                   <Separator />
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">Historique</h4>
                   <div className="space-y-1">
-                    {(history.data as any[]).slice(0, 5).map((h: any) => (
+                    {history.data.rows.slice(0, 5).map((h) => (
                       <div key={h.id} className="flex justify-between text-xs border-b py-1">
-                        <span>{h.file_name} - {h.inserted_count} produits</span>
+                        <span>{h.file_name}</span>
                         <Badge variant="outline" className="text-[10px]">{h.status}</Badge>
                       </div>
                     ))}
@@ -449,6 +364,23 @@ function AdminImports() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Boutique de publication</label>
+                <Select value={selectedShopId} onValueChange={setSelectedShopId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder={shopsQuery.isLoading ? "Chargement..." : "Choisir une boutique admin"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(shopsQuery.data ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {shopsQuery.data && shopsQuery.data.length === 0 && (
+                  <p className="text-[11px] text-destructive">Aucune boutique admin. Créez-en une dans &quot;Boutiques admin&quot;.</p>
+                )}
+              </div>
+              <Separator />
               <Tabs value={iaTab} onValueChange={(v) => setIaTab(v as "store" | "product")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="store" className="gap-1"><Store className="h-3.5 w-3.5" /> Lien boutique</TabsTrigger>
