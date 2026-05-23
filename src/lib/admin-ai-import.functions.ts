@@ -83,6 +83,23 @@ async function updateImportJob(jobId: string | null, patch: Record<string, unkno
 }
 
 // ─────────────────────────────────────────────────────────────
+// 0. Diagnostic config Bright Data (ne crash jamais)
+
+export const checkBrightDataConfig = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    try {
+      return await diagnoseBrightDataConfig();
+    } catch (e) {
+      return {
+        apiKey: { present: false, valid: false, message: `Erreur diagnostic : ${e instanceof Error ? e.message : String(e)}` },
+        zone: { present: false, name: null, valid: false, message: "Diagnostic interrompu" },
+        datasets: [],
+      };
+    }
+  });
+
+// ─────────────────────────────────────────────────────────────
 // 1. Liste des boutiques admin (pour choisir où publier)
 
 export const listAdminShops = createServerFn({ method: "GET" })
