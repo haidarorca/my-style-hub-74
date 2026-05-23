@@ -38,7 +38,9 @@ import {
   publishImportedDraft,
   listAdminShops,
   discoverShopProductLinks,
+  cleanupFalseTaobaoImports,
   type AiDraft,
+  type ImportUiLog,
 } from "@/lib/admin-ai-import.functions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -87,6 +89,7 @@ interface DraftProduct {
   sourceUrl: string;
   categoryId: string | null;
   categoryName: string | null;
+  importLog?: ImportUiLog;
   status: "draft" | "published" | "discarded";
   createdAt: number;
 }
@@ -148,11 +151,14 @@ function AdminImports() {
   const [storeUrl, setStoreUrl] = useState("");
   const [storeLimit, setStoreLimit] = useState(10);
   const [storeLoading, setStoreLoading] = useState(false);
+  const [importLogs, setImportLogs] = useState<ImportUiLog[]>([]);
+  const [storeProgress, setStoreProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
   const fnScrape = useServerFn(scrapeProductForAi);
   const fnPublish = useServerFn(publishImportedDraft);
   const fnListShops = useServerFn(listAdminShops);
   const fnDiscover = useServerFn(discoverShopProductLinks);
+  const fnCleanupFalse = useServerFn(cleanupFalseTaobaoImports);
 
   const shopsQuery = useQuery({
     queryKey: ["admin-shops-for-import"],
@@ -164,6 +170,17 @@ function AdminImports() {
     const shops = shopsQuery.data;
     if (shops && shops.length > 0 && !selectedShopId) setSelectedShopId(shops[0].id);
   }, [shopsQuery.data, selectedShopId]);
+
+  const pushImportLog = useCallback((log: AiDraft["importLog"], sourceUrl?: string) => {
+    const entry: ImportUiLog = {
+      ...log,
+      initialUrl: log.initialUrl || sourceUrl || "",
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: Date.now(),
+    };
+    setImportLogs(prev => [entry, ...prev].slice(0, 80));
+    return entry;
+  }, []);
 
   // ── Handlers ──
   const handleImportSingle = async () => {
