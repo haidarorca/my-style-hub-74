@@ -646,6 +646,175 @@ export type Database = {
         }
         Relationships: []
       }
+      import_batches: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          last_offset: number
+          status: string
+          store_name: string | null
+          store_url: string
+          total_imported: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_offset?: number
+          status?: string
+          store_name?: string | null
+          store_url: string
+          total_imported?: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_offset?: number
+          status?: string
+          store_name?: string | null
+          store_url?: string
+          total_imported?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_batches_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_batches_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "import_batches_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_products: {
+        Row: {
+          ai_metadata: Json | null
+          batch_id: string
+          created_at: string
+          description: string
+          designation: string
+          duplicate_of: string | null
+          id: string
+          images: Json
+          name: string
+          price: number
+          source_currency: string
+          source_price: number
+          source_product_id: string | null
+          source_store_url: string | null
+          source_url: string
+          status: string
+          suggested_category_id: string | null
+          suggested_category_name: string | null
+          updated_at: string
+          variants: Json
+          vendor_id: string
+        }
+        Insert: {
+          ai_metadata?: Json | null
+          batch_id: string
+          created_at?: string
+          description?: string
+          designation?: string
+          duplicate_of?: string | null
+          id?: string
+          images?: Json
+          name?: string
+          price?: number
+          source_currency?: string
+          source_price?: number
+          source_product_id?: string | null
+          source_store_url?: string | null
+          source_url: string
+          status?: string
+          suggested_category_id?: string | null
+          suggested_category_name?: string | null
+          updated_at?: string
+          variants?: Json
+          vendor_id: string
+        }
+        Update: {
+          ai_metadata?: Json | null
+          batch_id?: string
+          created_at?: string
+          description?: string
+          designation?: string
+          duplicate_of?: string | null
+          id?: string
+          images?: Json
+          name?: string
+          price?: number
+          source_currency?: string
+          source_price?: number
+          source_product_id?: string | null
+          source_store_url?: string | null
+          source_url?: string
+          status?: string
+          suggested_category_id?: string | null
+          suggested_category_name?: string | null
+          updated_at?: string
+          variants?: Json
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_products_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_products_suggested_category_id_fkey"
+            columns: ["suggested_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "import_products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_reason_templates: {
         Row: {
           created_at: string
