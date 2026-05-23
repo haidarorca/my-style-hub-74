@@ -250,10 +250,10 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     if (!titleText || titleText.length < 4 || looksLikeLoginOrSecurity.test(`${titleText}\n${scrapedDesc}`)) {
       throw new Error("Import bloqué : page de connexion ou sécurité détectée, aucun brouillon créé.");
     }
-    if (scrapedPriceCny <= 0) {
+    if (platform !== "unknown" && scrapedPriceCny <= 0) {
       throw new Error("Import bloqué : prix source valide introuvable, aucun brouillon créé.");
     }
-    if (scrapedImages.length === 0) {
+    if (platform !== "unknown" && scrapedImages.length === 0) {
       throw new Error("Import bloqué : image produit valide introuvable, aucun brouillon créé.");
     }
     if (platform !== "unknown" && scrapedVariants.length === 0) {
