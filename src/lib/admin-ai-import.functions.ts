@@ -493,7 +493,7 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 
     const platform = detectPlatform(draft.sourceUrl);
     const sourcePid = extractSourceProductId(draft.sourceUrl, platform);
-    const { data: result, error } = await supabaseAdmin.rpc("create_imported_product_atomic", {
+    const { data: result, error } = await (supabaseAdmin.rpc as any)("create_imported_product_atomic", {
       _shop_id: shopId,
       _source_url: draft.sourceUrl,
       _source_platform: platform,
