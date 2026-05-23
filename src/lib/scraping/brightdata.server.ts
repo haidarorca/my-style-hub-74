@@ -53,22 +53,41 @@ export interface ProductValidationResult {
 // Détection plateforme + résolution liens courts
 
 export function detectPlatform(url: string): Platform {
-  if (/(?:^|\.)1688\.com/i.test(url)) return "1688";
-  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\./i.test(url)) return "tmall";
-  if (/(?:^|\.)(?:taobao|tb|worldtaobao)\.(?:com|cn)|item\.taobao\./i.test(url)) return "taobao";
+  if (/(?:^|\.)(?:1688|alibaba)\.com|detail\.1688\.com/i.test(url)) return "1688";
+  if (/(?:^|\.)(?:tmall|tmall\.hk)\.(?:com|hk)|detail\.tmall\.|tmall\.com\/item/i.test(url)) return "tmall";
+  if (/(?:^|\.)(?:taobao|tb|worldtaobao|m\.taobao|intl\.taobao)\.(?:com|cn)|item\.taobao\.|click\.world\.taobao\.com|s\.click\.taobao\.com|m\.tb\.cn|uland\.taobao\.com/i.test(url)) return "taobao";
   return "unknown";
+}
+
+export function extractFirstUrl(input: string): string {
+  const decoded = input.replace(/&amp;/g, "&");
+  const url = decoded.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? decoded.trim();
+  try {
+    return decodeURIComponent(url).replace(/[),.;]+$/g, "");
+  } catch {
+    return url.replace(/[),.;]+$/g, "");
+  }
 }
 
 function canonicalizeUrl(url: string): string {
   try {
-    const u = new URL(url.trim());
-    const id = u.searchParams.get("id") || u.searchParams.get("itemId") || u.searchParams.get("item_id");
+    const cleaned = extractFirstUrl(url);
+    const u = new URL(cleaned);
+    const decodedHref = decodeURIComponent(u.toString());
+    const id =
+      u.searchParams.get("id") ||
+      u.searchParams.get("itemId") ||
+      u.searchParams.get("item_id") ||
+      decodedHref.match(/[?&](?:id|itemId|item_id|itemid)=([0-9]{5,})/i)?.[1] ||
+      decodedHref.match(/(?:item|itemId|item_id|id)[=:]%?22?([0-9]{5,})/i)?.[1];
     const platform = detectPlatform(u.toString());
     if (id && /^\d{5,}$/.test(id) && (platform === "taobao" || platform === "tmall")) {
-      const host = platform === "tmall" ? "detail.tmall.com" : "item.taobao.com";
+      const host = platform === "tmall" || /tmall/i.test(decodedHref) ? "detail.tmall.com" : "item.taobao.com";
       return `https://${host}/item.htm?id=${id}`;
     }
-    return u.toString();
+    const offerId = decodedHref.match(/offer\/(\d{5,})\.html/i)?.[1] || decodedHref.match(/[?&]offerId=(\d{5,})/i)?.[1];
+    if (offerId && platform === "1688") return `https://detail.1688.com/offer/${offerId}.html`;
+    return u.toString().replace(/#.*$/, "");
   } catch {
     return url;
   }
@@ -79,32 +98,38 @@ function canonicalizeUrl(url: string): string {
  * Suit jusqu'à 5 redirections et renvoie l'URL finale item.htm.
  */
 export async function resolveTaobaoShortLink(url: string): Promise<string> {
-  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com)/i.test(url)) {
-    return canonicalizeUrl(url);
+  const initial = extractFirstUrl(url);
+  if (!/(?:click\.world\.taobao\.com|m\.tb\.cn|s\.click\.taobao\.com|uland\.taobao\.com|item\.world\.taobao\.com|tb\.cn|taobao\.com|tmall\.com|1688\.com|alibaba\.com)/i.test(initial)) {
+    return canonicalizeUrl(initial);
   }
-  let current = url;
+  let current = initial;
   for (let i = 0; i < 8; i++) {
     try {
       const r = await fetch(current, {
-        method: i === 0 ? "GET" : "HEAD",
+        method: "GET",
         redirect: "manual",
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          Referer: "https://www.taobao.com/",
         },
       });
       const loc = r.headers.get("location");
       if (!loc) {
         const text = await r.text().catch(() => "");
-        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com)[^"'\\\s<>]+/i)?.[0]
+        const embedded = text.match(/https?:\\?\/\\?\/(?:item\.taobao\.com|detail\.tmall\.com|detail\.1688\.com|m\.taobao\.com|h5\.m\.taobao\.com)[^"'\\\s<>]+/i)?.[0]
           ?.replace(/\\\//g, "/")
           ?.replace(/&amp;/g, "&");
         if (embedded) current = embedded;
+        else {
+          const embeddedId = text.match(/(?:itemId|item_id|id)["'\s:=]+["']?(\d{5,})/i)?.[1];
+          if (embeddedId) current = /tmall/i.test(text) ? `https://detail.tmall.com/item.htm?id=${embeddedId}` : `https://item.taobao.com/item.htm?id=${embeddedId}`;
+        }
         break;
       }
       current = new URL(loc, current).toString();
-      if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm/i.test(current)) break;
+      if (/item\.taobao\.com\/item\.htm|detail\.tmall\.com\/item\.htm|detail\.1688\.com\/offer\//i.test(current)) break;
     } catch {
       break;
     }
