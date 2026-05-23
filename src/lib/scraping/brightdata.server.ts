@@ -680,13 +680,16 @@ export async function scrapeProductWithBrightData(rawUrl: string): Promise<Norma
 
   debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
 
-  const browserHtml = await fetchWithBrightDataBrowser(url);
-  if (browserHtml) {
-    const browserProduct = normalizeFromHtml(browserHtml, url, platform, "brightdata_browser");
+  const browserResult = await fetchWithBrightDataBrowser(url);
+  if (browserResult) {
+    const browserUrl = canonicalizeUrl(browserResult.finalUrl || url);
+    const browserPlatform = detectPlatform(browserUrl) === "unknown" ? platform : detectPlatform(browserUrl);
+    const browserProduct = normalizeFromHtml(browserResult.html, browserUrl, browserPlatform, "brightdata_browser");
     const validation = validateNormalizedProduct(browserProduct);
     debugImport("browser.validation", {
       valid: validation.valid,
       issues: validation.issues,
+      finalUrl: browserUrl,
       title: browserProduct.title,
       price: browserProduct.priceMin,
       images: browserProduct.images.length,
