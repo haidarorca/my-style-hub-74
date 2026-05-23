@@ -1,11 +1,8 @@
 /**
  * admin.imports.tsx
  * -----------------
- * Page fusionnee : Import Excel + Import IA (Taobao/1688/Tmall)
- * - Import Excel/CSV avec template
- * - Import IA avec vrai scraping Bright Data Browser CDP
- * - Session manager Taobao avec QR code
- * - Logs visibles + score de confiance
+ * Import Excel + Import IA Taobao/1688/Tmall
+ * Utilise des fonctions SERVEUR (pas WebSocket direct)
  */
 
 import { useState, useEffect } from "react";
@@ -13,11 +10,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  Package, Trash2, Edit3, CheckCircle2, XCircle,
-  ExternalLink, ImageIcon, Loader2, AlertTriangle,
-  ChevronDown, ChevronUp, Save, FileSpreadsheet,
-  Download, Table2, Sparkles, Bot,
-  ShieldCheck, CircleCheck, CircleX, CircleDashed,
+  Package, Trash2, Edit3, CheckCircle2, XCircle, ExternalLink,
+  ImageIcon, Loader2, AlertTriangle, ChevronDown, ChevronUp,
+  Save, FileSpreadsheet, Download, Table2, Sparkles, Bot,
+  CircleCheck, CircleX, CircleDashed, Wifi, WifiOff,
 } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -29,21 +25,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from "@/components/ui/dialog";
 import {
-  exportProducts,
-  downloadTemplate,
-  previewImport,
-  commitImport,
+  exportProducts, downloadTemplate, previewImport, commitImport,
 } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { TaobaoSessionManager } from "@/components/admin/TaobaoSessionManager";
-import {
-  connectBrightData,
-  scrapeProductPage,
-  isSessionValid,
-  type CDPSession,
-  type ScrapedProduct,
-  type ScrapingLog,
-} from "@/lib/taobao-cdp";
+import { scrapeTaobaoProduct, checkBrightDataStatus } from "@/lib/taobao-scraper-server";
 
 export const Route = createFileRoute("/admin/imports")({
   component: () => (
@@ -59,50 +44,39 @@ const fmtFcfa = (n: number) => `${Math.round(n || 0).toLocaleString("fr-FR")} FC
 function extractTaobaoUrl(input: string): string | null {
   if (!input) return null;
   const patterns = [
-    /(https?:\/\/click\.world\.taobao\.com\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/m\.tb\.cn\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/e\.tb\.cn\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/s\.click\.taobao\.com\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/item\.taobao\.com\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/detail\.tmall\.com\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/detail\.1688\.com\/[^\s'"<>，。！？]+)/i,
-    /(https?:\/\/[^\s'"<>，。！？]*(?:taobao|tmall|1688|tb\.cn)[^\s'"<>，。！？]*)/i,
+    /(https?:\/\/click\.world\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/m\.tb\.cn\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/e\.tb\.cn\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/s\.click\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/item\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/detail\.tmall\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
+    /(https?:\/\/detail\.1688\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
   ];
   for (const re of patterns) { const m = input.match(re); if (m) return decodeURIComponent(m[1]); }
+  // Direct URL
+  const direct = input.match(/(https?:\/\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i);
+  if (direct) return direct[1];
   return null;
 }
 
-function canonicalizeTaobaoUrl(url: string): { canonical: string; platform: string; itemId: string | null } {
+function canonicalizeTaobaoUrl(url: string) {
   try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    let itemId = u.searchParams.get("id") || u.searchParams.get("itemId") || null;
-    if (!itemId) { const m = u.pathname.match(/offer\/(\d+)/); if (m) itemId = m[1]; }
-    if (host.includes("1688")) return { canonical: itemId ? `https://detail.1688.com/offer/${itemId}.html` : url, platform: "1688", itemId };
-    if (host.includes("tmall")) return { canonical: itemId ? `https://detail.tmall.com/item.htm?id=${itemId}` : url, platform: "tmall", itemId };
-    return { canonical: itemId ? `https://item.taobao.com/item.htm?id=${itemId}` : url, platform: "taobao", itemId };
-  } catch { return { canonical: url, platform: "unknown", itemId: null }; }
+    const u = new URL(url); const host = u.hostname.toLowerCase();
+    let itemId = u.searchParams.get("id") || u.pathname.match(/offer\/(\d+)/)?.[1] || null;
+    if (host.includes("1688")) return { canonical: itemId ? `https://detail.1688.com/offer/${itemId}.html` : url, platform: "1688" as const, itemId };
+    if (host.includes("tmall")) return { canonical: itemId ? `https://detail.tmall.com/item.htm?id=${itemId}` : url, platform: "tmall" as const, itemId };
+    return { canonical: itemId ? `https://item.taobao.com/item.htm?id=${itemId}` : url, platform: "taobao" as const, itemId };
+  } catch { return { canonical: url, platform: "taobao" as const, itemId: null }; }
 }
 
 // ── Types ──
 interface DraftProduct {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  sourcePrice: number;
-  sourceCurrency: string;
-  images: string[];
+  id: string; name: string; description: string; price: number;
+  sourcePrice: number; sourceCurrency: string; images: string[];
   variants: { size: string; color: string; colorHex: string; stock: number }[];
-  sourceUrl: string;
-  canonicalUrl: string;
-  platform: string;
-  itemId: string | null;
-  categoryId: string | null;
-  categoryName: string | null;
-  confidence: number;
-  status: "draft" | "published" | "discarded";
-  createdAt: number;
+  sourceUrl: string; canonicalUrl: string; platform: string; itemId: string | null;
+  categoryId: string | null; categoryName: string | null; confidence: number;
+  status: "draft" | "published" | "discarded"; createdAt: number;
 }
 
 const LS_KEY = "kawzone_import_drafts";
@@ -110,10 +84,6 @@ function loadDrafts(): DraftProduct[] { try { const r = localStorage.getItem(LS_
 function saveDrafts(drafts: DraftProduct[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
 let _id = Date.now();
 function uid() { return `draft-${++_id}`; }
-
-function logEntry(logs: ScrapingLog[], step: string, status: ScrapingLog["status"], message: string): ScrapingLog[] {
-  return [...logs, { step, status, message, timestamp: Date.now() }];
-}
 
 // ── Main ──
 export default function AdminImports() {
@@ -132,146 +102,142 @@ export default function AdminImports() {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   // IA Import
+  const scrapeFn = useServerFn(scrapeTaobaoProduct);
+  const checkProxyFn = useServerFn(checkBrightDataStatus);
   const [productUrl, setProductUrl] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
-  const [logs, setLogs] = useState<ScrapingLog[]>([]);
+  const [logs, setLogs] = useState<{ step: string; status: string; message: string }[]>([]);
   const [justImported, setJustImported] = useState<DraftProduct[]>([]);
-  const [cdpSession, setCdpSession] = useState<CDPSession | null>(null);
-  const [useRealScraping, setUseRealScraping] = useState(false);
+  const [proxyAvailable, setProxyAvailable] = useState<boolean | null>(null);
 
-  // ── Import handler (CDP + fallback AI) ──
+  // Check proxy on mount
+  useEffect(() => {
+    checkProxyFn({ data: {} }).then((r: any) => setProxyAvailable(r.available)).catch(() => setProxyAvailable(false));
+  }, [checkProxyFn]);
+
+  // ── Import handler ──
   const handleImport = async () => {
-    if (!productUrl.trim()) { toast.error("Collez un lien ou un texte de partage"); return; }
+    if (!productUrl.trim()) { toast.error("Collez un lien"); return; }
     const urls = productUrl.split("\n").map(l => extractTaobaoUrl(l)).filter(Boolean) as string[];
-    if (urls.length === 0) { toast.error("Aucun lien Taobao/1688 detecte"); return; }
+    if (urls.length === 0) { toast.error("Aucun lien detecte"); return; }
 
     setIaLoading(true);
     setLogs([]);
     const imported: DraftProduct[] = [];
 
     for (const rawUrl of urls.slice(0, 5)) {
-      let stepLogs: ScrapingLog[] = [];
+      const canonical = canonicalizeTaobaoUrl(rawUrl);
+      setLogs(prev => [...prev, { step: "URL", status: "success", message: `${canonical.platform.toUpperCase()} | ${canonical.itemId || "?"}` }]);
 
-      // Step 1: Parse
-      stepLogs = logEntry(stepLogs, "Parse", "success", `Texte analyse : ${rawUrl.slice(0, 60)}...`);
-      setLogs(prev => [...prev, ...stepLogs]);
+      // Try server-side scraping (Bright Data or allorigins)
+      setLogs(prev => [...prev, { step: "Scrape", status: "running", message: "Scraping via serveur..." }]);
 
-      // Step 2: Extract URL
-      const cleanUrl = extractTaobaoUrl(rawUrl);
-      if (!cleanUrl) { stepLogs = logEntry(stepLogs, "URL", "error", "Extraction impossible"); setLogs(prev => [...prev, ...stepLogs]); continue; }
-      const { canonical, platform, itemId } = canonicalizeTaobaoUrl(cleanUrl);
-      stepLogs = logEntry(stepLogs, "URL", "success", `${platform.toUpperCase()} | ID : ${itemId || "?"}`);
-      setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
+      try {
+        const result = await scrapeFn({ data: { url: canonical.canonical } }) as any;
 
-      // Step 3: Try REAL scraping via CDP if available
-      let scrapedData: ScrapedProduct | null = null;
-
-      if (useRealScraping && cdpSession) {
-        try {
-          stepLogs = logEntry(stepLogs, "CDP", "running", "Scraping reel via Bright Data Browser...");
-          setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
-
-          const result = await scrapeProductPage(cdpSession, canonical, (log) => {
-            setLogs(prev => [...prev, log]);
-          });
-
-          if (result) {
-            scrapedData = result;
-            stepLogs = logEntry(stepLogs, "CDP", "success", `Produit scrape : ${result.name.slice(0, 40)}`);
-          } else {
-            stepLogs = logEntry(stepLogs, "CDP", "warning", "Scraping reel echoue - fallback IA");
+        // Show server logs
+        if (result.logs) {
+          for (const log of result.logs) {
+            setLogs(prev => [...prev, { step: "Serveur", status: "success", message: log }]);
           }
-        } catch (e: any) {
-          stepLogs = logEntry(stepLogs, "CDP", "error", e.message);
         }
-        setLogs(prev => [...prev, ...stepLogs.slice(-2)]);
-      }
 
-      // Step 4: Fallback to AI if no CDP or CDP failed
-      if (!scrapedData) {
-        try {
-          stepLogs = logEntry(stepLogs, "IA", "running", "Analyse par IA (fallback)...");
-          setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
-
-          const { data: cats } = await supabase.from("categories").select("id, name").eq("level", 3).limit(100);
-          const catNames = (cats ?? []).map((c: any) => c.name).join(", ");
-
-          const prompt = `Analyse ce produit ${platform.toUpperCase()}. FRANCAIS. JSON strict :
-{"name":"nom court","description":"marketing","price_suggested":prix_fcfa,"category":"categorie","variants":[{"size":"","color":"couleur","color_hex":"#rrggbb"}]}
-Categories: ${catNames}
-URL: ${canonical}`;
-
-          const apiKey = import.meta.env.VITE_LOVABLE_API_KEY || "";
-          if (!apiKey) throw new Error("Cle API IA non configuree");
-
-          const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "user", content: prompt }] }),
-          });
-          if (!res.ok) throw new Error(`IA HTTP ${res.status}`);
-
-          const json = await res.json();
-          const raw = json.choices?.[0]?.message?.content?.trim() || "";
-          let aiResult: any = null;
-          try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); }
-          if (!aiResult) throw new Error("JSON invalide");
-
-          let catId: string | null = null; let catName: string | null = null;
-          if (aiResult.category && cats) { const match = (cats as any[]).find((c: any) => c.name.toLowerCase().includes(String(aiResult.category).toLowerCase().slice(0, 15))); if (match) { catId = match.id; catName = match.name; } }
-
-          scrapedData = {
-            name: String(aiResult.name || "Produit").slice(0, 100),
-            description: String(aiResult.description || "").slice(0, 2000),
-            price: Math.max(0, Number(aiResult.price_suggested) || 0),
-            currency: "CNY",
-            images: [],
-            variants: (Array.isArray(aiResult.variants) ? aiResult.variants : []).map((v: any) => ({
-              size: String(v.size || "").slice(0, 40), color: String(v.color || "").slice(0, 60),
-              colorHex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "", stock: 0, price: 0,
-            })).filter((v: any) => v.size || v.color),
-            shopName: "", shopId: "", itemId: itemId || "", category: catName || "",
-            skuList: [], rawData: aiResult,
-          };
-
-          stepLogs = logEntry(stepLogs, "IA", "success", `IA : ${scrapedData.name.slice(0, 40)}`);
-        } catch (e: any) {
-          stepLogs = logEntry(stepLogs, "IA", "error", e.message);
-          setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
+        if (!result.success || !result.data) {
+          setLogs(prev => [...prev, { step: "Scrape", status: "error", message: "Scraping echoue - tentative IA..." }]);
+          // Fallback AI
+          await importWithAI(rawUrl, canonical, imported);
           continue;
         }
-        setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
+
+        const data = result.data;
+        setLogs(prev => [...prev, { step: "Scrape", status: "success", message: `Page recuperee | ${data.name?.slice(0, 40)}` }]);
+
+        // Calculate confidence
+        let confidence = 50; // Server scrape = better base
+        if (data.images?.length > 0) confidence += 20;
+        if (data.price > 0) confidence += 15;
+        if (data.name && data.name.length > 5 && !data.name.includes("登录")) confidence += 15;
+
+        const draft: DraftProduct = {
+          id: uid(), name: data.name || "Produit importe",
+          description: data.description || `Produit ${canonical.platform}`,
+          price: data.price || 0, sourcePrice: data.sourcePrice || 0,
+          sourceCurrency: data.currency || "CNY", images: data.images || [],
+          variants: [], sourceUrl: rawUrl, canonicalUrl: canonical.canonical,
+          platform: canonical.platform, itemId: canonical.itemId,
+          categoryId: null, categoryName: null,
+          confidence: Math.min(100, confidence), status: "draft", createdAt: Date.now(),
+        };
+        imported.push(draft);
+        setDrafts(prev => [draft, ...prev]);
+        setLogs(prev => [...prev, { step: "OK", status: "success", message: `Brouillon | Confiance ${confidence}%` }]);
+
+      } catch (e: any) {
+        setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
+        // Fallback AI
+        await importWithAI(rawUrl, canonical, imported);
       }
-
-      if (!scrapedData) continue;
-
-      // Calculate confidence
-      let confidence = scrapedData.images.length > 0 ? 60 : 35;
-      if (scrapedData.variants.length > 0) confidence += 15;
-      if (scrapedData.shopName) confidence += 10;
-      if (scrapedData.price > 0) confidence += 10;
-      if (scrapedData.name.length > 5 && !scrapedData.name.includes("登录")) confidence += 10;
-
-      const draft: DraftProduct = {
-        id: uid(), name: scrapedData.name, description: scrapedData.description,
-        price: scrapedData.price, sourcePrice: 0, sourceCurrency: "CNY",
-        images: scrapedData.images, variants: scrapedData.variants,
-        sourceUrl: rawUrl, canonicalUrl: canonical, platform, itemId,
-        categoryId: null, categoryName: scrapedData.category || null,
-        confidence: Math.min(100, confidence), status: "draft", createdAt: Date.now(),
-      };
-
-      imported.push(draft);
-      setDrafts(prev => [draft, ...prev]);
-      stepLogs = logEntry(stepLogs, "Done", "success", `Brouillon cree | Confiance : ${confidence}%`);
-      setLogs(prev => [...prev, ...stepLogs.slice(-1)]);
     }
 
     setIaLoading(false);
     setJustImported(imported);
     setProductUrl("");
     if (imported.length > 0) { toast.success(`${imported.length} produit(s) importe(s)`); setMainTab("drafts"); }
-    else toast.error("Aucun produit importe. Verifiez les logs.");
+    else toast.error("Aucun produit importe");
+  };
+
+  // ── AI Fallback ──
+  const importWithAI = async (rawUrl: string, canonical: { canonical: string; platform: string; itemId: string | null }, imported: DraftProduct[]) => {
+    setLogs(prev => [...prev, { step: "IA", status: "running", message: "Analyse par IA..." }]);
+
+    try {
+      const { data: cats } = await supabase.from("categories").select("id, name").eq("level", 3).limit(100);
+      const catNames = (cats ?? []).map((c: any) => c.name).join(", ");
+
+      const prompt = `Analyse ce produit ${canonical.platform.toUpperCase()}. FRANCAIS. JSON strict:
+{"name":"nom court","description":"marketing","price_suggested":prix_fcfa,"category":"categorie","variants":[{"size":"","color":"couleur","color_hex":"#rrggbb"}]}
+Categories: ${catNames}
+URL: ${canonical.canonical}`;
+
+      const apiKey = import.meta.env.VITE_LOVABLE_API_KEY || "";
+      if (!apiKey) throw new Error("Cle API IA non configuree");
+
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "user", content: prompt }] }),
+      });
+      if (!res.ok) throw new Error(`IA HTTP ${res.status}`);
+
+      const json = await res.json();
+      const raw = json.choices?.[0]?.message?.content?.trim() || "";
+      let aiResult: any = null;
+      try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); }
+      if (!aiResult) throw new Error("JSON invalide");
+
+      let catId: string | null = null; let catName: string | null = null;
+      if (aiResult.category && cats) { const match = (cats as any[]).find((c: any) => c.name.toLowerCase().includes(String(aiResult.category).toLowerCase().slice(0, 15))); if (match) { catId = match.id; catName = match.name; } }
+
+      const draft: DraftProduct = {
+        id: uid(), name: String(aiResult.name || "Produit").slice(0, 100),
+        description: String(aiResult.description || "").slice(0, 2000),
+        price: Math.max(0, Number(aiResult.price_suggested) || 0),
+        sourcePrice: 0, sourceCurrency: "CNY", images: [],
+        variants: (Array.isArray(aiResult.variants) ? aiResult.variants : []).map((v: any) => ({
+          size: String(v.size || "").slice(0, 40), color: String(v.color || "").slice(0, 60),
+          colorHex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "", stock: 0,
+        })).filter((v: any) => v.size || v.color),
+        sourceUrl: rawUrl, canonicalUrl: canonical.canonical,
+        platform: canonical.platform, itemId: canonical.itemId,
+        categoryId: catId, categoryName: catName, confidence: 35, status: "draft", createdAt: Date.now(),
+      };
+
+      imported.push(draft);
+      setDrafts(prev => [draft, ...prev]);
+      setLogs(prev => [...prev, { step: "IA", status: "success", message: `Brouillon IA | Confiance 35%` }]);
+    } catch (e: any) {
+      setLogs(prev => [...prev, { step: "IA", status: "error", message: e.message }]);
+    }
   };
 
   // ── Publish ──
@@ -286,7 +252,7 @@ URL: ${canonical}`;
       if (draft.images.length > 0) await supabase.from("product_images").insert(draft.images.map((url, i) => ({ product_id: product.id, url, position: i })));
       if (draft.variants.length > 0) await supabase.from("product_variants").insert(draft.variants.map(v => ({ product_id: product.id, size: v.size, color: v.color, color_hex: v.colorHex || null, stock: v.stock })));
       setDrafts(prev => prev.filter(d => d.id !== draft.id));
-      toast.success("Produit publie !");
+      toast.success("Publie !");
     } catch (e: any) { toast.error(e.message || "Erreur"); }
   };
 
@@ -296,11 +262,20 @@ URL: ${canonical}`;
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold"><Package className="h-5 w-5" /> Importation</h1>
-        <p className="text-xs text-muted-foreground">Excel/CSV ou Taobao/1688/Tmall avec IA</p>
+        <p className="text-xs text-muted-foreground">Excel/CSV ou Taobao/1688/Tmall</p>
       </div>
 
-      {/* Session Manager */}
-      <TaobaoSessionManager onSessionReady={(s) => { setCdpSession(s); setUseRealScraping(true); }} />
+      {/* Proxy status */}
+      <div className={`rounded-lg border p-3 flex items-center gap-2 text-xs ${proxyAvailable === null ? "bg-muted" : proxyAvailable ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
+        {proxyAvailable === null && <Loader2 className="h-4 w-4 animate-spin" />}
+        {proxyAvailable === true && <Wifi className="h-4 w-4 text-emerald-600" />}
+        {proxyAvailable === false && <WifiOff className="h-4 w-4 text-amber-600" />}
+        <span>
+          {proxyAvailable === null ? "Verification proxy..." :
+           proxyAvailable ? "Proxy scraping actif" :
+           "Proxy indisponible - mode IA uniquement"}
+        </span>
+      </div>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "ia" | "drafts")}>
         <TabsList className="grid w-full grid-cols-3">
@@ -331,13 +306,6 @@ URL: ${canonical}`;
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Import IA Taobao / 1688 / Tmall</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {/* Mode toggle */}
-              <div className="flex items-center gap-2 rounded-lg bg-muted p-2 text-xs">
-                <Button variant={useRealScraping ? "default" : "outline"} size="sm" className="text-[10px] h-6" onClick={() => setUseRealScraping(true)} disabled={!cdpSession}>CDP Bright Data</Button>
-                <Button variant={!useRealScraping ? "default" : "outline"} size="sm" className="text-[10px] h-6" onClick={() => setUseRealScraping(false)}>IA uniquement</Button>
-                {!cdpSession && <span className="text-muted-foreground">Connectez-vous d&apos;abord en haut</span>}
-              </div>
-
               <Textarea value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder={`Exemples valides :\nhttps://item.taobao.com/item.htm?id=123456\nhttps://click.world.taobao.com/abc ...\nhttps://m.tb.cn/xyz789`} rows={4} />
 
               <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
@@ -345,13 +313,13 @@ URL: ${canonical}`;
                 <ol className="list-decimal list-inside space-y-0.5">
                   <li>App Taobao → Produit → Partager</li>
                   <li>Copiez le texte complet</li>
-                  <li>Collez ici → &quot;Importer&quot;</li>
+                  <li>Collez ici → "Importer"</li>
                 </ol>
               </div>
 
               <Button onClick={handleImport} disabled={iaLoading} className="w-full gap-2">
                 {iaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {iaLoading ? "Analyse..." : useRealScraping ? "Importer (CDP + IA)" : "Importer (IA)"}
+                {iaLoading ? "Analyse..." : proxyAvailable ? "Importer (Proxy + IA)" : "Importer (IA)"}
               </Button>
 
               {/* Logs */}
@@ -363,7 +331,6 @@ URL: ${canonical}`;
                       {log.status === "success" && <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
                       {log.status === "running" && <CircleDashed className="h-3 w-3 text-blue-500 shrink-0 mt-0.5 animate-spin" />}
                       {log.status === "error" && <CircleX className="h-3 w-3 text-destructive shrink-0 mt-0.5" />}
-                      {log.status === "warning" && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />}
                       <div><span className="font-semibold">{log.step}</span> <span className="text-muted-foreground">— {log.message}</span></div>
                     </div>
                   ))}
@@ -396,7 +363,7 @@ URL: ${canonical}`;
   );
 }
 
-// ── Mini Card (just imported) ──
+// ── Sub-components ──
 function MiniCard({ draft }: { draft: DraftProduct }) {
   return (
     <div className={`rounded border p-2 flex gap-2 ${draft.confidence < 50 ? "border-amber-300 bg-amber-50/30" : ""}`}>
@@ -415,7 +382,6 @@ function MiniCard({ draft }: { draft: DraftProduct }) {
   );
 }
 
-// ── Draft Card ──
 function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduct; onPublish: () => void; onDiscard: () => void; onEdit: () => void }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -432,10 +398,6 @@ function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduc
               <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">{draft.confidence}%</Badge>
             </div>
             <p className="text-[11px] text-muted-foreground truncate">{draft.canonicalUrl.slice(0, 45)}...</p>
-            <div className="flex flex-wrap gap-1 mt-1 text-[11px]">
-              <span className="text-primary font-medium">{fmtFcfa(draft.price)}</span>
-              {draft.categoryName && <Badge variant="secondary" className="text-[10px]">{draft.categoryName}</Badge>}
-            </div>
             <div className="flex flex-wrap gap-1 mt-1">
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setExpanded(!expanded)}>{expanded ? "Moins" : "Details"}</Button>
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onEdit}><Edit3 className="h-3 w-3 mr-1" />Modif</Button>
@@ -450,8 +412,6 @@ function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduc
             <div><strong>Source :</strong> <a href={draft.sourceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{draft.sourceUrl}</a></div>
             <div><strong>Canonique :</strong> {draft.canonicalUrl}</div>
             <div><strong>Plateforme :</strong> {draft.platform} | <strong>Item ID :</strong> {draft.itemId || "N/A"}</div>
-            {draft.variants.length > 0 && <div><strong>Variantes :</strong> {draft.variants.map(v => `${v.color}${v.size ? ` (${v.size})` : ""}`).join(", ")}</div>}
-            <div className="flex flex-wrap gap-1">{draft.images.slice(0, 6).map((img, i) => <img key={i} src={img} alt="" className="h-10 w-10 rounded object-cover border" />)}</div>
           </div>
         )}
       </CardContent>
@@ -459,12 +419,10 @@ function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduc
   );
 }
 
-// ── Edit Dialog ──
 function EditDialog({ draft, onClose, onSave }: { draft: DraftProduct; onClose: () => void; onSave: (p: Partial<DraftProduct>) => void }) {
   const [name, setName] = useState(draft.name);
   const [description, setDescription] = useState(draft.description);
   const [price, setPrice] = useState(String(draft.price));
-
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
