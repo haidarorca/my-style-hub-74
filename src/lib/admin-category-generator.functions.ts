@@ -23,6 +23,16 @@ function safeParseJson(raw: string): Record<string, unknown> | null {
   }
 }
 
+function toSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || `cat-${Date.now()}`;
+}
+
 export interface CategorySuggestion {
   name: string;
   level: 1 | 2 | 3;
@@ -217,6 +227,7 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
         .from("categories")
         .insert({
           name: data.rayon_name,
+          slug: toSlug(data.rayon_name),
           level: 1,
           parent_id: null,
           position: 999,
@@ -238,6 +249,7 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
         .from("categories")
         .insert({
           name: data.categorie_name,
+          slug: toSlug(data.categorie_name),
           level: 2,
           parent_id: rayonId,
           position: 999,
@@ -263,6 +275,7 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
           .from("categories")
           .insert({
             name: data.sous_categorie_name,
+            slug: toSlug(data.sous_categorie_name),
             level: 3,
             parent_id: categorieId,
             position: 999,
