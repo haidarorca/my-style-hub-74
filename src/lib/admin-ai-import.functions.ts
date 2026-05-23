@@ -429,10 +429,18 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     // 6. Construction du brouillon final — variantes & images viennent du SCRAPE, pas de l'IA
     const finalPrice =
       Math.max(0, Number(aiResult.price_suggested_fcfa) || 0) || priceSuggestionFcfa;
+    const finalName = String(aiResult.name ?? scrapedTitle ?? "").trim().slice(0, 100);
+    const finalDescription = String(aiResult.description ?? scrapedDesc ?? "").trim().slice(0, 2000);
+    if (!finalName || looksLikeLoginOrSecurity.test(`${finalName}\n${finalDescription}`)) {
+      throw new Error("Import bloqué : le brouillon généré ressemble à une page de connexion/sécurité.");
+    }
+    if (finalPrice <= 0 || scrapedImages.length === 0 || scrapedVariants.length === 0) {
+      throw new Error("Import bloqué : brouillon incomplet, aucune donnée produit ne sera conservée.");
+    }
 
     return {
-      name: String(aiResult.name ?? scrapedTitle ?? "Produit importé").slice(0, 100) || "Produit importé",
-      description: String(aiResult.description ?? scrapedDesc ?? "").slice(0, 2000),
+      name: finalName,
+      description: finalDescription,
       designation: String(aiResult.designation ?? "").slice(0, 200),
       price: finalPrice,
       sourcePrice: scrapedPriceCny,
