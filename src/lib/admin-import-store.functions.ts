@@ -42,7 +42,7 @@ export interface ImportProduct {
   suggested_category_name: string | null;
   status: "draft" | "published" | "discarded";
   duplicate_of: string | null; // ID du produit existant si doublon
-  ai_metadata: Record<string, unknown> | null;
+  ai_metadata: Json | null;
   created_at: string;
   updated_at: string;
 }
@@ -214,8 +214,9 @@ async function canImportStore(userId: string): Promise<boolean> {
   const { data: permCheck } = await supabaseAdmin.from("admin_permissions").select("permission").eq("user_id", userId).eq("permission", "products").limit(1).maybeSingle();
   if (permCheck) return true;
   // Check vendor profile flag
-  const { data: profile } = await supabaseAdmin.from("profiles").select("can_import_store").eq("id", userId).maybeSingle();
-  return profile?.can_import_store === true;
+  // Check vendor profile flag (column may not exist on all environments)
+  const { data: profile } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).maybeSingle();
+  return (profile as { can_import_store?: boolean } | null)?.can_import_store === true;
 }
 
 // ── 1. Start or resume a store import ──
@@ -342,10 +343,11 @@ export const fetchNextProductBatch = createServerFn({ method: "POST" })
       const productScraped = await scrapeViaDirectFetch(link);
       if (!productScraped) continue;
 
+      const currency = detectCurrencyFromUrl(link);
+
       // AI analysis
       let aiResult: Record<string, unknown> | null = null;
       if (apiKey) {
-        const currency = detectCurrencyFromUrl(link);
         try {
           const { data: cats } = await supabaseAdmin.from("categories").select("id, name, level").eq("level", 3).order("position").limit(200);
           const catNames = (cats ?? []).map((c) => c.name).slice(0, 120).join(", ");
@@ -446,7 +448,7 @@ export const fetchNextProductBatch = createServerFn({ method: "POST" })
         suggested_category_name: suggestedCategoryName,
         status: "draft",
         duplicate_of: duplicateOf,
-        ai_metadata: aiResult ? { ai_result: aiResult, scraped_at: new Date().toISOString() } : null,
+        ai_metadata: (aiResult ? { ai_result: aiResult, scraped_at: new Date().toISOString() } : null) as Json | null,
       };
 
       const { data: inserted, error: insertError } = await supabaseAdmin
@@ -574,7 +576,7 @@ export const importSingleProduct = createServerFn({ method: "POST" })
     }).filter((v): v is NonNullable<typeof v> => v !== null && (v.size !== "" || v.color !== "")).slice(0, 30);
 
     const { data: inserted, error } = await supabaseAdmin.from("import_products").insert({
-      batch_id: batchId,
+      batch_id: batchId!,
       vendor_id: context.userId,
       source_url: data.product_url,
       source_store_url: data.product_url,
@@ -591,7 +593,7 @@ export const importSingleProduct = createServerFn({ method: "POST" })
       suggested_category_name: suggestedCategoryName,
       status: "draft",
       duplicate_of: null,
-      ai_metadata: aiResult ? { ai_result: aiResult } : null,
+      ai_metadata: (aiResult ? { ai_result: aiResult } : null) as Json | null,
     }).select().single();
 
     if (error) throw new Error(error.message);
