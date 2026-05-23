@@ -12,6 +12,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  scrapeProductWithBrightData,
+  discoverShopWithBrightData,
+  resolveTaobaoShortLink,
+  detectPlatform,
+  extractSourceProductId,
+  type NormalizedProduct,
+} from "./scraping/brightdata.server";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -129,8 +137,12 @@ function safeJson(raw: string): Record<string, unknown> | null {
 
 const ScrapeProductSchema = z.object({
   url: z.string().url(),
-  shopId: z.string().uuid(),
+  shopId: z.string().optional(),
 });
+
+// FCFA conversion (CNY → FCFA). Marge x2.5 par défaut sur le coût source.
+const CNY_TO_FCFA = 85; // taux indicatif
+const MARGIN_MULTIPLIER = 2.5;
 
 export const scrapeProductForAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -139,24 +151,40 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Assistant IA non configuré (LOVABLE_API_KEY)");
 
-    const url = data.url;
+    // 0. Normalisation URL (résout les liens courts click.world.taobao.com, m.tb.cn, etc.)
+    const url = await resolveTaobaoShortLink(data.url);
+    const platform = detectPlatform(url);
+    const sourceProductId = extractSourceProductId(url, platform);
 
-    // Anti-doublons: vérifier si déjà importé
-    const { data: existing } = await supabaseAdmin
+    // 1. Anti-doublons multi-niveaux : URL exacte OU (plateforme + source_product_id)
+    let existing: { product_id: string } | null = null;
+    const byUrl = await supabaseAdmin
       .from("product_admin_metadata")
-      .select("product_id, products!inner(name, status, is_active)")
+      .select("product_id")
       .eq("source_url", url)
       .limit(1)
       .maybeSingle();
+    if (byUrl.data) existing = { product_id: byUrl.data.product_id as string };
+
+    if (!existing && sourceProductId && platform !== "unknown") {
+      const byPid = await supabaseAdmin
+        .from("product_admin_metadata")
+        .select("product_id")
+        .eq("source_platform", platform)
+        .eq("source_product_id", sourceProductId)
+        .limit(1)
+        .maybeSingle();
+      if (byPid.data) existing = { product_id: byPid.data.product_id as string };
+    }
 
     if (existing) {
       return {
         name: "Doublon détecté",
-        description: "Ce produit a déjà été importé depuis cette URL.",
+        description: "Ce produit a déjà été importé.",
         designation: "",
         price: 0,
         sourcePrice: 0,
-        sourceCurrency: url.includes("1688") || url.includes("taobao") ? "CNY" : "USD",
+        sourceCurrency: platform === "unknown" ? "USD" : "CNY",
         images: [],
         variants: [],
         sourceUrl: url,
@@ -167,10 +195,38 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       };
     }
 
-    // Récupération HTML
-    const { title, images } = await fetchHtml(url);
+    // 2. Scraping : Bright Data d'abord (plateformes chinoises), Firecrawl en fallback
+    let bd: NormalizedProduct | null = null;
+    if (platform !== "unknown") {
+      bd = await scrapeProductWithBrightData(url);
+    }
 
-    // Récupération des catégories (3 niveaux) pour mapping
+    let scrapedTitle = "";
+    let scrapedDesc = "";
+    let scrapedImages: string[] = [];
+    let scrapedVariants: AiDraftVariant[] = [];
+    let scrapedPriceCny = 0;
+    const sourceCurrency = bd?.currency || (platform === "unknown" ? "USD" : "CNY");
+
+    if (bd) {
+      scrapedTitle = bd.title;
+      scrapedDesc = bd.description;
+      scrapedImages = bd.images;
+      scrapedPriceCny = bd.priceMin || bd.priceMax || 0;
+      scrapedVariants = bd.variants.map((v) => ({
+        size: v.size.slice(0, 40),
+        color: v.color.slice(0, 60),
+        colorHex: v.colorHex,
+        stock: v.stock,
+      }));
+    } else {
+      // Fallback générique (HTML brut + Firecrawl si dispo)
+      const fallback = await fetchHtml(url);
+      scrapedTitle = fallback.title;
+      scrapedImages = fallback.images;
+    }
+
+    // 3. Récupération des catégories (3 niveaux) pour mapping
     const { data: catsAll } = await supabaseAdmin
       .from("categories")
       .select("id, name, level, parent_id")
@@ -193,11 +249,14 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       })
       .join("\n");
 
+    // 4. IA : traduction FR + désignation + description + mapping catégorie existante
+    const priceSuggestionFcfa = scrapedPriceCny > 0 ? Math.round(scrapedPriceCny * CNY_TO_FCFA * MARGIN_MULTIPLIER) : 0;
+
     const prompt = [
-      "Tu es un assistant qui analyse un produit e-commerce chinois (Taobao/1688) pour un marché ouest-africain.",
-      "Génère une fiche produit en FRANÇAIS, claire et marketing.",
-      "Réponds UNIQUEMENT en JSON strict (pas de markdown, pas de texte autour):",
-      '{"name":"...","designation":"... (max 80 car)","description":"... (max 600 car)","price_suggested_fcfa":<int>,"category_path":"Rayon > Catégorie > Sous-catégorie","variants":[{"size":"","color":"","color_hex":"#rrggbb"}]}',
+      "Tu es un assistant qui prépare une fiche produit FR pour un marché ouest-africain à partir de données scrapées Taobao/Tmall/1688.",
+      "Tu ne dois PAS inventer le titre ni les variantes : utilise les données fournies. Tu traduis en français, tu rédiges une désignation et une description marketing claires, et tu choisis UNE catégorie dans l'arborescence donnée.",
+      "Réponds UNIQUEMENT en JSON strict (pas de markdown):",
+      '{"name":"...","designation":"... (max 80 car)","description":"... (max 600 car)","price_suggested_fcfa":<int>,"category_path":"Rayon > Catégorie > Sous-catégorie"}',
       "",
       "IMPORTANT pour category_path:",
       "- Tu DOIS choisir UNIQUEMENT parmi l'arborescence existante ci-dessous.",
@@ -207,9 +266,12 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       "Arborescence existante:",
       tree || "(aucune catégorie en base)",
       "",
-      `URL produit: ${url}`,
-      title ? `Titre extrait: ${title}` : "",
-      images.length ? `${images.length} images extraites.` : "Aucune image extraite.",
+      `URL: ${url}`,
+      `Plateforme: ${platform}`,
+      scrapedTitle ? `Titre source: ${scrapedTitle}` : "",
+      scrapedDesc ? `Description source (extrait): ${scrapedDesc.slice(0, 800)}` : "",
+      scrapedPriceCny > 0 ? `Prix source: ${scrapedPriceCny} ${sourceCurrency} (suggestion FCFA: ${priceSuggestionFcfa})` : "",
+      scrapedVariants.length ? `Variantes détectées (${scrapedVariants.length}): ${scrapedVariants.slice(0, 10).map((v) => `${v.size}/${v.color}`).join(", ")}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -235,10 +297,10 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       }
     } catch (e) {
       if (e instanceof Error && (e.message.includes("Limite IA") || e.message.includes("Crédits"))) throw e;
-      // sinon: on continue avec aiResult vide → fallback basique
+      // continue avec aiResult vide
     }
 
-    // Mapping catégorie par path "L1 > L2 > L3"
+    // 5. Mapping catégorie par path "L1 > L2 > L3"
     let categoryId: string | null = null;
     let categoryName: string | null = null;
     const path = typeof aiResult.category_path === "string" ? aiResult.category_path : null;
@@ -260,38 +322,26 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       }
     }
 
-    const rawVariants = Array.isArray(aiResult.variants) ? (aiResult.variants as unknown[]) : [];
-    const variants: AiDraftVariant[] = rawVariants
-      .map((v) => {
-        const obj = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-        const colorHexRaw = typeof obj.color_hex === "string" ? obj.color_hex : "";
-        return {
-          size: String(obj.size ?? "").slice(0, 40),
-          color: String(obj.color ?? "").slice(0, 60),
-          colorHex: /^#[0-9a-fA-F]{6}$/.test(colorHexRaw) ? colorHexRaw : "",
-          stock: 0,
-        };
-      })
-      .filter((v) => v.size || v.color)
-      .slice(0, 20);
-
-    const sourceCurrency = url.includes("1688") || url.includes("taobao") ? "CNY" : "USD";
+    // 6. Construction du brouillon final — variantes & images viennent du SCRAPE, pas de l'IA
+    const finalPrice =
+      Math.max(0, Number(aiResult.price_suggested_fcfa) || 0) || priceSuggestionFcfa;
 
     return {
-      name: String(aiResult.name ?? title ?? "Produit importé").slice(0, 100) || "Produit importé",
-      description: String(aiResult.description ?? "").slice(0, 2000),
+      name: String(aiResult.name ?? scrapedTitle ?? "Produit importé").slice(0, 100) || "Produit importé",
+      description: String(aiResult.description ?? scrapedDesc ?? "").slice(0, 2000),
       designation: String(aiResult.designation ?? "").slice(0, 200),
-      price: Math.max(0, Number(aiResult.price_suggested_fcfa) || 0),
-      sourcePrice: 0,
+      price: finalPrice,
+      sourcePrice: scrapedPriceCny,
       sourceCurrency,
-      images,
-      variants,
+      images: scrapedImages,
+      variants: scrapedVariants,
       sourceUrl: url,
       categoryId,
       categoryName,
       isDuplicate: false,
     };
   });
+
 
 // ─────────────────────────────────────────────────────────────
 // 3. Publication d'un brouillon (anti-doublons + propre)
@@ -394,10 +444,20 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
       );
     }
 
-    // Métadonnée source pour anti-doublons futur
+    // Métadonnée source pour anti-doublons futur (URL + plateforme + product_id source)
+    const platform = detectPlatform(draft.sourceUrl);
+    const sourcePid = extractSourceProductId(draft.sourceUrl, platform);
     await supabaseAdmin
       .from("product_admin_metadata")
-      .upsert({ product_id: product.id, source_url: draft.sourceUrl }, { onConflict: "product_id" });
+      .upsert(
+        {
+          product_id: product.id,
+          source_url: draft.sourceUrl,
+          source_platform: platform === "unknown" ? null : platform,
+          source_product_id: sourcePid,
+        },
+        { onConflict: "product_id" },
+      );
 
     return { duplicate: false, productId: product.id };
   });
@@ -407,7 +467,7 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 
 const DiscoverShopSchema = z.object({
   shopUrl: z.string().url(),
-  limit: z.number().int().min(1).max(50).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
 });
 
 function isProductLink(url: string): boolean {
@@ -421,10 +481,20 @@ function isProductLink(url: string): boolean {
 export const discoverShopProductLinks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DiscoverShopSchema.parse(input))
-  .handler(async ({ data }): Promise<{ urls: string[]; source: "firecrawl" | "html" | "none" }> => {
+  .handler(async ({ data }): Promise<{ urls: string[]; source: "brightdata" | "firecrawl" | "html" | "none" }> => {
     const limit = data.limit ?? 20;
+
+    // 0) Bright Data en priorité (dataset shop dédié Taobao/Tmall/1688)
+    const shopUrl = await resolveTaobaoShortLink(data.shopUrl);
+    const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
+    if (bdUrls && bdUrls.length > 0) {
+      const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
+      if (urls.length > 0) return { urls, source: "brightdata" };
+    }
+
     const firecrawlKey = process.env.FIRECRAWL_API_KEY;
     const collected: string[] = [];
+
 
     // 1) Firecrawl map (rapide, basé sur sitemap + crawling)
     if (firecrawlKey) {
