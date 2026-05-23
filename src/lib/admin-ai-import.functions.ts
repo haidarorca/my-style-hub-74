@@ -228,7 +228,7 @@ const MARGIN_MULTIPLIER = 2.5;
 export const scrapeProductForAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ScrapeProductSchema.parse(input))
-  .handler(async ({ data }): Promise<AiDraft> => {
+  .handler(async ({ data, context }): Promise<AiDraft> => {
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Assistant IA non configuré (LOVABLE_API_KEY)");
 
@@ -285,6 +285,8 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       };
     }
 
+    const jobId = await createImportJob(context.userId, data.shopId, data.url, url, platform, sourceProductId);
+    try {
     // 2. Scraping : Bright Data d'abord (plateformes chinoises), Firecrawl en fallback
     let bd: NormalizedProduct | null = null;
     let importLog = baseLog;
@@ -460,7 +462,7 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       throw new Error("Import bloqué : brouillon incomplet, aucune donnée produit ne sera conservée.");
     }
 
-    return {
+    const draft: AiDraft = {
       name: finalName,
       description: finalDescription,
       designation: String(aiResult.designation ?? "").slice(0, 200),
@@ -475,6 +477,12 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       isDuplicate: false,
       importLog,
     };
+    await updateImportJob(jobId, { status: "completed", progress: 100, confidence: validateNormalizedProduct(bd!).confidence, extraction_source: importLog.source, validation_issues: [], draft, completed_at: new Date().toISOString(), logs: [importLog] });
+    return draft;
+    } catch (error) {
+      await updateImportJob(jobId, { status: "failed", progress: 100, error_message: error instanceof Error ? error.message : String(error), completed_at: new Date().toISOString() });
+      throw error;
+    }
   });
 
 
