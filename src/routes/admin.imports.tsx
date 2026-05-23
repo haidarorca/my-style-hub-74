@@ -99,7 +99,10 @@ const LS_KEY = "kawzone_import_drafts";
 function loadDrafts(): DraftProduct[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((d): d is DraftProduct => Boolean(d && typeof d === "object" && typeof d.name === "string" && Array.isArray(d.images) && Array.isArray(d.variants) && typeof d.sourceUrl === "string"))
+      : [];
   } catch { return []; }
 }
 function saveDrafts(drafts: DraftProduct[]) {
@@ -110,7 +113,7 @@ function isInvalidTaobaoDraft(draft: DraftProduct): boolean {
   const text = `${draft.name}\n${draft.description}`.toLowerCase();
   const badText = /登录|登陆|亲，请登录|connexion|login|sign in|验证码|captcha|安全验证|security check|访问受限|sec\.taobao|punish/i.test(text);
   const badTitle = /^(登录|登陆|login|connexion|tmall|taobao)$/i.test(draft.name.trim());
-  const badImages = draft.images.length === 0 || draft.images.every((url) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(url));
+  const badImages = !Array.isArray(draft.images) || draft.images.length === 0 || draft.images.every((url) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(url));
   return badTitle || badText || draft.price <= 0 || badImages;
 }
 
