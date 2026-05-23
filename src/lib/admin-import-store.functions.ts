@@ -283,21 +283,57 @@ export const fetchNextProductBatch = createServerFn({ method: "POST" })
       .single();
     if (!batch) throw new Error("Batch introuvable");
 
-    // Scrape the store page to find product links
+    // ── Phase 1: Discover product links from store page ──
+    // Taobao/1688 store pages are heavily protected. We use multiple strategies:
+    // 1. Direct fetch with mobile UA
+    // 2. Extract item IDs from JavaScript/JSON in the page
+    // 3. If all fails, advise manual link paste
     const resolvedUrl = await resolveShareUrl(batch.store_url);
+    let productLinks: string[] = [];
+
+    // Try direct scraping with multiple attempts
     const scraped = await scrapeViaDirectFetch(resolvedUrl);
 
-    if (!scraped || looksLikeLoginWall(scraped.text)) {
-      // If direct scraping fails, try to use AI to extract from the HTML
-      await supabaseAdmin.from("import_batches").update({ status: "error", error_message: "Page protégée. Essayez de copier les liens produits manuellement." }).eq("id", data.batch_id);
-      throw new Error("La page boutique est protégée. Copiez les liens produits manuellement.");
+    if (scraped && !looksLikeLoginWall(scraped.text)) {
+      productLinks = extractProductLinksFromStoreHtml(scraped.html, resolvedUrl);
     }
 
-    const productLinks = extractProductLinksFromStoreHtml(scraped.html, resolvedUrl);
+    // If no links found, try to extract from the URL pattern itself
+    // (some Taobao store URLs contain the seller ID, we can construct search URLs)
+    if (productLinks.length === 0) {
+      try {
+        const storeUrl = new URL(resolvedUrl);
+        const shopIdMatch = storeUrl.searchParams.get("shop_id") || storeUrl.searchParams.get("user_number_id") || scraped?.html?.match(/["']shopId["']\s*[:=]\s*["']?(\d+)["']?/)?.[1];
+        if (shopIdMatch) {
+          // Construct a search page URL which is often less protected
+          productLinks = [`https://shop${shopIdMatch}.taobao.com/search.htm`];
+          // Try scraping the search page
+          const searchScraped = await scrapeViaDirectFetch(productLinks[0]);
+          if (searchScraped && !looksLikeLoginWall(searchScraped.text)) {
+            const searchLinks = extractProductLinksFromStoreHtml(searchScraped.html, productLinks[0]);
+            if (searchLinks.length > 0) productLinks = searchLinks;
+          }
+        }
+      } catch { /* ignore URL parse errors */ }
+    }
+
+    // If still no links, extract IDs from any raw HTML we got
+    if (productLinks.length === 0 && scraped?.html) {
+      const idMatches = scraped.html.match(/(?:itemId|offerId)["']?\s*[:=]\s*["']?(\d{8,})["']?/g);
+      if (idMatches) {
+        const is1688 = resolvedUrl.includes("1688");
+        productLinks = idMatches.map((m: string) => {
+          const id = m.match(/(\d{8,})/)?.[1];
+          if (!id) return null;
+          if (is1688) return `https://detail.1688.com/offer/${id}.html`;
+          return `https://item.taobao.com/item.htm?id=${id}`;
+        }).filter((url): url is string => url !== null);
+      }
+    }
 
     if (productLinks.length === 0) {
-      await supabaseAdmin.from("import_batches").update({ status: "completed" }).eq("id", data.batch_id);
-      return { products: [], hasMore: false, totalFound: 0 };
+      await supabaseAdmin.from("import_batches").update({ status: "error", error_message: "Impossible de lire la page boutique (protection anti-bot). Utilisez l'import par lien produit." }).eq("id", data.batch_id);
+      throw new Error("Impossible de lire la page boutique (protection anti-bot). Utilisez l'onglet 'Lien(s) produit' pour coller les liens manuellement.");
     }
 
     // Paginate: skip already processed
@@ -334,19 +370,36 @@ export const fetchNextProductBatch = createServerFn({ method: "POST" })
         continue;
       }
 
-      // Skip if already published
-      if (alreadyPublished.has(link)) {
-        // Will be flagged as duplicate during processing
+      // Scrape product page (with retry)
+      let productScraped = await scrapeViaDirectFetch(link);
+      // Retry with resolved URL if first attempt fails
+      if (!productScraped) {
+        const resolvedLink = await resolveShareUrl(link);
+        if (resolvedLink !== link) {
+          productScraped = await scrapeViaDirectFetch(resolvedLink);
+        }
       }
 
-      // Scrape product page
-      const productScraped = await scrapeViaDirectFetch(link);
-      if (!productScraped) continue;
+      // If scraping fails completely, create a minimal entry from the URL
+      if (!productScraped) {
+        try {
+          const u = new URL(link);
+          const id = u.searchParams.get("id") || u.pathname.match(/offer\/(\d+)/)?.[1] || "unknown";
+          productScraped = {
+            text: `Produit ${id} depuis ${u.hostname}`,
+            images: [],
+            html: "",
+          };
+        } catch {
+          continue; // Skip unparseable URLs
+        }
+      }
 
       const currency = detectCurrencyFromUrl(link);
 
       // AI analysis
       let aiResult: Record<string, unknown> | null = null;
+      const currency = detectCurrencyFromUrl(link);
       if (apiKey) {
         try {
           const { data: cats } = await supabaseAdmin.from("categories").select("id, name, level").eq("level", 3).order("position").limit(200);
