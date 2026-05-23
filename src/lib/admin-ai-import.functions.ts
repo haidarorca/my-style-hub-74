@@ -19,6 +19,7 @@ import {
   detectPlatform,
   extractSourceProductId,
   validateNormalizedProduct,
+  diagnoseBrightDataConfig,
   type ImportAttemptLog,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
