@@ -20,6 +20,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
   { to: "/admin/vendors", label: "Vendeurs", icon: Store, perm: "vendors" },
   { to: "/admin/shops", label: "Boutiques admin", icon: Store, perm: "vendors" },
   { to: "/admin/customers", label: "Clients", icon: Users, perm: "customers" },
+  { to: "/admin/imports", label: "Imports IA", icon: Globe, perm: "products" },
   { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
   { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
   { to: "/admin/commission-orders", label: "Commandes commission", icon: Briefcase, perm: "orders" },
