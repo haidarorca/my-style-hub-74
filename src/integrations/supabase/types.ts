@@ -1156,18 +1156,24 @@ export type Database = {
         Row: {
           created_at: string
           product_id: string
+          source_platform: string | null
+          source_product_id: string | null
           source_url: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           product_id: string
+          source_platform?: string | null
+          source_product_id?: string | null
           source_url?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           product_id?: string
+          source_platform?: string | null
+          source_product_id?: string | null
           source_url?: string | null
           updated_at?: string
         }
