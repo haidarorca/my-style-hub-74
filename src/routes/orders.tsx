@@ -19,6 +19,11 @@ import {
   StickyNote,
   X,
   Flag,
+  Plane,
+  Weight,
+  DollarSign,
+  AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -48,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { ReviewDialog } from "@/components/orders/ReviewDialog";
 import { ReportDialog } from "@/components/orders/ReportDialog";
 import { ContactActions } from "@/components/support/ContactActions";
+import { Separator } from "@/components/ui/separator";
 
 export const Route = createFileRoute("/orders")({
   component: OrdersPage,
@@ -181,6 +187,20 @@ function OrdersPage() {
     | { type: "product"; productId: string; orderId: string; name: string }
     | { type: "vendor"; vendorId: string; orderId: string; name: string }
   >(null);
+
+  // Récupérer l'évaluation d'expédition pour la commande ouverte
+  const { data: shipmentData } = useQuery({
+    queryKey: ["order-shipment", openOrder?.id],
+    enabled: !!openOrder?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("order_shipment_assessments")
+        .select("*")
+        .eq("order_id", openOrder!.id)
+        .maybeSingle();
+      return data;
+    },
+  });
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["my-orders", user?.id],
@@ -652,6 +672,74 @@ function OrdersPage() {
                     )}
                   </section>
 
+                  {/* Expédition internationale */}
+                  {shipmentData && (
+                    <section className="rounded-xl border bg-card p-3">
+                      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        <Plane className="h-3.5 w-3.5" /> Expédition internationale
+                      </h3>
+                      <div className="space-y-2">
+                        {/* Badge statut expédition */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Statut transport :</span>
+                          <ShipmentStatusBadge status={shipmentData.status} />
+                        </div>
+
+                        {/* Poids */}
+                        {shipmentData.real_weight_kg && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">Poids réel :</span>
+                            <span className="font-medium">{shipmentData.real_weight_kg} kg</span>
+                          </div>
+                        )}
+
+                        {/* Frais transport */}
+                        {shipmentData.total_fees > 0 && (
+                          <>
+                            <Separator className="my-1" />
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Frais avion :</span>
+                              <span>{fmtFcfa(shipmentData.air_freight_fee ?? 0)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Frais service :</span>
+                              <span>{fmtFcfa(shipmentData.service_fee ?? 0)}</span>
+                            </div>
+                            {shipmentData.extra_fees > 0 && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Frais supplémentaires :</span>
+                                <span>{fmtFcfa(shipmentData.extra_fees)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-sm font-bold border-t pt-1">
+                              <span>Frais transport :</span>
+                              <span className="text-primary">{fmtFcfa(shipmentData.total_fees)}</span>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Lien validation si en attente */}
+                        {shipmentData.status === "awaiting_client_validation" && (
+                          <Link
+                            to="/orders/$orderId/validate-shipment"
+                            params={{ orderId: openOrder.id }}
+                            className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Valider les frais d'expédition
+                          </Link>
+                        )}
+
+                        {/* Note admin */}
+                        {shipmentData.admin_comment && (
+                          <div className="rounded bg-muted/40 p-2 text-xs text-muted-foreground">
+                            <strong>Note :</strong> {shipmentData.admin_comment}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  )}
+
                   {/* Récapitulatif */}
                   <section className="rounded-xl border bg-card p-3">
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -734,5 +822,29 @@ function OrdersPage() {
         />
       )}
     </div>
+  );
+}
+
+// ── Shipment Status Badge ──
+
+const SHIPMENT_STATUS_META: Record<string, { label: string; cls: string }> = {
+  pending_arrival:            { label: "En attente arrivée", cls: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
+  awaiting_weighing:          { label: "En attente pesée", cls: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
+  fees_calculated:            { label: "Frais calculés", cls: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
+  awaiting_client_validation: { label: "À valider", cls: "bg-primary/10 text-primary border-primary/20" },
+  validated:                  { label: "Validé", cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
+  rejected:                   { label: "Refusé", cls: "bg-rose-500/10 text-rose-700 border-rose-500/20" },
+  ready_to_ship:              { label: "Prêt à embarquer", cls: "bg-violet-500/10 text-violet-700 border-violet-500/20" },
+  shipped:                    { label: "Expédié", cls: "bg-cyan-500/10 text-cyan-700 border-cyan-500/20" },
+};
+
+function ShipmentStatusBadge({ status }: { status: string }) {
+  const meta = SHIPMENT_STATUS_META[status] ?? { label: status, cls: "bg-muted text-muted-foreground border-border" };
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold", meta.cls)}>
+      {status === "awaiting_client_validation" && <AlertTriangle className="h-3 w-3" />}
+      {status === "validated" && <ShieldCheck className="h-3 w-3" />}
+      {meta.label}
+    </span>
   );
 }
