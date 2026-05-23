@@ -467,7 +467,7 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 
 const DiscoverShopSchema = z.object({
   shopUrl: z.string().url(),
-  limit: z.number().int().min(1).max(50).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
 });
 
 function isProductLink(url: string): boolean {
@@ -481,10 +481,20 @@ function isProductLink(url: string): boolean {
 export const discoverShopProductLinks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DiscoverShopSchema.parse(input))
-  .handler(async ({ data }): Promise<{ urls: string[]; source: "firecrawl" | "html" | "none" }> => {
+  .handler(async ({ data }): Promise<{ urls: string[]; source: "brightdata" | "firecrawl" | "html" | "none" }> => {
     const limit = data.limit ?? 20;
+
+    // 0) Bright Data en priorité (dataset shop dédié Taobao/Tmall/1688)
+    const shopUrl = await resolveTaobaoShortLink(data.shopUrl);
+    const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
+    if (bdUrls && bdUrls.length > 0) {
+      const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
+      if (urls.length > 0) return { urls, source: "brightdata" };
+    }
+
     const firecrawlKey = process.env.FIRECRAWL_API_KEY;
     const collected: string[] = [];
+
 
     // 1) Firecrawl map (rapide, basé sur sitemap + crawling)
     if (firecrawlKey) {
