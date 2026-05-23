@@ -609,7 +609,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
     const limit = data.limit ?? 20;
 
     // 0) Nettoyage + résolution du lien boutique (texte partagé, liens courts...)
-    const norm = await normalizeImportInput(shopUrl);
+    const norm = await normalizeImportInput(data.shopUrl);
     console.log("[discoverShop] normalizeImportInput", {
       rawInput: norm.rawInput?.slice(0, 200),
       cleanedInput: norm.cleanedInput?.slice(0, 200),
@@ -617,7 +617,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
       canonicalUrl: norm.canonicalUrl,
       detectedPlatform: norm.detectedPlatform,
     });
-    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || shopUrl;
+    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || data.shopUrl;
     const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
     if (bdUrls && bdUrls.length > 0) {
       const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
