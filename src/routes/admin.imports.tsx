@@ -448,11 +448,17 @@ function AdminImports() {
                     via Firecrawl, puis chaque produit est analysé par l&apos;IA et ajouté aux brouillons.
                     Les doublons sont automatiquement ignorés.
                   </div>
+                  {storeProgress.total > 0 && storeLoading && (
+                    <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+                      Produit {storeProgress.current} / {storeProgress.total}
+                    </div>
+                  )}
                   <Button
                     onClick={async () => {
                       if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
                       if (!storeUrl.startsWith("http")) { toast.error("URL invalide"); return; }
                       setStoreLoading(true);
+                      setStoreProgress({ current: 0, total: 0 });
                       const t = toast.loading("Découverte des produits...");
                       try {
                         const r = await fnDiscover({ data: { shopUrl: storeUrl, limit: storeLimit } });
@@ -466,9 +472,14 @@ function AdminImports() {
                         const imported: DraftProduct[] = [];
                         let dupCount = 0;
                         let failedCount = 0;
-                        for (const url of r.urls) {
+                        const seen = new Set<string>();
+                        const urls = r.urls.filter((url) => !seen.has(url) && seen.add(url));
+                        setStoreProgress({ current: 0, total: urls.length });
+                        for (const [index, url] of urls.entries()) {
+                          setStoreProgress({ current: index + 1, total: urls.length });
                           try {
                             const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
+                            const importLog = pushImportLog(ai.importLog, url);
                             if (ai.isDuplicate) { dupCount++; continue; }
                             const draft: DraftProduct = {
                               id: uid(),
@@ -482,11 +493,13 @@ function AdminImports() {
                               sourceUrl: ai.sourceUrl,
                               categoryId: ai.categoryId,
                               categoryName: ai.categoryName,
+                              importLog,
                               status: "draft",
                               createdAt: Date.now(),
                             };
+                            if (isInvalidTaobaoDraft(draft)) throw new Error("Données invalides détectées : brouillon non créé.");
                             imported.push(draft);
-                            setDrafts(prev => [draft, ...prev]);
+                            setDrafts(prev => [draft, ...prev.filter((d) => d.sourceUrl !== draft.sourceUrl)]);
                           } catch (e: unknown) {
                             failedCount++;
                             const msg = e instanceof Error ? e.message : "Import bloqué";
@@ -499,8 +512,10 @@ function AdminImports() {
                       } catch (e: unknown) {
                         toast.dismiss(t);
                         toast.error(e instanceof Error ? e.message : "Erreur");
+                      } finally {
+                        setStoreLoading(false);
+                        setStoreProgress({ current: 0, total: 0 });
                       }
-                      setStoreLoading(false);
                     }}
                     disabled={storeLoading}
                     className="w-full gap-2"
