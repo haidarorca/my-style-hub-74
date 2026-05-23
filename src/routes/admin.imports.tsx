@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from "@/components/ui/dialog";
+import { TaobaoSessionCard } from "@/components/admin/TaobaoSessionCard";
 import {
   exportProducts,
   downloadTemplate,
@@ -469,6 +470,7 @@ function AdminImports() {
                   </div>
                 )}
               </div>
+              <TaobaoSessionCard />
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Boutique de publication</label>
                 <Select value={selectedShopId} onValueChange={setSelectedShopId}>

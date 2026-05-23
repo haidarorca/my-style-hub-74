@@ -486,6 +486,55 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
   }
 }
 
+// Fetch a Taobao/Tmall page through Bright Data Scraping Browser (CDP) with
+// the admin's saved session cookies injected. Returns null when no session is
+// configured so the caller can fall back to other paths.
+async function fetchWithTaobaoSession(url: string, platform: Platform): Promise<BrowserFetchResult | null> {
+  if (platform !== "taobao" && platform !== "tmall") return null;
+  if (!process.env.BRIGHTDATA_BROWSER_WSS_URL) return null;
+  let cookies: import("./cdp-client.server").CdpCookie[] | null = null;
+  try {
+    const { loadTaobaoCookies } = await import("./taobao-session.server");
+    cookies = await loadTaobaoCookies();
+  } catch (e) {
+    debugImport("session.load.error", { message: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+  if (!cookies?.length) {
+    debugImport("session.skip", { reason: "no_session", url });
+    return null;
+  }
+  const { CdpClient } = await import("./cdp-client.server");
+  const { TAOBAO_MOBILE_UA, markTaobaoSessionExpired } = await import("./taobao-session.server");
+  let client: import("./cdp-client.server").CdpClient | null = null;
+  try {
+    client = CdpClient.fromEnv();
+    await client.connect();
+    await client.createPageTarget("about:blank");
+    await client.setUserAgent(TAOBAO_MOBILE_UA);
+    await client.setCookies(cookies);
+    await client.navigate(url, 6000);
+    const finalUrl = (await client.evaluate<string>(`location.href`)) || url;
+    if (/login\.taobao\.com|login\.tmall\.com|punish\?/i.test(finalUrl)) {
+      debugImport("session.expired", { finalUrl });
+      await markTaobaoSessionExpired().catch(() => undefined);
+      return null;
+    }
+    const html = (await client.evaluate<string>(`document.documentElement.outerHTML`)) || "";
+    if (!html || html.length < 500) {
+      debugImport("session.empty", { url, bytes: html.length });
+      return null;
+    }
+    debugImport("session.ok", { url, finalUrl, bytes: html.length });
+    return { html, finalUrl };
+  } catch (e) {
+    debugImport("session.exception", { message: e instanceof Error ? e.message : String(e), url });
+    return null;
+  } finally {
+    try { await client?.close(); } catch { /* ignore */ }
+  }
+}
+
 async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResult | null> {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   const zone = process.env.BRIGHTDATA_BROWSER_ZONE ?? process.env.BRIGHTDATA_WEB_UNLOCKER_ZONE;
@@ -917,6 +966,18 @@ export async function scrapeProductWithBrightDataDetailed(rawUrl: string): Promi
 
   debugImport("start", { rawUrl, resolvedUrl: url, platform, productId: extractSourceProductId(url, platform) });
   let lastLog: ImportAttemptLog = { initialUrl: rawUrl, finalUrl: url, source: "none", status: "invalid_data", reason: "Aucune extraction lancée", issues: [] };
+
+  // 1) Try Taobao/Tmall with the admin's saved session (when available).
+  const sessionResult = await fetchWithTaobaoSession(url, platform);
+  if (sessionResult) {
+    const sessUrl = canonicalizeUrl(sessionResult.finalUrl || url);
+    const sessPlatform = detectPlatform(sessUrl) === "unknown" ? platform : detectPlatform(sessUrl);
+    const sessProduct = normalizeFromHtml(sessionResult.html, sessUrl, sessPlatform, "brightdata_browser");
+    const sessValidation = validateNormalizedProduct(sessProduct);
+    debugImport("session.validation", { valid: sessValidation.valid, issues: sessValidation.issues, title: sessProduct.title, price: sessProduct.priceMin });
+    lastLog = { initialUrl: rawUrl, finalUrl: sessUrl, source: "brightdata_browser", status: sessValidation.valid ? "success" : statusFromIssues(sessValidation.issues), reason: sessValidation.reason ?? "OK", issues: sessValidation.issues };
+    if (sessValidation.valid) return { product: sessProduct, log: lastLog };
+  }
 
   const browserResult = await fetchWithBrightDataBrowser(url);
   if (browserResult) {
