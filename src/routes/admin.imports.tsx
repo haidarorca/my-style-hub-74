@@ -1,8 +1,11 @@
 /**
  * admin.imports.tsx
  * -----------------
- * Import Excel + Import IA Taobao/1688/Tmall
- * Utilise des fonctions SERVEUR (pas WebSocket direct)
+ * Import Excel/CSV + Import IA Taobao/1688/Tmall
+ * - Import boutique complete (tous les produits)
+ * - Import produit individuel
+ * - Logs visibles + score confiance
+ * - Anti-doublons
  */
 
 import { useState, useEffect } from "react";
@@ -14,6 +17,7 @@ import {
   ImageIcon, Loader2, AlertTriangle, ChevronDown, ChevronUp,
   Save, FileSpreadsheet, Download, Table2, Sparkles, Bot,
   CircleCheck, CircleX, CircleDashed, Wifi, WifiOff,
+  Store, Link2,
 } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +32,7 @@ import {
   exportProducts, downloadTemplate, previewImport, commitImport,
 } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { scrapeTaobaoProduct, checkBrightDataStatus } from "@/lib/taobao-scraper-server";
+import { scrapeSingleProduct, scrapeStore } from "@/lib/taobao-scraper.service";
 
 export const Route = createFileRoute("/admin/imports")({
   component: () => (
@@ -40,40 +44,11 @@ export const Route = createFileRoute("/admin/imports")({
 
 const fmtFcfa = (n: number) => `${Math.round(n || 0).toLocaleString("fr-FR")} FCFA`;
 
-// ── URL Parser ──
-function extractTaobaoUrl(input: string): string | null {
-  if (!input) return null;
-  const patterns = [
-    /(https?:\/\/click\.world\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/m\.tb\.cn\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/e\.tb\.cn\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/s\.click\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/item\.taobao\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/detail\.tmall\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-    /(https?:\/\/detail\.1688\.com\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i,
-  ];
-  for (const re of patterns) { const m = input.match(re); if (m) return decodeURIComponent(m[1]); }
-  // Direct URL
-  const direct = input.match(/(https?:\/\/[^\s'"<>，。！？\u4e00-\u9fff]+)/i);
-  if (direct) return direct[1];
-  return null;
-}
-
-function canonicalizeTaobaoUrl(url: string) {
-  try {
-    const u = new URL(url); const host = u.hostname.toLowerCase();
-    let itemId = u.searchParams.get("id") || u.pathname.match(/offer\/(\d+)/)?.[1] || null;
-    if (host.includes("1688")) return { canonical: itemId ? `https://detail.1688.com/offer/${itemId}.html` : url, platform: "1688" as const, itemId };
-    if (host.includes("tmall")) return { canonical: itemId ? `https://detail.tmall.com/item.htm?id=${itemId}` : url, platform: "tmall" as const, itemId };
-    return { canonical: itemId ? `https://item.taobao.com/item.htm?id=${itemId}` : url, platform: "taobao" as const, itemId };
-  } catch { return { canonical: url, platform: "taobao" as const, itemId: null }; }
-}
-
 // ── Types ──
 interface DraftProduct {
-  id: string; name: string; description: string; price: number;
-  sourcePrice: number; sourceCurrency: string; images: string[];
-  variants: { size: string; color: string; colorHex: string; stock: number }[];
+  id: string; name: string; designation: string; description: string;
+  price: number; sourcePrice: number; sourceCurrency: string;
+  images: string[]; variants: { size: string; color: string; colorHex: string; stock: number }[];
   sourceUrl: string; canonicalUrl: string; platform: string; itemId: string | null;
   categoryId: string | null; categoryName: string | null; confidence: number;
   status: "draft" | "published" | "discarded"; createdAt: number;
@@ -85,9 +60,8 @@ function saveDrafts(drafts: DraftProduct[]) { localStorage.setItem(LS_KEY, JSON.
 let _id = Date.now();
 function uid() { return `draft-${++_id}`; }
 
-// ── Main ──
 export default function AdminImports() {
-  const [mainTab, setMainTab] = useState<"excel" | "ia" | "drafts">("excel");
+  const [mainTab, setMainTab] = useState<"excel" | "ia" | "drafts">("ia");
   const [drafts, setDrafts] = useState<DraftProduct[]>(loadDrafts);
   const [editingId, setEditingId] = useState<string | null>(null);
   useEffect(() => { saveDrafts(drafts); }, [drafts]);
@@ -102,151 +76,105 @@ export default function AdminImports() {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   // IA Import
-  const scrapeFn = useServerFn(scrapeTaobaoProduct);
-  const checkProxyFn = useServerFn(checkBrightDataStatus);
+  const scrapeSingleFn = useServerFn(scrapeSingleProduct);
+  const scrapeStoreFn = useServerFn(scrapeStore);
+  const [iaMode, setIaMode] = useState<"store" | "product">("product");
   const [productUrl, setProductUrl] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
   const [logs, setLogs] = useState<{ step: string; status: string; message: string }[]>([]);
   const [justImported, setJustImported] = useState<DraftProduct[]>([]);
-  const [proxyAvailable, setProxyAvailable] = useState<boolean | null>(null);
 
-  // Check proxy on mount
-  useEffect(() => {
-    checkProxyFn({ data: {} }).then((r: any) => setProxyAvailable(r.available)).catch(() => setProxyAvailable(false));
-  }, [checkProxyFn]);
+  // ── Convert scraped product to draft ──
+  const scrapedToDraft = (s: any): DraftProduct => ({
+    id: uid(), name: s.name || "Produit", designation: s.designation || s.name || "",
+    description: s.description || "", price: s.price || 0, sourcePrice: s.sourcePrice || 0,
+    sourceCurrency: s.currency || "CNY", images: s.images || [],
+    variants: s.variants || [], sourceUrl: s.sourceUrl || "",
+    canonicalUrl: s.canonicalUrl || "", platform: s.platform || "taobao",
+    itemId: s.itemId || null, categoryId: s.categoryId || null,
+    categoryName: s.category || null, confidence: s.confidence || 30,
+    status: "draft", createdAt: Date.now(),
+  });
 
-  // ── Import handler ──
-  const handleImport = async () => {
-    if (!productUrl.trim()) { toast.error("Collez un lien"); return; }
-    const urls = productUrl.split("\n").map(l => extractTaobaoUrl(l)).filter(Boolean) as string[];
-    if (urls.length === 0) { toast.error("Aucun lien detecte"); return; }
+  // ── Import single product ──
+  const handleImportProduct = async () => {
+    if (!productUrl.trim()) { toast.error("Collez un lien produit"); return; }
+    setIaLoading(true); setLogs([]); setJustImported([]);
 
-    setIaLoading(true);
-    setLogs([]);
-    const imported: DraftProduct[] = [];
-
-    for (const rawUrl of urls.slice(0, 5)) {
-      const canonical = canonicalizeTaobaoUrl(rawUrl);
-      setLogs(prev => [...prev, { step: "URL", status: "success", message: `${canonical.platform.toUpperCase()} | ${canonical.itemId || "?"}` }]);
-
-      // Try server-side scraping (Bright Data or allorigins)
-      setLogs(prev => [...prev, { step: "Scrape", status: "running", message: "Scraping via serveur..." }]);
-
-      try {
-        const result = await scrapeFn({ data: { url: canonical.canonical } }) as any;
-
-        // Show server logs
-        if (result.logs) {
-          for (const log of result.logs) {
-            setLogs(prev => [...prev, { step: "Serveur", status: "success", message: log }]);
-          }
-        }
-
-        if (!result.success || !result.data) {
-          setLogs(prev => [...prev, { step: "Scrape", status: "error", message: "Scraping echoue - tentative IA..." }]);
-          // Fallback AI
-          await importWithAI(rawUrl, canonical, imported);
-          continue;
-        }
-
-        const data = result.data;
-        setLogs(prev => [...prev, { step: "Scrape", status: "success", message: `Page recuperee | ${data.name?.slice(0, 40)}` }]);
-
-        // Calculate confidence
-        let confidence = 50; // Server scrape = better base
-        if (data.images?.length > 0) confidence += 20;
-        if (data.price > 0) confidence += 15;
-        if (data.name && data.name.length > 5 && !data.name.includes("登录")) confidence += 15;
-
-        const draft: DraftProduct = {
-          id: uid(), name: data.name || "Produit importe",
-          description: data.description || `Produit ${canonical.platform}`,
-          price: data.price || 0, sourcePrice: data.sourcePrice || 0,
-          sourceCurrency: data.currency || "CNY", images: data.images || [],
-          variants: [], sourceUrl: rawUrl, canonicalUrl: canonical.canonical,
-          platform: canonical.platform, itemId: canonical.itemId,
-          categoryId: null, categoryName: null,
-          confidence: Math.min(100, confidence), status: "draft", createdAt: Date.now(),
-        };
-        imported.push(draft);
-        setDrafts(prev => [draft, ...prev]);
-        setLogs(prev => [...prev, { step: "OK", status: "success", message: `Brouillon | Confiance ${confidence}%` }]);
-
-      } catch (e: any) {
-        setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
-        // Fallback AI
-        await importWithAI(rawUrl, canonical, imported);
-      }
-    }
-
-    setIaLoading(false);
-    setJustImported(imported);
-    setProductUrl("");
-    if (imported.length > 0) { toast.success(`${imported.length} produit(s) importe(s)`); setMainTab("drafts"); }
-    else toast.error("Aucun produit importe");
-  };
-
-  // ── AI Fallback ──
-  const importWithAI = async (rawUrl: string, canonical: { canonical: string; platform: string; itemId: string | null }, imported: DraftProduct[]) => {
-    setLogs(prev => [...prev, { step: "IA", status: "running", message: "Analyse par IA..." }]);
+    setLogs([{ step: "Demarrage", status: "running", message: "Analyse du lien..." }]);
 
     try {
-      const { data: cats } = await supabase.from("categories").select("id, name").eq("level", 3).limit(100);
-      const catNames = (cats ?? []).map((c: any) => c.name).join(", ");
+      const result = await scrapeSingleFn({ data: { url: productUrl.trim() } }) as any;
 
-      const prompt = `Analyse ce produit ${canonical.platform.toUpperCase()}. FRANCAIS. JSON strict:
-{"name":"nom court","description":"marketing","price_suggested":prix_fcfa,"category":"categorie","variants":[{"size":"","color":"couleur","color_hex":"#rrggbb"}]}
-Categories: ${catNames}
-URL: ${canonical.canonical}`;
+      // Show logs from server
+      if (result.logs) {
+        for (const log of result.logs) {
+          setLogs(prev => [...prev, { step: "Serveur", status: "success", message: log }]);
+        }
+      }
 
-      const apiKey = import.meta.env.VITE_LOVABLE_API_KEY || "";
-      if (!apiKey) throw new Error("Cle API IA non configuree");
+      if (!result.success || !result.products?.length) {
+        toast.error(result.errors?.[0] || "Import echoue");
+        setIaLoading(false);
+        return;
+      }
 
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "user", content: prompt }] }),
-      });
-      if (!res.ok) throw new Error(`IA HTTP ${res.status}`);
-
-      const json = await res.json();
-      const raw = json.choices?.[0]?.message?.content?.trim() || "";
-      let aiResult: any = null;
-      try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); }
-      if (!aiResult) throw new Error("JSON invalide");
-
-      let catId: string | null = null; let catName: string | null = null;
-      if (aiResult.category && cats) { const match = (cats as any[]).find((c: any) => c.name.toLowerCase().includes(String(aiResult.category).toLowerCase().slice(0, 15))); if (match) { catId = match.id; catName = match.name; } }
-
-      const draft: DraftProduct = {
-        id: uid(), name: String(aiResult.name || "Produit").slice(0, 100),
-        description: String(aiResult.description || "").slice(0, 2000),
-        price: Math.max(0, Number(aiResult.price_suggested) || 0),
-        sourcePrice: 0, sourceCurrency: "CNY", images: [],
-        variants: (Array.isArray(aiResult.variants) ? aiResult.variants : []).map((v: any) => ({
-          size: String(v.size || "").slice(0, 40), color: String(v.color || "").slice(0, 60),
-          colorHex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "", stock: 0,
-        })).filter((v: any) => v.size || v.color),
-        sourceUrl: rawUrl, canonicalUrl: canonical.canonical,
-        platform: canonical.platform, itemId: canonical.itemId,
-        categoryId: catId, categoryName: catName, confidence: 35, status: "draft", createdAt: Date.now(),
-      };
-
-      imported.push(draft);
+      const draft = scrapedToDraft(result.products[0]);
       setDrafts(prev => [draft, ...prev]);
-      setLogs(prev => [...prev, { step: "IA", status: "success", message: `Brouillon IA | Confiance 35%` }]);
+      setJustImported([draft]);
+      toast.success(`Produit importe ! Confiance : ${draft.confidence}%`);
+      setMainTab("drafts");
+
     } catch (e: any) {
-      setLogs(prev => [...prev, { step: "IA", status: "error", message: e.message }]);
+      toast.error(e.message || "Erreur");
+      setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
     }
+    setIaLoading(false);
+  };
+
+  // ── Import store (all products) ──
+  const handleImportStore = async () => {
+    if (!productUrl.trim()) { toast.error("Collez un lien boutique"); return; }
+    setIaLoading(true); setLogs([]); setJustImported([]);
+
+    setLogs([{ step: "Demarrage", status: "running", message: "Analyse de la boutique..." }]);
+
+    try {
+      const result = await scrapeStoreFn({ data: { url: productUrl.trim(), maxProducts: 20 } }) as any;
+
+      // Show logs from server
+      if (result.logs) {
+        for (const log of result.logs) {
+          setLogs(prev => [...prev, { step: "Serveur", status: "success", message: log }]);
+        }
+      }
+
+      if (!result.success || !result.products?.length) {
+        toast.error(result.errors?.[0] || "Aucun produit trouve");
+        setIaLoading(false);
+        return;
+      }
+
+      const imported = result.products.map((p: any) => scrapedToDraft(p));
+      setDrafts(prev => [...imported, ...prev]);
+      setJustImported(imported);
+      toast.success(`${imported.length} produits importes !`);
+      setMainTab("drafts");
+
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+      setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
+    }
+    setIaLoading(false);
   };
 
   // ── Publish ──
   const handlePublish = async (draft: DraftProduct) => {
     try {
       const { data: product, error } = await supabase.from("products").insert({
-        name: draft.name, description: draft.description, price: draft.price,
-        status: "approved", is_active: true, category_id: draft.categoryId,
-        code: `IMP-${Date.now().toString(36).toUpperCase()}`,
+        name: draft.name, designation: draft.designation, description: draft.description,
+        price: draft.price, status: "approved", is_active: true,
+        category_id: draft.categoryId, code: `IMP-${Date.now().toString(36).toUpperCase()}`,
       }).select().single();
       if (error) throw error;
       if (draft.images.length > 0) await supabase.from("product_images").insert(draft.images.map((url, i) => ({ product_id: product.id, url, position: i })));
@@ -265,21 +193,9 @@ URL: ${canonical.canonical}`;
         <p className="text-xs text-muted-foreground">Excel/CSV ou Taobao/1688/Tmall</p>
       </div>
 
-      {/* Proxy status */}
-      <div className={`rounded-lg border p-3 flex items-center gap-2 text-xs ${proxyAvailable === null ? "bg-muted" : proxyAvailable ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-        {proxyAvailable === null && <Loader2 className="h-4 w-4 animate-spin" />}
-        {proxyAvailable === true && <Wifi className="h-4 w-4 text-emerald-600" />}
-        {proxyAvailable === false && <WifiOff className="h-4 w-4 text-amber-600" />}
-        <span>
-          {proxyAvailable === null ? "Verification proxy..." :
-           proxyAvailable ? "Proxy scraping actif" :
-           "Proxy indisponible - mode IA uniquement"}
-        </span>
-      </div>
-
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "ia" | "drafts")}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="excel" className="gap-1.5"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel</TabsTrigger>
+          <TabsTrigger value="excel" className="gap-1.5"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel/CSV</TabsTrigger>
           <TabsTrigger value="ia" className="gap-1.5"><Bot className="h-3.5 w-3.5" /> Import IA</TabsTrigger>
           <TabsTrigger value="drafts" className="gap-1.5"><Package className="h-3.5 w-3.5" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px]">{activeDrafts.length}</Badge>}</TabsTrigger>
         </TabsList>
@@ -306,20 +222,51 @@ URL: ${canonical.canonical}`;
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Import IA Taobao / 1688 / Tmall</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <Textarea value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder={`Exemples valides :\nhttps://item.taobao.com/item.htm?id=123456\nhttps://click.world.taobao.com/abc ...\nhttps://m.tb.cn/xyz789`} rows={4} />
-
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
-                <strong>Comment importer :</strong>
-                <ol className="list-decimal list-inside space-y-0.5">
-                  <li>App Taobao → Produit → Partager</li>
-                  <li>Copiez le texte complet</li>
-                  <li>Collez ici → "Importer"</li>
-                </ol>
+              {/* Mode toggle */}
+              <div className="flex rounded-lg bg-muted p-1 gap-1">
+                <Button variant={iaMode === "store" ? "default" : "ghost"} size="sm" className="flex-1 text-xs gap-1" onClick={() => setIaMode("store")}>
+                  <Store className="h-3.5 w-3.5" /> Lien boutique (tous les produits)
+                </Button>
+                <Button variant={iaMode === "product" ? "default" : "ghost"} size="sm" className="flex-1 text-xs gap-1" onClick={() => setIaMode("product")}>
+                  <Link2 className="h-3.5 w-3.5" /> Lien produit (un article)
+                </Button>
               </div>
 
-              <Button onClick={handleImport} disabled={iaLoading} className="w-full gap-2">
+              <Textarea
+                value={productUrl}
+                onChange={(e) => setProductUrl(e.target.value)}
+                placeholder={
+                  iaMode === "store"
+                    ? `Collez le lien de la boutique :\nhttps://shop123456.taobao.com\nhttps://xxx.1688.com`
+                    : `Collez le lien du produit ou le texte de partage :\nhttps://item.taobao.com/item.htm?id=123456\nhttps://click.world.taobao.com/abc...`
+                }
+                rows={4}
+              />
+
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
+                <strong>{iaMode === "store" ? "Import boutique" : "Import produit"} :</strong>
+                {iaMode === "store" ? (
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>Copiez l&apos;URL de la boutique Taobao/1688</li>
+                    <li>Le systeme extraira jusqu&apos;a 20 produits</li>
+                    <li>Nom, description, prix, images, variantes</li>
+                  </ol>
+                ) : (
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>App Taobao → Produit → Partager</li>
+                    <li>Copiez le texte complet (lien + titre)</li>
+                    <li>Le systeme extraira toutes les infos detaillees</li>
+                  </ol>
+                )}
+              </div>
+
+              <Button
+                onClick={iaMode === "store" ? handleImportStore : handleImportProduct}
+                disabled={iaLoading}
+                className="w-full gap-2"
+              >
                 {iaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {iaLoading ? "Analyse..." : proxyAvailable ? "Importer (Proxy + IA)" : "Importer (IA)"}
+                {iaLoading ? "Analyse en cours..." : iaMode === "store" ? "Importer la boutique" : "Importer le produit"}
               </Button>
 
               {/* Logs */}
@@ -337,10 +284,14 @@ URL: ${canonical.canonical}`;
                 </div>
               )}
 
-              {justImported.length > 0 && <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase text-muted-foreground">Resultats ({justImported.length})</h4>
-                {justImported.map(p => <MiniCard key={p.id} draft={p} />)}
-              </div>}
+              {justImported.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                    Resultats ({justImported.length})
+                  </h4>
+                  {justImported.map(p => <MiniCard key={p.id} draft={p} />)}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -363,7 +314,7 @@ URL: ${canonical.canonical}`;
   );
 }
 
-// ── Sub-components ──
+// ── Mini Card ──
 function MiniCard({ draft }: { draft: DraftProduct }) {
   return (
     <div className={`rounded border p-2 flex gap-2 ${draft.confidence < 50 ? "border-amber-300 bg-amber-50/30" : ""}`}>
@@ -382,6 +333,7 @@ function MiniCard({ draft }: { draft: DraftProduct }) {
   );
 }
 
+// ── Draft Card ──
 function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduct; onPublish: () => void; onDiscard: () => void; onEdit: () => void }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -397,21 +349,25 @@ function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduc
               <Badge variant="outline" className="text-[10px]">{draft.platform}</Badge>
               <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">{draft.confidence}%</Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">{draft.canonicalUrl.slice(0, 45)}...</p>
+            <p className="text-[11px] text-muted-foreground truncate">{draft.canonicalUrl.slice(0, 45)}... {draft.itemId ? `(ID: ${draft.itemId})` : ""}</p>
             <div className="flex flex-wrap gap-1 mt-1">
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setExpanded(!expanded)}>{expanded ? "Moins" : "Details"}</Button>
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onEdit}><Edit3 className="h-3 w-3 mr-1" />Modif</Button>
               <Button size="sm" className="h-6 text-[10px] px-2" onClick={onPublish}><CheckCircle2 className="h-3 w-3 mr-1" />Publier</Button>
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={onDiscard}><XCircle className="h-3 w-3 mr-1" />Suppr</Button>
             </div>
-            {draft.confidence < 50 && <p className="text-[10px] text-amber-600 mt-1"><AlertTriangle className="h-3 w-3 inline mr-0.5" />Confiance faible - verifiez</p>}
+            {draft.confidence < 50 && <p className="text-[10px] text-amber-600 mt-1"><AlertTriangle className="h-3 w-3 inline mr-0.5" />Confiance faible</p>}
           </div>
         </div>
         {expanded && (
           <div className="mt-2 border-t pt-2 text-[11px] space-y-1">
+            {draft.description && <p className="text-muted-foreground">{draft.description}</p>}
             <div><strong>Source :</strong> <a href={draft.sourceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{draft.sourceUrl}</a></div>
             <div><strong>Canonique :</strong> {draft.canonicalUrl}</div>
             <div><strong>Plateforme :</strong> {draft.platform} | <strong>Item ID :</strong> {draft.itemId || "N/A"}</div>
+            {draft.designation && <div><strong>Designation :</strong> {draft.designation}</div>}
+            {draft.variants.length > 0 && <div><strong>Variantes :</strong> {draft.variants.map(v => `${v.color}${v.size ? ` (${v.size})` : ""}`).join(", ")}</div>}
+            <div className="flex flex-wrap gap-1">{draft.images.slice(0, 6).map((img, i) => <img key={i} src={img} alt="" className="h-10 w-10 rounded object-cover border" />)}</div>
           </div>
         )}
       </CardContent>
@@ -419,8 +375,10 @@ function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduc
   );
 }
 
+// ── Edit Dialog ──
 function EditDialog({ draft, onClose, onSave }: { draft: DraftProduct; onClose: () => void; onSave: (p: Partial<DraftProduct>) => void }) {
   const [name, setName] = useState(draft.name);
+  const [designation, setDesignation] = useState(draft.designation);
   const [description, setDescription] = useState(draft.description);
   const [price, setPrice] = useState(String(draft.price));
   return (
@@ -429,10 +387,11 @@ function EditDialog({ draft, onClose, onSave }: { draft: DraftProduct; onClose: 
         <DialogHeader><DialogTitle className="flex items-center gap-2"><Edit3 className="h-4 w-4" /> Modifier</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><label className="text-xs text-muted-foreground">Nom</label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div><label className="text-xs text-muted-foreground">Designation</label><Input value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
           <div><label className="text-xs text-muted-foreground">Prix (FCFA)</label><Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
           <div><label className="text-xs text-muted-foreground">Description</label><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div className="flex gap-2">
-            <Button onClick={() => onSave({ name: name.trim(), description: description.trim(), price: Number(price) || 0 })} className="flex-1 gap-1"><Save className="h-3.5 w-3.5" /> Enregistrer</Button>
+            <Button onClick={() => onSave({ name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price) || 0 })} className="flex-1 gap-1"><Save className="h-3.5 w-3.5" /> Enregistrer</Button>
             <Button variant="outline" onClick={onClose}>Annuler</Button>
           </div>
         </div>
