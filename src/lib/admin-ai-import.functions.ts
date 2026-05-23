@@ -162,6 +162,14 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     const url = await resolveTaobaoShortLink(data.url);
     const platform = detectPlatform(url);
     const sourceProductId = extractSourceProductId(url, platform);
+    const baseLog: ImportAttemptLog = {
+      initialUrl: data.url,
+      finalUrl: url,
+      source: "none",
+      status: "blocked",
+      reason: "Doublon ou import non lancé",
+      issues: [],
+    };
 
     // 1. Anti-doublons multi-niveaux : URL exacte OU (plateforme + source_product_id)
     let existing: { product_id: string } | null = null;
@@ -199,13 +207,17 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
         categoryName: null,
         isDuplicate: true,
         duplicateProductId: existing.product_id,
+        importLog: { ...baseLog, status: "blocked", reason: "Doublon détecté", issues: ["Produit déjà importé"] },
       };
     }
 
     // 2. Scraping : Bright Data d'abord (plateformes chinoises), Firecrawl en fallback
     let bd: NormalizedProduct | null = null;
+    let importLog = baseLog;
     if (platform !== "unknown") {
-      bd = await scrapeProductWithBrightData(url);
+      const scrapeResult = await scrapeProductWithBrightDataDetailed(url);
+      bd = scrapeResult.product;
+      importLog = scrapeResult.log;
     }
 
     let scrapedTitle = "";
@@ -375,6 +387,7 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       categoryId,
       categoryName,
       isDuplicate: false,
+      importLog,
     };
   });
 
