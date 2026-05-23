@@ -707,6 +707,78 @@ export type Database = {
           },
         ]
       }
+      import_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          confidence: number
+          created_at: string
+          draft: Json | null
+          error_message: string | null
+          extraction_source: string | null
+          final_url: string | null
+          id: string
+          kind: string
+          logs: Json
+          platform: string | null
+          progress: number
+          shop_id: string
+          source_product_id: string | null
+          source_url: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          validation_issues: string[]
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          confidence?: number
+          created_at?: string
+          draft?: Json | null
+          error_message?: string | null
+          extraction_source?: string | null
+          final_url?: string | null
+          id?: string
+          kind?: string
+          logs?: Json
+          platform?: string | null
+          progress?: number
+          shop_id: string
+          source_product_id?: string | null
+          source_url: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          validation_issues?: string[]
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          confidence?: number
+          created_at?: string
+          draft?: Json | null
+          error_message?: string | null
+          extraction_source?: string | null
+          final_url?: string | null
+          id?: string
+          kind?: string
+          logs?: Json
+          platform?: string | null
+          progress?: number
+          shop_id?: string
+          source_product_id?: string | null
+          source_url?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          validation_issues?: string[]
+        }
+        Relationships: []
+      }
       import_products: {
         Row: {
           ai_metadata: Json | null
@@ -2362,6 +2434,22 @@ export type Database = {
         Returns: string
       }
       compute_text_hash: { Args: { _t: string }; Returns: string }
+      create_imported_product_atomic: {
+        Args: {
+          _category_id: string
+          _description: string
+          _designation: string
+          _images: Json
+          _name: string
+          _price: number
+          _shop_id: string
+          _source_platform: string
+          _source_product_id: string
+          _source_url: string
+          _variants: Json
+        }
+        Returns: Json
+      }
       current_user_has_permission: {
         Args: { _perm: Database["public"]["Enums"]["admin_permission"] }
         Returns: boolean

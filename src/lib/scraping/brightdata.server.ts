@@ -56,6 +56,7 @@ export interface ProductValidationResult {
   valid: boolean;
   reason: string | null;
   issues: string[];
+  confidence: number;
 }
 
 // ──────────────────────────────────────────────
@@ -117,6 +118,7 @@ export async function resolveTaobaoShortLink(url: string): Promise<string> {
       const r = await fetch(current, {
         method: "GET",
         redirect: "manual",
+        signal: AbortSignal.timeout(12_000),
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
@@ -169,29 +171,37 @@ export function extractSourceProductId(url: string, platform: Platform): string 
 const BRIGHTDATA_BASE = "https://api.brightdata.com/datasets/v3";
 
 function datasetIdFor(platform: Platform): string | null {
+  const validDatasetId = (value: string | undefined): string | null => {
+    const trimmed = value?.trim();
+    return trimmed && /^gd_[a-z0-9_]+$/i.test(trimmed) ? trimmed : null;
+  };
   switch (platform) {
     case "taobao":
-      return process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT);
     case "tmall":
       return (
-        process.env.BRIGHTDATA_DATASET_TMALL_PRODUCT ??
-        process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT ??
+        validDatasetId(process.env.BRIGHTDATA_DATASET_TMALL_PRODUCT) ??
+        validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT) ??
         null
       );
     case "1688":
-      return process.env.BRIGHTDATA_DATASET_1688_PRODUCT ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_1688_PRODUCT);
     default:
       return null;
   }
 }
 
 export function shopDatasetIdFor(platform: Platform): string | null {
+  const validDatasetId = (value: string | undefined): string | null => {
+    const trimmed = value?.trim();
+    return trimmed && /^gd_[a-z0-9_]+$/i.test(trimmed) ? trimmed : null;
+  };
   switch (platform) {
     case "taobao":
     case "tmall":
-      return process.env.BRIGHTDATA_DATASET_TAOBAO_SHOP ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_SHOP);
     case "1688":
-      return process.env.BRIGHTDATA_DATASET_1688_SHOP ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_1688_SHOP);
     default:
       return null;
   }
@@ -299,8 +309,16 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
   if (!text.trim()) return null;
   try {
     const json = JSON.parse(text) as Record<string, unknown>;
+    const statusCode = typeof json.status_code === "number" ? json.status_code : undefined;
+    if (statusCode && statusCode >= 400) {
+      debugImport("browser.proxy_error", { statusCode, fallbackUrl, body: text.slice(0, 300) });
+      return null;
+    }
+    const nestedBody = isPlainRecord(json.body) ? json.body : null;
     const html =
       (typeof json.body === "string" && json.body) ||
+      (typeof nestedBody?.html === "string" && nestedBody.html) ||
+      (typeof nestedBody?.content === "string" && nestedBody.content) ||
       (typeof json.html === "string" && json.html) ||
       (typeof json.content === "string" && json.content) ||
       (typeof json.markdown === "string" && json.markdown) ||
@@ -308,6 +326,8 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
     const finalUrl =
       (typeof json.url === "string" && json.url) ||
       (typeof json.final_url === "string" && json.final_url) ||
+      (typeof nestedBody?.url === "string" && nestedBody.url) ||
+      (typeof nestedBody?.final_url === "string" && nestedBody.final_url) ||
       fallbackUrl;
     return html ? { html, finalUrl } : null;
   } catch {
@@ -334,6 +354,7 @@ async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResu
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
+      signal: AbortSignal.timeout(55_000),
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -374,6 +395,7 @@ async function fetchScreenshotWithBrightData(url: string): Promise<string | null
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
+      signal: AbortSignal.timeout(35_000),
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ zone, url, format: "raw", data_format: "screenshot", country: "cn", render: true }),
     });
@@ -394,6 +416,7 @@ async function fetchWithFirecrawl(url: string): Promise<string | null> {
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
+      signal: AbortSignal.timeout(45_000),
       headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ url, formats: ["html", "markdown"], onlyMainContent: false, waitFor: 3000 }),
     });
@@ -698,14 +721,25 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
   const visibleLooksLogin = loginSignals.some((s) => text.includes(s));
   const rawLooksLogin = loginSignals.some((s) => rawText.includes(s));
   const looksSecurity = securitySignals.some((s) => combined.includes(s));
-  const hasCoreProductData = cleanTitle.length >= 4 && hasPrice && realImages.length > 0;
-  if (visibleLooksLogin || (rawLooksLogin && !hasCoreProductData)) issues.push("Page de connexion détectée");
-  if (looksSecurity && !hasCoreProductData) issues.push("Page sécurité/captcha détectée");
+  const genericLoginShell = rawLooksLogin && /login|password|扫码登录|账户登录|验证码|captcha|security check|安全验证/i.test(combined);
+  if (visibleLooksLogin || genericLoginShell) issues.push("Page de connexion détectée");
+  if (looksSecurity) issues.push("Page sécurité/captcha détectée");
+  let confidence = 0;
+  if (cleanTitle.length >= 8) confidence += 25;
+  if (hasPrice) confidence += 25;
+  if (realImages.length >= 1) confidence += 20;
+  if (product.sourceProductId) confidence += 15;
+  if (product.variants.length > 0) confidence += 10;
+  if (product.extractionSource === "brightdata_dataset") confidence += 5;
+  if (visibleLooksLogin || genericLoginShell || looksSecurity) confidence -= 60;
+  confidence = Math.max(0, Math.min(100, confidence));
+  if (product.platform !== "unknown" && confidence < 70) issues.push(`Score de confiance insuffisant (${confidence}/100)`);
 
   return {
     valid: issues.length === 0,
     reason: issues[0] ?? null,
     issues,
+    confidence,
   };
 }
 

@@ -59,6 +59,28 @@ export interface ImportUiLog extends ImportAttemptLog {
   createdAt: number;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function createImportJob(userId: string, shopId: string | undefined, sourceUrl: string, finalUrl: string, platform: string, sourceProductId: string | null): Promise<string | null> {
+  if (!shopId || !UUID_RE.test(shopId)) return null;
+  const { data, error } = await (supabaseAdmin as any)
+    .from("import_jobs")
+    .insert({ user_id: userId, shop_id: shopId, source_url: sourceUrl, final_url: finalUrl, platform, source_product_id: sourceProductId, status: "processing", progress: 10, started_at: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (error) {
+    logImportDebug("job.create_failed", { message: error.message, sourceUrl });
+    return null;
+  }
+  return data?.id ?? null;
+}
+
+async function updateImportJob(jobId: string | null, patch: Record<string, unknown>) {
+  if (!jobId) return;
+  const { error } = await (supabaseAdmin as any).from("import_jobs").update(patch).eq("id", jobId);
+  if (error) logImportDebug("job.update_failed", { jobId, message: error.message });
+}
+
 // ─────────────────────────────────────────────────────────────
 // 1. Liste des boutiques admin (pour choisir où publier)
 
@@ -206,7 +228,7 @@ const MARGIN_MULTIPLIER = 2.5;
 export const scrapeProductForAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ScrapeProductSchema.parse(input))
-  .handler(async ({ data }): Promise<AiDraft> => {
+  .handler(async ({ data, context }): Promise<AiDraft> => {
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Assistant IA non configuré (LOVABLE_API_KEY)");
 
@@ -263,6 +285,8 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       };
     }
 
+    const jobId = await createImportJob(context.userId, data.shopId, data.url, url, platform, sourceProductId);
+    try {
     // 2. Scraping : Bright Data d'abord (plateformes chinoises), Firecrawl en fallback
     let bd: NormalizedProduct | null = null;
     let importLog = baseLog;
@@ -270,6 +294,9 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       const scrapeResult = await scrapeProductWithBrightDataDetailed(url);
       bd = scrapeResult.product;
       importLog = scrapeResult.log;
+      if (!bd) {
+        throw new Error(`Import bloqué : ${importLog.reason || "aucune source n'a fourni un vrai produit validé"}`);
+      }
     }
 
     let scrapedTitle = "";
@@ -284,6 +311,7 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       logImportDebug("validation", {
         valid: validation.valid,
         issues: validation.issues,
+        confidence: validation.confidence,
         source: bd.extractionSource,
         url,
         title: bd.title,
@@ -425,10 +453,18 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     // 6. Construction du brouillon final — variantes & images viennent du SCRAPE, pas de l'IA
     const finalPrice =
       Math.max(0, Number(aiResult.price_suggested_fcfa) || 0) || priceSuggestionFcfa;
+    const finalName = String(aiResult.name ?? scrapedTitle ?? "").trim().slice(0, 100);
+    const finalDescription = String(aiResult.description ?? scrapedDesc ?? "").trim().slice(0, 2000);
+    if (!finalName || looksLikeLoginOrSecurity.test(`${finalName}\n${finalDescription}`)) {
+      throw new Error("Import bloqué : le brouillon généré ressemble à une page de connexion/sécurité.");
+    }
+    if (finalPrice <= 0 || scrapedImages.length === 0 || scrapedVariants.length === 0) {
+      throw new Error("Import bloqué : brouillon incomplet, aucune donnée produit ne sera conservée.");
+    }
 
-    return {
-      name: String(aiResult.name ?? scrapedTitle ?? "Produit importé").slice(0, 100) || "Produit importé",
-      description: String(aiResult.description ?? scrapedDesc ?? "").slice(0, 2000),
+    const draft: AiDraft = {
+      name: finalName,
+      description: finalDescription,
       designation: String(aiResult.designation ?? "").slice(0, 200),
       price: finalPrice,
       sourcePrice: scrapedPriceCny,
@@ -441,6 +477,12 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
       isDuplicate: false,
       importLog,
     };
+    await updateImportJob(jobId, { status: "completed", progress: 100, confidence: validateNormalizedProduct(bd!).confidence, extraction_source: importLog.source, validation_issues: [], draft, completed_at: new Date().toISOString(), logs: [importLog] });
+    return draft;
+    } catch (error) {
+      await updateImportJob(jobId, { status: "failed", progress: 100, error_message: error instanceof Error ? error.message : String(error), completed_at: new Date().toISOString() });
+      throw error;
+    }
   });
 
 
@@ -453,8 +495,8 @@ const PublishSchema = z.object({
     name: z.string().min(1).max(200),
     designation: z.string().max(300).optional(),
     description: z.string().max(5000).optional(),
-    price: z.number().min(0),
-    images: z.array(z.string().url()).max(15),
+    price: z.number().positive(),
+    images: z.array(z.string().url()).min(1).max(15),
     variants: z
       .array(
         z.object({
@@ -462,8 +504,11 @@ const PublishSchema = z.object({
           color: z.string().max(60),
           colorHex: z.string().max(20).optional(),
           stock: z.number().int().min(0).max(99999),
+          price: z.number().positive().optional(),
+          imageUrl: z.string().url().optional(),
         }),
       )
+      .min(1)
       .max(30),
     sourceUrl: z.string().url(),
     categoryId: z.string().uuid().nullable(),
@@ -484,83 +529,23 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!shop) throw new Error("Boutique introuvable");
 
-    // Anti-doublons par source_url
-    const { data: dupBySource } = await supabaseAdmin
-      .from("product_admin_metadata")
-      .select("product_id")
-      .eq("source_url", draft.sourceUrl)
-      .maybeSingle();
-    if (dupBySource) {
-      return { duplicate: true, productId: dupBySource.product_id as string };
-    }
-
-    // Anti-doublons par (vendor + nom)
-    const { data: dupByName } = await supabaseAdmin
-      .from("products")
-      .select("id")
-      .eq("vendor_id", shopId)
-      .ilike("name", draft.name)
-      .limit(1)
-      .maybeSingle();
-    if (dupByName) {
-      return { duplicate: true, productId: dupByName.id as string };
-    }
-
-    // Insert produit
-    const code = `IMP-${Date.now().toString(36).toUpperCase()}`;
-    const { data: product, error } = await supabaseAdmin
-      .from("products")
-      .insert({
-        vendor_id: shopId,
-        name: draft.name,
-        designation: draft.designation ?? null,
-        description: draft.description ?? null,
-        price: draft.price,
-        status: "approved",
-        is_active: true,
-        category_id: draft.categoryId,
-        code,
-      })
-      .select("id")
-      .single();
-    if (error || !product) throw new Error(error?.message ?? "Erreur création produit");
-
-    // Images
-    if (draft.images.length > 0) {
-      await supabaseAdmin.from("product_images").insert(
-        draft.images.map((url, i) => ({ product_id: product.id, url, position: i })),
-      );
-    }
-
-    // Variants
-    if (draft.variants.length > 0) {
-      await supabaseAdmin.from("product_variants").insert(
-        draft.variants.map((v) => ({
-          product_id: product.id,
-          size: v.size || null,
-          color: v.color || null,
-          color_hex: v.colorHex || null,
-          stock: v.stock,
-        })),
-      );
-    }
-
-    // Métadonnée source pour anti-doublons futur (URL + plateforme + product_id source)
     const platform = detectPlatform(draft.sourceUrl);
     const sourcePid = extractSourceProductId(draft.sourceUrl, platform);
-    await supabaseAdmin
-      .from("product_admin_metadata")
-      .upsert(
-        {
-          product_id: product.id,
-          source_url: draft.sourceUrl,
-          source_platform: platform === "unknown" ? null : platform,
-          source_product_id: sourcePid,
-        },
-        { onConflict: "product_id" },
-      );
-
-    return { duplicate: false, productId: product.id };
+    const { data: result, error } = await (supabaseAdmin.rpc as any)("create_imported_product_atomic", {
+      _shop_id: shopId,
+      _source_url: draft.sourceUrl,
+      _source_platform: platform,
+      _source_product_id: sourcePid,
+      _name: draft.name.trim(),
+      _designation: draft.designation?.trim() || null,
+      _description: draft.description?.trim() || null,
+      _price: draft.price,
+      _category_id: draft.categoryId,
+      _images: draft.images.map((url, position) => ({ url, position })),
+      _variants: draft.variants,
+    });
+    if (error) throw new Error(error.message);
+    return result as { duplicate: boolean; productId: string };
   });
 
 // ─────────────────────────────────────────────────────────────

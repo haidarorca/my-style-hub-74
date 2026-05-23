@@ -99,7 +99,10 @@ const LS_KEY = "kawzone_import_drafts";
 function loadDrafts(): DraftProduct[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((d): d is DraftProduct => Boolean(d && typeof d === "object" && typeof d.name === "string" && Array.isArray(d.images) && Array.isArray(d.variants) && typeof d.sourceUrl === "string"))
+      : [];
   } catch { return []; }
 }
 function saveDrafts(drafts: DraftProduct[]) {
@@ -110,7 +113,7 @@ function isInvalidTaobaoDraft(draft: DraftProduct): boolean {
   const text = `${draft.name}\n${draft.description}`.toLowerCase();
   const badText = /登录|登陆|亲，请登录|connexion|login|sign in|验证码|captcha|安全验证|security check|访问受限|sec\.taobao|punish/i.test(text);
   const badTitle = /^(登录|登陆|login|connexion|tmall|taobao)$/i.test(draft.name.trim());
-  const badImages = draft.images.length === 0 || draft.images.every((url) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(url));
+  const badImages = !Array.isArray(draft.images) || draft.images.length === 0 || draft.images.every((url) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(url));
   return badTitle || badText || draft.price <= 0 || badImages;
 }
 
@@ -146,7 +149,7 @@ function AdminImports() {
 
   const history = useQuery({
     queryKey: ["product-imports", "admin"],
-    queryFn: () => fnHistory({ data: { shopId: "" } }),
+    queryFn: () => fnHistory({ data: {} }),
     staleTime: 30_000,
   });
 
@@ -332,7 +335,7 @@ function AdminImports() {
                 <Button variant="outline" size="sm" onClick={() => fnTemplate({}).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
                   <Download className="mr-1 h-3.5 w-3.5" /> Modele
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", shopId: "", status: "any" } }).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
+                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", status: "any" } }).then((r: any) => downloadBase64(r.base64, r.fileName, r.mime)).catch(() => toast.error("Erreur"))}>
                   <Table2 className="mr-1 h-3.5 w-3.5" /> Exporter
                 </Button>
               </div>
@@ -344,10 +347,11 @@ function AdminImports() {
               <Button
                 onClick={async () => {
                   if (!excelFile) return;
+                  if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
                   setPreviewLoading(true);
                   try {
                     const fileBase64 = await fileToBase64(excelFile);
-                    const r = await fnPreview({ data: { scope: "admin", shopId: "", fileBase64, fileName: excelFile.name } });
+                    const r = await fnPreview({ data: { scope: "admin", shopId: selectedShopId, fileBase64, fileName: excelFile.name } });
                     setPreview(r);
                   } catch (e: any) { toast.error(e.message); }
                   setPreviewLoading(false);
@@ -371,7 +375,7 @@ function AdminImports() {
                     onClick={async () => {
                       try {
                         const fileBase64 = await fileToBase64(excelFile!);
-                        await fnCommit({ data: { scope: "admin", shopId: "", fileBase64, fileName: excelFile!.name } });
+                        await fnCommit({ data: { importId: preview.importId } });
                         toast.success("Importe !");
                         setPreview(null); setExcelFile(null);
                       } catch (e: any) { toast.error(e.message); }
