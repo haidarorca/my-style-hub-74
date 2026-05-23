@@ -59,6 +59,28 @@ export interface ImportUiLog extends ImportAttemptLog {
   createdAt: number;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function createImportJob(userId: string, shopId: string | undefined, sourceUrl: string, finalUrl: string, platform: string, sourceProductId: string | null): Promise<string | null> {
+  if (!shopId || !UUID_RE.test(shopId)) return null;
+  const { data, error } = await (supabaseAdmin as any)
+    .from("import_jobs")
+    .insert({ user_id: userId, shop_id: shopId, source_url: sourceUrl, final_url: finalUrl, platform, source_product_id: sourceProductId, status: "processing", progress: 10, started_at: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (error) {
+    logImportDebug("job.create_failed", { message: error.message, sourceUrl });
+    return null;
+  }
+  return data?.id ?? null;
+}
+
+async function updateImportJob(jobId: string | null, patch: Record<string, unknown>) {
+  if (!jobId) return;
+  const { error } = await (supabaseAdmin as any).from("import_jobs").update(patch).eq("id", jobId);
+  if (error) logImportDebug("job.update_failed", { jobId, message: error.message });
+}
+
 // ─────────────────────────────────────────────────────────────
 // 1. Liste des boutiques admin (pour choisir où publier)
 
