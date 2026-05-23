@@ -590,7 +590,7 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 // 4. Découverte de liens produits depuis une URL de boutique (Taobao/1688)
 
 const DiscoverShopSchema = z.object({
-  shopUrl: z.string().url(),
+  shopUrl: z.string().trim().min(5).max(4000),
   limit: z.number().int().min(1).max(200).optional(),
 });
 
