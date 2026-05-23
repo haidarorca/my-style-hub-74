@@ -1,14 +1,15 @@
 /**
  * brightdata.server.ts
  * --------------------
- * Moteur de scraping Taobao / Tmall / 1688 via Bright Data Web Scraper API.
+ * Moteur de scraping Taobao / Tmall / 1688 via Bright Data.
  * Server-only — ne jamais importer côté client.
  *
  * Flow:
  *   1. Détecte la plateforme depuis l'URL.
- *   2. Trigger le dataset correspondant (POST /datasets/v3/trigger).
- *   3. Poll /datasets/v3/snapshot/{id} jusqu'à "ready" (timeout 60s).
- *   4. Normalise le JSON brut → NormalizedProduct unifié.
+ *   2. Essaie Bright Data Browser/Web Unlocker si une zone est configurée.
+ *   3. Essaie le dataset Bright Data correspondant.
+ *   4. Essaie Firecrawl en dernier recours.
+ *   5. Valide strictement avant de renvoyer un NormalizedProduct.
  *
  * Fallback : si Bright Data échoue ou n'est pas configuré, retourne null
  * (l'appelant peut alors basculer sur Firecrawl).
@@ -38,7 +39,14 @@ export interface NormalizedProduct {
   images: string[]; // HD, dédupliquées
   variants: NormalizedVariant[];
   vendorName: string | null;
+  extractionSource?: "brightdata_browser" | "brightdata_dataset" | "firecrawl" | "html";
   raw: unknown; // payload brut pour debug
+}
+
+export interface ProductValidationResult {
+  valid: boolean;
+  reason: string | null;
+  issues: string[];
 }
 
 // ──────────────────────────────────────────────
