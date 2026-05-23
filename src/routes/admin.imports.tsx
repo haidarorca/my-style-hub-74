@@ -33,7 +33,13 @@ import {
   commitImport,
   listImports,
 } from "@/lib/import-export.functions";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  scrapeProductForAi,
+  publishImportedDraft,
+  listAdminShops,
+  type AiDraft,
+} from "@/lib/admin-ai-import.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/imports")({
   component: () => (
