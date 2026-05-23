@@ -236,7 +236,9 @@ export const cleanupFalseTaobaoImports = createServerFn({ method: "POST" })
 // 2. Scrape produit + IA + matching catégorie existante
 
 const ScrapeProductSchema = z.object({
-  url: z.string().url(),
+  // Accepte texte partagé brut (ex: "...「I shared a Taobao page...」 https://...") ;
+  // la validation stricte de l'URL se fait après normalizeImportInput().
+  url: z.string().trim().min(5).max(4000),
   shopId: z.string().optional(),
 });
 
