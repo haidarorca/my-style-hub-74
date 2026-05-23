@@ -225,6 +225,43 @@ export const getMyShipmentAssessment = createServerFn({ method: "POST" })
     return { order, assessment: (assessment ?? null) as ShipmentAssessment | null };
   });
 
+// ---------- Admin: validate manually (when payment received outside platform) ----------
+export const adminValidateShipment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        order_id: z.string().uuid(),
+        note: z.string().max(1000).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("id, buyer_id")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (!order) throw new Error("Commande introuvable");
+
+    const patch: Record<string, unknown> = {
+      status: "validated",
+      client_validated_at: new Date().toISOString(),
+      client_response_note: data.note ? `[Admin] ${data.note}` : "Validé manuellement par l'admin",
+    };
+
+    const { data: row, error } = await (supabaseAdmin as any)
+      .from("order_shipment_assessments")
+      .update(patch)
+      .eq("order_id", data.order_id)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ShipmentAssessment;
+  });
+
 // ---------- Client: validate or reject ----------
 export const respondToShipmentAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
