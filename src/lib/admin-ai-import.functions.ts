@@ -15,11 +15,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   scrapeProductWithBrightDataDetailed,
   discoverShopWithBrightData,
-  resolveTaobaoShortLink,
   detectPlatform,
   extractSourceProductId,
   validateNormalizedProduct,
   diagnoseBrightDataConfig,
+  normalizeImportInput,
   type ImportAttemptLog,
   type NormalizedProduct,
 } from "./scraping/brightdata.server";
@@ -235,7 +235,9 @@ export const cleanupFalseTaobaoImports = createServerFn({ method: "POST" })
 // 2. Scrape produit + IA + matching catégorie existante
 
 const ScrapeProductSchema = z.object({
-  url: z.string().url(),
+  // Accepte texte partagé brut (ex: "...「I shared a Taobao page...」 https://...") ;
+  // la validation stricte de l'URL se fait après normalizeImportInput().
+  url: z.string().trim().min(5).max(4000),
   shopId: z.string().optional(),
 });
 
@@ -250,10 +252,27 @@ export const scrapeProductForAi = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Assistant IA non configuré (LOVABLE_API_KEY)");
 
-    // 0. Normalisation URL (résout les liens courts click.world.taobao.com, m.tb.cn, etc.)
-    const url = await resolveTaobaoShortLink(data.url);
-    const platform = detectPlatform(url);
-    const sourceProductId = extractSourceProductId(url, platform);
+    // 0. Nettoyage + normalisation URL (extrait l'URL réelle d'un texte de partage Taobao,
+    //    résout les liens courts click.world.taobao.com / m.tb.cn / s.click.taobao.com / uland)
+    const norm = await normalizeImportInput(data.url);
+    console.log("[import] normalizeImportInput", {
+      rawInput: norm.rawInput?.slice(0, 200),
+      cleanedInput: norm.cleanedInput?.slice(0, 200),
+      extractedUrl: norm.extractedUrl,
+      resolvedUrl: norm.resolvedUrl,
+      canonicalUrl: norm.canonicalUrl,
+      detectedPlatform: norm.detectedPlatform,
+      extractedItemId: norm.extractedItemId,
+      extractedShopId: norm.extractedShopId,
+      ok: norm.ok,
+      reason: norm.reason,
+    });
+    if (!norm.ok || !norm.canonicalUrl) {
+      throw new Error(norm.reason || "URL invalide : collez un lien Taobao/Tmall/1688 valide");
+    }
+    const url = norm.canonicalUrl;
+    const platform = norm.detectedPlatform;
+    const sourceProductId = norm.extractedItemId;
     const baseLog: ImportAttemptLog = {
       initialUrl: data.url,
       finalUrl: url,
@@ -570,7 +589,7 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
 // 4. Découverte de liens produits depuis une URL de boutique (Taobao/1688)
 
 const DiscoverShopSchema = z.object({
-  shopUrl: z.string().url(),
+  shopUrl: z.string().trim().min(5).max(4000),
   limit: z.number().int().min(1).max(200).optional(),
 });
 
@@ -588,8 +607,16 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ urls: string[]; source: "brightdata" | "firecrawl" | "html" | "none" }> => {
     const limit = data.limit ?? 20;
 
-    // 0) Bright Data en priorité (dataset shop dédié Taobao/Tmall/1688)
-    const shopUrl = await resolveTaobaoShortLink(data.shopUrl);
+    // 0) Nettoyage + résolution du lien boutique (texte partagé, liens courts...)
+    const norm = await normalizeImportInput(data.shopUrl);
+    console.log("[discoverShop] normalizeImportInput", {
+      rawInput: norm.rawInput?.slice(0, 200),
+      cleanedInput: norm.cleanedInput?.slice(0, 200),
+      resolvedUrl: norm.resolvedUrl,
+      canonicalUrl: norm.canonicalUrl,
+      detectedPlatform: norm.detectedPlatform,
+    });
+    const shopUrl = norm.canonicalUrl || norm.resolvedUrl || data.shopUrl;
     const bdUrls = await discoverShopWithBrightData(shopUrl, limit);
     if (bdUrls && bdUrls.length > 0) {
       const urls = Array.from(new Set(bdUrls.filter(isProductLink).map((u) => u.split("#")[0]))).slice(0, limit);
@@ -606,7 +633,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
         const r = await fetch("https://api.firecrawl.dev/v2/map", {
           method: "POST",
           headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ url: data.shopUrl, limit: 500, includeSubdomains: true }),
+          body: JSON.stringify({ url: shopUrl, limit: 500, includeSubdomains: true }),
         });
         if (r.ok) {
           const j = (await r.json()) as { links?: string[]; data?: { links?: string[] } };
@@ -623,7 +650,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
           const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
             method: "POST",
             headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ url: data.shopUrl, formats: ["links", "html"], waitFor: 2000 }),
+            body: JSON.stringify({ url: shopUrl, formats: ["links", "html"], waitFor: 2000 }),
           });
           if (r.ok) {
             const j = (await r.json()) as { data?: { links?: string[]; html?: string } };
@@ -644,7 +671,7 @@ export const discoverShopProductLinks = createServerFn({ method: "POST" })
     // 3) Dernier recours : fetch brut + regex
     if (collected.length === 0) {
       try {
-        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.shopUrl)}&timeout=10000`);
+        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(shopUrl)}&timeout=10000`);
         if (r.ok) {
           const html = await r.text();
           const re = /https?:\/\/[^\s"'<>]+/gi;
