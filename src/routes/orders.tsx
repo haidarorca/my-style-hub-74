@@ -694,7 +694,7 @@ function OrdersPage() {
                         )}
 
                         {/* Frais transport */}
-                        {shipmentData.total_fees > 0 && (
+                        {(shipmentData.total_fees ?? 0) > 0 && (
                           <>
                             <Separator className="my-1" />
                             <div className="flex justify-between text-xs">
@@ -705,15 +705,15 @@ function OrdersPage() {
                               <span className="text-muted-foreground">Frais service :</span>
                               <span>{fmtFcfa(shipmentData.service_fee ?? 0)}</span>
                             </div>
-                            {shipmentData.extra_fees > 0 && (
+                            {(shipmentData.extra_fees ?? 0) > 0 && (
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Frais supplémentaires :</span>
-                                <span>{fmtFcfa(shipmentData.extra_fees)}</span>
+                                <span>{fmtFcfa(shipmentData.extra_fees ?? 0)}</span>
                               </div>
                             )}
                             <div className="flex justify-between text-sm font-bold border-t pt-1">
                               <span>Frais transport :</span>
-                              <span className="text-primary">{fmtFcfa(shipmentData.total_fees)}</span>
+                              <span className="text-primary">{fmtFcfa(shipmentData.total_fees ?? 0)}</span>
                             </div>
                           </>
                         )}
