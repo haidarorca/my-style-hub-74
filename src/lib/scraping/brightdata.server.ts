@@ -43,6 +43,15 @@ export interface NormalizedProduct {
   raw: unknown; // payload brut pour debug
 }
 
+export interface ImportAttemptLog {
+  initialUrl: string;
+  finalUrl: string;
+  source: NormalizedProduct["extractionSource"] | "none";
+  status: "success" | "login" | "blocked" | "captcha" | "invalid_data";
+  reason: string;
+  issues: string[];
+}
+
 export interface ProductValidationResult {
   valid: boolean;
   reason: string | null;
@@ -638,9 +647,6 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
   const securitySignals = [
     "验证码", "captcha", "安全验证", "security check", "身份验证", "滑块", "sec.taobao", "punish", "被拦截", "访问受限", "verify",
   ];
-  if (loginSignals.some((s) => combined.includes(s))) issues.push("Page de connexion détectée");
-  if (securitySignals.some((s) => combined.includes(s))) issues.push("Page sécurité/captcha détectée");
-
   const cleanTitle = product.title.replace(/\s+/g, "").trim();
   if (!cleanTitle || cleanTitle.length < 4) issues.push("Titre produit absent ou trop court");
   if (["登录", "登陆", "login", "connexion", "tmall", "taobao"].includes(cleanTitle.toLowerCase())) issues.push("Titre non produit détecté");
@@ -654,10 +660,12 @@ export function validateNormalizedProduct(product: NormalizedProduct): ProductVa
 
   if (product.platform !== "unknown" && !product.sourceProductId) issues.push("Identifiant produit source introuvable");
 
-  const validVariants = product.variants.filter((v) => v.size || v.color || v.sku || v.imageUrl || (v.price && v.price > 0));
-  if (product.platform === "taobao" || product.platform === "tmall" || product.platform === "1688") {
-    if (validVariants.length === 0) issues.push("Variantes/SKU produit introuvables");
-  }
+  const visibleLooksLogin = loginSignals.some((s) => text.includes(s));
+  const rawLooksLogin = loginSignals.some((s) => rawText.includes(s));
+  const looksSecurity = securitySignals.some((s) => combined.includes(s));
+  const hasCoreProductData = cleanTitle.length >= 4 && hasPrice && realImages.length > 0;
+  if (visibleLooksLogin || (rawLooksLogin && !hasCoreProductData)) issues.push("Page de connexion détectée");
+  if (looksSecurity && !hasCoreProductData) issues.push("Page sécurité/captcha détectée");
 
   return {
     valid: issues.length === 0,
