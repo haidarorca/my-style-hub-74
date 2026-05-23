@@ -364,6 +364,23 @@ function AdminImports() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Boutique de publication</label>
+                <Select value={selectedShopId} onValueChange={setSelectedShopId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder={shopsQuery.isLoading ? "Chargement..." : "Choisir une boutique admin"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(shopsQuery.data ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {shopsQuery.data && shopsQuery.data.length === 0 && (
+                  <p className="text-[11px] text-destructive">Aucune boutique admin. Créez-en une dans &quot;Boutiques admin&quot;.</p>
+                )}
+              </div>
+              <Separator />
               <Tabs value={iaTab} onValueChange={(v) => setIaTab(v as "store" | "product")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="store" className="gap-1"><Store className="h-3.5 w-3.5" /> Lien boutique</TabsTrigger>
