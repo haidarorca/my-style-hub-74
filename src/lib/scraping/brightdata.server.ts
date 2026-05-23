@@ -308,8 +308,16 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
   if (!text.trim()) return null;
   try {
     const json = JSON.parse(text) as Record<string, unknown>;
+    const statusCode = typeof json.status_code === "number" ? json.status_code : undefined;
+    if (statusCode && statusCode >= 400) {
+      debugImport("browser.proxy_error", { statusCode, fallbackUrl, body: text.slice(0, 300) });
+      return null;
+    }
+    const nestedBody = isPlainRecord(json.body) ? json.body : null;
     const html =
       (typeof json.body === "string" && json.body) ||
+      (typeof nestedBody?.html === "string" && nestedBody.html) ||
+      (typeof nestedBody?.content === "string" && nestedBody.content) ||
       (typeof json.html === "string" && json.html) ||
       (typeof json.content === "string" && json.content) ||
       (typeof json.markdown === "string" && json.markdown) ||
@@ -317,6 +325,8 @@ function normalizeUnlockerResponse(text: string, fallbackUrl: string): BrowserFe
     const finalUrl =
       (typeof json.url === "string" && json.url) ||
       (typeof json.final_url === "string" && json.final_url) ||
+      (typeof nestedBody?.url === "string" && nestedBody.url) ||
+      (typeof nestedBody?.final_url === "string" && nestedBody.final_url) ||
       fallbackUrl;
     return html ? { html, finalUrl } : null;
   } catch {
