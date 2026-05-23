@@ -118,6 +118,7 @@ export async function resolveTaobaoShortLink(url: string): Promise<string> {
       const r = await fetch(current, {
         method: "GET",
         redirect: "manual",
+        signal: AbortSignal.timeout(12_000),
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7,fr;q=0.6",
@@ -353,6 +354,7 @@ async function fetchWithBrightDataBrowser(url: string): Promise<BrowserFetchResu
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
+      signal: AbortSignal.timeout(55_000),
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -393,6 +395,7 @@ async function fetchScreenshotWithBrightData(url: string): Promise<string | null
   try {
     const r = await fetch("https://api.brightdata.com/request", {
       method: "POST",
+      signal: AbortSignal.timeout(35_000),
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ zone, url, format: "raw", data_format: "screenshot", country: "cn", render: true }),
     });
@@ -413,6 +416,7 @@ async function fetchWithFirecrawl(url: string): Promise<string | null> {
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
+      signal: AbortSignal.timeout(45_000),
       headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ url, formats: ["html", "markdown"], onlyMainContent: false, waitFor: 3000 }),
     });
