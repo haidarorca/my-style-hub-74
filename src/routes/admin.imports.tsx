@@ -434,6 +434,7 @@ function AdminImports() {
                         toast.success(`${r.urls.length} produit(s) trouvé(s) — analyse IA…`);
                         const imported: DraftProduct[] = [];
                         let dupCount = 0;
+                        let failedCount = 0;
                         for (const url of r.urls) {
                           try {
                             const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
@@ -455,13 +456,15 @@ function AdminImports() {
                             };
                             imported.push(draft);
                             setDrafts(prev => [draft, ...prev]);
-                          } catch {
-                            // continue
+                          } catch (e: unknown) {
+                            failedCount++;
+                            const msg = e instanceof Error ? e.message : "Import bloqué";
+                            toast.error(`${url.slice(0, 34)}: ${msg}`);
                           }
                         }
                         setJustImported(imported);
                         setStoreUrl("");
-                        toast.success(`${imported.length} brouillon(s) créé(s)${dupCount ? ` · ${dupCount} doublon(s)` : ""}`);
+                        toast.success(`${imported.length} brouillon(s) créé(s)${dupCount ? ` · ${dupCount} doublon(s)` : ""}${failedCount ? ` · ${failedCount} bloqué(s)` : ""}`);
                       } catch (e: unknown) {
                         toast.dismiss(t);
                         toast.error(e instanceof Error ? e.message : "Erreur");
