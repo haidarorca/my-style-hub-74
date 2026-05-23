@@ -421,14 +421,64 @@ function extractHtmlImages(html: string): string[] {
   return Array.from(new Set(out)).slice(0, 20);
 }
 
+function decodeHtmlText(value: string): string {
+  return value.replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).trim();
+}
+
+function extractJsonText(html: string, ...keys: string[]): string {
+  for (const key of keys) {
+    const m = html.match(new RegExp(`['"]${key}['"]\\s*:\\s*['"]([^'"]{2,500})['"]`, "i"));
+    if (m?.[1]) return decodeHtmlText(m[1]);
+  }
+  return "";
+}
+
+function extractJsonPrice(html: string): number {
+  const prices: number[] = [];
+  const re = /(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice|discountPrice|finalPrice|amount|value)['"\s:=]+['"]?([0-9]+(?:\.[0-9]{1,2})?)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0 && n < 1_000_000) prices.push(n);
+  }
+  return prices.length ? Math.min(...prices) : 0;
+}
+
+function extractJsonImages(html: string): string[] {
+  const out: string[] = [];
+  const re = /https?:\\?\/\\?\/[^"'\\\s<>]+\.(?:jpe?g|png|webp)(?:[^"'\\\s<>]*)?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let u = m[0].replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    if (/sprite|icon|logo|avatar|captcha|loading|blank|pixel/i.test(u)) continue;
+    u = u.replace(/_\d+x\d+(?:Q\d+)?\.(jpe?g|png|webp)(?:_\.webp)?$/i, ".$1");
+    out.push(u);
+  }
+  return Array.from(new Set(out)).slice(0, 20);
+}
+
+function extractHtmlVariants(html: string): NormalizedVariant[] {
+  const values = new Set<string>();
+  const re = /(?:valueName|name|text|title)['"]\s*:\s*['"]([^'"]{1,60})['"]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && values.size < 30) {
+    const value = decodeHtmlText(m[1]).replace(/\s+/g, " ").trim();
+    if (!value || /登录|淘宝|天猫|价格|库存|销量|客服|首页|详情|评价|captcha|login/i.test(value)) continue;
+    if (/^[\d.,]+$/.test(value)) continue;
+    values.add(value);
+  }
+  return Array.from(values).slice(0, 30).map((value) => ({ size: "", color: value, colorHex: "", stock: 0 }));
+}
+
 function normalizeFromHtml(html: string, url: string, platform: Platform, source: NormalizedProduct["extractionSource"]): NormalizedProduct {
   const titleTag = html.match(/<title[^>]*>([^<]{1,300})<\/title>/i)?.[1]?.trim() ?? "";
-  const title = extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim();
-  const description = extractMeta(html, "og:description") || extractMeta(html, "description") || stripTags(html).slice(0, 800);
+  const jsonTitle = extractJsonText(html, "title", "itemTitle", "item_title", "subject", "productName", "name");
+  const title = decodeHtmlText(extractMeta(html, "og:title") || extractMeta(html, "twitter:title") || jsonTitle || titleTag.replace(/[-_].*?(淘宝|天猫|Tmall|Taobao).*$/i, "").trim());
+  const description = decodeHtmlText(extractMeta(html, "og:description") || extractMeta(html, "description") || extractJsonText(html, "description", "desc", "subtitle") || stripTags(html).slice(0, 800));
   const image = extractMeta(html, "og:image");
-  const images = image ? [image, ...extractHtmlImages(html)] : extractHtmlImages(html);
-  const priceMatch = html.match(/(?:price|priceText|promotionPrice|salePrice|reservePrice|defaultItemPrice)["'\s:=]+["']?([0-9]+(?:\.[0-9]{1,2})?)/i);
-  const priceMin = priceMatch ? Number(priceMatch[1]) : 0;
+  const images = image ? [image, ...extractHtmlImages(html), ...extractJsonImages(html)] : [...extractHtmlImages(html), ...extractJsonImages(html)];
+  const priceMin = extractJsonPrice(html);
+  const variants = extractHtmlVariants(html);
   return {
     platform,
     sourceUrl: url,
@@ -439,10 +489,10 @@ function normalizeFromHtml(html: string, url: string, platform: Platform, source
     priceMax: Number.isFinite(priceMin) ? priceMin : 0,
     currency: platform === "unknown" ? "USD" : "CNY",
     images: Array.from(new Set(images)).slice(0, 15),
-    variants: [],
+    variants,
     vendorName: null,
     extractionSource: source,
-    raw: { html_preview: html.slice(0, 2000) },
+    raw: { html_preview: html.slice(0, 8000) },
   };
 }
 
