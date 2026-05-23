@@ -56,6 +56,7 @@ export interface ProductValidationResult {
   valid: boolean;
   reason: string | null;
   issues: string[];
+  confidence: number;
 }
 
 // ──────────────────────────────────────────────
@@ -169,29 +170,37 @@ export function extractSourceProductId(url: string, platform: Platform): string 
 const BRIGHTDATA_BASE = "https://api.brightdata.com/datasets/v3";
 
 function datasetIdFor(platform: Platform): string | null {
+  const validDatasetId = (value: string | undefined): string | null => {
+    const trimmed = value?.trim();
+    return trimmed && /^gd_[a-z0-9_]+$/i.test(trimmed) ? trimmed : null;
+  };
   switch (platform) {
     case "taobao":
-      return process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT);
     case "tmall":
       return (
-        process.env.BRIGHTDATA_DATASET_TMALL_PRODUCT ??
-        process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT ??
+        validDatasetId(process.env.BRIGHTDATA_DATASET_TMALL_PRODUCT) ??
+        validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_PRODUCT) ??
         null
       );
     case "1688":
-      return process.env.BRIGHTDATA_DATASET_1688_PRODUCT ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_1688_PRODUCT);
     default:
       return null;
   }
 }
 
 export function shopDatasetIdFor(platform: Platform): string | null {
+  const validDatasetId = (value: string | undefined): string | null => {
+    const trimmed = value?.trim();
+    return trimmed && /^gd_[a-z0-9_]+$/i.test(trimmed) ? trimmed : null;
+  };
   switch (platform) {
     case "taobao":
     case "tmall":
-      return process.env.BRIGHTDATA_DATASET_TAOBAO_SHOP ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_TAOBAO_SHOP);
     case "1688":
-      return process.env.BRIGHTDATA_DATASET_1688_SHOP ?? null;
+      return validDatasetId(process.env.BRIGHTDATA_DATASET_1688_SHOP);
     default:
       return null;
   }
