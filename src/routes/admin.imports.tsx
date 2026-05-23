@@ -172,6 +172,23 @@ function AdminImports() {
   const fnListShops = useServerFn(listAdminShops);
   const fnDiscover = useServerFn(discoverShopProductLinks);
   const fnCleanupFalse = useServerFn(cleanupFalseTaobaoImports);
+  const fnCheckBd = useServerFn(checkBrightDataConfig);
+  const [bdDiag, setBdDiag] = useState<Awaited<ReturnType<typeof checkBrightDataConfig>> | null>(null);
+  const [bdChecking, setBdChecking] = useState(false);
+
+  const handleCheckBrightData = async () => {
+    setBdChecking(true);
+    try {
+      const r = await fnCheckBd({});
+      setBdDiag(r);
+      if (r.apiKey.valid && r.zone.valid) toast.success("Bright Data : configuration valide");
+      else toast.error(r.apiKey.message || r.zone.message || "Configuration Bright Data invalide");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Diagnostic échoué");
+    } finally {
+      setBdChecking(false);
+    }
+  };
 
   const shopsQuery = useQuery({
     queryKey: ["admin-shops-for-import"],
