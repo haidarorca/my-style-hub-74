@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -317,6 +317,54 @@ function NewAdminShopProductPage() {
   const opts3 = useMemo(() => optionsFor(3), [cats, reqs, pick2]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deepestPick = pick3 || pick2 || pick1 || "";
+
+  // Appliquer une categorie detectee par l'IA (recoit un UUID)
+  const handleCategoryApply = useCallback(
+    (categoryId: string) => {
+      const allCats = cats ?? [];
+      // Trouver la categorie et ses ancetres
+      const cat = allCats.find((c) => c.id === categoryId);
+      if (!cat) {
+        toast.error("Categorie introuvable.");
+        return;
+      }
+
+      // Construire la chaine: trouver les parents
+      const catL3 = cat.level === 3 ? cat : null;
+      const catL2 =
+        cat.level === 3
+          ? allCats.find((c) => c.id === cat.parent_id)
+          : cat.level === 2
+            ? cat
+            : null;
+      const catL1 =
+        cat.level === 3
+          ? catL2
+            ? allCats.find((c) => c.id === catL2.parent_id)
+            : null
+          : cat.level === 2
+            ? allCats.find((c) => c.id === cat.parent_id)
+            : cat;
+
+      // Appliquer les picks
+      if (catL1) {
+        setPick1(`cat:${catL1.id}`);
+      }
+      if (catL2) {
+        setPick2(`cat:${catL2.id}`);
+      } else {
+        setPick2("");
+      }
+      if (catL3) {
+        setPick3(`cat:${catL3.id}`);
+      } else {
+        setPick3("");
+      }
+
+      toast.success("Categorie appliquée !");
+    },
+    [cats],
+  );
 
   function startNew(level: 1 | 2 | 3) {
     if (level === 2 && !pick1) return toast.error("Choisissez d'abord le rayon.");
@@ -1783,6 +1831,7 @@ function NewAdminShopProductPage() {
           if (r.description) setDescription(r.description);
           toast.success("Fiche produit generee ! Verifiez et ajustez si besoin.");
         }}
+        onCategoryApply={handleCategoryApply}
         title="Generer la fiche produit avec l'IA"
       />
     </form>

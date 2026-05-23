@@ -53,6 +53,7 @@ import {
   DEFAULT_PRODUCT_COMMANDS,
 } from "@/hooks/use-slash-commands";
 import { SlashCommandMenu } from "@/components/ai/SlashCommandMenu";
+import { AiCategoryDetector } from "@/components/ai/AiCategoryDetector";
 
 type Result = { name: string; designation: string; description: string };
 type Mode = "image" | "text" | "combined";
@@ -61,6 +62,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onApply: (r: Result) => void;
+  onCategoryApply?: (categoryId: string) => void;
   title?: string;
 }
 
@@ -70,6 +72,7 @@ export function AiCopyGeneratorDialog({
   open,
   onOpenChange,
   onApply,
+  onCategoryApply,
   title = "Generer la fiche produit avec l'IA",
 }: Props) {
   const generate = useServerFn(generateProductCopy);
@@ -397,6 +400,17 @@ export function AiCopyGeneratorDialog({
                   }
                 />
               </div>
+
+              {/* Detection auto des categories (optionnel) */}
+              {onCategoryApply && (
+                <AiCategoryDetector
+                  name={result.name}
+                  designation={result.designation}
+                  description={result.description}
+                  onApply={onCategoryApply}
+                />
+              )}
+
               <Button
                 type="button"
                 onClick={apply}
