@@ -106,6 +106,14 @@ function saveDrafts(drafts: DraftProduct[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(drafts));
 }
 
+function isInvalidTaobaoDraft(draft: DraftProduct): boolean {
+  const text = `${draft.name}\n${draft.description}`.toLowerCase();
+  const badText = /登录|登陆|亲，请登录|connexion|login|sign in|验证码|captcha|安全验证|security check|访问受限|sec\.taobao|punish/i.test(text);
+  const badTitle = /^(登录|登陆|login|connexion|tmall|taobao)$/i.test(draft.name.trim());
+  const badImages = draft.images.length === 0 || draft.images.every((url) => /logo|icon|sprite|captcha|login|blank|pixel|taobao/i.test(url));
+  return badTitle || badText || draft.price <= 0 || badImages;
+}
+
 // ── Simple ID generator ──
 let _id = Date.now();
 function uid() { return `draft-${++_id}`; }
@@ -122,7 +130,7 @@ function AdminImports() {
   const [drafts, setDrafts] = useState<DraftProduct[]>(loadDrafts);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  useEffect(() => { saveDrafts(drafts); }, [drafts]);
+  useEffect(() => { saveDrafts(drafts.filter((draft) => !isInvalidTaobaoDraft(draft))); }, [drafts]);
 
   // ── Excel state ──
   const fnExport = useServerFn(exportProducts);
@@ -191,43 +199,49 @@ function AdminImports() {
     setIaLoading(true);
     const imported: DraftProduct[] = [];
     let dupCount = 0;
-    for (const url of urls.slice(0, 10)) {
-      const t = toast.loading(`Analyse de ${url.slice(0, 40)}...`);
-      try {
-        const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
-        toast.dismiss(t);
-        if (ai.isDuplicate) {
-          dupCount++;
-          toast.warning(`Doublon ignoré : ${url.slice(0, 40)}`);
-          continue;
+    try {
+      for (const url of urls.slice(0, 10)) {
+        const t = toast.loading(`Analyse de ${url.slice(0, 40)}...`);
+        try {
+          const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
+          toast.dismiss(t);
+          const importLog = pushImportLog(ai.importLog, url);
+          if (ai.isDuplicate) {
+            dupCount++;
+            toast.warning(`Doublon ignoré : ${url.slice(0, 40)}`);
+            continue;
+          }
+          const draft: DraftProduct = {
+            id: uid(),
+            name: ai.name,
+            description: ai.description,
+            price: ai.price,
+            sourcePrice: ai.sourcePrice,
+            sourceCurrency: ai.sourceCurrency,
+            images: ai.images,
+            variants: ai.variants,
+            sourceUrl: ai.sourceUrl,
+            categoryId: ai.categoryId,
+            categoryName: ai.categoryName,
+            importLog,
+            status: "draft",
+            createdAt: Date.now(),
+          };
+          if (isInvalidTaobaoDraft(draft)) throw new Error("Données invalides détectées : brouillon non créé.");
+          imported.push(draft);
+          setDrafts(prev => [draft, ...prev.filter((d) => d.sourceUrl !== draft.sourceUrl)]);
+        } catch (e: unknown) {
+          toast.dismiss(t);
+          const msg = e instanceof Error ? e.message : "Erreur";
+          toast.error(`${url.slice(0, 30)}: ${msg}`);
         }
-        const draft: DraftProduct = {
-          id: uid(),
-          name: ai.name,
-          description: ai.description,
-          price: ai.price,
-          sourcePrice: ai.sourcePrice,
-          sourceCurrency: ai.sourceCurrency,
-          images: ai.images,
-          variants: ai.variants,
-          sourceUrl: ai.sourceUrl,
-          categoryId: ai.categoryId,
-          categoryName: ai.categoryName,
-          status: "draft",
-          createdAt: Date.now(),
-        };
-        imported.push(draft);
-        setDrafts(prev => [draft, ...prev]);
-      } catch (e: unknown) {
-        toast.dismiss(t);
-        const msg = e instanceof Error ? e.message : "Erreur";
-        toast.error(`${url.slice(0, 30)}: ${msg}`);
       }
+      setJustImported(imported);
+      setProductUrl("");
+      toast.success(`${imported.length} importé(s)${dupCount ? ` · ${dupCount} doublon(s) ignoré(s)` : ""}`);
+    } finally {
+      setIaLoading(false);
     }
-    setIaLoading(false);
-    setJustImported(imported);
-    setProductUrl("");
-    toast.success(`${imported.length} importé(s)${dupCount ? ` · ${dupCount} doublon(s) ignoré(s)` : ""}`);
   };
 
   const handlePublish = async (draft: DraftProduct) => {
