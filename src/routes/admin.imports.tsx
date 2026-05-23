@@ -393,15 +393,89 @@ function AdminImports() {
                 </TabsList>
 
                 <TabsContent value="store" className="space-y-3 pt-3">
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-                    <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                    <strong>Note :</strong> L&apos;import par boutique est en cours de developpement.
-                    Utilisez l&apos;onglet &quot;Lien(s) produit&quot; pour importer des produits un par un.
+                  <div>
+                    <label className="text-xs text-muted-foreground">URL de la boutique Taobao / 1688</label>
+                    <Input
+                      value={storeUrl}
+                      onChange={(e) => setStoreUrl(e.target.value)}
+                      placeholder="https://shop123456.taobao.com  ou  https://xxx.1688.com"
+                    />
                   </div>
-                  <Button disabled className="w-full gap-2">
-                    <Play className="h-4 w-4" /> Bientot disponible
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">Nombre max de produits</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={storeLimit}
+                      onChange={(e) => setStoreLimit(Math.min(50, Math.max(1, Number(e.target.value) || 10)))}
+                      className="w-20 h-8"
+                    />
+                  </div>
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+                    <strong>Comment ça marche :</strong> on découvre les liens produits de la boutique
+                    via Firecrawl, puis chaque produit est analysé par l&apos;IA et ajouté aux brouillons.
+                    Les doublons sont automatiquement ignorés.
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!selectedShopId) { toast.error("Sélectionnez d'abord une boutique admin"); return; }
+                      if (!storeUrl.startsWith("http")) { toast.error("URL invalide"); return; }
+                      setStoreLoading(true);
+                      const t = toast.loading("Découverte des produits...");
+                      try {
+                        const r = await fnDiscover({ data: { shopUrl: storeUrl, limit: storeLimit } });
+                        toast.dismiss(t);
+                        if (r.urls.length === 0) {
+                          toast.error("Aucun lien produit trouvé sur cette boutique");
+                          setStoreLoading(false);
+                          return;
+                        }
+                        toast.success(`${r.urls.length} produit(s) trouvé(s) — analyse IA…`);
+                        const imported: DraftProduct[] = [];
+                        let dupCount = 0;
+                        for (const url of r.urls) {
+                          try {
+                            const ai: AiDraft = await fnScrape({ data: { url, shopId: selectedShopId } });
+                            if (ai.isDuplicate) { dupCount++; continue; }
+                            const draft: DraftProduct = {
+                              id: uid(),
+                              name: ai.name,
+                              description: ai.description,
+                              price: ai.price,
+                              sourcePrice: ai.sourcePrice,
+                              sourceCurrency: ai.sourceCurrency,
+                              images: ai.images,
+                              variants: ai.variants,
+                              sourceUrl: ai.sourceUrl,
+                              categoryId: ai.categoryId,
+                              categoryName: ai.categoryName,
+                              status: "draft",
+                              createdAt: Date.now(),
+                            };
+                            imported.push(draft);
+                            setDrafts(prev => [draft, ...prev]);
+                          } catch {
+                            // continue
+                          }
+                        }
+                        setJustImported(imported);
+                        setStoreUrl("");
+                        toast.success(`${imported.length} brouillon(s) créé(s)${dupCount ? ` · ${dupCount} doublon(s)` : ""}`);
+                      } catch (e: unknown) {
+                        toast.dismiss(t);
+                        toast.error(e instanceof Error ? e.message : "Erreur");
+                      }
+                      setStoreLoading(false);
+                    }}
+                    disabled={storeLoading}
+                    className="w-full gap-2"
+                  >
+                    {storeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    {storeLoading ? "Import en cours..." : "Lancer l'import de la boutique"}
                   </Button>
                 </TabsContent>
+
 
                 <TabsContent value="product" className="space-y-3 pt-3">
                   <div>
