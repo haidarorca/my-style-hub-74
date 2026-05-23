@@ -444,10 +444,20 @@ export const publishImportedDraft = createServerFn({ method: "POST" })
       );
     }
 
-    // Métadonnée source pour anti-doublons futur
+    // Métadonnée source pour anti-doublons futur (URL + plateforme + product_id source)
+    const platform = detectPlatform(draft.sourceUrl);
+    const sourcePid = extractSourceProductId(draft.sourceUrl, platform);
     await supabaseAdmin
       .from("product_admin_metadata")
-      .upsert({ product_id: product.id, source_url: draft.sourceUrl }, { onConflict: "product_id" });
+      .upsert(
+        {
+          product_id: product.id,
+          source_url: draft.sourceUrl,
+          source_platform: platform === "unknown" ? null : platform,
+          source_product_id: sourcePid,
+        },
+        { onConflict: "product_id" },
+      );
 
     return { duplicate: false, productId: product.id };
   });
