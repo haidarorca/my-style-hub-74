@@ -15,7 +15,6 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   scrapeProductWithBrightDataDetailed,
   discoverShopWithBrightData,
-  resolveTaobaoShortLink,
   detectPlatform,
   extractSourceProductId,
   validateNormalizedProduct,
