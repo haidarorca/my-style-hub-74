@@ -402,7 +402,7 @@ function AssessmentDialog({
   }
 
   async function validateManually() {
-    if (!assessment) return;
+    if (!assessment || !order) return;
     setSaving(true);
     try {
       await adminValidateFn({ data: { order_id: order.id, note: adminNote || undefined } });

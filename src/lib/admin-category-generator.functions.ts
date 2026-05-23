@@ -198,7 +198,7 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
     const { data: existing } = await supabaseAdmin
       .from("categories")
       .select("id, name, level, parent_id")
-      .in("name", [data.rayon_name, data.categorie_name, data.sous_categorie_name].filter(Boolean));
+      .in("name", [data.rayon_name, data.categorie_name, data.sous_categorie_name].filter((v): v is string => typeof v === "string" && v.length > 0));
 
     const allExisting = existing ?? [];
 
@@ -220,7 +220,6 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
           level: 1,
           parent_id: null,
           position: 999,
-          is_universe: true,
         })
         .select("id")
         .single();
@@ -242,7 +241,6 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
           level: 2,
           parent_id: rayonId,
           position: 999,
-          is_universe: false,
         })
         .select("id")
         .single();
@@ -268,7 +266,6 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
             level: 3,
             parent_id: categorieId,
             position: 999,
-            is_universe: false,
           })
           .select("id")
           .single();
