@@ -206,15 +206,11 @@ function PresetChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
-  const addColor = (val: string) => { if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] }); };
-  const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
-  const addSize = (val: string) => { if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] }); };
-  const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
-  const [customColor, setCustomColor] = useState("");
-  const [customSize, setCustomSize] = useState("");
   const [uploading, setUploading] = useState(false);
-  const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
-  const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
+
+  // Map array-based data model onto single-value inputs (same UX as vendor.products.new)
+  const sizeValue = variant.sizes[0] ?? "";
+  const colorValue = variant.colors[0] ?? "";
 
   const variantImageSlots: Array<keyof SimpleVariant> = ["image_url1", "image_url2", "image_url3"];
   const currentUrls = variantImageSlots
@@ -255,19 +251,26 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
 
   return (
     <div className="rounded-lg border bg-background p-2 space-y-2">
-      {/* Row 1: Name + Price + Stock + Delete - matches vendor.new grid */}
       <div className="grid grid-cols-12 items-end gap-2">
-        <div className="col-span-5 sm:col-span-6">
-          <Label className="text-[10px]">Nom du choix</Label>
-          <Input className="h-8 text-sm" value={variant.label} onChange={e => onUpdate({ label: e.target.value })} placeholder="40 pieces, Rouge..." />
+        <div className="col-span-2">
+          <Label className="text-[10px]">Taille</Label>
+          <Input className="h-8" value={sizeValue} onChange={e => onUpdate({ sizes: e.target.value ? [e.target.value] : [] })} placeholder="S, M, 42..." />
+        </div>
+        <div className="col-span-3">
+          <Label className="text-[10px]">Couleur / Modele</Label>
+          <Input className="h-8" value={colorValue} onChange={e => onUpdate({ colors: e.target.value ? [e.target.value] : [] })} placeholder="Rouge / Modele A" />
+        </div>
+        <div className="col-span-1">
+          <Label className="text-[10px]">Hex</Label>
+          <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 w-full rounded border" />
+        </div>
+        <div className="col-span-2">
+          <Label className="text-[10px]">Stock</Label>
+          <Input className="h-8" type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} />
         </div>
         <div className="col-span-3">
           <Label className="text-[10px]">Prix FCFA</Label>
           <Input className="h-8" type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} placeholder="---" />
-        </div>
-        <div className="col-span-3">
-          <Label className="text-[10px]">Stock</Label>
-          <Input className="h-8" type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} />
         </div>
         <div className="col-span-1">
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onRemove}>
@@ -275,118 +278,33 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
           </Button>
         </div>
       </div>
-
-      {/* Row 2: Color hex picker */}
-      <div className="flex items-center gap-2">
-        <Label className="text-[10px] shrink-0">Hex</Label>
-        <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-7 w-7 rounded border cursor-pointer" />
-        {variant.color_hex && <span className="text-[10px] text-muted-foreground">{variant.color_hex}</span>}
-      </div>
-
-      {/* Colors section - tags with X */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
-            {variant.colors.length > 0 && (
-              <button onClick={() => onUpdate({ colors: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5">
-                <X className="h-2.5 w-2.5" /> Tout suppr
-              </button>
-            )}
+      <div className="flex flex-wrap items-center gap-2">
+        {currentUrls.map(({ key, url }) => (
+          <div key={key as string} className="relative h-14 w-14 overflow-hidden rounded border">
+            <img src={url!} alt="" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onUpdate({ [key]: null } as Partial<SimpleVariant>)}
+              className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
+              aria-label="Supprimer l'image"
+            >
+              <X className="h-3 w-3" />
+            </button>
           </div>
-          <button className="text-[9px] flex items-center gap-0.5 rounded px-1.5 py-0.5 hover:bg-muted" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
-            {allColorsSelected ? <X className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
-            {allColorsSelected ? "Tout deselectionner" : "Tout selectionner"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {COLOR_PRESETS.map(c => (
-            <PresetChip key={c} label={c} active={variant.colors.includes(c)} onClick={() => variant.colors.includes(c) ? onUpdate({ colors: variant.colors.filter(x => x !== c) }) : addColor(c)} />
-          ))}
-        </div>
-        {variant.colors.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {variant.colors.map((c, ci) => (
-              <span key={ci} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">
-                {c}
-                <button onClick={() => removeColor(ci)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-              </span>
-            ))}
-          </div>
+        ))}
+        {canAddMore && (
+          <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground hover:bg-accent ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(fs); }}
+            />
+          </label>
         )}
-        <div className="flex gap-1">
-          <Input value={customColor} onChange={e => setCustomColor(e.target.value)} className="h-7 text-xs" placeholder="Couleur personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }} />
-          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }}><Plus className="h-3 w-3" /></Button>
-        </div>
-      </div>
-
-      {/* Sizes section - tags with X */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
-            {variant.sizes.length > 0 && (
-              <button onClick={() => onUpdate({ sizes: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5">
-                <X className="h-2.5 w-2.5" /> Tout suppr
-              </button>
-            )}
-          </div>
-          <button className="text-[9px] flex items-center gap-0.5 rounded px-1.5 py-0.5 hover:bg-muted" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
-            {allSizesSelected ? <X className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
-            {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {SIZE_PRESETS.map(s => (
-            <PresetChip key={s} label={s} active={variant.sizes.includes(s)} onClick={() => variant.sizes.includes(s) ? onUpdate({ sizes: variant.sizes.filter(x => x !== s) }) : addSize(s)} />
-          ))}
-        </div>
-        {variant.sizes.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {variant.sizes.map((s, si) => (
-              <span key={si} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">
-                {s}
-                <button onClick={() => removeSize(si)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-1">
-          <Input value={customSize} onChange={e => setCustomSize(e.target.value)} className="h-7 text-xs" placeholder="Taille personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }} />
-          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }}><Plus className="h-3 w-3" /></Button>
-        </div>
-      </div>
-
-      {/* Variant image gallery - matches vendor.new uploader style */}
-      <div className="space-y-1.5 pt-1 border-t border-dashed">
-        <Label className="text-[10px]">Images de la variante ({currentUrls.length}/{maxImages})</Label>
-        <div className="flex flex-wrap items-center gap-2">
-          {currentUrls.map(({ key, url }) => (
-            <div key={key as string} className="relative h-14 w-14 overflow-hidden rounded border">
-              <img src={url!} alt="" className="h-full w-full object-cover" />
-              <button
-                type="button"
-                onClick={() => onUpdate({ [key]: null } as Partial<SimpleVariant>)}
-                className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-          {canAddMore && (
-            <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground hover:bg-accent ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(fs); }}
-              />
-            </label>
-          )}
-        </div>
-        <p className="text-[10px] text-muted-foreground">Touchez l&apos;icone pour ouvrir la galerie. Selection multiple supportee.</p>
+        <p className="text-[11px] text-muted-foreground">Image affichee quand cette variante est choisie.</p>
       </div>
     </div>
   );
@@ -510,19 +428,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
           <div>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label>
-              <div className="flex items-center gap-1">
-                {variants.some(v => v.sizes.length > 0) && (
-                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setVariants(vs => vs.map(v => ({ ...v, sizes: [] })))}>
-                    <Ruler className="h-3 w-3" /> <X className="h-2.5 w-2.5" /> Tailles
-                  </Button>
-                )}
-                {variants.some(v => v.colors.length > 0) && (
-                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setVariants(vs => vs.map(v => ({ ...v, colors: [] })))}>
-                    <Palette className="h-3 w-3" /> <X className="h-2.5 w-2.5" /> Couleurs
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
-              </div>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
             </div>
             {variants.length === 0 ? (
               <div className="rounded-lg border border-dashed p-3 text-center">
