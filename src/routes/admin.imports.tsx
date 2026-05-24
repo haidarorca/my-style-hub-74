@@ -1,14 +1,16 @@
 /**
  * admin.imports.tsx
  * -----------------
- * Import : Excel/CSV + IA Visuelle (images/videos/captures)
+ * Import IA Visuelle avec notation intelligente des medias.
  *
- * Workflow:
- *   1. Upload images/videos
- *   2. IA analyse visuellement
- *   3. Brouillon cree → EDITEUR COMPLET s'ouvre
- *   4. Admin verifie/modifie TOUT (variantes, categories, prix)
- *   5. Publication → boutique admin automatique
+ * Notation:
+ *   "1,2"    = images 1-2 contiennent les INFOS (prix, description)
+ *   "3,4"    = images 3-4 = PRODUIT (galerie)
+ *   ","      = apres virgule = VARIANTES (images liees aux variantes)
+ *
+ * Exemples: "1,2,3,4" | "1-3,4,5" | "1,2,3,4,,5,6"
+ *
+ * Prix: conversion auto en FCFA, prix "from" = minimum
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
@@ -21,7 +23,7 @@ import {
   AlertTriangle, Save, FileSpreadsheet, Download, Table2,
   Sparkles, Upload, Film, X, Wand2, ChevronRight,
   CircleCheck, CircleDashed, CircleX, Pencil, Plus, Minus,
-  Palette, Ruler,
+  Palette, Ruler, Info, HelpCircle, Camera, Eye,
 } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -40,49 +42,35 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   uploadImportMedia, extractVideoFrames, analyzeVisualMedia,
-  publishDraft, type VisualDraft,
+  publishDraft, type VisualDraft, type ProductVariant,
 } from "@/lib/visual-ai-import.service";
 
 export const Route = createFileRoute("/admin/imports")({
-  component: () => (
-    <PermissionGate perm="products"><AdminImports /></PermissionGate>
-  ),
+  component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>),
 });
 
 const fmtFcfa = (n: number | null) => n === null ? "—" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 
-interface DraftVariant {
-  size: string; color: string; color_hex: string;
-  stock: number; price_override: number | null;
-}
-
-interface FullDraft extends VisualDraft {
-  variants: DraftVariant[];
-}
-
 type Pick = string;
-const isReq = (v: Pick) => v.startsWith("req:");
 const idOf = (v: Pick) => v.slice(4);
 
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
 
-const LS_KEY = "kawzone_visual_drafts_v2";
-function loadDrafts(): FullDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
-function saveDrafts(drafts: FullDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
+const LS_KEY = "kawzone_visual_drafts_v3";
+function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
+function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
 
 // ═══════════════════════════════════════════════════
 //  MAIN PAGE
 // ═══════════════════════════════════════════════════
 export default function AdminImports() {
   const [mainTab, setMainTab] = useState<"excel" | "visual" | "drafts">("visual");
-  const [drafts, setDrafts] = useState<FullDraft[]>(loadDrafts);
+  const [drafts, setDrafts] = useState<VisualDraft[]>(loadDrafts);
   useEffect(() => { saveDrafts(drafts); }, [drafts]);
 
-  // Editor state
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const editingDraft = useMemo(() => drafts.find(d => d.id === editingDraftId) || null, [drafts, editingDraftId]);
 
-  // Excel
   const fnExport = useServerFn(exportProducts);
   const fnTemplate = useServerFn(downloadTemplate);
   const fnPreview = useServerFn(previewImport);
@@ -93,27 +81,11 @@ export default function AdminImports() {
 
   const activeDrafts = drafts.filter(d => d.status === "draft");
 
-  const handleDraftCreated = (d: VisualDraft) => {
-    const full: FullDraft = { ...d, variants: d.variants };
-    setDrafts(prev => [full, ...prev]);
-    setEditingDraftId(full.id);
-    setMainTab("drafts");
-  };
-
-  const handleDraftUpdate = (id: string, patch: Partial<FullDraft>) => {
-    setDrafts(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d));
-  };
-
-  const handlePublishSuccess = (id: string) => {
-    setDrafts(prev => prev.filter(d => d.id !== id));
-    setEditingDraftId(null);
-  };
-
   return (
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold"><Package className="h-5 w-5" /> Importation</h1>
-        <p className="text-xs text-muted-foreground">Excel/CSV ou IA Visuelle</p>
+        <p className="text-xs text-muted-foreground">Excel/CSV ou IA Visuelle avec notation</p>
       </div>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
@@ -146,7 +118,7 @@ export default function AdminImports() {
         </TabsContent>
 
         <TabsContent value="visual" className="space-y-4 pt-3">
-          <VisualImporter onDraftCreated={handleDraftCreated} />
+          <VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingDraftId(d.id); setMainTab("drafts"); }} />
         </TabsContent>
 
         <TabsContent value="drafts" className="space-y-4 pt-3">
@@ -161,37 +133,33 @@ export default function AdminImports() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {activeDrafts.map(d => (
-                <DraftCard key={d.id} draft={d}
-                  onEdit={() => setEditingDraftId(d.id)}
-                  onRemove={() => setDrafts(prev => prev.filter(x => x.id !== d.id))}
-                />
+                <DraftCard key={d.id} draft={d} onEdit={() => setEditingDraftId(d.id)} onRemove={() => setDrafts(p => p.filter(x => x.id !== d.id))} />
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
-      {/* FULL EDITOR DIALOG */}
       {editingDraft && (
-        <DraftEditorDialog
-          draft={editingDraft}
-          onClose={() => setEditingDraftId(null)}
-          onUpdate={(patch) => handleDraftUpdate(editingDraft.id, patch)}
-          onPublish={() => handlePublishSuccess(editingDraft.id)}
-        />
+        <DraftEditorDialog draft={editingDraft} onClose={() => setEditingDraftId(null)}
+          onUpdate={(patch) => setDrafts(p => p.map(d => d.id === editingDraft.id ? { ...d, ...patch } : d))}
+          onPublish={(id) => setDrafts(p => p.filter(d => d.id !== id))} />
       )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════
-//  VISUAL IMPORTER (Step 1: Upload)
+//  VISUAL IMPORTER
 // ═══════════════════════════════════════════════════
 function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) => void }) {
-  const [files, setFiles] = useState<{ file: File; preview: string; type: "image" | "video" }[]>([]);
+  const [files, setFiles] = useState<{ file: File; preview: string; type: "image" | "video"; id: string }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
+  const [mediaNotation, setMediaNotation] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
+  const [videoError, setVideoError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fnUpload = useServerFn(uploadImportMedia);
@@ -204,15 +172,27 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
     const accepted = newFiles.filter(f => f.type.startsWith("image/") || f.type.startsWith("video/"));
     if (accepted.length === 0) { toast.error("Images et videos uniquement"); return; }
     if (files.length + accepted.length > 20) { toast.error("Max 20 fichiers"); return; }
-    const items = accepted.map(f => ({ file: f, preview: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "video" as const : "image" as const }));
+    const items = accepted.map((f, idx) => ({ file: f, preview: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "video" as const : "image" as const, id: `f-${Date.now()}-${idx}` }));
     setFiles(p => [...p, ...items]);
+    setVideoError("");
   };
 
   const removeFile = (i: number) => setFiles(p => { const n = [...p]; URL.revokeObjectURL(n[i].preview); n.splice(i, 1); return n; });
 
+  // Generate notation preview based on current files
+  const notationPreview = useMemo(() => {
+    if (files.length === 0) return "";
+    const nums = files.map((_, i) => i + 1);
+    if (nums.length <= 2) return nums.join(",");
+    // Suggest: first 1-2 = info, next = product
+    const infoEnd = Math.min(2, nums.length);
+    const productEnd = Math.min(infoEnd + 3, nums.length);
+    return `${nums.slice(0, infoEnd).join(",")},${nums.slice(infoEnd, productEnd).join(",")}${nums.length > productEnd ? `,,${nums.slice(productEnd).join(",")}` : ""}`;
+  }, [files]);
+
   const handleAnalyze = async () => {
     if (files.length === 0) { toast.error("Ajoutez des medias"); return; }
-    setIsAnalyzing(true); setLogs([]); addLog("Demarrage...", "info");
+    setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info");
 
     try {
       const imageUrls: string[] = [];
@@ -224,21 +204,38 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
           const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); });
           const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any;
           if (f.type === "image") imageUrls.push(res.url);
-          else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; videoFrameUrls.push(...(fr.frameUrls || [])); addLog(`${fr.frameCount} frames`, "ok"); }
+          else {
+            const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any;
+            if (fr.error) {
+              setVideoError(`Video "${f.file.name}": ${fr.error}. Les frames n'ont pas pu etre extraites. Essayez avec des images ou une video plus courte.`);
+              addLog(`Video ${f.file.name}: ${fr.error}`, "err");
+            }
+            if (fr.frameUrls?.length > 0) {
+              videoFrameUrls.push(...fr.frameUrls);
+              addLog(`${fr.frameCount} frames extraites de ${f.file.name}`, "ok");
+            } else {
+              addLog(`Aucune frame extraite de ${f.file.name}`, "warn");
+            }
+          }
         } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); }
       }
 
-      if (imageUrls.length === 0 && videoFrameUrls.length === 0) throw new Error("Aucun media uploadable");
+      // If only video failed, we might still have images
+      const effectiveImages = imageUrls.length > 0 ? imageUrls : videoFrameUrls;
+      if (effectiveImages.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images ou verifiez vos videos."));
 
       addLog("Analyse IA...", "info");
-      const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls }}) as any;
-      if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("✓") ? "ok" : l.includes("✗") ? "err" : "info"));
+      const finalNotation = mediaNotation.trim() || notationPreview;
+      addLog(`Notation: "${finalNotation}"`, "info");
+
+      const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: finalNotation }}) as any;
+      if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") || l.includes("✓") ? "ok" : l.includes("✗") || l.includes("Erreur") ? "err" : "info"));
 
       if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec");
 
       onDraftCreated(analysis.draft);
-      toast.success(`Analyse OK ! ${analysis.draft.confidence}% confiance`);
-      setFiles([]);
+      toast.success(`Analyse OK ! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`);
+      setFiles([]); setMediaNotation("");
     } catch (e: any) {
       addLog(`Erreur: ${e.message}`, "err");
       toast.error(e.message);
@@ -251,61 +248,144 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   const onDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }, []);
 
   return (
-    <Card>
-      <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Import IA Visuel</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-          Uploadez images, videos ou captures. L&apos;IA analysera et creera un brouillon editable.
-        </div>
-        <div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
-          <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => handleFiles(Array.from(e.target.files || []))} />
-          <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm font-medium">Glissez-deposez ou cliquez</p>
-          <p className="text-[10px] text-muted-foreground">PNG, JPG, WEBP, MP4, MOV — Max 20</p>
-        </div>
-        {files.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">{files.length} fichier(s)</span>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => { files.forEach(f => URL.revokeObjectURL(f.preview)); setFiles([]); }}><Trash2 className="h-3 w-3 mr-1" /> Tout suppr</Button>
+    <div className="space-y-4">
+      {/* NOTICE / HELP */}
+      <Card className="bg-blue-50/50 border-blue-200">
+        <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowHelp(!showHelp)}>
+          <CardTitle className="text-xs flex items-center gap-2 text-blue-800">
+            <Info className="h-4 w-4" /> Comment organiser vos medias (cliquez pour {showHelp ? "masquer" : "voir"})
+          </CardTitle>
+        </CardHeader>
+        {showHelp && (
+          <CardContent className="text-[11px] text-blue-800 space-y-2 pt-0">
+            <div className="rounded bg-white/70 p-2.5 space-y-1.5">
+              <p className="font-semibold">Organisez vos images dans l&apos;ordre :</p>
+              <div className="flex items-start gap-2">
+                <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-300 shrink-0 mt-0.5">INFO</Badge>
+                <span><strong>Images 1 a 2</strong> = Contiennent les informations (prix, description, details du vendeur). L&apos;IA lit ces images pour extraire les donnees.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Badge className="text-[9px] bg-emerald-100 text-emerald-800 border-emerald-300 shrink-0 mt-0.5">PRODUIT</Badge>
+                <span><strong>Images 3 a 4+</strong> = Photos du produit. Ces images seront ajoutees a la galerie du produit.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Badge className="text-[9px] bg-purple-100 text-purple-800 border-purple-300 shrink-0 mt-0.5">VARIANTES</Badge>
+                <span><strong>Après une virgule</strong> = Images de variantes. Chaque image sera liee a une variante (couleur/taille differente).</span>
+              </div>
             </div>
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-              {files.map((f, i) => (
-                <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border bg-muted">
-                  {f.type === "video" ? <video src={f.preview} className="w-full h-full object-cover" muted /> : <img src={f.preview} alt="" className="w-full h-full object-cover" />}
-                  {f.type === "video" && <div className="absolute top-1 left-1 bg-black/70 text-white text-[9px] px-1 rounded"><Film className="h-2.5 w-2.5 inline" /> Vid</div>}
-                  <button onClick={(e) => { e.stopPropagation(); removeFile(i); }} className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100"><X className="h-3 w-3" /></button>
+            <div className="rounded bg-white/70 p-2.5">
+              <p className="font-semibold mb-1">Exemples de notation :</p>
+              <ul className="space-y-0.5 list-disc list-inside">
+                <li><code className="bg-blue-100 px-1 rounded">1,2,3,4</code> → Images 1-2 = info, 3-4 = produit</li>
+                <li><code className="bg-blue-100 px-1 rounded">1,2,3,4,,5,6</code> → 1-2 = info, 3-4 = produit, 5-6 = variantes</li>
+                <li><code className="bg-blue-100 px-1 rounded">1-3,4,5,,6,7</code> → 1-3 = info, 4-5 = produit, 6-7 = variantes</li>
+                <li><code className="bg-blue-100 px-1 rounded">1,2,3,</code> → 1-2 = info, 3+ = produit (pas de variantes)</li>
+              </ul>
+            </div>
+            <div className="flex items-start gap-1.5 text-amber-700">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span><strong>Conseil video :</strong> Si votre video ne se lit pas, extrayez des captures d&apos;ecran manuellement et uploadez-les comme images. Gardez les videos courtes (max 60 secondes).</span>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Import IA Visuel</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {/* Drop zone */}
+          <div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
+            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => handleFiles(Array.from(e.target.files || []))} />
+            <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+            <p className="text-sm font-medium">Glissez-deposez ou cliquez pour selectionner</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Images: PNG, JPG, WEBP | Videos: MP4, MOV (max 60s)</p>
+          </div>
+
+          {/* File previews with numbering */}
+          {files.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-muted-foreground">{files.length} fichier(s) numerotes</span>
+                <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => { files.forEach(f => URL.revokeObjectURL(f.preview)); setFiles([]); }}>
+                  <Trash2 className="h-3 w-3 mr-1" /> Tout suppr
+                </Button>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {files.map((f, i) => (
+                  <div key={f.id} className="relative group aspect-square rounded-lg overflow-hidden border bg-muted">
+                    <div className="absolute top-1 left-1 z-10 bg-primary text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {i + 1}
+                    </div>
+                    {f.type === "video" ? <video src={f.preview} className="w-full h-full object-cover" muted /> : <img src={f.preview} alt="" className="w-full h-full object-cover" />}
+                    {f.type === "video" && <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 rounded"><Film className="h-2.5 w-2.5 inline" /> Vid</div>}
+                    <button onClick={(e) => { e.stopPropagation(); removeFile(i); }} className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Video error message */}
+          {videoError && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800">
+              <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+              {videoError}
+            </div>
+          )}
+
+          {/* Media notation input */}
+          {files.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-semibold flex items-center gap-1">
+                <HelpCircle className="h-3 w-3" /> Notation des medias (optionnel)
+              </Label>
+              <Input
+                value={mediaNotation}
+                onChange={(e) => setMediaNotation(e.target.value)}
+                placeholder={notationPreview || "Ex: 1,2,3,4,,5,6"}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Suggestion: <code className="bg-muted px-1 rounded">{notationPreview}</code> — Modifiez si besoin. Format: <code className="bg-muted px-1">infos,produits,,variantes</code>
+              </p>
+            </div>
+          )}
+
+          <Button onClick={handleAnalyze} disabled={files.length === 0 || isAnalyzing} className="w-full gap-2" size="lg">
+            {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isAnalyzing ? "Analyse..." : "Analyser avec l'IA"}
+          </Button>
+
+          {logs.length > 0 && (
+            <div className="rounded-lg border bg-muted/30 p-3 max-h-[180px] overflow-y-auto space-y-1">
+              {logs.map((l, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  {l.type === "ok" && <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
+                  {l.type === "err" && <CircleX className="h-3 w-3 text-destructive shrink-0 mt-0.5" />}
+                  {l.type === "warn" && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />}
+                  {l.type === "info" && <CircleDashed className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />}
+                  <span className={l.type === "err" ? "text-destructive" : l.type === "warn" ? "text-amber-700" : ""}>{l.msg}</span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-        <Button onClick={handleAnalyze} disabled={files.length === 0 || isAnalyzing} className="w-full gap-2" size="lg">
-          {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isAnalyzing ? "Analyse..." : "Analyser avec l'IA"}
-        </Button>
-        {logs.length > 0 && (
-          <div className="rounded-lg border bg-muted/30 p-3 max-h-[180px] overflow-y-auto space-y-1">
-            {logs.map((l, i) => (
-              <div key={i} className="flex items-start gap-2 text-[11px]">
-                {l.type === "ok" && <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
-                {l.type === "err" && <CircleX className="h-3 w-3 text-destructive shrink-0 mt-0.5" />}
-                {l.type === "info" && <CircleDashed className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />}
-                <span className={l.type === "err" ? "text-destructive" : ""}>{l.msg}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 // ═══════════════════════════════════════════════════
-//  DRAFT CARD (List view)
+//  DRAFT CARD
 // ═══════════════════════════════════════════════════
-function DraftCard({ draft, onEdit, onRemove }: { draft: FullDraft; onEdit: () => void; onRemove: () => void }) {
+function DraftCard({ draft, onEdit, onRemove }: { draft: VisualDraft; onEdit: () => void; onRemove: () => void }) {
+  // Determine price to show: minimum variant price
+  const variantPrices = draft.variants.map(v => v.price).filter((p): p is number => p !== null);
+  const minPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : draft.price;
+
   return (
     <Card className={`cursor-pointer hover:shadow-md transition-shadow ${draft.uncertainties.length > 0 ? "border-amber-300" : ""}`} onClick={onEdit}>
       <CardContent className="p-3">
@@ -320,7 +400,9 @@ function DraftCard({ draft, onEdit, onRemove }: { draft: FullDraft; onEdit: () =
               <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">{draft.confidence}%</Badge>
               {draft.uncertainties.length > 0 && <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200"><AlertTriangle className="h-2.5 w-2.5 mr-0.5" /> A verifier</Badge>}
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">{draft.categoryName || "Sans categorie"} | {fmtFcfa(draft.price)} | {draft.variants.length} variante(s)</p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {draft.categoryName || "Sans categorie"} | <span className="font-semibold text-foreground">from {fmtFcfa(minPrice)}</span> | {draft.variants.length} variante(s)
+            </p>
             <div className="flex gap-1 mt-1">
               <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                 <Pencil className="h-3 w-3 mr-1" /> Modifier / Publier
@@ -340,19 +422,18 @@ function DraftCard({ draft, onEdit, onRemove }: { draft: FullDraft; onEdit: () =
 //  DRAFT EDITOR DIALOG (FULL FORM)
 // ═══════════════════════════════════════════════════
 function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
-  draft: FullDraft; onClose: () => void;
-  onUpdate: (patch: Partial<FullDraft>) => void;
-  onPublish: () => void;
+  draft: VisualDraft; onClose: () => void;
+  onUpdate: (patch: Partial<VisualDraft>) => void;
+  onPublish: (id: string) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
 
-  // Local editable state
+  // Local state
   const [name, setName] = useState(draft.name);
   const [designation, setDesignation] = useState(draft.designation);
   const [description, setDescription] = useState(draft.description);
   const [price, setPrice] = useState<string>(draft.price !== null ? String(draft.price) : "");
-  const [variants, setVariants] = useState<DraftVariant[]>(draft.variants.length > 0 ? draft.variants : []);
-  const [images, setImages] = useState<string[]>(draft.gallery);
+  const [variants, setVariants] = useState<ProductVariant[]>(draft.variants);
 
   // Categories
   const { data: cats } = useQuery<CatRow[]>({
@@ -368,7 +449,6 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
   const [pick2, setPick2] = useState<string>(hasMatch ? `cat:${draft.categoryMatch!.l2Id}` : "");
   const [pick3, setPick3] = useState<string>(hasMatch ? `cat:${draft.categoryMatch!.l3Id}` : (draft.categoryId || ""));
 
-  // Category options
   const opts1 = useMemo(() => (cats || []).filter(c => c.level === 1).map(c => ({ value: `cat:${c.id}`, label: c.name })), [cats]);
   const opts2 = useMemo(() => { if (!pick1) return []; const pid = idOf(pick1); return (cats || []).filter(c => c.level === 2 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick1]);
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
@@ -376,47 +456,40 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
 
   // Variant management
-  const addVariant = () => setVariants(v => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: null }]);
+  const addVariant = () => setVariants(v => [...v, { id: `v-${Date.now()}`, size: "", color: "", color_hex: "", stock: 0, price: null, image_url: null, label: "" }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
-  const updateVariant = (i: number, patch: Partial<DraftVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
+  const updateVariant = (i: number, patch: Partial<ProductVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
+
+  // Calculate from price
+  const variantPrices = variants.map(v => v.price).filter((p): p is number => p !== null && p > 0);
+  const fromPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : (price ? Number(price) : null);
 
   const fnPublish = useServerFn(publishDraft);
 
   const handlePublish = async () => {
-    if (!name.trim()) { toast.error("Le nom est obligatoire"); return; }
-    if (!price || Number(price) <= 0) { toast.error("Le prix est obligatoire"); return; }
-    if (!deepestPick) { toast.error("Choisissez une categorie"); return; }
+    if (!name.trim()) { toast.error("Nom obligatoire"); return; }
+    if (!price || Number(price) <= 0) { toast.error("Prix obligatoire"); return; }
+    if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
 
     setSubmitting(true);
     try {
       const result = await fnPublish({ data: {
         draft: {
-          name: name.trim(),
-          designation: designation.trim(),
-          description: description.trim(),
-          price: Number(price),
-          categoryId: finalL3?.id || null,
-          images,
-          variants: variants.map(v => ({ ...v, price_override: v.price_override })),
+          name: name.trim(), designation: designation.trim(), description: description.trim(),
+          price: Number(price), categoryId: finalL3?.id || null,
+          images: draft.images,
+          variants: variants.map(v => ({ size: v.size, color: v.color, color_hex: v.color_hex, stock: v.stock, price: v.price, image_url: v.image_url })),
         },
       }}) as any;
 
-      toast.success(`Produit publie ! Code: ${result.code}`);
-      onPublish();
-      onClose();
-    } catch (e: any) {
-      toast.error(e.message || "Publication echouee");
-    }
+      toast.success(`Publie ! Code: ${result.code}`);
+      onPublish(draft.id); onClose();
+    } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
   };
 
   const handleSaveDraft = () => {
-    onUpdate({
-      name, designation, description,
-      price: price ? Number(price) : null,
-      variants, categoryId: finalL3?.id || null,
-      categoryName: finalL3 ? `${opts1.find(o => o.value === pick1)?.label || ""} > ${opts2.find(o => o.value === pick2)?.label || ""} > ${finalL3.name}` : null,
-    });
+    onUpdate({ name, designation, description, price: price ? Number(price) : null, variants, categoryId: finalL3?.id || null });
     toast.success("Brouillon sauvegarde");
   };
 
@@ -424,38 +497,66 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0">
         <DialogHeader className="p-4 pb-2 sticky top-0 bg-background z-10 border-b">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Pencil className="h-4 w-4 text-primary" /> Verifier et publier le produit
-              <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">{draft.confidence}%</Badge>
-            </DialogTitle>
-          </div>
+          <DialogTitle className="text-base flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-primary" /> Verifier et publier
+            <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">{draft.confidence}%</Badge>
+          </DialogTitle>
           {draft.uncertainties.length > 0 && (
             <div className="mt-2 rounded bg-amber-50 border border-amber-200 p-2 space-y-0.5">
-              {draft.uncertainties.map((u, i) => (
-                <p key={i} className="text-[10px] text-amber-800">• {u}</p>
-              ))}
+              {draft.uncertainties.map((u, i) => <p key={i} className="text-[10px] text-amber-800">• {u}</p>)}
             </div>
           )}
         </DialogHeader>
 
         <div className="p-4 space-y-5">
-          {/* Media gallery */}
-          <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">Medias analyses</Label>
-            <div className="grid grid-cols-6 gap-1 mt-1">
-              {images.map((url, i) => (
-                <div key={i} className="aspect-square rounded overflow-hidden border bg-muted">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                </div>
-              ))}
+          {/* Price highlight */}
+          <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Prix affiche (from)</p>
+              <p className="text-xl font-bold text-primary">{fmtFcfa(fromPrice)}</p>
             </div>
+            {draft.originalPrice && (
+              <div className="text-right">
+                <p className="text-[10px] text-muted-foreground">Original detecte</p>
+                <p className="text-sm font-medium">{draft.originalPrice} {draft.originalCurrency} → {fmtFcfa(draft.price)}</p>
+              </div>
+            )}
           </div>
+
+          {/* Media groups */}
+          {draft.mediaGroup && (
+            <div className="space-y-2">
+              {draft.mediaGroup.infoImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-amber-700 flex items-center gap-1"><Info className="h-3 w-3" /> Images INFO (donnees extraites)</Label>
+                  <div className="grid grid-cols-6 gap-1 mt-1">
+                    {draft.mediaGroup.infoImages.map((url, i) => <div key={i} className="aspect-square rounded overflow-hidden border-2 border-amber-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>)}
+                  </div>
+                </div>
+              )}
+              {draft.mediaGroup.productImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-emerald-700 flex items-center gap-1"><Camera className="h-3 w-3" /> Images PRODUIT (galerie)</Label>
+                  <div className="grid grid-cols-6 gap-1 mt-1">
+                    {draft.mediaGroup.productImages.map((url, i) => <div key={i} className="aspect-square rounded overflow-hidden border-2 border-emerald-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>)}
+                  </div>
+                </div>
+              )}
+              {draft.mediaGroup.variantImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-purple-700 flex items-center gap-1"><Palette className="h-3 w-3" /> Images VARIANTES</Label>
+                  <div className="grid grid-cols-6 gap-1 mt-1">
+                    {draft.mediaGroup.variantImages.map((url, i) => <div key={i} className="aspect-square rounded overflow-hidden border-2 border-purple-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Product info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
-              <Label className="text-[10px] uppercase">Nom du produit <span className="text-destructive">*</span></Label>
+              <Label className="text-[10px] uppercase">Nom <span className="text-destructive">*</span></Label>
               <Input value={name} onChange={e => setName(e.target.value)} className="mt-0.5" />
             </div>
             <div>
@@ -463,11 +564,8 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
               <Input value={designation} onChange={e => setDesignation(e.target.value)} className="mt-0.5" />
             </div>
             <div>
-              <Label className="text-[10px] uppercase">Prix (FCFA) <span className="text-destructive">*</span></Label>
-              <div className="flex gap-2 mt-0.5">
-                <Input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)}
-                  className={!price ? "border-amber-300 bg-amber-50/30" : ""} placeholder={draft.priceNote} />
-              </div>
+              <Label className="text-[10px] uppercase">Prix en FCFA <span className="text-destructive">*</span></Label>
+              <Input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} className="mt-0.5" placeholder={draft.priceNote} />
             </div>
             <div className="sm:col-span-2">
               <Label className="text-[10px] uppercase">Description</Label>
@@ -475,55 +573,22 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
             </div>
           </div>
 
-          {/* Brand / Tags */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {draft.detectedBrand && (
-              <div>
-                <Label className="text-[10px] uppercase">Marque detectee</Label>
-                <Input value={draft.detectedBrand} readOnly className="mt-0.5 bg-muted" />
-              </div>
-            )}
+          {draft.detectedBrand && (
             <div>
-              <Label className="text-[10px] uppercase">Tags IA</Label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {draft.tags.map((t, i) => <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>)}
-              </div>
+              <Label className="text-[10px] uppercase">Marque detectee</Label>
+              <Input value={draft.detectedBrand} readOnly className="mt-0.5 bg-muted" />
             </div>
-          </div>
-
-          {/* Colors & Materials */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-[10px] uppercase flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs</Label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {draft.colors.map((c, i) => <Badge key={i} variant="outline" className="text-[10px]">{c}</Badge>)}
-                {draft.colors.length === 0 && <span className="text-[11px] text-muted-foreground">Non detecte</span>}
-              </div>
-            </div>
-            <div>
-              <Label className="text-[10px] uppercase">Materiaux</Label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {draft.materials.map((m, i) => <Badge key={i} variant="outline" className="text-[10px]">{m}</Badge>)}
-                {draft.materials.length === 0 && <span className="text-[11px] text-muted-foreground">Non detecte</span>}
-              </div>
-            </div>
-          </div>
+          )}
 
           <Separator />
 
-          {/* Category selector (3 levels) */}
+          {/* Category */}
           <div>
             <Label className="text-[10px] uppercase font-semibold flex items-center gap-1">
               <ChevronRight className="h-3.5 w-3.5" /> Categorie
-              {draft.categoryMatch && (
-                <Badge variant="outline" className="text-[10px] ml-2">
-                  IA: {draft.categoryMatch.l3Name} ({draft.categoryMatch.score}%)
-                </Badge>
-              )}
+              {draft.categoryMatch && <Badge variant="outline" className="text-[10px] ml-2">IA: {draft.categoryMatch.l3Name} ({draft.categoryMatch.score}%)</Badge>}
             </Label>
-            {!draft.categoryMatch && (
-              <p className="text-[10px] text-amber-600 mt-0.5"><AlertTriangle className="h-2.5 w-2.5 inline" /> Aucune categorie proche. Selectionnez manuellement.</p>
-            )}
+            {!draft.categoryMatch && <p className="text-[10px] text-amber-600 mt-0.5"><AlertTriangle className="h-2.5 w-2.5 inline" /> Aucune categorie proche. Selectionnez manuellement.</p>}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1.5">
               <div>
                 <Label className="text-[9px] text-muted-foreground">Rayon (L1)</Label>
@@ -551,31 +616,26 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
 
           <Separator />
 
-          {/* Variants manager (identical to admin form) */}
+          {/* Variants */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label className="text-[10px] uppercase font-semibold flex items-center gap-1"><Ruler className="h-3.5 w-3.5" /> Variantes ({variants.length})</Label>
-              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}>
-                <Plus className="h-3 w-3 mr-1" /> Ajouter
-              </Button>
+              <Label className="text-[10px] uppercase font-semibold flex items-center gap-1"><Ruler className="h-3.5 w-3.5" /> Variantes avec prix ({variants.length})</Label>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
             </div>
-
             {variants.length === 0 ? (
               <div className="rounded-lg border border-dashed p-4 text-center">
-                <p className="text-[11px] text-muted-foreground">Aucune variante. Ajoutez si le produit a des options (taille, couleur).</p>
-                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}>
-                  <Plus className="h-3 w-3 mr-1" /> Ajouter une variante
-                </Button>
+                <p className="text-[11px] text-muted-foreground">Aucune variante. Ajoutez si le produit a des options.</p>
+                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
               </div>
             ) : (
               <div className="space-y-2">
                 {variants.map((v, i) => (
-                  <Card key={i} className="border-muted">
+                  <Card key={v.id} className="border-muted">
                     <CardContent className="p-2.5">
-                      <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 items-end">
+                      <div className="grid grid-cols-7 gap-2 items-end">
                         <div className="col-span-1">
                           <Label className="text-[9px] text-muted-foreground">Taille</Label>
-                          <Input value={v.size} onChange={e => updateVariant(i, { size: e.target.value })} className="h-7 text-[11px]" placeholder="M, L, XL" />
+                          <Input value={v.size} onChange={e => updateVariant(i, { size: e.target.value })} className="h-7 text-[11px]" placeholder="M" />
                         </div>
                         <div className="col-span-1">
                           <Label className="text-[9px] text-muted-foreground">Couleur</Label>
@@ -584,29 +644,34 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
                         <div className="col-span-1">
                           <Label className="text-[9px] text-muted-foreground">Hex</Label>
                           <div className="flex gap-1">
-                            <input type="color" value={v.color_hex || "#000000"} onChange={e => updateVariant(i, { color_hex: e.target.value })}
-                              className="h-7 w-7 rounded border cursor-pointer" />
-                            <Input value={v.color_hex} onChange={e => updateVariant(i, { color_hex: e.target.value })} className="h-7 text-[10px]" placeholder="#RRGGBB" />
+                            <input type="color" value={v.color_hex || "#000000"} onChange={e => updateVariant(i, { color_hex: e.target.value })} className="h-7 w-7 rounded border cursor-pointer" />
                           </div>
                         </div>
                         <div className="col-span-1">
                           <Label className="text-[9px] text-muted-foreground">Stock</Label>
                           <Input type="number" min={0} value={v.stock} onChange={e => updateVariant(i, { stock: Number(e.target.value) })} className="h-7 text-[11px]" />
                         </div>
-                        <div className="col-span-1">
-                          <Label className="text-[9px] text-muted-foreground">Prix spec.</Label>
-                          <Input type="number" min={0} value={v.price_override ?? ""} onChange={e => updateVariant(i, { price_override: e.target.value ? Number(e.target.value) : null })} className="h-7 text-[11px]" placeholder="Optionnel" />
+                        <div className="col-span-2">
+                          <Label className="text-[9px] text-muted-foreground">Prix (FCFA)</Label>
+                          <Input type="number" min={0} value={v.price ?? ""} onChange={e => updateVariant(i, { price: e.target.value ? Number(e.target.value) : null })} className="h-7 text-[11px]" placeholder={fromPrice ? `ex: ${fromPrice}` : "Prix"} />
                         </div>
                         <div className="col-span-1 flex justify-end">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeVariant(i)}>
-                            <Minus className="h-3.5 w-3.5" />
-                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeVariant(i)}><Minus className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
+                      {v.image_url && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <img src={v.image_url} alt="" className="h-8 w-8 rounded object-cover border" />
+                          <span className="text-[9px] text-muted-foreground">Image variante liee</span>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            )}
+            {variantPrices.length > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong> (minimum des variantes)</p>
             )}
           </div>
 
@@ -615,10 +680,10 @@ function DraftEditorDialog({ draft, onClose, onUpdate, onPublish }: {
           {/* Actions */}
           <div className="flex gap-2 sticky bottom-0 bg-background pt-2 pb-1">
             <Button variant="outline" onClick={onClose} className="gap-1"><X className="h-4 w-4" /> Fermer</Button>
-            <Button variant="secondary" onClick={handleSaveDraft} className="gap-1"><Save className="h-4 w-4" /> Sauver brouillon</Button>
+            <Button variant="secondary" onClick={handleSaveDraft} className="gap-1"><Save className="h-4 w-4" /> Sauver</Button>
             <Button onClick={handlePublish} disabled={submitting} className="flex-1 gap-2" size="lg">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {submitting ? "Publication..." : "Publier dans la boutique admin"}
+              {submitting ? "Publication..." : "Publier dans la boutique"}
             </Button>
           </div>
         </div>
