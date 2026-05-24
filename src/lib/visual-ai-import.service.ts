@@ -116,9 +116,17 @@ export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware(
 const mediaGroup = parseMediaNotation(data.mediaNotation, allUrls);
 logs.push(`Media: ${allUrls.length} total | Info:${mediaGroup.infoImages.length} Prod:${mediaGroup.productImages.length} Var:${mediaGroup.variantImages.length}`); const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: allCats } = await supabase.from("categories").select("id, name, level, parent_id, name_i18n").order("position"); const cats = (allCats || []) as CatRow[]; const catList = cats.filter(c => c.level === 3).map(c => { const l2 = cats.find(p => p.id === c.parent_id && p.level === 2); const l1 = l2 ? cats.find(p => p.id === l2.parent_id && p.level === 1) : null; return `${l1?.name || ""}>${l2?.name || ""}>${c.name}`; }).slice(0, 50).join("\n");
 
-const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES:\n- ${mediaGroup.infoImages.length} images INFO (contiennent prix, description, details vendeur)\n- ${mediaGroup.productImages.length} images PRODUIT (photos du produit)\n- ${mediaGroup.variantImages.length} images VARIANTES (chaque image = une option differente)\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES - TRES IMPORTANT:\nDiffencie 2 types de couleurs:\n1. COULEURS DESCRIPTIVES (descriptive_colors): couleurs visibles sur le produit mais NON achetables separement. Ex: jouets multicolores, blocs magnetiques, objets a plusieurs couleurs fixes. Le client ne choisit pas "Rouge" ou "Bleu", il recoit le produit multicolore tel quel.\n2. COULEURS VARIANTE (variant_colors): vraies options achetables. Ex: t-shirt en Rouge OU Bleu OU Noir, ou le client choisit explicitement une couleur.\n\nSi le produit est multicolore fixe (les couleurs sont melangees, pas d'image separee par couleur, le client ne choisit pas):\n- is_multicolor_fixed: true\n- descriptive_colors: ["Rouge","Bleu","Jaune"] (couleurs visibles)\n- variant_colors: [] (vide, pas de choix couleur)\n- variants doivent contenir uniquement les vraies options (tailles, quantites, etc.)\n\nSi le produit a des vraies variantes couleur:\n- is_multicolor_fixed: false\n- descriptive_colors: []\n- variant_colors: ["Rouge","Bleu"] (choix reels)\n\nREGLES SIZES:\n- variant_sizes: vraies tailles/quantites achetables ("40 pieces", "80 pieces", "S", "M", "L", "XL")\n\nEXEMPLES:\n\nProduit multicolore fixe (blocs magnetiques):\n{\"is_multicolor_fixed\":true,\"descriptive_colors\":[\"Rouge\",\"Bleu\",\"Jaune\",\"Vert\"],\"variant_colors\":[],\"variant_sizes\":[],\"variants\":[{\"label\":\"40 pieces\",\"price\":8500},{\"label\":\"80 pieces\",\"price\":15000},{\"label\":\"160 pieces\",\"price\":25000}]}\n\nT-shirt avec choix couleur:\n{\"is_multicolor_fixed\":false,\"descriptive_colors\":[],\"variant_colors\":[\"Rouge\",\"Bleu\",\"Noir\"],\"variant_sizes\":[\"S\",\"M\",\"L\",\"XL\"],\"variants\":[{\"label\":\"Rouge\",\"price\":8500},{\"label\":\"Bleu\",\"price\":8500},{\"label\":\"Noir\",\"price\":8500}]}\n\nReponds JSON strict:\n{\"name\":\"\",\"designation\":\"\",\"description\":\"\",\"originalPrice\":0,\"originalCurrency\":\"CNY\",\"priceInFcfa\":0,\"is_multicolor_fixed\":false,\"descriptive_colors\":[],\"variant_colors\":[],\"variant_sizes\":[],\"variants\":[{\"label\":\"\",\"price\":0,\"image_url\":\"\",\"colors\":[],\"sizes\":[]}],\"materials\":[],\"detectedBrand\":null,\"detectedText\":[],\"tags\":[],\"features\":[],\"categoryHint\":\"\",\"productType\":\"\",\"confidence\":70,\"uncertainties\":[]}\nCategories:\n${catList}`;
+const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10);
+const infoCount = mediaGroup.infoImages.length;
+const prodCount = mediaGroup.productImages.length;
+const varCount = Math.max(0, selected.length - infoCount - prodCount);
+const infoRange = infoCount > 0 ? `Images 1 a ${infoCount}` : "(aucune)";
+const prodRange = prodCount > 0 ? `Images ${infoCount + 1} a ${infoCount + prodCount}` : "(aucune)";
+const varRange = varCount > 0 ? `Images ${infoCount + prodCount + 1} a ${selected.length}` : "(aucune)";
 
-const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10); const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
+const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES (numerotees de 1 a ${selected.length} dans l'ordre):\n- INFO: ${infoRange} (prix, description, details vendeur)\n- PRODUIT: ${prodRange} (photos du produit)\n- VARIANTES: ${varRange} (chaque image montre une option/couleur/modele different)\n\nREGLE IMAGES - CRITIQUE:\nPour CHAQUE variante, tu DOIS indiquer dans "image_indices" la liste des numeros d'images (1-based) qui correspondent visuellement a cette variante. Regarde la couleur, le modele, l'angle. Une image peut etre assignee a une seule variante. Si tu ne sais pas, mets [].\nExemple: t-shirt rouge visible sur image 4 et 5 -> image_indices: [4,5]. Variante "80 pieces" visible sur image 6 -> image_indices: [6].\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n1. descriptive_colors: couleurs visibles mais NON achetables separement (produit multicolore fixe)\n2. variant_colors: vraies options achetables (le client choisit)\n\nSi multicolore fixe: is_multicolor_fixed=true, descriptive_colors remplis, variant_colors=[]\nSi vraies options couleur: is_multicolor_fixed=false, variant_colors remplis\n\nvariant_sizes: vraies tailles/quantites ("40 pieces", "S", "M", "L")\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","is_multicolor_fixed":false,"descriptive_colors":[],"variant_colors":[],"variant_sizes":[],"variants":[{"label":"","price":0,"image_indices":[],"colors":[],"sizes":[]}],"tags":[],"productType":"","confidence":70,"uncertainties":[]}\n\nCategories:\n${catList}`;
+
+const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
 let aiResult: any = null; try { const apiKey = process.env.LOVABLE_API_KEY || ""; const res = await fetch(IA_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: "Expert produits e-commerce." }, { role: "user", content: parts }], max_tokens: 4096, temperature: 0.2 }), signal: AbortSignal.timeout(60000) }); if (!res.ok) throw new Error(`IA HTTP ${res.status}`); const json = await res.json(); const raw = json.choices?.[0]?.message?.content?.trim() || ""; try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); else throw new Error("JSON invalide"); } } catch (e: any) { return { success: false, draft: null, logs, errors: [`IA: ${e.message}`] }; }
 
 const currency = aiResult?.originalCurrency || detectCurrency(JSON.stringify(aiResult));
@@ -139,15 +147,32 @@ const effectiveVariantColors = variantColors.length > 0 ? variantColors : (isMul
 const variantImgUrls = mediaGroup.variantImages.length > 0 ? mediaGroup.variantImages : [];
 
 const rawVariants = Array.isArray(aiResult?.variants) ? aiResult.variants : [];
-let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => ({
-  label: String(v.label || v.name || "Option").slice(0, 60),
-  price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
-  image_url: v.image_url || variantImgUrls[idx] || null,
-  colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
-  sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
-  color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
-  stock: Number(v.stock) || 0,
-})).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
+let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
+  // Map AI image indices (1-based) to actual URLs from the selected array
+  const aiIndices: number[] = Array.isArray(v.image_indices)
+    ? v.image_indices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 1 && n <= selected.length)
+    : [];
+  let imgUrl: string | null = null;
+  if (aiIndices.length > 0) {
+    // AI explicitly told us which image(s) belong to this variant
+    const allUrls = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages];
+    const idx0 = aiIndices[0] - 1;
+    imgUrl = (idx0 >= 0 && idx0 < allUrls.length) ? allUrls[idx0] : null;
+  }
+  // Fallback: use the variant image group directly by position
+  if (!imgUrl && variantImgUrls[idx]) imgUrl = variantImgUrls[idx];
+  // Fallback: use image_url from AI
+  if (!imgUrl && v.image_url) imgUrl = v.image_url;
+  return {
+    label: String(v.label || v.name || "Option").slice(0, 60),
+    price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
+    image_url: imgUrl,
+    colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
+    sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
+    color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
+    stock: Number(v.stock) || 0,
+  };
+}).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
 
 // If no variants extracted but we have variant sizes, auto-create variants
 if (variants.length === 0 && variantSizes.length > 0) {
