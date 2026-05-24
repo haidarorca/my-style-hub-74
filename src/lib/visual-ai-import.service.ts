@@ -2,11 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+export interface MediaGroup {
+  infoImages: string[];
+  productImages: string[];
+  variantImages: string[];
+}
 export interface SimpleVariant {
   label: string;
   price: number;
   image_url: string | null;
-  // Optional advanced fields
   size: string;
   color: string;
   color_hex: string;
@@ -18,11 +22,78 @@ export interface VisualDraft {
   images: string[]; variants: SimpleVariant[];
   categoryId: string | null; categoryName: string | null;
   confidence: number; uncertainties: string[];
+  mediaGroup: MediaGroup;
   status: "draft"; createdAt: number;
 }
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
 const MAX_VIDEO_FRAMES = 8;
 const FCFA_RATES: Record<string, number> = { CNY: 85, USD: 605, EUR: 655 };
+
+// Parse media notation: "1,2,3,4,,5,6" → info=1-2, product=3-4, variants=5-6
+export function parseMediaNotation(notation: string, allUrls: string[]): MediaGroup {
+  const group: MediaGroup = { infoImages: [], productImages: [], variantImages: [] };
+  if (!notation.trim() || allUrls.length === 0) {
+    const mid = Math.min(2, allUrls.length);
+    group.infoImages = allUrls.slice(0, mid);
+    group.productImages = allUrls.slice(mid);
+    return group;
+  }
+  // Find double comma or trailing comma split
+  const segments = notation.split(",");
+  let variantStartIdx = -1;
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (segments[i].trim() === "" && segments[i + 1].trim() !== "") {
+      variantStartIdx = i;
+      break;
+    }
+  }
+  // Also check for double comma
+  if (variantStartIdx === -1) {
+    const dblComma = notation.indexOf(",,");
+    if (dblComma >= 0) {
+      // Count non-empty segments before the double comma
+      let count = 0;
+      const before = notation.slice(0, dblComma);
+      for (const s of before.split(",")) { if (s.trim()) count++; }
+      variantStartIdx = count;
+    }
+  }
+
+  // Parse all number references into ordered indices
+  const allIndices: number[] = [];
+  for (const seg of segments) {
+    const s = seg.trim();
+    if (!s) continue;
+    if (s.includes("-")) {
+      const [a, b] = s.split("-").map(x => parseInt(x.trim()) - 1);
+      if (!isNaN(a) && !isNaN(b)) {
+        for (let i = Math.max(0, a); i <= Math.min(b, allUrls.length - 1); i++) allIndices.push(i);
+      }
+    } else {
+      const idx = parseInt(s) - 1;
+      if (!isNaN(idx) && idx >= 0 && idx < allUrls.length) allIndices.push(idx);
+    }
+  }
+  const unique = [...new Set(allIndices)];
+
+  if (variantStartIdx > 0 && variantStartIdx < unique.length) {
+    const firstHalf = unique.slice(0, variantStartIdx);
+    const secondHalf = unique.slice(variantStartIdx);
+    const infoSplit = Math.ceil(firstHalf.length / 2);
+    group.infoImages = firstHalf.slice(0, infoSplit).map(i => allUrls[i]);
+    group.productImages = firstHalf.slice(infoSplit).map(i => allUrls[i]);
+    group.variantImages = secondHalf.map(i => allUrls[i]);
+  } else if (unique.length > 0) {
+    const infoEnd = Math.min(2, unique.length);
+    group.infoImages = unique.slice(0, infoEnd).map(i => allUrls[i]);
+    group.productImages = unique.slice(infoEnd).map(i => allUrls[i]);
+  }
+  if (group.infoImages.length === 0 && allUrls.length > 0) group.infoImages = [allUrls[0]];
+  if (group.productImages.length === 0 && allUrls.length > group.infoImages.length) {
+    group.productImages = allUrls.slice(group.infoImages.length);
+  }
+  return group;
+}
 const IA_ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
 function toFcfa(price: number, currency: string): number { return Math.round(price * (FCFA_RATES[currency?.toUpperCase()] || 85)); }
 function detectCurrency(text: string): string { const l = text.toLowerCase(); if (l.includes("$") || l.includes("usd")) return "USD"; if (l.includes("€") || l.includes("eur")) return "EUR"; return "CNY"; }
@@ -33,11 +104,15 @@ export const uploadImportMedia = createServerFn({ method: "POST" }).middleware([
 
 export const extractVideoFrames = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ videoUrl: z.string().url(), maxFrames: z.number().int().min(1).max(MAX_VIDEO_FRAMES).default(MAX_VIDEO_FRAMES) }).parse(input)).handler(async ({ data }) => { const frameUrls: string[] = []; let error = ""; try { const fs = await import("fs"); const path = await import("path"); const { execSync } = await import("child_process"); const os = await import("os"); const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "vai-")); const videoPath = path.join(tempDir, "v.mp4"); const res = await fetch(data.videoUrl, { signal: AbortSignal.timeout(30000) }); fs.writeFileSync(videoPath, Buffer.from(await res.arrayBuffer())); const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, { encoding: "utf-8", timeout: 10000 }).trim()) || 60; try { execSync(`ffmpeg -i "${videoPath}" -vf "select='gt(scene,0.3)'" -vsync vfr -q:v 2 "${tempDir}/s_%04d.jpg" 2>/dev/null`, { timeout: 30000 }); } catch { } const scenes = fs.readdirSync(tempDir).filter(f => f.startsWith("s_")).sort(); const frames: string[] = []; if (scenes.length < 3) { const interval = Math.min(dur, 60) / (data.maxFrames + 1); for (let i = 1; i <= data.maxFrames; i++) { const out = path.join(tempDir, `f_${i}.jpg`); try { execSync(`ffmpeg -ss ${(interval * i).toFixed(1)} -i "${videoPath}" -vf "scale=720:-1" -vframes 1 -q:v 2 "${out}"`, { timeout: 10000 }); if (fs.existsSync(out) && fs.statSync(out).size > 1000) frames.push(out); } catch { } } } else { for (const s of scenes.slice(0, data.maxFrames)) frames.push(path.join(tempDir, s)); } const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; for (let i = 0; i < frames.length; i++) { const buf = fs.readFileSync(frames[i]); const up = `temp/f/${Date.now()}_${i}.jpg`; for (const b of ["imports", "product-images"]) { const { error: e } = await supabase.storage.from(b).upload(up, buf, { contentType: "image/jpeg", upsert: false }); if (!e) { const { data: u } = supabase.storage.from(b).getPublicUrl(up); frameUrls.push(u.publicUrl); break; } } } try { fs.rmSync(tempDir, { recursive: true }); } catch { } } catch (e: any) { error = e.message; } return { frameUrls, frameCount: frameUrls.length, error }; });
 
-export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ imageUrls: z.array(z.string().url()).max(30).default([]), videoFrameUrls: z.array(z.string().url()).max(MAX_VIDEO_FRAMES).default([]) }).parse(input)).handler(async ({ data }) => { const logs: string[] = []; const allUrls = [...data.imageUrls, ...data.videoFrameUrls]; if (allUrls.length === 0) return { success: false, draft: null, logs, errors: ["Aucun media"] }; const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: allCats } = await supabase.from("categories").select("id, name, level, parent_id, name_i18n").order("position"); const cats = (allCats || []) as CatRow[]; const catList = cats.filter(c => c.level === 3).map(c => { const l2 = cats.find(p => p.id === c.parent_id && p.level === 2); const l1 = l2 ? cats.find(p => p.id === l2.parent_id && p.level === 1) : null; return `${l1?.name || ""}>${l2?.name || ""}>${c.name}`; }).slice(0, 50).join("\n");
+export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ imageUrls: z.array(z.string().url()).max(30).default([]), videoFrameUrls: z.array(z.string().url()).max(MAX_VIDEO_FRAMES).default([]), mediaNotation: z.string().default("") }).parse(input)).handler(async ({ data }) => { const logs: string[] = []; const allUrls = [...data.imageUrls, ...data.videoFrameUrls]; if (allUrls.length === 0) return { success: false, draft: null, logs, errors: ["Aucun media"] };
 
-const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES (SIMPLE):\n- Chaque variante = un NOM simple + un PRIX en FCFA\n- Exemples: {\"label\":\"Rouge\",\"price\":3825} ou {\"label\":\"XL\",\"price\":4500}\n- PAS de separation taille/couleur. Juste un nom + prix.\n\nReponds JSON strict:\n{\"name\":\"\",\"designation\":\"\",\"description\":\"\",\"originalPrice\":0,\"originalCurrency\":\"CNY\",\"priceInFcfa\":0,\"variants\":[{\"label\":\"\",\"price\":0}],\"colors\":[],\"materials\":[],\"detectedBrand\":null,\"detectedText\":[],\"tags\":[],\"features\":[],\"categoryHint\":\"\",\"productType\":\"\",\"confidence\":70,\"uncertainties\":[]}\nCategories:\n${catList}`;
+// Parse media groups from notation
+const mediaGroup = parseMediaNotation(data.mediaNotation, allUrls);
+logs.push(`Media: ${allUrls.length} total | Info:${mediaGroup.infoImages.length} Prod:${mediaGroup.productImages.length} Var:${mediaGroup.variantImages.length}`); const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: allCats } = await supabase.from("categories").select("id, name, level, parent_id, name_i18n").order("position"); const cats = (allCats || []) as CatRow[]; const catList = cats.filter(c => c.level === 3).map(c => { const l2 = cats.find(p => p.id === c.parent_id && p.level === 2); const l1 = l2 ? cats.find(p => p.id === l2.parent_id && p.level === 1) : null; return `${l1?.name || ""}>${l2?.name || ""}>${c.name}`; }).slice(0, 50).join("\n");
 
-const selected = allUrls.slice(0, 10); const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
+const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES:\n- ${mediaGroup.infoImages.length} images INFO (contiennent prix, description, details du vendeur)\n- ${mediaGroup.productImages.length} images PRODUIT (photos du produit)\n- ${mediaGroup.variantImages.length} images VARIANTES (chaque image = une option differente)\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n- Chaque variante = NOM + PRIX en FCFA\n- Si images variantes fournies, utilise-les pour detecter les options\n- Exemples: {\"label\":\"Rouge\",\"price\":3825,\"image_url\":\"\"} ou {\"label\":\"XL\",\"price\":4500}\n\nReponds JSON strict:\n{\"name\":\"\",\"designation\":\"\",\"description\":\"\",\"originalPrice\":0,\"originalCurrency\":\"CNY\",\"priceInFcfa\":0,\"variants\":[{\"label\":\"\",\"price\":0,\"image_url\":\"\"}],\"colors\":[],\"materials\":[],\"detectedBrand\":null,\"detectedText\":[],\"tags\":[],\"features\":[],\"categoryHint\":\"\",\"productType\":\"\",\"confidence\":70,\"uncertainties\":[]}\nCategories:\n${catList}`;
+
+const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10); const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
 let aiResult: any = null; try { const apiKey = process.env.LOVABLE_API_KEY || ""; const res = await fetch(IA_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: "Expert produits e-commerce." }, { role: "user", content: parts }], max_tokens: 4096, temperature: 0.2 }), signal: AbortSignal.timeout(60000) }); if (!res.ok) throw new Error(`IA HTTP ${res.status}`); const json = await res.json(); const raw = json.choices?.[0]?.message?.content?.trim() || ""; try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); else throw new Error("JSON invalide"); } } catch (e: any) { return { success: false, draft: null, logs, errors: [`IA: ${e.message}`] }; }
 
 const currency = aiResult?.originalCurrency || detectCurrency(JSON.stringify(aiResult));
@@ -61,7 +136,7 @@ const uncertainties: string[] = Array.isArray(aiResult?.uncertainties) ? aiResul
 if (!originalPrice) uncertainties.push("Prix non visible - a completer en FCFA"); else uncertainties.push(`${originalPrice} ${currency} = ${priceFcfa} FCFA (verifiez)`);
 if (!catMatch) uncertainties.push("Categorie - selectionnez manuellement"); else if (catMatch.score < 50) uncertainties.push(`Categorie incertaine (${catMatch.score}%)`);
 
-const draft: VisualDraft = { id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, name: String(aiResult?.name || "Produit").slice(0, 100), designation: String(aiResult?.designation || "").slice(0, 120), description: String(aiResult?.description || "").slice(0, 2000), price: fromPrice, originalPrice, originalCurrency: currency, images: allUrls, variants, categoryId: catMatch?.l3Id || null, categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null, confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)), uncertainties: [...new Set(uncertainties)], status: "draft", createdAt: Date.now() };
+const draft: VisualDraft = { id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, name: String(aiResult?.name || "Produit").slice(0, 100), designation: String(aiResult?.designation || "").slice(0, 120), description: String(aiResult?.description || "").slice(0, 2000), price: fromPrice, originalPrice, originalCurrency: currency, images: mediaGroup.productImages.length > 0 ? mediaGroup.productImages : allUrls, variants, categoryId: catMatch?.l3Id || null, categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null, confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)), uncertainties: [...new Set(uncertainties)], mediaGroup, status: "draft", createdAt: Date.now() };
 logs.push(`OK: "${draft.name}" | ${fromPrice} FCFA | ${variants.length}v`);
 return { success: true, draft, logs, errors: [] }; });
 
