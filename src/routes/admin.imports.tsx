@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Package, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info } from "lucide-react";
+import { Package, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info, Settings2 } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
   const [videoError, setVideoError] = useState("");
+  const [mediaNotation, setMediaNotation] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fnUpload = useServerFn(uploadImportMedia);
   const fnExtractFrames = useServerFn(extractVideoFrames);
@@ -160,6 +161,63 @@ function DraftCard({ draft, onEdit, onRemove }: { draft: VisualDraft; onEdit: ()
   );
 }
 
+function VariantRow({ variant, index, onUpdate, onRemove }: {
+  variant: SimpleVariant; index: number;
+  onUpdate: (patch: Partial<SimpleVariant>) => void;
+  onRemove: () => void;
+}) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const hasAdvanced = variant.size || variant.color || variant.color_hex || variant.stock > 0;
+
+  return (
+    <div className="bg-muted/30 rounded-lg p-2.5 space-y-2">
+      {/* Always visible: Label + Price */}
+      <div className="flex gap-2 items-end">
+        <div className="flex-1 min-w-0">
+          <Label className="text-[9px] text-muted-foreground">Nom du choix</Label>
+          <Input value={variant.label} onChange={e => onUpdate({ label: e.target.value })} className="h-9 text-sm mt-0.5" placeholder="Ex: Rouge, XL, Rouge-M" />
+        </div>
+        <div className="w-28 shrink-0">
+          <Label className="text-[9px] text-muted-foreground">Prix FCFA</Label>
+          <Input type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} className="h-9 text-sm mt-0.5" placeholder="5000" />
+        </div>
+        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-destructive shrink-0" onClick={onRemove}><Minus className="h-4 w-4" /></Button>
+      </div>
+
+      {/* Toggle advanced button */}
+      <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+        <Settings2 className="h-3 w-3" />
+        {showAdvanced ? "Masquer options" : hasAdvanced ? "Modifier options" : "Ajouter options (taille/couleur/stock)"}
+      </button>
+
+      {/* Advanced fields - hidden by default */}
+      {showAdvanced && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-dashed">
+          <div>
+            <Label className="text-[9px] text-muted-foreground">Taille</Label>
+            <Input value={variant.size} onChange={e => onUpdate({ size: e.target.value })} className="h-8 text-xs mt-0.5" placeholder="M, L, XL" />
+          </div>
+          <div>
+            <Label className="text-[9px] text-muted-foreground">Couleur</Label>
+            <Input value={variant.color} onChange={e => onUpdate({ color: e.target.value })} className="h-8 text-xs mt-0.5" placeholder="Rouge" />
+          </div>
+          <div>
+            <Label className="text-[9px] text-muted-foreground">Hex</Label>
+            <div className="flex gap-1 mt-0.5">
+              <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
+              <Input value={variant.color_hex} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 text-[10px]" placeholder="#RRGGBB" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[9px] text-muted-foreground">Stock</Label>
+            <Input type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} className="h-8 text-xs mt-0.5" placeholder="0" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDraft; onClose: () => void; onUpdate: (patch: Partial<VisualDraft>) => void; onPublish: (id: string) => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState(draft.name);
@@ -181,7 +239,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, size: "", color: "", color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -193,7 +251,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url })) } } }) as any;
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, size: v.size, color: v.color, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
@@ -246,23 +304,36 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
 
           <Separator />
 
-          {/* Variants - SIMPLE */}
+          {/* Variants - SIMPLE + ADVANCED OPTIONS */}
           <div>
-            <div className="flex items-center justify-between mb-2"><Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label><Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button></div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}>
+                <Plus className="h-3 w-3 mr-1" /> Ajouter
+              </Button>
+            </div>
             {variants.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-3 text-center"><p className="text-[11px] text-muted-foreground">Aucune variante. Ajoutez si le produit a des options (taille, couleur...).</p><Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button></div>
+              <div className="rounded-lg border border-dashed p-3 text-center">
+                <p className="text-[11px] text-muted-foreground">Aucune variante.</p>
+                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}>
+                  <Plus className="h-3 w-3 mr-1" /> Ajouter une variante
+                </Button>
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {variants.map((v, i) => (
-                  <div key={i} className="flex gap-2 items-end bg-muted/30 rounded-lg p-2">
-                    <div className="flex-1 min-w-0"><Label className="text-[9px] text-muted-foreground">Nom (ex: Rouge, XL, Rouge-M)</Label><Input value={v.label} onChange={e => updateVariant(i, { label: e.target.value })} className="h-8 text-sm mt-0.5" placeholder="Rouge" /></div>
-                    <div className="w-24 shrink-0"><Label className="text-[9px] text-muted-foreground">Prix FCFA</Label><Input type="number" min={0} value={v.price || ""} onChange={e => updateVariant(i, { price: e.target.value ? Number(e.target.value) : 0 })} className="h-8 text-sm mt-0.5" placeholder="5000" /></div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive shrink-0" onClick={() => removeVariant(i)}><Minus className="h-4 w-4" /></Button>
-                  </div>
+                  <VariantRow key={i} variant={v} index={i}
+                    onUpdate={(patch) => updateVariant(i, patch)}
+                    onRemove={() => removeVariant(i)}
+                  />
                 ))}
               </div>
             )}
-            {variants.length > 0 && <p className="text-[10px] text-muted-foreground mt-1">Prix client: <strong>{fmtFcfa(fromPrice)}</strong> (le moins cher)</p>}
+            {variants.length > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong>
+              </p>
+            )}
           </div>
 
           {/* Actions */}
