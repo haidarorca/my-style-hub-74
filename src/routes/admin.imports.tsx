@@ -1,14 +1,14 @@
 /**
  * admin.imports.tsx
- * Import IA Visuelle - SIMPLIFIE
- * Variantes: nom + prix uniquement. 100% responsive mobile.
+ * Import IA Visuelle - Variantes avec sous-options (couleurs + tailles)
+ * Notation: 1,2,,3,4,,5,7 -> info=1-2 | product=3-4 | variants=5-7
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Package, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info, Settings2 } from "lucide-react";
+import { Package, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info, Settings2, Palette, Ruler } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
 
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
-const fmtFcfa = (n: number | null) => n === null || n === 0 ? "—" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+const fmtFcfa = (n: number | null) => n === null || n === 0 ? "-" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 type Pick = string; const idOf = (v: Pick) => v.slice(4);
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
 const LS_KEY = "kawzone_v4"; function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } } function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
+
+const COLOR_PRESETS = ["Rouge", "Bleu", "Noir", "Blanc", "Vert", "Jaune", "Orange", "Rose", "Gris", "Marron", "Violet", "Beige"];
+const SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "36", "38", "40", "42", "44", "46"];
 
 export default function AdminImports() {
   const [mainTab, setMainTab] = useState<"excel" | "visual" | "drafts">("visual");
@@ -90,7 +93,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   const addLog = (msg: string, type = "info") => setLogs(p => [...p, { msg, type }]);
   const handleFiles = (newFiles: File[]) => { const accepted = newFiles.filter(f => f.type.startsWith("image/") || f.type.startsWith("video/")); if (accepted.length === 0) { toast.error("Images et videos uniquement"); return; } if (files.length + accepted.length > 20) { toast.error("Max 20 fichiers"); return; } const items = accepted.map(f => ({ file: f, preview: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "video" as const : "image" as const })); setFiles(p => [...p, ...items]); setVideoError(""); };
   const removeFile = (i: number) => setFiles(p => { const n = [...p]; URL.revokeObjectURL(n[i].preview); n.splice(i, 1); return n; });
-  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any; if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const notationStr = mediaNotation.trim(); if (notationStr) addLog(`Notation: ${notationStr}`, "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: notationStr }}) as any; if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(`Erreur: ${e.message}`, "err"); toast.error(e.message); } setIsAnalyzing(false); };
+  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any; if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const notationStr = mediaNotation.trim(); if (notationStr) addLog(`Notation: ${notationStr}`, "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: notationStr }}) as any; if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(e.message, "err"); toast.error(e.message); } setIsAnalyzing(false); };
   const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
   const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); }, []);
   const onDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }, []);
@@ -102,7 +105,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
           <div className="rounded bg-white/70 p-2 space-y-1.5">
             <div className="flex items-start gap-2">
               <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-300 shrink-0 mt-0.5">INFO</Badge>
-              <span><strong>Images 1 a 2</strong> = Contiennent les infos (prix, description, details vendeur). L&apos;IA lit ces images pour extraire les donnees.</span>
+              <span><strong>Images 1 a 2</strong> = Contiennent les infos (prix, description). L&apos;IA lit ces images pour extraire les donnees.</span>
             </div>
             <div className="flex items-start gap-2">
               <Badge className="text-[9px] bg-emerald-100 text-emerald-800 border-emerald-300 shrink-0 mt-0.5">PRODUIT</Badge>
@@ -110,15 +113,16 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
             </div>
             <div className="flex items-start gap-2">
               <Badge className="text-[9px] bg-purple-100 text-purple-800 border-purple-300 shrink-0 mt-0.5">VARIANTES</Badge>
-              <span><strong>Apres ,,</strong> = Images de variantes. Chaque image = une option differente (couleur, taille).</span>
+              <span><strong>Apres ,,</strong> = Images de variantes. Chaque image = une option differente.</span>
             </div>
           </div>
           <div className="rounded bg-white/70 p-2">
-            <p className="font-semibold mb-1">Exemples:</p>
+            <p className="font-semibold mb-1">Notation: utilisez ,, pour separer les groupes</p>
             <ul className="space-y-0.5 list-disc list-inside text-[10px]">
-              <li><code className="bg-blue-100 px-1 rounded">1,2,3,4</code> → 1-2=info, 3-4=produit</li>
-              <li><code className="bg-blue-100 px-1 rounded">1,2,3,4,,5,6</code> → 1-2=info, 3-4=produit, 5-6=variantes</li>
-              <li><code className="bg-blue-100 px-1 rounded">1-3,4,5,,6,7</code> → 1-3=info, 4-5=produit, 6-7=variantes</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> -> INFO:1-2 | PRODUIT:3-4 | VARIANTES:5,7</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> -> INFO:1-2 | PRODUIT:3-6 (pas de variants)</li>
+              <li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> -> INFO:1-3 | PRODUIT:4-5 | VARIANTES:6-8</li>
+              <li>Sans notation: les 2 premieres = info, le reste = produit</li>
             </ul>
           </div>
           <p className="text-amber-700"><AlertTriangle className="h-3 w-3 inline mr-0.5" /> <strong>Conseil video:</strong> Si la video ne se lit pas, utilisez des captures d&apos;ecran.</p>
@@ -148,24 +152,16 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
               </div>
             </div>
           )}
-          {/* Media Notation Input */}
           {files.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase font-semibold flex items-center gap-1">
                 <Info className="h-3 w-3" /> Notation des medias (optionnel)
               </Label>
               <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[10px] text-blue-800 mb-1">
-                <strong>Format:</strong> 1,2 = INFO (prix/details) | 3,4 = PRODUIT (galerie) | <strong>,,5,6</strong> = VARIANTES
+                <strong>Format:</strong> 1,2 = INFO | 3,4 = PRODUIT | <strong>,,5,6</strong> = VARIANTES. Utilisez <strong>,,</strong> pour separer les groupes.
               </div>
-              <Input
-                value={mediaNotation}
-                onChange={(e) => setMediaNotation(e.target.value)}
-                placeholder={`Ex: 1,2,3,4,,5,6 (${files.length} fichiers)`}
-                className="text-sm"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Les images avant la virgule double (,,) sont les infos et produit. Apres (,,) = variantes.
-              </p>
+              <Input value={mediaNotation} onChange={(e) => setMediaNotation(e.target.value)} placeholder={`Ex: 1,2,,3,4,,5,7 (${files.length} fichiers)`} className="text-sm" />
+              <p className="text-[10px] text-muted-foreground">Separez avec ,,: INFO ,, PRODUIT ,, VARIANTES. Ex: 1,2,,3,4,,5,7</p>
             </div>
           )}
           {videoError && <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800"><AlertTriangle className="h-3.5 w-3.5 inline mr-1" />{videoError}</div>}
@@ -199,59 +195,110 @@ function DraftCard({ draft, onEdit, onRemove }: { draft: VisualDraft; onEdit: ()
   );
 }
 
-function VariantRow({ variant, index, onUpdate, onRemove }: {
-  variant: SimpleVariant; index: number;
-  onUpdate: (patch: Partial<SimpleVariant>) => void;
-  onRemove: () => void;
-}) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const hasAdvanced = variant.size || variant.color || variant.color_hex || variant.stock > 0;
+/** Preset chip for quick color/size selection */
+function PresetChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-muted hover:bg-muted/80 text-muted-foreground border-muted-foreground/20"}`}>{label}</button>
+  );
+}
+
+function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
+  const addColor = (val: string) => { if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] }); };
+  const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
+  const updateColor = (ci: number, val: string) => onUpdate({ colors: variant.colors.map((c, j) => j === ci ? val : c) });
+  const addSize = (val: string) => { if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] }); };
+  const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
+  const updateSize = (si: number, val: string) => onUpdate({ sizes: variant.sizes.map((s, j) => j === si ? val : s) });
+  const [customColor, setCustomColor] = useState("");
+  const [customSize, setCustomSize] = useState("");
+  const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
+  const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
   return (
-    <div className="bg-muted/30 rounded-lg p-2.5 space-y-2">
-      {/* Always visible: Label + Price */}
+    <div className="bg-muted/30 rounded-lg p-2.5 space-y-3">
       <div className="flex gap-2 items-end">
         <div className="flex-1 min-w-0">
           <Label className="text-[9px] text-muted-foreground">Nom du choix</Label>
-          <Input value={variant.label} onChange={e => onUpdate({ label: e.target.value })} className="h-9 text-sm mt-0.5" placeholder="Ex: Rouge, XL, Rouge-M" />
+          <Input value={variant.label} onChange={e => onUpdate({ label: e.target.value })} className="h-9 text-sm mt-0.5" placeholder="Ex: T-shirt Basique" />
         </div>
         <div className="w-28 shrink-0">
           <Label className="text-[9px] text-muted-foreground">Prix FCFA</Label>
           <Input type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} className="h-9 text-sm mt-0.5" placeholder="5000" />
         </div>
-        <button onClick={onRemove} className="h-9 w-9 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 shrink-0" title="Supprimer"><X className="h-5 w-5" /></button>
+        <button onClick={onRemove} className="h-9 w-9 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 shrink-0" title="Supprimer la variante"><X className="h-5 w-5" /></button>
       </div>
 
-      {/* Toggle advanced button */}
-      <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
-        <Settings2 className="h-3 w-3" />
-        {showAdvanced ? "Masquer options" : hasAdvanced ? "Modifier options" : "Ajouter options (taille/couleur/stock)"}
-      </button>
-
-      {/* Advanced fields - hidden by default */}
-      {showAdvanced && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-dashed">
-          <div>
-            <Label className="text-[9px] text-muted-foreground">Taille</Label>
-            <Input value={variant.size} onChange={e => onUpdate({ size: e.target.value })} className="h-8 text-xs mt-0.5" placeholder="M, L, XL" />
-          </div>
-          <div>
-            <Label className="text-[9px] text-muted-foreground">Couleur</Label>
-            <Input value={variant.color} onChange={e => onUpdate({ color: e.target.value })} className="h-8 text-xs mt-0.5" placeholder="Rouge" />
-          </div>
-          <div>
-            <Label className="text-[9px] text-muted-foreground">Hex</Label>
-            <div className="flex gap-1 mt-0.5">
-              <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
-              <Input value={variant.color_hex} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 text-[10px]" placeholder="#RRGGBB" />
-            </div>
-          </div>
-          <div>
-            <Label className="text-[9px] text-muted-foreground">Stock</Label>
-            <Input type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} className="h-8 text-xs mt-0.5" placeholder="0" />
-          </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
+          <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
+            {allColorsSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+            {allColorsSelected ? "Tout deselectionner" : "Tout selectionner"}
+          </Button>
         </div>
-      )}
+        <div className="flex flex-wrap gap-1">
+          {COLOR_PRESETS.map(c => (
+            <PresetChip key={c} label={c} active={variant.colors.includes(c)} onClick={() => variant.colors.includes(c) ? onUpdate({ colors: variant.colors.filter(x => x !== c) }) : addColor(c)} />
+          ))}
+        </div>
+        {variant.colors.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {variant.colors.map((c, ci) => (
+              <div key={ci} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
+                {ci === 0 && (
+                  <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="w-4 h-4 rounded cursor-pointer border-0 p-0 shrink-0" title="Couleur hex" />
+                )}
+                <Input value={c} onChange={e => updateColor(ci, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-14 bg-transparent" />
+                <button onClick={() => removeColor(ci)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-1">
+          <Input value={customColor} onChange={e => setCustomColor(e.target.value)} className="h-7 text-xs" placeholder="Couleur personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }} />
+          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }}><Plus className="h-3 w-3" /></Button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
+          <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
+            {allSizesSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+            {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {SIZE_PRESETS.map(s => (
+            <PresetChip key={s} label={s} active={variant.sizes.includes(s)} onClick={() => variant.sizes.includes(s) ? onUpdate({ sizes: variant.sizes.filter(x => x !== s) }) : addSize(s)} />
+          ))}
+        </div>
+        {variant.sizes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {variant.sizes.map((s, si) => (
+              <div key={si} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
+                <Input value={s} onChange={e => updateSize(si, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-10 bg-transparent text-center" />
+                <button onClick={() => removeSize(si)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-1">
+          <Input value={customSize} onChange={e => setCustomSize(e.target.value)} className="h-7 text-xs" placeholder="Taille personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }} />
+          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }}><Plus className="h-3 w-3" /></Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed">
+        <div>
+          <Label className="text-[9px] text-muted-foreground">Stock</Label>
+          <Input type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} className="h-8 text-xs mt-0.5" placeholder="0" />
+        </div>
+        <div>
+          <Label className="text-[9px] text-muted-foreground">Image URL</Label>
+          <Input value={variant.image_url || ""} onChange={e => onUpdate({ image_url: e.target.value || null })} className="h-8 text-[10px] mt-0.5" placeholder="https://..." />
+        </div>
+      </div>
     </div>
   );
 }
@@ -264,7 +311,6 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const [price, setPrice] = useState<string>(draft.price !== null ? String(draft.price) : "");
   const [variants, setVariants] = useState<SimpleVariant[]>(draft.variants.length > 0 ? draft.variants : []);
   const { data: cats } = useQuery<CatRow[]>({ queryKey: ["cats-vi"], queryFn: async () => { const { data } = await supabase.from("categories").select("id, name, level, parent_id").order("position"); return (data || []) as CatRow[]; } });
-  const hasMatch = !!draft.categoryName;
   const l3id = draft.categoryId || "";
   const l3cat = cats?.find(c => c.id === l3id);
   const l2cat = l3cat && cats?.find(c => c.id === l3cat.parent_id && c.level === 2);
@@ -277,7 +323,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, size: "", color: "", color_hex: "", stock: 0 }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -289,7 +335,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, size: v.size, color: v.color, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
@@ -312,14 +358,12 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
           )}
         </DialogHeader>
         <div className="p-3 sm:p-4 space-y-4">
-          {/* Price */}
           <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
             <p className="text-[10px] uppercase text-muted-foreground">Prix affiche (from)</p>
             <p className="text-2xl font-bold text-primary">{fmtFcfa(fromPrice)}</p>
             {draft.originalPrice && <p className="text-[10px] text-muted-foreground">{draft.originalPrice} {draft.originalCurrency} = {fmtFcfa(draft.price)}</p>}
           </div>
 
-          {/* Media Groups */}
           {draft.mediaGroup && (
             <div className="space-y-2">
               {draft.mediaGroup.infoImages.length > 0 && (
@@ -343,7 +387,6 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             </div>
           )}
 
-          {/* Product info */}
           <div className="space-y-2">
             <div><Label className="text-[10px] uppercase">Nom <span className="text-destructive">*</span></Label><Input value={name} onChange={e => setName(e.target.value)} className="mt-0.5 h-9" /></div>
             <div><Label className="text-[10px] uppercase">Designation</Label><Input value={designation} onChange={e => setDesignation(e.target.value)} className="mt-0.5 h-9" /></div>
@@ -351,7 +394,6 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             <div><Label className="text-[10px] uppercase">Description</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="mt-0.5 text-sm" /></div>
           </div>
 
-          {/* Category */}
           <div>
             <Label className="text-[10px] uppercase font-semibold">Categorie</Label>
             <div className="grid grid-cols-1 gap-1.5 mt-1">
@@ -363,39 +405,28 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
 
           <Separator />
 
-          {/* Variants - SIMPLE + ADVANCED OPTIONS */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label>
-              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}>
-                <Plus className="h-3 w-3 mr-1" /> Ajouter
-              </Button>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
             </div>
             {variants.length === 0 ? (
               <div className="rounded-lg border border-dashed p-3 text-center">
                 <p className="text-[11px] text-muted-foreground">Aucune variante.</p>
-                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}>
-                  <Plus className="h-3 w-3 mr-1" /> Ajouter une variante
-                </Button>
+                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter une variante</Button>
               </div>
             ) : (
               <div className="space-y-3">
                 {variants.map((v, i) => (
-                  <VariantRow key={i} variant={v} index={i}
-                    onUpdate={(patch) => updateVariant(i, patch)}
-                    onRemove={() => removeVariant(i)}
-                  />
+                  <VariantRow key={i} variant={v} index={i} onUpdate={(patch) => updateVariant(i, patch)} onRemove={() => removeVariant(i)} />
                 ))}
               </div>
             )}
             {variants.length > 0 && (
-              <p className="text-[10px] text-muted-foreground mt-2">
-                Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong>
-              </p>
+              <p className="text-[10px] text-muted-foreground mt-2">Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong></p>
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex gap-2 pt-2 pb-1">
             <Button variant="outline" onClick={onClose} className="gap-1 flex-1 sm:flex-none"><X className="h-4 w-4" /> Fermer</Button>
             <Button variant="secondary" onClick={handleSave} className="gap-1 flex-1 sm:flex-none"><Save className="h-4 w-4" /> Sauver</Button>
