@@ -1,15 +1,13 @@
 /**
  * admin.imports.tsx
  * -----------------
- * Import Excel/CSV + Import IA Taobao/1688/Tmall
- * - Boutique complete (tous les produits)
- * - Produit individuel
- * - Batch: coller plusieurs liens produit
- * - Warnings realistes quand Taobao bloque
- * - Score de confiance honnete (jamais 100% sur donnees incompletes)
+ * Import produits : Excel/CSV + IA Visuelle (images/videos/captures)
+ *
+ * L'admin upload des images/videos/captures, l'IA analyse visuellement
+ * et cree un brouillon produit. Validation manuelle obligatoire.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -17,8 +15,9 @@ import {
   Package, Trash2, Edit3, CheckCircle2, XCircle, ExternalLink,
   ImageIcon, Loader2, AlertTriangle, ChevronDown, ChevronUp,
   Save, FileSpreadsheet, Download, Table2, Sparkles, Bot,
-  CircleCheck, CircleDashed, CircleX, Store, Link2,
-  List, Info, ClipboardList, Copy,
+  CircleCheck, CircleDashed, CircleX, Upload, Film, Camera,
+  Eye, Wand2, GripVertical, Tag, Palette, Ruler, Box,
+  Layers, Info, X, Plus, ArrowRight,
 } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +32,11 @@ import {
   exportProducts, downloadTemplate, previewImport, commitImport,
 } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { scrapeSingleProduct, scrapeStore, scrapeBatchProducts } from "@/lib/taobao-scraper.service";
+import {
+  uploadImportMedia, extractVideoFrames, analyzeVisualMedia,
+  checkVisualDuplicate,
+  type VisualProductDraft, type VisualVariant,
+} from "@/lib/visual-ai-import.service";
 
 export const Route = createFileRoute("/admin/imports")({
   component: () => (
@@ -43,33 +46,89 @@ export const Route = createFileRoute("/admin/imports")({
   ),
 });
 
-const fmtFcfa = (n: number) => `${Math.round(n || 0).toLocaleString("fr-FR")} FCFA`;
+const fmtFcfa = (n: number | null) => n === null || n === undefined ? "—" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+const uid = () => `v-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
 
 // ── Types ──
 interface DraftProduct {
-  id: string; name: string; designation: string; description: string;
-  price: number; sourcePrice: number; sourceCurrency: string;
-  images: string[]; variants: { size: string; color: string; colorHex: string; stock: number }[];
-  sourceUrl: string; canonicalUrl: string; platform: string; itemId: string | null;
-  categoryId: string | null; categoryName: string | null; confidence: number;
-  status: "draft" | "published" | "discarded"; createdAt: number;
-  isPartial?: boolean;
-  salesCount?: string;
+  id: string;
+  name: string;
+  designation: string;
+  description: string;
+  price: number | null;
+  priceNote: string;
+  currency: string;
+  images: string[];
+  gallery: string[];
+  variants: VisualVariant[];
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryConfidence: number;
+  tags: string[];
+  features: string[];
+  materials: string[];
+  colors: string[];
+  detectedBrand: string | null;
+  detectedText: string[];
+  confidence: number;
+  uncertainties: string[];
+  sourceMedia: string[];
+  packaging: string;
+  style: string;
+  accessories: string[];
+  productType: string;
+  status: "draft" | "published";
+  createdAt: number;
 }
 
-const LS_KEY = "kawzone_import_drafts";
-function loadDrafts(): DraftProduct[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
-function saveDrafts(drafts: DraftProduct[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
-let _id = Date.now();
-function uid() { return `draft-${++_id}`; }
+const LS_KEY = "kawzone_visual_drafts";
+function loadDrafts(): DraftProduct[] {
+  try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function saveDrafts(drafts: DraftProduct[]) {
+  localStorage.setItem(LS_KEY, JSON.stringify(drafts));
+}
+
+// ── Convert VisualProductDraft to local DraftProduct ──
+function visualToDraft(v: VisualProductDraft): DraftProduct {
+  return {
+    id: v.id,
+    name: v.name,
+    designation: v.designation,
+    description: v.description,
+    price: v.price,
+    priceNote: v.priceNote,
+    currency: v.currency,
+    images: v.images,
+    gallery: v.gallery,
+    variants: v.variants,
+    categoryId: v.categoryId,
+    categoryName: v.categoryName,
+    categoryConfidence: v.categoryConfidence,
+    tags: v.tags,
+    features: v.features,
+    materials: v.materials,
+    colors: v.colors,
+    detectedBrand: v.detectedBrand,
+    detectedText: v.detectedText,
+    confidence: v.confidence,
+    uncertainties: v.uncertainties,
+    sourceMedia: v.sourceMedia,
+    packaging: "",
+    style: "",
+    accessories: [],
+    productType: "",
+    status: "draft",
+    createdAt: Date.now(),
+  };
+}
 
 export default function AdminImports() {
-  const [mainTab, setMainTab] = useState<"excel" | "ia" | "drafts">("ia");
+  const [mainTab, setMainTab] = useState<"excel" | "visual" | "drafts">("visual");
   const [drafts, setDrafts] = useState<DraftProduct[]>(loadDrafts);
-  const [editingId, setEditingId] = useState<string | null>(null);
   useEffect(() => { saveDrafts(drafts); }, [drafts]);
 
-  // Excel
+  // Excel (keep existing)
   const fnExport = useServerFn(exportProducts);
   const fnTemplate = useServerFn(downloadTemplate);
   const fnPreview = useServerFn(previewImport);
@@ -78,334 +137,63 @@ export default function AdminImports() {
   const [preview, setPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // IA Import
-  const scrapeSingleFn = useServerFn(scrapeSingleProduct);
-  const scrapeStoreFn = useServerFn(scrapeStore);
-  const scrapeBatchFn = useServerFn(scrapeBatchProducts);
-  const [iaMode, setIaMode] = useState<"store" | "product" | "batch">("batch");
-  const [productUrl, setProductUrl] = useState("");
-  const [iaLoading, setIaLoading] = useState(false);
-  const [logs, setLogs] = useState<{ step: string; status: string; message: string }[]>([]);
-  const [justImported, setJustImported] = useState<DraftProduct[]>([]);
-  const [importWarnings, setImportWarnings] = useState<string[]>([]);
-
-  // ── Convert scraped to draft ──
-  const scrapedToDraft = (s: any, isPartial?: boolean): DraftProduct => ({
-    id: uid(), name: s.name || "Produit", designation: s.designation || s.name || "",
-    description: s.description || "", price: s.price || 0, sourcePrice: s.sourcePrice || 0,
-    sourceCurrency: s.currency || "CNY", images: s.images || [],
-    variants: s.variants || [], sourceUrl: s.sourceUrl || "",
-    canonicalUrl: s.canonicalUrl || "", platform: s.platform || "taobao",
-    itemId: s.itemId || null, categoryId: s.categoryId || null,
-    categoryName: s.category || null, confidence: s.confidence || 10,
-    status: "draft", createdAt: Date.now(), isPartial,
-    salesCount: s.salesCount,
-  });
-
-  // ── Show logs ──
-  const appendLogs = (serverLogs: string[]) => {
-    for (const log of serverLogs) {
-      const status = log.includes("❌") || log.includes("Erreur") || log.includes("error") ? "error" :
-        log.includes("⚠️") ? "warning" :
-          log.includes("✅") ? "success" : "info";
-      setLogs(prev => [...prev, { step: "Serveur", status, message: log }]);
-    }
-  };
-
-  // ── Import single product ──
-  const handleImportProduct = async () => {
-    if (!productUrl.trim()) { toast.error("Collez un lien produit"); return; }
-    setIaLoading(true); setLogs([]); setJustImported([]); setImportWarnings([]);
-    setLogs([{ step: "Demarrage", status: "running", message: "Analyse du lien..." }]);
-
-    try {
-      const result = await scrapeSingleFn({ data: { url: productUrl.trim() } }) as any;
-      appendLogs(result.logs || []);
-
-      if (result.errors?.length) setImportWarnings(result.errors);
-
-      if (!result.success || !result.products?.length) {
-        toast.error(result.errors?.[0] || "Import echoue");
-        setIaLoading(false);
-        return;
-      }
-
-      const draft = scrapedToDraft(result.products[0], result.isPartial);
-      setDrafts(prev => [draft, ...prev]);
-      setJustImported([draft]);
-
-      if (result.isPartial) {
-        toast.warning(`Produit importe partiellement (${draft.confidence}%). Verifiez les donnees.`, { duration: 5000 });
-      } else {
-        toast.success(`Produit importe ! Confiance : ${draft.confidence}%`);
-      }
-      setMainTab("drafts");
-
-    } catch (e: any) {
-      toast.error(e.message || "Erreur");
-      setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
-    }
-    setIaLoading(false);
-  };
-
-  // ── Import store ──
-  const handleImportStore = async () => {
-    if (!productUrl.trim()) { toast.error("Collez un lien boutique"); return; }
-    setIaLoading(true); setLogs([]); setJustImported([]); setImportWarnings([]);
-    setLogs([{ step: "Demarrage", status: "running", message: "Analyse de la boutique..." }]);
-
-    try {
-      const result = await scrapeStoreFn({ data: { url: productUrl.trim(), maxProducts: 20 } }) as any;
-      appendLogs(result.logs || []);
-      if (result.errors?.length) setImportWarnings(result.errors);
-
-      if (!result.success || !result.products?.length) {
-        toast.error(result.errors?.[0] || "Aucun produit trouve");
-        setIaLoading(false);
-        return;
-      }
-
-      const imported = result.products.map((p: any) => scrapedToDraft(p, result.isPartial));
-      setDrafts(prev => [...imported, ...prev]);
-      setJustImported(imported);
-
-      if (result.isPartial) {
-        toast.warning(`${imported.length} produits importes partiellement. Verifiez les donnees.`, { duration: 5000 });
-      } else {
-        toast.success(`${imported.length} produits importes !`);
-      }
-      setMainTab("drafts");
-
-    } catch (e: any) {
-      toast.error(e.message || "Erreur");
-      setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
-    }
-    setIaLoading(false);
-  };
-
-  // ── Import batch (multiple URLs) ──
-  const handleImportBatch = async () => {
-    const urls = productUrl.split("\n").map(u => u.trim()).filter(u => u.length > 10);
-    if (urls.length === 0) { toast.error("Collez au moins un lien produit"); return; }
-    if (urls.length > 20) { toast.error("Maximum 20 liens"); return; }
-
-    setIaLoading(true); setLogs([]); setJustImported([]); setImportWarnings([]);
-    setLogs([{ step: "Demarrage", status: "running", message: `Analyse de ${urls.length} liens...` }]);
-
-    try {
-      const result = await scrapeBatchFn({ data: { urls } }) as any;
-      appendLogs(result.logs || []);
-      if (result.errors?.length) setImportWarnings(result.errors);
-
-      if (!result.success || !result.products?.length) {
-        toast.error(result.errors?.[0] || "Aucun produit importe");
-        setIaLoading(false);
-        return;
-      }
-
-      const imported = result.products.map((p: any) => scrapedToDraft(p, result.isPartial));
-      setDrafts(prev => [...imported, ...prev]);
-      setJustImported(imported);
-
-      if (result.isPartial) {
-        toast.warning(`${imported.length}/${urls.length} produits importes. Certains necessitent verification.`, { duration: 5000 });
-      } else {
-        toast.success(`${imported.length}/${urls.length} produits importes !`);
-      }
-      setMainTab("drafts");
-
-    } catch (e: any) {
-      toast.error(e.message || "Erreur");
-      setLogs(prev => [...prev, { step: "Erreur", status: "error", message: e.message }]);
-    }
-    setIaLoading(false);
-  };
-
-  // ── Publish ──
-  const handlePublish = async (draft: DraftProduct) => {
-    try {
-      const { data: product, error } = await supabase.from("products").insert({
-        name: draft.name, designation: draft.designation, description: draft.description,
-        price: draft.price, status: "approved", is_active: true,
-        category_id: draft.categoryId, code: `IMP-${Date.now().toString(36).toUpperCase()}`,
-      }).select().single();
-      if (error) throw error;
-      if (draft.images.length > 0) await supabase.from("product_images").insert(draft.images.map((url, i) => ({ product_id: product.id, url, position: i })));
-      if (draft.variants.length > 0) await supabase.from("product_variants").insert(draft.variants.map(v => ({ product_id: product.id, size: v.size, color: v.color, color_hex: v.colorHex || null, stock: v.stock })));
-      setDrafts(prev => prev.filter(d => d.id !== draft.id));
-      toast.success("Publie !");
-    } catch (e: any) { toast.error(e.message || "Erreur"); }
-  };
-
   const activeDrafts = drafts.filter(d => d.status === "draft");
-
-  const getImportHandler = () => {
-    if (iaMode === "store") return handleImportStore;
-    if (iaMode === "batch") return handleImportBatch;
-    return handleImportProduct;
-  };
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold"><Package className="h-5 w-5" /> Importation</h1>
-        <p className="text-xs text-muted-foreground">Excel/CSV ou Taobao/1688/Tmall</p>
+        <h1 className="flex items-center gap-2 text-xl font-bold">
+          <Package className="h-5 w-5" /> Importation
+        </h1>
+        <p className="text-xs text-muted-foreground">Excel/CSV ou IA Visuelle (images / videos)</p>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "ia" | "drafts")}>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="excel" className="gap-1.5"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel/CSV</TabsTrigger>
-          <TabsTrigger value="ia" className="gap-1.5"><Bot className="h-3.5 w-3.5" /> Import IA</TabsTrigger>
-          <TabsTrigger value="drafts" className="gap-1.5"><Package className="h-3.5 w-3.5" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px]">{activeDrafts.length}</Badge>}</TabsTrigger>
+          <TabsTrigger value="excel" className="gap-1.5">
+            <FileSpreadsheet className="h-3.5 w-3.5" /> Excel/CSV
+          </TabsTrigger>
+          <TabsTrigger value="visual" className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> IA Visuelle
+          </TabsTrigger>
+          <TabsTrigger value="drafts" className="gap-1.5">
+            <Package className="h-3.5 w-3.5" /> Brouillons
+            {activeDrafts.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[10px]">{activeDrafts.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Excel */}
         <TabsContent value="excel" className="space-y-4 pt-3">
           <Card>
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Excel / CSV</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4" /> Excel / CSV
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => fnTemplate({}).then((r: any) => { const b = atob(r.base64); const bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); const blob = new Blob([bytes], { type: r.mime }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = r.fileName; a.click(); URL.revokeObjectURL(url); }).catch(() => toast.error("Erreur"))}><Download className="mr-1 h-3.5 w-3.5" /> Modele</Button>
-                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", shopId: "", status: "any" } }).then((r: any) => { const b = atob(r.base64); const bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); const blob = new Blob([bytes], { type: r.mime }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = r.fileName; a.click(); URL.revokeObjectURL(url); }).catch(() => toast.error("Erreur"))}><Table2 className="mr-1 h-3.5 w-3.5" /> Exporter</Button>
+                <Button variant="outline" size="sm" onClick={() => fnTemplate({}).then((r: any) => { const b = atob(r.base64); const bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); const blob = new Blob([bytes], { type: r.mime }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = r.fileName; a.click(); URL.revokeObjectURL(url); }).catch(() => toast.error("Erreur"))}>
+                  <Download className="mr-1 h-3.5 w-3.5" /> Modele
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", shopId: "", status: "any" } }).then((r: any) => { const b = atob(r.base64); const bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); const blob = new Blob([bytes], { type: r.mime }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = r.fileName; a.click(); URL.revokeObjectURL(url); }).catch(() => toast.error("Erreur"))}>
+                  <Table2 className="mr-1 h-3.5 w-3.5" /> Exporter
+                </Button>
               </div>
               <Separator />
               <Input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { setExcelFile(e.target.files?.[0] ?? null); setPreview(null); }} />
-              <Button onClick={async () => { if (!excelFile) return; setPreviewLoading(true); try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile); }); const r = await fnPreview({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile.name } }); setPreview(r); } catch (e: any) { toast.error(e.message); } setPreviewLoading(false); }} disabled={!excelFile || previewLoading} className="w-full">{previewLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}</Button>
+              <Button onClick={async () => { if (!excelFile) return; setPreviewLoading(true); try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile); }); const r = await fnPreview({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile.name } }); setPreview(r); } catch (e: any) { toast.error(e.message); } setPreviewLoading(false); }} disabled={!excelFile || previewLoading} className="w-full">
+                {previewLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
+              </Button>
               {preview && <Button onClick={async () => { try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile!); }); await fnCommit({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile!.name } }); toast.success("Importe !"); setPreview(null); setExcelFile(null); } catch (e: any) { toast.error(e.message); } }} className="w-full"><CheckCircle2 className="h-4 w-4 mr-1" /> Importer</Button>}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Import IA */}
-        <TabsContent value="ia" className="space-y-4 pt-3">
-          <Card>
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Import IA Taobao / 1688 / Tmall</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {/* Mode toggle */}
-              <div className="flex rounded-lg bg-muted p-1 gap-1">
-                <Button variant={iaMode === "batch" ? "default" : "ghost"} size="sm" className="flex-1 text-xs gap-1" onClick={() => setIaMode("batch")}>
-                  <List className="h-3.5 w-3.5" /> Plusieurs liens (recommande)
-                </Button>
-                <Button variant={iaMode === "product" ? "default" : "ghost"} size="sm" className="flex-1 text-xs gap-1" onClick={() => setIaMode("product")}>
-                  <Link2 className="h-3.5 w-3.5" /> Un produit
-                </Button>
-                <Button variant={iaMode === "store" ? "default" : "ghost"} size="sm" className="flex-1 text-xs gap-1" onClick={() => setIaMode("store")}>
-                  <Store className="h-3.5 w-3.5" /> Boutique
-                </Button>
-              </div>
-
-              {/* Info box per mode */}
-              {iaMode === "batch" && (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                    <div>
-                      <strong>Mode recommande :</strong> collez plusieurs liens produit (un par ligne).
-                      Les liens doivent etre au format <code>item.taobao.com/item.htm?id=...</code>
-                    </div>
-                  </div>
-                  <ol className="list-decimal list-inside space-y-0.5 ml-6">
-                    <li>Ouvrez l&apos;app Taobao ou le site web</li>
-                    <li>Allez sur chaque produit et copiez son lien</li>
-                    <li>Collez les liens ici (un par ligne)</li>
-                    <li>Le systeme importera automatiquement chaque produit</li>
-                  </ol>
-                </div>
-              )}
-              {iaMode === "product" && (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
-                  <strong>Mode produit unique :</strong>
-                  <ol className="list-decimal list-inside space-y-0.5">
-                    <li>Copiez le lien direct du produit</li>
-                    <li>Format attendu : <code>item.taobao.com/item.htm?id=123456</code></li>
-                    <li>Le systeme extraira nom, prix, images, variantes</li>
-                  </ol>
-                </div>
-              )}
-              {iaMode === "store" && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                    <div>
-                      <strong>Limitation importante :</strong> Les boutiques Taobao necessitent l&apos;app mobile
-                      ou un compte connecte. Les liens de partage (<code>click.world.taobao.com</code>)
-                      ne donnent acces qu&apos;au nom de la boutique, pas aux produits.
-                    </div>
-                  </div>
-                  <p className="ml-6"><strong>Conseil :</strong> Utilisez plutot le mode &quot;Plusieurs liens&quot; et
-copiez les liens produit individuels depuis l&apos;app.</p>
-                </div>
-              )}
-
-              <Textarea
-                value={productUrl}
-                onChange={(e) => setProductUrl(e.target.value)}
-                placeholder={
-                  iaMode === "batch"
-                    ? `Collez les liens produit (un par ligne) :
-https://item.taobao.com/item.htm?id=800558636193
-https://item.taobao.com/item.htm?id=800558636194
-https://detail.tmall.com/item.htm?id=123456`
-                    : iaMode === "store"
-                      ? `Collez le lien de la boutique :
-https://shop243785958.taobao.com
-https://click.world.taobao.com/_b.UbGVCG`
-                      : `Collez le lien du produit :
-https://item.taobao.com/item.htm?id=800558636193`
-                }
-                rows={6}
-              />
-
-              <Button
-                onClick={getImportHandler()}
-                disabled={iaLoading || !productUrl.trim()}
-                className="w-full gap-2"
-              >
-                {iaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {iaLoading ? "Analyse en cours..." :
-                  iaMode === "batch" ? "Importer les produits" :
-                    iaMode === "store" ? "Importer la boutique" : "Importer le produit"}
-              </Button>
-
-              {/* Warnings */}
-              {importWarnings.length > 0 && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
-                  {importWarnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-amber-800">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>{w}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Logs */}
-              {logs.length > 0 && (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-1 max-h-[240px] overflow-y-auto">
-                  <h4 className="text-[10px] font-semibold uppercase text-muted-foreground">Logs</h4>
-                  {logs.map((log, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[11px]">
-                      {log.status === "success" && <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
-                      {log.status === "info" && <Info className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />}
-                      {log.status === "warning" && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />}
-                      {log.status === "running" && <CircleDashed className="h-3 w-3 text-blue-500 shrink-0 mt-0.5 animate-spin" />}
-                      {log.status === "error" && <CircleX className="h-3 w-3 text-destructive shrink-0 mt-0.5" />}
-                      <div><span className="font-semibold">{log.step}</span> <span className="text-muted-foreground">— {log.message}</span></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {justImported.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                    Resultats ({justImported.length})
-                  </h4>
-                  {justImported.map(p => <MiniCard key={p.id} draft={p} />)}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        {/* Visual AI Import */}
+        <TabsContent value="visual" className="space-y-4 pt-3">
+          <VisualImporter onDraftCreated={(d) => { setDrafts(prev => [d, ...prev]); setMainTab("drafts"); }} />
         </TabsContent>
 
         {/* Drafts */}
@@ -414,123 +202,671 @@ https://item.taobao.com/item.htm?id=800558636193`
             <div className="rounded-xl border border-dashed p-10 text-center">
               <Package className="mx-auto h-10 w-10 text-muted-foreground opacity-60" />
               <p className="text-sm font-semibold">Aucun brouillon</p>
-              <p className="text-xs text-muted-foreground mt-1">Importez des produits depuis l&apos;onglet Import IA</p>
+              <p className="text-xs text-muted-foreground mt-1">Utilisez l&apos;IA Visuelle pour importer des produits</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setMainTab("visual")}>
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Importer avec l&apos;IA
+              </Button>
             </div>
           ) : (
-            <div className="space-y-3">{activeDrafts.map(d => <DraftCard key={d.id} draft={d} onPublish={() => handlePublish(d)} onDiscard={() => setDrafts(prev => prev.filter(x => x.id !== d.id))} onEdit={() => setEditingId(d.id)} />)}</div>
+            <div className="space-y-3">
+              {activeDrafts.map(d => (
+                <DraftCard key={d.id} draft={d}
+                  onPublish={async () => {
+                    try {
+                      const { data: product, error } = await supabase.from("products").insert({
+                        name: d.name, designation: d.designation, description: d.description,
+                        price: d.price || 0, status: "approved", is_active: true,
+                        category_id: d.categoryId, code: `VIS-${Date.now().toString(36).toUpperCase()}`,
+                      }).select().single();
+                      if (error) throw error;
+                      if (d.images.length > 0) await supabase.from("product_images").insert(d.images.map((url, i) => ({ product_id: product.id, url, position: i })));
+                      if (d.variants.length > 0) await supabase.from("product_variants").insert(d.variants.map(v => ({ product_id: product.id, size: v.type === "size" ? v.value : "", color: v.type === "color" ? v.value : "", color_hex: v.hex || null, stock: 0 })));
+                      setDrafts(prev => prev.filter(x => x.id !== d.id));
+                      toast.success("Produit publie !");
+                    } catch (e: any) { toast.error(e.message || "Erreur"); }
+                  }}
+                  onDiscard={() => setDrafts(prev => prev.filter(x => x.id !== d.id))}
+                  onUpdate={(patch) => setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, ...patch } : x))}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
-
-      {editingId && <EditDialog draft={drafts.find(d => d.id === editingId)!} onClose={() => setEditingId(null)} onSave={(patch) => { setDrafts(prev => prev.map(d => d.id === editingId ? { ...d, ...patch } : d)); setEditingId(null); toast.success("Modifie"); }} />}
     </div>
   );
 }
 
-// ── Mini Card ──
-function MiniCard({ draft }: { draft: DraftProduct }) {
+// ═══════════════════════════════════════════════════
+//  VISUAL IMPORTER COMPONENT
+// ═══════════════════════════════════════════════════
+function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: DraftProduct) => void }) {
+  const [files, setFiles] = useState<{ file: File; preview: string; type: "image" | "video"; uploadedUrl?: string }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [logs, setLogs] = useState<{ msg: string; type: "info" | "ok" | "warn" | "err" }[]>([]);
+  const [result, setResult] = useState<VisualProductDraft | null>(null);
+  const [step, setStep] = useState<"upload" | "analyzing" | "preview">("upload");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fnUpload = useServerFn(uploadImportMedia);
+  const fnExtractFrames = useServerFn(extractVideoFrames);
+  const fnAnalyze = useServerFn(analyzeVisualMedia);
+  const fnCheckDup = useServerFn(checkVisualDuplicate);
+
+  const addLog = (msg: string, type: "info" | "ok" | "warn" | "err" = "info") => {
+    setLogs(prev => [...prev, { msg, type }]);
+  };
+
+  // ── Drag & Drop ──
+  const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
+  const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); }, []);
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(Array.from(e.dataTransfer.files));
+  }, []);
+
+  const handleFiles = (newFiles: File[]) => {
+    const accepted = newFiles.filter(f =>
+      f.type.startsWith("image/") || f.type.startsWith("video/")
+    );
+    if (accepted.length === 0) { toast.error("Images et videos uniquement"); return; }
+    if (files.length + accepted.length > 20) { toast.error("Maximum 20 fichiers"); return; }
+
+    const newItems = accepted.map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      type: file.type.startsWith("video/") ? "video" as const : "image" as const,
+    }));
+    setFiles(prev => [...prev, ...newItems]);
+    addLog(`${accepted.length} fichier(s) ajoute(s)`, "ok");
+  };
+
+  const removeFile = (idx: number) => {
+    setFiles(prev => { const n = [...prev]; URL.revokeObjectURL(n[idx].preview); n.splice(idx, 1); return n; });
+  };
+
+  // ── Upload all files ──
+  const uploadAll = async (): Promise<{ imageUrls: string[]; videoFrameUrls: string[] }> => {
+    const imageUrls: string[] = [];
+    const videoFrameUrls: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const item = files[i];
+      addLog(`Upload ${i + 1}/${files.length}: ${item.file.name}...`, "info");
+
+      try {
+        // Convert to base64
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve((r.result as string).split(",")[1] ?? "");
+          r.onerror = reject;
+          r.readAsDataURL(item.file);
+        });
+
+        const res = await fnUpload({ data: {
+          fileBase64: b64,
+          fileName: item.file.name,
+          mimeType: item.file.type,
+        }}) as any;
+
+        item.uploadedUrl = res.url;
+
+        if (item.type === "image") {
+          imageUrls.push(res.url);
+          addLog(`  Image OK`, "ok");
+        } else {
+          addLog(`  Video OK, extraction frames...`, "info");
+          const frames = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any;
+          videoFrameUrls.push(...(frames.frameUrls || []));
+          addLog(`  ${frames.frameCount || 0} frames extraites`, "ok");
+        }
+      } catch (e: any) {
+        addLog(`  Erreur: ${e.message}`, "err");
+      }
+    }
+
+    return { imageUrls, videoFrameUrls };
+  };
+
+  // ── Analyze ──
+  const handleAnalyze = async () => {
+    if (files.length === 0) { toast.error("Ajoutez des images ou videos"); return; }
+
+    setIsAnalyzing(true);
+    setStep("analyzing");
+    setLogs([]);
+    setResult(null);
+    addLog("Demarrage de l'analyse visuelle...", "info");
+
+    try {
+      // Step 1: Upload
+      addLog("Etape 1/3: Upload des medias...", "info");
+      const { imageUrls, videoFrameUrls } = await uploadAll();
+
+      if (imageUrls.length === 0 && videoFrameUrls.length === 0) {
+        throw new Error("Aucun media n'a pu etre uploadé");
+      }
+
+      // Step 2: AI Analysis
+      addLog("Etape 2/3: Analyse IA vision...", "info");
+      const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls }}) as any;
+
+      if (analysis.logs) {
+        for (const log of analysis.logs) {
+          const type = log.includes("✓") || log.includes("OK") ? "ok" :
+            log.includes("✗") || log.includes("Erreur") ? "err" : "info";
+          addLog(log, type);
+        }
+      }
+
+      if (!analysis.success || !analysis.draft) {
+        throw new Error(analysis.errors?.[0] || "Analyse echouee");
+      }
+
+      // Step 3: Duplicate check
+      addLog("Etape 3/3: Verification doublons...", "info");
+      const dupCheck = await fnCheckDup({ data: {
+        name: analysis.draft.name,
+        brand: analysis.draft.detectedBrand,
+        categoryId: analysis.draft.categoryId,
+      }}) as any;
+
+      if (dupCheck.isDuplicate) {
+        addLog(`⚠ Doublon potentiel detecte (${dupCheck.matches?.length || 0} correspondance(s))`, "warn");
+      } else {
+        addLog("✓ Aucun doublon detecte", "ok");
+      }
+
+      setResult(analysis.draft);
+      setStep("preview");
+      toast.success(`Analyse terminee ! Confiance: ${analysis.draft.confidence}%`);
+
+    } catch (e: any) {
+      addLog(`Erreur: ${e.message}`, "err");
+      toast.error(e.message || "Erreur");
+      setStep("upload");
+    }
+
+    setIsAnalyzing(false);
+  };
+
+  // ── Save draft ──
+  const handleSaveDraft = (editedDraft?: Partial<DraftProduct>) => {
+    if (!result) return;
+    const draft = visualToDraft({ ...result, ...editedDraft });
+    onDraftCreated(draft);
+    toast.success("Brouillon enregistre ! Verifiez les donnees avant publication.");
+    // Reset
+    setFiles([]);
+    setResult(null);
+    setStep("upload");
+    setLogs([]);
+  };
+
   return (
-    <div className={`rounded border p-2 flex gap-2 ${draft.confidence < 50 || draft.isPartial ? "border-amber-300 bg-amber-50/30" : ""}`}>
-      <div className="h-12 w-12 shrink-0 rounded bg-muted overflow-hidden">
-        {draft.images[0] ? <img src={draft.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" /> : <ImageIcon className="m-auto mt-2 h-4 w-4 text-muted-foreground" />}
+    <div className="space-y-4">
+      {/* STEP 1: Upload */}
+      {step === "upload" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wand2 className="h-4 w-4 text-primary" /> Import IA Visuel
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Info */}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1.5">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                <span className="font-medium">Uploadez des images, videos ou captures d'ecran du produit. L'IA analysera visuellement et creera un brouillon.</span>
+              </div>
+              <ul className="list-disc list-inside ml-6 space-y-0.5">
+                <li>Photos du produit (face, dos, details)</li>
+                <li>Videos courtes (max 60s, frames auto-extraites)</li>
+                <li>Captures d'ecran Taobao/1688</li>
+              </ul>
+            </div>
+
+            {/* Drop Zone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              className={`
+                border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
+                ${isDragging
+                  ? "border-primary bg-primary/5 scale-[1.01]"
+                  : "border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted/30"
+                }
+              `}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => handleFiles(Array.from(e.target.files || []))}
+              />
+              <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm font-medium">Glissez-deposez vos images et videos ici</p>
+              <p className="text-xs text-muted-foreground mt-1">ou cliquez pour parcourir</p>
+              <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, WEBP, MP4, MOV — Max 20 fichiers</p>
+            </div>
+
+            {/* File Previews */}
+            {files.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">{files.length} fichier(s)</span>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => { files.forEach(f => URL.revokeObjectURL(f.preview)); setFiles([]); }}>
+                    <Trash2 className="h-3 w-3 mr-1" /> Tout supprimer
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {files.map((f, i) => (
+                    <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border bg-muted">
+                      {f.type === "video" ? (
+                        <video src={f.preview} className="w-full h-full object-cover" muted preload="metadata" />
+                      ) : (
+                        <img src={f.preview} alt="" className="w-full h-full object-cover" />
+                      )}
+                      {f.type === "video" && (
+                        <div className="absolute top-1 left-1 bg-black/70 text-white text-[9px] px-1 rounded flex items-center gap-0.5">
+                          <Film className="h-2.5 w-2.5" /> Video
+                        </div>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                        className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={handleAnalyze}
+              disabled={files.length === 0 || isAnalyzing}
+              className="w-full gap-2"
+              size="lg"
+            >
+              <Sparkles className="h-4 w-4" />
+              Analyser avec l'IA
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 2: Analyzing */}
+      {(step === "analyzing") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" /> Analyse en cours...
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Progress */}
+            <div className="flex items-center gap-3">
+              <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-primary animate-pulse rounded-full" style={{ width: isAnalyzing ? "60%" : "100%" }} />
+              </div>
+            </div>
+
+            {/* Logs */}
+            <div className="rounded-lg border bg-muted/30 p-3 max-h-[300px] overflow-y-auto space-y-1">
+              {logs.map((log, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px]">
+                  {log.type === "ok" && <CircleCheck className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
+                  {log.type === "warn" && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />}
+                  {log.type === "err" && <CircleX className="h-3 w-3 text-destructive shrink-0 mt-0.5" />}
+                  {log.type === "info" && <CircleDashed className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />}
+                  <span className={log.type === "err" ? "text-destructive" : log.type === "warn" ? "text-amber-700" : ""}>{log.msg}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 3: Preview & Validation */}
+      {step === "preview" && result && (
+        <VisualPreview
+          draft={result}
+          onSave={handleSaveDraft}
+          onRetry={() => { setStep("upload"); setResult(null); setLogs([]); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+//  VISUAL PREVIEW COMPONENT (Step 3)
+// ═══════════════════════════════════════════════════
+function VisualPreview({
+  draft,
+  onSave,
+  onRetry,
+}: {
+  draft: VisualProductDraft;
+  onSave: (patch?: Partial<DraftProduct>) => void;
+  onRetry: () => void;
+}) {
+  const [editing, setEditing] = useState<Partial<DraftProduct>>({});
+
+  const d = { ...visualToDraft(draft), ...editing };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className={d.confidence < 50 ? "border-amber-400" : d.uncertainties.length > 0 ? "border-amber-300" : "border-emerald-300"}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {d.confidence >= 70 ? <CircleCheck className="h-5 w-5 text-emerald-500" /> :
+                d.confidence >= 40 ? <AlertTriangle className="h-5 w-5 text-amber-500" /> :
+                  <CircleX className="h-5 w-5 text-destructive" />}
+              <div>
+                <h3 className="text-sm font-semibold">Resultat de l'analyse visuelle</h3>
+                <p className="text-xs text-muted-foreground">Verifiez les donnees avant de sauvegarder</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={d.confidence >= 70 ? "default" : d.confidence >= 40 ? "secondary" : "destructive"}>
+                Confiance: {d.confidence}%
+              </Badge>
+            </div>
+          </div>
+
+          {/* Uncertainties */}
+          {d.uncertainties.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-2.5 space-y-1">
+              <p className="text-[10px] font-semibold uppercase text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Incertitudes detectees ({d.uncertainties.length})
+              </p>
+              {d.uncertainties.map((u, i) => (
+                <p key={i} className="text-[11px] text-amber-800">• {u}</p>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Media Gallery */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Camera className="h-3.5 w-3.5" /> Medias analyses</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+            {d.sourceMedia.map((url, i) => (
+              <div key={i} className="aspect-square rounded-lg overflow-hidden border bg-muted">
+                <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Editable Fields */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Edit3 className="h-3.5 w-3.5" /> Details du produit</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {/* Name */}
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase">Nom du produit <span className="text-destructive">*</span></label>
+            <Input value={d.name} onChange={(e) => setEditing(p => ({ ...p, name: e.target.value }))} className="mt-0.5" />
+          </div>
+
+          {/* Designation */}
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase">Designation</label>
+            <Input value={d.designation} onChange={(e) => setEditing(p => ({ ...p, designation: e.target.value }))} className="mt-0.5" />
+          </div>
+
+          {/* Price */}
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase">Prix</label>
+            <div className="flex gap-2 mt-0.5">
+              <Input
+                type="number"
+                value={d.price ?? ""}
+                placeholder={d.priceNote}
+                onChange={(e) => setEditing(p => ({ ...p, price: e.target.value ? Number(e.target.value) : null }))}
+                className={d.price === null ? "border-amber-300 bg-amber-50/30" : ""}
+              />
+              <span className="text-xs text-muted-foreground flex items-center">FCFA</span>
+            </div>
+            {d.price === null && (
+              <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+                <AlertTriangle className="h-2.5 w-2.5" /> {d.priceNote}
+              </p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase">Description</label>
+            <Textarea value={d.description} onChange={(e) => setEditing(p => ({ ...p, description: e.target.value }))} className="mt-0.5" rows={3} />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase">Categorie suggeree</label>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Input value={d.categoryName || "Non determinee"} readOnly className={!d.categoryName ? "border-amber-300 bg-amber-50/30" : ""} />
+              <Badge variant="outline" className="text-[10px] shrink-0">{d.categoryConfidence}% match</Badge>
+            </div>
+          </div>
+
+          {/* Brand */}
+          {d.detectedBrand && (
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase">Marque detectee</label>
+              <Input value={d.detectedBrand} readOnly className="mt-0.5" />
+            </div>
+          )}
+
+          {/* Detected Text */}
+          {d.detectedText.length > 0 && (
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase">Texte detecte (OCR)</label>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {d.detectedText.map((t, i) => (
+                  <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Attributes */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Colors */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Palette className="h-3.5 w-3.5" /> Couleurs detectees</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1">
+              {d.colors.length > 0 ? d.colors.map((c, i) => (
+                <Badge key={i} variant="outline" className="text-[10px]">{c}</Badge>
+              )) : <span className="text-[11px] text-muted-foreground">Aucune couleur detectee</span>}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Materials */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Box className="h-3.5 w-3.5" /> Materiaux</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1">
+              {d.materials.length > 0 ? d.materials.map((m, i) => (
+                <Badge key={i} variant="outline" className="text-[10px]">{m}</Badge>
+              )) : <span className="text-[11px] text-muted-foreground">Non determines</span>}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate">{draft.name}</p>
-        <div className="flex flex-wrap gap-1 text-[10px] items-center">
-          <Badge variant="outline" className="text-[10px]">{draft.platform}</Badge>
-          <span className="text-primary font-medium">{fmtFcfa(draft.price)}</span>
-          <ConfidenceBadge confidence={draft.confidence} />
-          {draft.isPartial && <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">A verifier</Badge>}
-          {draft.salesCount && <span className="text-muted-foreground">{draft.salesCount} sold</span>}
-        </div>
+
+      {/* Variants */}
+      {d.variants.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Variantes detectees ({d.variants.length})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-1.5">
+              {d.variants.map((v, i) => (
+                <div key={i} className={`flex items-center justify-between text-[11px] p-1.5 rounded ${v.note ? "bg-amber-50 border border-amber-200" : "bg-muted/30"}`}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[9px] uppercase">{v.type}</Badge>
+                    {v.hex && <span className="w-3 h-3 rounded-full border inline-block" style={{ backgroundColor: v.hex }} />}
+                    <span>{v.value}</span>
+                    {v.note && <span className="text-amber-600 text-[9px]">{v.note}</span>}
+                  </div>
+                  <span className={`text-[9px] ${v.confidence >= 70 ? "text-emerald-600" : v.confidence >= 40 ? "text-amber-600" : "text-destructive"}`}>
+                    {v.confidence}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tags & Features */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" /> Tags</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1">
+              {d.tags.length > 0 ? d.tags.map((t, i) => (
+                <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+              )) : <span className="text-[11px] text-muted-foreground">—</span>}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1.5"><Ruler className="h-3.5 w-3.5" /> Caracteristiques</CardTitle></CardHeader>
+          <CardContent>
+            <ul className="space-y-0.5">
+              {d.features.length > 0 ? d.features.map((f, i) => (
+                <li key={i} className="text-[11px] text-muted-foreground">• {f}</li>
+              )) : <li className="text-[11px] text-muted-foreground">—</li>}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 sticky bottom-4 bg-background/80 backdrop-blur p-2 rounded-lg border">
+        <Button variant="outline" onClick={onRetry} className="gap-1">
+          <X className="h-4 w-4" /> Annuler
+        </Button>
+        <Button onClick={() => onSave(editing)} className="flex-1 gap-2" size="lg">
+          <Save className="h-4 w-4" /> Sauvegarder le brouillon
+        </Button>
       </div>
     </div>
   );
 }
 
-// ── Confidence Badge ──
-function ConfidenceBadge({ confidence }: { confidence: number }) {
-  if (confidence >= 70) return <Badge variant="default" className="text-[10px]">{confidence}%</Badge>;
-  if (confidence >= 40) return <Badge variant="secondary" className="text-[10px]">{confidence}%</Badge>;
-  return <Badge variant="destructive" className="text-[10px]">{confidence}%</Badge>;
-}
-
-// ── Draft Card ──
-function DraftCard({ draft, onPublish, onDiscard, onEdit }: { draft: DraftProduct; onPublish: () => void; onDiscard: () => void; onEdit: () => void }) {
+// ═══════════════════════════════════════════════════
+//  DRAFT CARD (for listing)
+// ═══════════════════════════════════════════════════
+function DraftCard({
+  draft,
+  onPublish,
+  onDiscard,
+  onUpdate,
+}: {
+  draft: DraftProduct;
+  onPublish: () => void;
+  onDiscard: () => void;
+  onUpdate: (p: Partial<DraftProduct>) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+
   return (
-    <Card className={draft.confidence < 50 || draft.isPartial ? "border-amber-300" : ""}>
+    <Card className={draft.uncertainties.length > 0 ? "border-amber-300" : ""}>
       <CardContent className="p-3">
         <div className="flex gap-3">
           <div className="h-14 w-14 shrink-0 rounded bg-muted overflow-hidden">
-            {draft.images[0] ? <img src={draft.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" /> : <ImageIcon className="m-auto mt-3 h-5 w-5 text-muted-foreground" />}
+            {draft.images[0] ? (
+              <img src={draft.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+            ) : (
+              <ImageIcon className="m-auto mt-3 h-5 w-5 text-muted-foreground" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 flex-wrap">
               <p className="text-sm font-medium truncate">{draft.name}</p>
-              <Badge variant="outline" className="text-[10px]">{draft.platform}</Badge>
-              <ConfidenceBadge confidence={draft.confidence} />
-              {draft.isPartial && <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200"><AlertTriangle className="h-2.5 w-2.5 mr-0.5" />A verifier</Badge>}
+              <Badge variant={draft.confidence >= 70 ? "default" : draft.confidence >= 40 ? "secondary" : "destructive"} className="text-[10px]">
+                {draft.confidence}%
+              </Badge>
+              {draft.uncertainties.length > 0 && (
+                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                  <AlertTriangle className="h-2.5 w-2.5 mr-0.5" /> A verifier
+                </Badge>
+              )}
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">{draft.canonicalUrl.slice(0, 45)}... {draft.itemId ? `(ID: ${draft.itemId})` : ""}</p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {draft.detectedBrand ? `Marque: ${draft.detectedBrand} | ` : ""}
+              {draft.categoryName || "Sans categorie"} | {fmtFcfa(draft.price)}
+            </p>
             <div className="flex flex-wrap gap-1 mt-1">
-              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setExpanded(!expanded)}>{expanded ? "Moins" : "Details"}</Button>
-              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onEdit}><Edit3 className="h-3 w-3 mr-1" />Modif</Button>
-              <Button size="sm" className="h-6 text-[10px] px-2" onClick={onPublish}><CheckCircle2 className="h-3 w-3 mr-1" />Publier</Button>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={onDiscard}><XCircle className="h-3 w-3 mr-1" />Suppr</Button>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setExpanded(!expanded)}>
+                {expanded ? "Moins" : "Details"}
+              </Button>
+              <Button size="sm" className="h-6 text-[10px] px-2" onClick={onPublish}>
+                <CheckCircle2 className="h-3 w-3 mr-1" /> Publier
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={onDiscard}>
+                <XCircle className="h-3 w-3 mr-1" /> Suppr
+              </Button>
             </div>
-            {draft.confidence < 50 && (
-              <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Confiance faible - verifiez les donnees avant de publier
-              </p>
-            )}
           </div>
         </div>
+
         {expanded && (
-          <div className="mt-2 border-t pt-2 text-[11px] space-y-1">
-            {draft.description && <p className="text-muted-foreground">{draft.description}</p>}
-            <div><strong>Source :</strong> <a href={draft.sourceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{draft.sourceUrl}</a></div>
-            <div><strong>Canonique :</strong> {draft.canonicalUrl}</div>
-            <div><strong>Plateforme :</strong> {draft.platform} | <strong>Item ID :</strong> {draft.itemId || "N/A"}</div>
-            {draft.designation && <div><strong>Designation :</strong> {draft.designation}</div>}
-            {draft.salesCount && <div><strong>Ventes :</strong> {draft.salesCount}</div>}
-            {draft.variants.length > 0 && <div><strong>Variantes :</strong> {draft.variants.map(v => `${v.color}${v.size ? ` (${v.size})` : ""}`).join(", ")}</div>}
-            <div className="flex flex-wrap gap-1">{draft.images.slice(0, 6).map((img, i) => <img key={i} src={img} alt="" className="h-10 w-10 rounded object-cover border" />)}</div>
-            {draft.isPartial && (
-              <div className="rounded bg-amber-50 border border-amber-200 p-2 text-amber-800">
-                <AlertTriangle className="h-3 w-3 inline mr-1" />
-                Donnees incompletes - le scraping a ete limite par la protection Taobao. Verifiez et completez manuellement.
+          <div className="mt-2 border-t pt-2 space-y-2">
+            {draft.description && <p className="text-[11px] text-muted-foreground">{draft.description}</p>}
+
+            {draft.uncertainties.length > 0 && (
+              <div className="rounded bg-amber-50 border border-amber-200 p-2">
+                <p className="text-[10px] font-semibold text-amber-700 mb-1">Incertitudes :</p>
+                {draft.uncertainties.map((u, i) => (
+                  <p key={i} className="text-[10px] text-amber-800">• {u}</p>
+                ))}
               </div>
             )}
+
+            <div className="grid grid-cols-2 gap-2 text-[10px]">
+              {draft.colors.length > 0 && <div><strong>Couleurs:</strong> {draft.colors.join(", ")}</div>}
+              {draft.materials.length > 0 && <div><strong>Materiaux:</strong> {draft.materials.join(", ")}</div>}
+              {draft.detectedBrand && <div><strong>Marque:</strong> {draft.detectedBrand}</div>}
+              {draft.categoryName && <div><strong>Categorie:</strong> {draft.categoryName} ({draft.categoryConfidence}%)</div>}
+            </div>
+
+            {draft.variants.length > 0 && (
+              <div className="text-[10px]">
+                <strong>Variantes:</strong>{" "}
+                {draft.variants.map(v => `${v.type}:${v.value}${v.note ? `(${v.note})` : ""}`).join(", ")}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-1">
+              {draft.sourceMedia.slice(0, 6).map((url, i) => (
+                <img key={i} src={url} alt="" className="h-10 w-10 rounded object-cover border" />
+              ))}
+            </div>
           </div>
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ── Edit Dialog ──
-function EditDialog({ draft, onClose, onSave }: { draft: DraftProduct; onClose: () => void; onSave: (p: Partial<DraftProduct>) => void }) {
-  const [name, setName] = useState(draft.name);
-  const [designation, setDesignation] = useState(draft.designation);
-  const [description, setDescription] = useState(draft.description);
-  const [price, setPrice] = useState(String(draft.price));
-  return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><Edit3 className="h-4 w-4" /> Modifier</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div><label className="text-xs text-muted-foreground">Nom</label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-          <div><label className="text-xs text-muted-foreground">Designation</label><Input value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
-          <div><label className="text-xs text-muted-foreground">Prix (FCFA)</label><Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
-          <div><label className="text-xs text-muted-foreground">Description</label><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div className="flex gap-2">
-            <Button onClick={() => onSave({ name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price) || 0 })} className="flex-1 gap-1"><Save className="h-3.5 w-3.5" /> Enregistrer</Button>
-            <Button variant="outline" onClick={onClose}>Annuler</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
