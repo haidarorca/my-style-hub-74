@@ -169,7 +169,7 @@ function extractFromHTML(html: string): {
   name: string; description: string; price: number; images: string[];
   shopName: string; category: string; sales?: string;
 } {
-  const result = { name: "", description: "", price: 0, images: [], shopName: "", category: "", sales: "" };
+  const result: { name: string; description: string; price: number; images: string[]; shopName: string; category: string; sales: string } = { name: "", description: "", price: 0, images: [], shopName: "", category: "", sales: "" };
 
   // Title
   const titlePatterns = [
