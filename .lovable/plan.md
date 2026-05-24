@@ -1,115 +1,30 @@
-# Session Taobao connectée — Plan MVP
+## Analyse
 
-## Objectif
+J'ai scanné `src/routes/admin.imports.tsx` (439 lignes) :
+- Aucune occurrence de `->`, `&gt;` ou `&lt;` actuellement → les erreurs de build/runtime affichées sont **stales** (anciennes), le fichier compile déjà.
+- La seule perte réelle de mon édit précédente : les 3 exemples détaillés de notation `,,` qui étaient dans le `<ul>` (lignes 121-126) ont été remplacés par des bullets génériques.
 
-Permettre à l'admin de scanner un QR code Taobao depuis l'interface, conserver les cookies de session chiffrés côté serveur, et les injecter automatiquement dans les imports Taobao/Tmall pour contourner les pages de connexion / sécurité.
+Aucune autre logique n'a été touchée. Je ne toucherai à rien d'autre.
 
-## Architecture
+## Changement unique
 
-```text
-[Admin Browser]                [Lovable Worker]              [Bright Data]           [Taobao]
-     │                              │                             │                     │
-     │  ouvre /admin/imports        │                             │                     │
-     │  → onglet "Session"          │                             │                     │
-     │                              │                             │                     │
-     │  EventSource(qr-stream) ──→  │                             │                     │
-     │                              │  WSS CDP connect ─────────→ │                     │
-     │                              │  Target.createTarget        │                     │
-     │                              │  Page.navigate(login.taobao) ────────────────────→│
-     │                              │  poll QR canvas (Runtime.evaluate)                │
-     │  ← SSE event:"qr" {base64}   │  Page.captureScreenshot(QR) │                     │
-     │                              │                             │                     │
-     │  affiche QR, scan téléphone ─┼─────────────────────────────┼────────────────────→│
-     │                              │  poll URL/user element                            │
-     │  ← SSE event:"success"       │  Network.getCookies         │                     │
-     │                              │  pgp_sym_encrypt → DB       │                     │
-     │                              │                             │                     │
-     │  [plus tard] import produit  │                             │                     │
-     │                              │  loadCookies (decrypt)      │                     │
-     │                              │  WSS Network.setCookies →   │                     │
-     │                              │  Page.navigate(produit) ───→│ ───→ (avec session) │
+Dans `src/routes/admin.imports.tsx`, **uniquement** dans le `<ul>` lignes 121-126, ajouter 3 `<li>` d'exemples concrets après les bullets existants (sans rien supprimer ni modifier autour).
+
+Syntaxe JSX **safe** :
+- remplacer `->` (qui peut être mal parsé) par le caractère Unicode `→`
+- entourer les chaînes de notation par `<code className="bg-blue-100 px-1 rounded">…</code>`
+- pas d'entités HTML brutes (`&gt;`, `&lt;`) dans le texte JSX
+
+Exemples ajoutés (après le `<li>` existant "Sans notation…") :
+
+```tsx
+<li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> → INFO:1-2 | PRODUIT:3-4 | VARIANTES:5,7</li>
+<li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> → INFO:1-2 | PRODUIT:3-6 (pas de variantes)</li>
+<li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> → INFO:1-3 | PRODUIT:4-5 | VARIANTES:6-8</li>
 ```
 
-## Composants
+## Hors scope (non touché)
 
-### 1. Migration DB (pgcrypto + table)
-- Active `pgcrypto`
-- Table `public.taobao_sessions` (singleton row `id='main'`) :
-  - `cookies_encrypted bytea` — `pgp_sym_encrypt(jsonb_text, key)`
-  - `user_agent text`, `status text`, `connected_at timestamptz`, `last_check_at timestamptz`, `expires_at timestamptz`, `nickname text`
-- RLS : lecture/écriture admins seulement (`has_role` admin/super_admin)
-- 2 fonctions SQL SECURITY DEFINER (clé jamais en clair côté client) :
-  - `taobao_session_save(_cookies jsonb, _ua text, _nickname text)`
-  - `taobao_session_load()` → `jsonb` (cookies déchiffrés)
-  - `taobao_session_clear()`
-  - Clé lue depuis `current_setting('app.taobao_session_key')` ou paramètre fixé via fonction — en pratique on passe la clé en paramètre depuis le serverFn (qui la lit dans `process.env.TAOBAO_SESSION_KEY`)
-
-### 2. CDP client minimal — `src/lib/scraping/cdp-client.server.ts`
-- WebSocket pur (pas puppeteer, pas de deps natives, compatible Workers)
-- API : `connect(wssUrl)`, `send(method, params)` → Promise, `createPageTarget()`, `navigate(url)`, `evaluate(expr)`, `screenshotElement(selector)`, `getCookies(urls)`, `setCookies(list)`, `close()`
-- Gère message id, timeout 30s par commande
-
-### 3. Helpers session — `src/lib/scraping/taobao-session.server.ts`
-- `saveTaobaoCookies(cookies, ua, nickname)` → appelle RPC `taobao_session_save` avec clé
-- `loadTaobaoCookies()` → cookies ou null
-- `getTaobaoSessionStatus()` → `{ status, connectedAt, expiresAt, nickname }`
-- `clearTaobaoSession()`
-
-### 4. Server route SSE — `src/routes/api/admin/taobao-qr-stream.ts`
-- `GET` admin-auth (vérif manuelle bearer + has_role admin)
-- Stream `ReadableStream` SSE :
-  - Connect CDP → login.taobao.com (UA mobile chinois, locale zh-CN)
-  - Poll DOM toutes 1s pour `canvas.qrcode-img` (sélecteur officiel)
-  - Quand trouvé : screenshot Base64 → `event:qr\ndata:{...}`
-  - Continue de poller toutes les 2s pour : URL ≠ login OU élément `.site-nav-user` présent
-  - Si timeout 120s → `event:expired`
-  - Si succès : récupère cookies (`.taobao.com`, `.tmall.com`), encrypte, save → `event:success {nickname}`
-- Toujours close CDP en `finally`
-
-### 5. Server functions admin — `src/lib/taobao-session.functions.ts`
-- `getTaobaoSessionStatusFn()` — lecture status pour UI
-- `disconnectTaobaoSessionFn()` — supprime cookies + status='disconnected'
-- `testTaobaoSessionFn()` — open CDP, set cookies, naviguer vers `i.taobao.com`, vérifier élément user présent. Met à jour status si expiré.
-
-### 6. Intégration scraper — `src/lib/scraping/brightdata.server.ts`
-- Dans `scrapeProductViaBrowserApi` (existant) : avant `Page.navigate`, si URL est taobao/tmall → `loadTaobaoCookies()` et `setCookies(...)`. Si session expirée → throw `TaobaoSessionExpiredError` (récupérable, l'admin voit message clair, pas de consommation Bright Data inutile sur la page produit).
-
-### 7. UI admin — nouvel onglet dans `src/routes/admin.imports.tsx`
-- Onglet "Session Taobao" :
-  - Statut actuel (badge vert/rouge + nickname + expire dans X jours)
-  - Bouton **Se connecter via QR** → ouvre dialog avec EventSource sur `/api/admin/taobao-qr-stream`
-  - Affiche QR base64 quand reçu, message "Scannez avec l'app Taobao"
-  - Sur `success` → toast vert + close dialog + refresh status
-  - Sur `expired` → message "QR expiré, réessayez"
-  - Bouton **Tester la session** (appelle testTaobaoSessionFn)
-  - Bouton **Déconnecter** (appelle disconnectTaobaoSessionFn)
-
-## Sécurité
-- Clé `TAOBAO_SESSION_KEY` (secret) jamais exposée au client
-- Cookies chiffrés via `pgp_sym_encrypt` (pgcrypto AES) en base
-- Mot de passe Taobao **jamais** transité ni stocké — uniquement les cookies post-QR
-- Endpoint SSE protégé par bearer admin + check `has_role`
-- RLS table verrouillée aux admins
-
-## Hors scope MVP (à ajouter ensuite si besoin)
-- Multi-comptes (1 session globale suffit ici)
-- Auto-refresh des cookies (juste réafficher QR quand expiré)
-- Tmall/1688 séparés (Tmall partage souvent les cookies Taobao ; 1688 a un login distinct → ticket futur)
-- WebSocket frontend (EventSource SSE suffit)
-
-## Risques connus
-- **Sélecteur QR Taobao peut changer** : on essaie `canvas.J_qrcodeImg`, `.qrcode-img canvas`, `#J_QRCodeImg img` en cascade
-- **Bright Data Scraping Browser facturé à la session** : durée moyenne 60s par QR → coût acceptable
-- **Cloudflare Worker timeout** : SSE long-poll OK tant que des octets sont envoyés régulièrement (heartbeat toutes 15s)
-- **Cookies expirent ~2 semaines** : statut DB inclut `expires_at` calculé à connexion + 14j, UI alerte à -2j
-
-## Ordre d'implémentation
-1. Migration DB + RPC pgcrypto
-2. CDP client minimal + test connexion
-3. SSE route QR + helpers session
-4. Server functions status/test/disconnect
-5. UI admin
-6. Intégration dans scraper produit
-7. Test bout-en-bout sur vrai lien Taobao
-
-Estimation : ~700 LoC, 6 fichiers nouveaux, 2 modifiés.
+- Aucun autre fichier modifié.
+- Pas de modif des composants `TaobaoSessionCard`, server functions, scraping, variants, IA, backend.
+- Pas de revert, pas de réécriture du fichier — édition chirurgicale sur ~3 lignes ajoutées.
