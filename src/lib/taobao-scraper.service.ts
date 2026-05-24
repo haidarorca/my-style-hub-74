@@ -378,7 +378,7 @@ async function scrapeSharePage(url: string, logs: string[]): Promise<{
   try {
     browser = await getBrowser();
     const page = await browser.newPage();
-    await page.goto(url, { timeout: 30000, wait_until: "domcontentloaded" });
+    await page.goto(url, { timeout: 30000, waitUntil: "domcontentloaded" });
     await new Promise(r => setTimeout(r, 5000));
 
     const finalUrl = page.url();
@@ -463,7 +463,7 @@ export const scrapeSingleProduct = createServerFn({ method: "POST" })
         try {
           browser = await getBrowser();
           const page = await browser.newPage();
-          await page.goto(productUrl, { timeout: 30000, wait_until: "domcontentloaded" });
+          await page.goto(productUrl, { timeout: 30000, waitUntil: "domcontentloaded" });
           await new Promise(r => setTimeout(r, 5000));
 
           const html = await page.content();
@@ -536,7 +536,7 @@ export const scrapeSingleProduct = createServerFn({ method: "POST" })
     try {
       browser = await getBrowser();
       const page = await browser.newPage();
-      await page.goto(canonical, { timeout: 30000, wait_until: "domcontentloaded" });
+      await page.goto(canonical, { timeout: 30000, waitUntil: "domcontentloaded" });
       await new Promise(r => setTimeout(r, 5000));
 
       const finalUrl = page.url();
@@ -655,7 +655,7 @@ export const scrapeStore = createServerFn({ method: "POST" })
       const page = await browser.newPage();
 
       try {
-        await page.goto(shopUrl, { timeout: 30000, wait_until: "domcontentloaded" });
+        await page.goto(shopUrl, { timeout: 30000, waitUntil: "domcontentloaded" });
         await new Promise(r => setTimeout(r, 5000));
       } catch (navErr: any) {
         if (navErr.message?.includes("robots.txt")) {
@@ -762,7 +762,7 @@ export const scrapeStore = createServerFn({ method: "POST" })
       try {
         pBrowser = await getBrowser();
         const page = await pBrowser.newPage();
-        await page.goto(canonical, { timeout: 30000, wait_until: "domcontentloaded" });
+        await page.goto(canonical, { timeout: 30000, waitUntil: "domcontentloaded" });
         await new Promise(r => setTimeout(r, 3000));
         productHtml = await page.content();
         await pBrowser.close();
@@ -871,7 +871,7 @@ export const scrapeBatchProducts = createServerFn({ method: "POST" })
       try {
         browser = await getBrowser();
         const page = await browser.newPage();
-        await page.goto(canonical, { timeout: 30000, wait_until: "domcontentloaded" });
+        await page.goto(canonical, { timeout: 30000, waitUntil: "domcontentloaded" });
         await new Promise(r => setTimeout(r, 4000));
 
         const html = await page.content();
