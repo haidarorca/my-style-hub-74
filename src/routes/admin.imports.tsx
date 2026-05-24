@@ -319,29 +319,19 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
         </div>
       </div>
 
-      {/* 3 Image URLs with preview */}
-      <div className="space-y-2 pt-1 border-t border-dashed">
-        <Label className="text-[10px]">Images variante (URLs)</Label>
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3].map(n => {
-            const urlKey = `image_url${n}` as keyof SimpleVariant;
-            const url = variant[urlKey] as string | null;
-            return (
-              <div key={n} className="space-y-1">
-                {url ? (
-                  <div className="relative aspect-square rounded overflow-hidden border bg-muted">
-                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    <button onClick={() => onUpdate({ [urlKey]: null } as Partial<SimpleVariant>)} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <Input value={url || ""} onChange={e => onUpdate({ [urlKey]: e.target.value || null } as Partial<SimpleVariant>)} className="h-8 text-[10px]" placeholder={`URL ${n}...`} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {/* Single image URL with preview - matches vendor.new exactly */}
+      <div className="flex items-center gap-2 pt-1 border-t border-dashed">
+        {variant.image_url ? (
+          <div className="relative h-14 w-14 overflow-hidden rounded border">
+            <img src={variant.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+            <button onClick={() => onUpdate({ image_url: null })} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <Input value={variant.image_url || ""} onChange={e => onUpdate({ image_url: e.target.value || null })} className="h-8 text-[10px] flex-1" placeholder="URL image variante..." />
+        )}
+        <p className="text-[10px] text-muted-foreground">1 image par variante</p>
       </div>
     </div>
   );
@@ -367,7 +357,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url1: null, image_url2: null, image_url3: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -379,7 +369,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url1: v.image_url1, image_url2: v.image_url2, image_url3: v.image_url3, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
+      const result = await fnPublish({ draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
