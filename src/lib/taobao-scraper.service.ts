@@ -561,7 +561,7 @@ export const scrapeSingleProduct = createServerFn({ method: "POST" })
 
     // Extract
     log(logs, "[3/6] Extraction des donnees...");
-    const extracted = extractFromHTML(html, platform);
+    const extracted = extractFromHTML(html);
     log(logs, `[3/6] ✅ Titre : ${extracted.name.slice(0, 50)} | Prix : ${extracted.price} | Images : ${extracted.images.length}`);
 
     // Categories
