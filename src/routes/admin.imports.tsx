@@ -335,7 +335,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
+      const result = await fnPublish({ draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } ) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
