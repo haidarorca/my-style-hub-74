@@ -50,9 +50,9 @@ function parseIndexSegment(segment: string, allUrls: string[]): number[] {
 
 /**
  * Parse media notation using ,, as group separator.
- * "1,2,,3,4,,5,7" -> info=[1,2], product=[3,4], variants=[5,7]
- * "1,2,,3,4"      -> info=[1,2], product=[3,4], variants=[]
- * "1,2,3,4"       -> info=[1,2], product=[3,4] (default, no ,,)
+ * "1,2,,3,4,,5,7" => info=[1,2], product=[3,4], variants=[5,7]
+ * "1,2,,3,4"      => info=[1,2], product=[3,4], variants=[]
+ * "1,2,3,4"       => info=[1,2], product=[3,4] (default, no ,,)
  */
 export function parseMediaNotation(notation: string, allUrls: string[]): MediaGroup {
   const group: MediaGroup = { infoImages: [], productImages: [], variantImages: [] };
