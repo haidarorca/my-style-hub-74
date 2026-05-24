@@ -149,15 +149,26 @@ const effectiveVariantColors = variantColors.length > 0 ? variantColors : (isMul
 const variantImgUrls = mediaGroup.variantImages.length > 0 ? mediaGroup.variantImages : [];
 
 const rawVariants = Array.isArray(aiResult?.variants) ? aiResult.variants : [];
-let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => ({
-  label: String(v.label || v.name || "Option").slice(0, 60),
-  price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
-  image_url: v.image_url1 || variantImgUrls[idx] || null,
-  colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
-  sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
-  color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
-  stock: Number(v.stock) || 0,
-})).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
+let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
+  // Map AI image indices (1-based) to actual URLs from the selected array
+  const aiIndices: number[] = Array.isArray(v.image_indices)
+    ? v.image_indices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 1 && n <= selected.length)
+    : [];
+  let imgs: string[] = aiIndices.map(i => selected[i - 1]).filter(Boolean);
+  // Fallback: positional variant image
+  if (imgs.length === 0 && variantImgUrls[idx]) imgs = [variantImgUrls[idx]];
+  return {
+    label: String(v.label || v.name || "Option").slice(0, 60),
+    price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
+    image_url1: imgs[0] || null,
+    image_url2: imgs[1] || null,
+    image_url3: imgs[2] || null,
+    colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
+    sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
+    color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
+    stock: Number(v.stock) || 0,
+  };
+}).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
 
 // If no variants extracted but we have variant sizes, auto-create variants
 if (variants.length === 0 && variantSizes.length > 0) {
