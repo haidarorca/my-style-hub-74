@@ -1,7 +1,7 @@
 /**
  * admin.imports.tsx
  * Import IA Visuelle - Variantes avec sous-options (couleurs + tailles)
- * Notation: 1,2,,3,4,,5,7 => info=1-2 | product=3-4 | variants=5-7
+ * Notation: 1,2,,3,4,,5,7 gives info=1-2, product=3-4, variants=5-7
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -119,9 +119,9 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
           <div className="rounded bg-white/70 p-2">
             <p className="font-semibold mb-1">Notation: utilisez ,, pour separer les groupes</p>
             <ul className="space-y-0.5 list-disc list-inside text-[10px]">
-              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> =&gt; INFO:1-2 | PRODUIT:3-4 | VARIANTES:5,7</li>
-              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> =&gt; INFO:1-2 | PRODUIT:3-6 (pas de variants)</li>
-              <li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> =&gt; INFO:1-3 | PRODUIT:4-5 | VARIANTES:6-8</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> means INFO:1-2, PRODUIT:3-4, VARIANTES:5,7</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> means INFO:1-2, PRODUIT:3-6 (pas de variants)</li>
+              <li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> means INFO:1-3, PRODUIT:4-5, VARIANTES:6-8</li>
               <li>Sans notation: les 2 premieres = info, le reste = produit</li>
             </ul>
           </div>
