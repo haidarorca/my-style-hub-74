@@ -123,9 +123,9 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
               <li>PRODUIT: images 3-4+ (galerie)</li>
               <li>VARIANTES: apres les 2 virgules</li>
               <li>Sans notation: les 2 premieres = info, le reste = produit</li>
-              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> {"→"} INFO:1-2 | PRODUIT:3-4 | VARIANTES:5,7</li>
-              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> {"→"} INFO:1-2 | PRODUIT:3-6 (pas de variantes)</li>
-              <li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> {"→"} INFO:1-3 | PRODUIT:4-5 | VARIANTES:6-8</li>
+              <li>Exemple un : images un et deux pour informations, images trois et quatre pour produit, images cinq et sept pour variantes.</li>
+              <li>Exemple deux : images un et deux pour informations, images trois a six pour produit, sans variantes.</li>
+              <li>Exemple trois : images un a trois pour informations, images quatre et cinq pour produit, images six a huit pour variantes.</li>
             </ul>
           </div>
           <p className="text-amber-700"><AlertTriangle className="h-3 w-3 inline mr-0.5" /> <strong>Conseil video:</strong> Si la video ne se lit pas, utilisez des captures d&apos;ecran.</p>
