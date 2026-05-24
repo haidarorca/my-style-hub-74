@@ -97,13 +97,31 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   return (
     <div className="space-y-4">
       <Card className="bg-blue-50/50 border-blue-200">
-        <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1 text-blue-800"><Info className="h-3.5 w-3.5" /> Comment utiliser l&apos;import IA</CardTitle></CardHeader>
-        <CardContent className="text-[11px] text-blue-800 space-y-1.5 pt-0">
-          <p><strong>1.</strong> Uploadez vos images/videos du produit</p>
-          <p><strong>2.</strong> L&apos;IA detecte automatiquement: nom, prix, variantes</p>
-          <p><strong>3.</strong> Le prix est converti en FCFA automatiquement</p>
-          <p><strong>4.</strong> Verifiez et publiez dans la boutique</p>
-          <p className="text-amber-700"><AlertTriangle className="h-3 w-3 inline mr-0.5" /> <strong>Conseil:</strong> Si une video ne fonctionne pas, utilisez des captures d&apos;ecran a la place.</p>
+        <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1 text-blue-800"><Info className="h-3.5 w-3.5" /> Comment organiser vos medias</CardTitle></CardHeader>
+        <CardContent className="text-[11px] text-blue-800 space-y-2 pt-0">
+          <div className="rounded bg-white/70 p-2 space-y-1.5">
+            <div className="flex items-start gap-2">
+              <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-300 shrink-0 mt-0.5">INFO</Badge>
+              <span><strong>Images 1 a 2</strong> = Contiennent les infos (prix, description, details vendeur). L&apos;IA lit ces images pour extraire les donnees.</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <Badge className="text-[9px] bg-emerald-100 text-emerald-800 border-emerald-300 shrink-0 mt-0.5">PRODUIT</Badge>
+              <span><strong>Images 3 a 4+</strong> = Photos du produit. Ces images seront dans la galerie du produit.</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <Badge className="text-[9px] bg-purple-100 text-purple-800 border-purple-300 shrink-0 mt-0.5">VARIANTES</Badge>
+              <span><strong>Apres ,,</strong> = Images de variantes. Chaque image = une option differente (couleur, taille).</span>
+            </div>
+          </div>
+          <div className="rounded bg-white/70 p-2">
+            <p className="font-semibold mb-1">Exemples:</p>
+            <ul className="space-y-0.5 list-disc list-inside text-[10px]">
+              <li><code className="bg-blue-100 px-1 rounded">1,2,3,4</code> → 1-2=info, 3-4=produit</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,3,4,,5,6</code> → 1-2=info, 3-4=produit, 5-6=variantes</li>
+              <li><code className="bg-blue-100 px-1 rounded">1-3,4,5,,6,7</code> → 1-3=info, 4-5=produit, 6-7=variantes</li>
+            </ul>
+          </div>
+          <p className="text-amber-700"><AlertTriangle className="h-3 w-3 inline mr-0.5" /> <strong>Conseil video:</strong> Si la video ne se lit pas, utilisez des captures d&apos;ecran.</p>
         </CardContent>
       </Card>
       <Card>
@@ -201,7 +219,7 @@ function VariantRow({ variant, index, onUpdate, onRemove }: {
           <Label className="text-[9px] text-muted-foreground">Prix FCFA</Label>
           <Input type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} className="h-9 text-sm mt-0.5" placeholder="5000" />
         </div>
-        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-destructive shrink-0" onClick={onRemove}><Minus className="h-4 w-4" /></Button>
+        <button onClick={onRemove} className="h-9 w-9 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 shrink-0" title="Supprimer"><X className="h-5 w-5" /></button>
       </div>
 
       {/* Toggle advanced button */}
