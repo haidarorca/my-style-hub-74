@@ -207,6 +207,15 @@ function PresetChip({ label, active, onClick }: { label: string; active: boolean
 
 function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
   const [uploading, setUploading] = useState(false);
+  const [customColor, setCustomColor] = useState("");
+  const [customSize, setCustomSize] = useState("");
+
+  const addColor = (val: string) => { if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] }); };
+  const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
+  const addSize = (val: string) => { if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] }); };
+  const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
+  const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
+  const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
   // Map array-based data model onto single-value inputs (same UX as vendor.products.new)
   const sizeValue = variant.sizes[0] ?? "";
