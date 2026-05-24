@@ -22,13 +22,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { exportProducts, downloadTemplate, previewImport, commitImport } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
+import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup, type DescriptiveAttributes } from "@/lib/visual-ai-import.service";
 
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
 const fmtFcfa = (n: number | null) => n === null || n === 0 ? "-" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 type Pick = string; const idOf = (v: Pick) => v.slice(4);
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
-const LS_KEY = "kawzone_v4"; function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } } function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
+const LS_KEY = "kawzone_v5"; function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } } function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
 
 const COLOR_PRESETS = ["Rouge", "Bleu", "Noir", "Blanc", "Vert", "Jaune", "Orange", "Rose", "Gris", "Marron", "Violet", "Beige"];
 const SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "36", "38", "40", "42", "44", "46"];
@@ -233,7 +233,14 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
+            {variant.colors.length > 0 && (
+              <button onClick={() => onUpdate({ colors: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5" title="Supprimer toutes les couleurs">
+                <X className="h-2.5 w-2.5" /> Tout suppr
+              </button>
+            )}
+          </div>
           <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
             {allColorsSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
             {allColorsSelected ? "Tout deselectionner" : "Tout selectionner"}
@@ -265,7 +272,14 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
+            {variant.sizes.length > 0 && (
+              <button onClick={() => onUpdate({ sizes: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5" title="Supprimer toutes les tailles">
+                <X className="h-2.5 w-2.5" /> Tout suppr
+              </button>
+            )}
+          </div>
           <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
             {allSizesSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
             {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
@@ -366,6 +380,19 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             <p className="text-2xl font-bold text-primary">{fmtFcfa(fromPrice)}</p>
             {draft.originalPrice && <p className="text-[10px] text-muted-foreground">{draft.originalPrice} {draft.originalCurrency} = {fmtFcfa(draft.price)}</p>}
           </div>
+
+          {/* Descriptive colors - multicolor fixed indicator */}
+          {draft.isMulticolorFixed && draft.descriptiveColors.length > 0 && (
+            <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
+              <p className="text-[10px] uppercase text-purple-700 font-semibold flex items-center gap-1"><Palette className="h-3 w-3" /> Produit multicolore fixe</p>
+              <p className="text-[11px] text-purple-800 mt-1">Les couleurs suivantes sont descriptives uniquement, le client ne choisit pas:</p>
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {draft.descriptiveColors.map((c, i) => (
+                  <Badge key={i} variant="outline" className="text-[10px] bg-purple-100 text-purple-800 border-purple-300">{c}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           {draft.mediaGroup && (
             <div className="space-y-2">

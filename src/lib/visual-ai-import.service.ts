@@ -16,6 +16,18 @@ export interface SimpleVariant {
   color_hex: string;
   stock: number;
 }
+export interface DescriptiveAttributes {
+  colors: string[];
+  materials: string[];
+  features: string[];
+}
+export interface SmartVariantAnalysis {
+  is_multicolor_fixed: boolean;
+  descriptive_colors: string[];
+  variant_colors: string[];
+  variant_sizes: string[];
+  variant_images: string[];
+}
 export interface VisualDraft {
   id: string; name: string; designation: string; description: string;
   price: number | null; originalPrice: number | null; originalCurrency: string;
@@ -24,6 +36,8 @@ export interface VisualDraft {
   confidence: number; uncertainties: string[];
   mediaGroup: MediaGroup;
   status: "draft"; createdAt: number;
+  descriptiveColors: string[];
+  isMulticolorFixed: boolean;
 }
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
 const MAX_VIDEO_FRAMES = 8;
@@ -102,7 +116,7 @@ export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware(
 const mediaGroup = parseMediaNotation(data.mediaNotation, allUrls);
 logs.push(`Media: ${allUrls.length} total | Info:${mediaGroup.infoImages.length} Prod:${mediaGroup.productImages.length} Var:${mediaGroup.variantImages.length}`); const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: allCats } = await supabase.from("categories").select("id, name, level, parent_id, name_i18n").order("position"); const cats = (allCats || []) as CatRow[]; const catList = cats.filter(c => c.level === 3).map(c => { const l2 = cats.find(p => p.id === c.parent_id && p.level === 2); const l1 = l2 ? cats.find(p => p.id === l2.parent_id && p.level === 1) : null; return `${l1?.name || ""}>${l2?.name || ""}>${c.name}`; }).slice(0, 50).join("\n");
 
-const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES:\n- ${mediaGroup.infoImages.length} images INFO (contiennent prix, description, details vendeur)\n- ${mediaGroup.productImages.length} images PRODUIT (photos du produit)\n- ${mediaGroup.variantImages.length} images VARIANTES (chaque image = une option differente)\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n- Chaque variante = NOM + PRIX en FCFA\n- Si images variantes fournies, utilise-les pour detecter les options\n- colors: liste des couleurs detectees ["Rouge", "Bleu"]\n- sizes: liste des tailles detectees ["M", "L", "XL"]\n- Exemples: {"label":"Rouge","price":3825,"colors":["Rouge"],"sizes":["M","L"]}\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","priceInFcfa":0,"variants":[{"label":"","price":0,"image_url":"","colors":[],"sizes":[]}],"colors":[],"materials":[],"detectedBrand":null,"detectedText":[],"tags":[],"features":[],"categoryHint":"","productType":"","confidence":70,"uncertainties":[]}\nCategories:\n${catList}`;
+const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES:\n- ${mediaGroup.infoImages.length} images INFO (contiennent prix, description, details vendeur)\n- ${mediaGroup.productImages.length} images PRODUIT (photos du produit)\n- ${mediaGroup.variantImages.length} images VARIANTES (chaque image = une option differente)\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES - TRES IMPORTANT:\nDiffencie 2 types de couleurs:\n1. COULEURS DESCRIPTIVES (descriptive_colors): couleurs visibles sur le produit mais NON achetables separement. Ex: jouets multicolores, blocs magnetiques, objets a plusieurs couleurs fixes. Le client ne choisit pas "Rouge" ou "Bleu", il recoit le produit multicolore tel quel.\n2. COULEURS VARIANTE (variant_colors): vraies options achetables. Ex: t-shirt en Rouge OU Bleu OU Noir, ou le client choisit explicitement une couleur.\n\nSi le produit est multicolore fixe (les couleurs sont melangees, pas d'image separee par couleur, le client ne choisit pas):\n- is_multicolor_fixed: true\n- descriptive_colors: ["Rouge","Bleu","Jaune"] (couleurs visibles)\n- variant_colors: [] (vide, pas de choix couleur)\n- variants doivent contenir uniquement les vraies options (tailles, quantites, etc.)\n\nSi le produit a des vraies variantes couleur:\n- is_multicolor_fixed: false\n- descriptive_colors: []\n- variant_colors: ["Rouge","Bleu"] (choix reels)\n\nREGLES SIZES:\n- variant_sizes: vraies tailles/quantites achetables ("40 pieces", "80 pieces", "S", "M", "L", "XL")\n\nEXEMPLES:\n\nProduit multicolore fixe (blocs magnetiques):\n{\"is_multicolor_fixed\":true,\"descriptive_colors\":[\"Rouge\",\"Bleu\",\"Jaune\",\"Vert\"],\"variant_colors\":[],\"variant_sizes\":[],\"variants\":[{\"label\":\"40 pieces\",\"price\":8500},{\"label\":\"80 pieces\",\"price\":15000},{\"label\":\"160 pieces\",\"price\":25000}]}\n\nT-shirt avec choix couleur:\n{\"is_multicolor_fixed\":false,\"descriptive_colors\":[],\"variant_colors\":[\"Rouge\",\"Bleu\",\"Noir\"],\"variant_sizes\":[\"S\",\"M\",\"L\",\"XL\"],\"variants\":[{\"label\":\"Rouge\",\"price\":8500},{\"label\":\"Bleu\",\"price\":8500},{\"label\":\"Noir\",\"price\":8500}]}\n\nReponds JSON strict:\n{\"name\":\"\",\"designation\":\"\",\"description\":\"\",\"originalPrice\":0,\"originalCurrency\":\"CNY\",\"priceInFcfa\":0,\"is_multicolor_fixed\":false,\"descriptive_colors\":[],\"variant_colors\":[],\"variant_sizes\":[],\"variants\":[{\"label\":\"\",\"price\":0,\"image_url\":\"\",\"colors\":[],\"sizes\":[]}],\"materials\":[],\"detectedBrand\":null,\"detectedText\":[],\"tags\":[],\"features\":[],\"categoryHint\":\"\",\"productType\":\"\",\"confidence\":70,\"uncertainties\":[]}\nCategories:\n${catList}`;
 
 const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10); const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
 let aiResult: any = null; try { const apiKey = process.env.LOVABLE_API_KEY || ""; const res = await fetch(IA_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: "Expert produits e-commerce." }, { role: "user", content: parts }], max_tokens: 4096, temperature: 0.2 }), signal: AbortSignal.timeout(60000) }); if (!res.ok) throw new Error(`IA HTTP ${res.status}`); const json = await res.json(); const raw = json.choices?.[0]?.message?.content?.trim() || ""; try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); else throw new Error("JSON invalide"); } } catch (e: any) { return { success: false, draft: null, logs, errors: [`IA: ${e.message}`] }; }
@@ -111,16 +125,60 @@ const currency = aiResult?.originalCurrency || detectCurrency(JSON.stringify(aiR
 const originalPrice = aiResult?.originalPrice && Number(aiResult.originalPrice) > 0 ? Number(aiResult.originalPrice) : null;
 const priceFcfa = originalPrice ? toFcfa(originalPrice, currency) : null;
 
+// Smart color/size analysis
+const isMulticolorFixed = Boolean(aiResult?.is_multicolor_fixed);
+const descriptiveColors: string[] = Array.isArray(aiResult?.descriptive_colors) ? aiResult.descriptive_colors.map(String).filter(Boolean) : [];
+const variantColors: string[] = Array.isArray(aiResult?.variant_colors) ? aiResult.variant_colors.map(String).filter(Boolean) : [];
+const variantSizes: string[] = Array.isArray(aiResult?.variant_sizes) ? aiResult.variant_sizes.map(String).filter(Boolean) : [];
+
+// If not using smart analysis, fall back to legacy colors field
+const legacyColors: string[] = Array.isArray(aiResult?.colors) ? aiResult.colors.map(String).filter(Boolean) : [];
+const effectiveVariantColors = variantColors.length > 0 ? variantColors : (isMulticolorFixed ? [] : legacyColors);
+
+// Assign variant images to variants
+const variantImgUrls = mediaGroup.variantImages.length > 0 ? mediaGroup.variantImages : [];
+
 const rawVariants = Array.isArray(aiResult?.variants) ? aiResult.variants : [];
-const variants: SimpleVariant[] = rawVariants.map((v: any) => ({
+let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => ({
   label: String(v.label || v.name || "Option").slice(0, 60),
   price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
-  image_url: v.image_url || null,
-  colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : v.color ? [String(v.color)] : [],
-  sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : v.size ? [String(v.size)] : [],
+  image_url: v.image_url || variantImgUrls[idx] || null,
+  colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
+  sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
   color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
   stock: Number(v.stock) || 0,
 })).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
+
+// If no variants extracted but we have variant sizes, auto-create variants
+if (variants.length === 0 && variantSizes.length > 0) {
+  variants = variantSizes.map((sz, idx) => ({
+    label: sz,
+    price: priceFcfa || 0,
+    image_url: variantImgUrls[idx] || null,
+    colors: effectiveVariantColors,
+    sizes: [sz],
+    color_hex: "",
+    stock: 0,
+  }));
+}
+
+// If still no variants and not multicolor fixed, create from colors
+if (variants.length === 0 && effectiveVariantColors.length > 0 && !isMulticolorFixed) {
+  variants = effectiveVariantColors.map((c, idx) => ({
+    label: c,
+    price: priceFcfa || 0,
+    image_url: variantImgUrls[idx] || null,
+    colors: [c],
+    sizes: variantSizes.length > 0 ? variantSizes : [],
+    color_hex: "",
+    stock: 0,
+  }));
+}
+
+// If still no variants at all, create a single default variant
+if (variants.length === 0) {
+  variants = [{ label: "Standard", price: priceFcfa || 0, image_url: variantImgUrls[0] || null, colors: effectiveVariantColors, sizes: variantSizes, color_hex: "", stock: 0 }];
+}
 
 const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : priceFcfa;
 const catMatch = findCategory(aiResult?.name || "", aiResult?.productType || aiResult?.categoryHint || "", Array.isArray(aiResult?.tags) ? aiResult.tags : [], cats);
@@ -128,7 +186,31 @@ const uncertainties: string[] = Array.isArray(aiResult?.uncertainties) ? aiResul
 if (!originalPrice) uncertainties.push("Prix non visible - a completer en FCFA"); else uncertainties.push(`${originalPrice} ${currency} = ${priceFcfa} FCFA (verifiez)`);
 if (!catMatch) uncertainties.push("Categorie - selectionnez manuellement"); else if (catMatch.score < 50) uncertainties.push(`Categorie incertaine (${catMatch.score}%)`);
 
-const draft: VisualDraft = { id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, name: String(aiResult?.name || "Produit").slice(0, 100), designation: String(aiResult?.designation || "").slice(0, 120), description: String(aiResult?.description || "").slice(0, 2000), price: fromPrice, originalPrice, originalCurrency: currency, images: mediaGroup.productImages.length > 0 ? mediaGroup.productImages : allUrls, variants, categoryId: catMatch?.l3Id || null, categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null, confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)), uncertainties: [...new Set(uncertainties)], mediaGroup, status: "draft", createdAt: Date.now() };
+// Build description including descriptive colors if multicolor fixed
+let finalDescription = String(aiResult?.description || "").slice(0, 2000);
+if (isMulticolorFixed && descriptiveColors.length > 0 && !finalDescription.toLowerCase().includes("multicolor")) {
+  const colorDesc = `Produit multicolore contenant: ${descriptiveColors.join(", ")}.`;
+  finalDescription = colorDesc + (finalDescription ? "\n\n" + finalDescription : "");
+}
+
+const draft: VisualDraft = {
+  id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+  name: String(aiResult?.name || "Produit").slice(0, 100),
+  designation: String(aiResult?.designation || "").slice(0, 120),
+  description: finalDescription.slice(0, 2000),
+  price: fromPrice, originalPrice, originalCurrency: currency,
+  images: mediaGroup.productImages.length > 0 ? mediaGroup.productImages : allUrls,
+  variants,
+  categoryId: catMatch?.l3Id || null,
+  categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null,
+  confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)),
+  uncertainties: [...new Set(uncertainties)],
+  mediaGroup,
+  status: "draft",
+  createdAt: Date.now(),
+  descriptiveColors,
+  isMulticolorFixed,
+};
 logs.push(`OK: "${draft.name}" | ${fromPrice} FCFA | ${variants.length}v`);
 return { success: true, draft, logs, errors: [] }; });
 
