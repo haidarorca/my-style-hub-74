@@ -212,12 +212,50 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
   const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
   const [customColor, setCustomColor] = useState("");
   const [customSize, setCustomSize] = useState("");
+  const [uploading, setUploading] = useState(false);
   const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
   const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
+  const variantImageSlots: Array<keyof SimpleVariant> = ["image_url1", "image_url2", "image_url3"];
+  const currentUrls = variantImageSlots
+    .map(k => ({ key: k, url: variant[k] as string | null }))
+    .filter(x => !!x.url);
+  const maxImages = variantImageSlots.length;
+  const canAddMore = currentUrls.length < maxImages;
+
+  const uploadFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifie");
+      const freeSlots = variantImageSlots.filter(k => !variant[k]);
+      const toUpload = files.slice(0, freeSlots.length);
+      const patch: Partial<SimpleVariant> = {};
+      for (let i = 0; i < toUpload.length; i++) {
+        const file = toUpload[i];
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `${user.id}/visual-import/${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
+        (patch as any)[freeSlots[i]] = pub.publicUrl;
+      }
+      onUpdate(patch);
+      if (files.length > toUpload.length) {
+        toast.warning(`${toUpload.length}/${files.length} image(s) ajoutee(s). Limite: ${maxImages} par variante.`);
+      } else {
+        toast.success(`${toUpload.length} image(s) ajoutee(s)`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur upload");
+    }
+    setUploading(false);
+  };
+
   return (
     <div className="rounded-lg border bg-background p-2 space-y-2">
-      {/* Row 1: Name + Price + Delete - matches vendor.new grid */}
+      {/* Row 1: Name + Price + Stock + Delete - matches vendor.new grid */}
       <div className="grid grid-cols-12 items-end gap-2">
         <div className="col-span-5 sm:col-span-6">
           <Label className="text-[10px]">Nom du choix</Label>
@@ -319,29 +357,36 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
         </div>
       </div>
 
-      {/* 3 Image URLs with preview */}
-      <div className="space-y-2 pt-1 border-t border-dashed">
-        <Label className="text-[10px]">Images variante (URLs)</Label>
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3].map(n => {
-            const urlKey = `image_url${n}` as keyof SimpleVariant;
-            const url = variant[urlKey] as string | null;
-            return (
-              <div key={n} className="space-y-1">
-                {url ? (
-                  <div className="relative aspect-square rounded overflow-hidden border bg-muted">
-                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    <button onClick={() => onUpdate({ [urlKey]: null } as Partial<SimpleVariant>)} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <Input value={url || ""} onChange={e => onUpdate({ [urlKey]: e.target.value || null } as Partial<SimpleVariant>)} className="h-8 text-[10px]" placeholder={`URL ${n}...`} />
-                )}
-              </div>
-            );
-          })}
+      {/* Variant image gallery - matches vendor.new uploader style */}
+      <div className="space-y-1.5 pt-1 border-t border-dashed">
+        <Label className="text-[10px]">Images de la variante ({currentUrls.length}/{maxImages})</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          {currentUrls.map(({ key, url }) => (
+            <div key={key as string} className="relative h-14 w-14 overflow-hidden rounded border">
+              <img src={url!} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onUpdate({ [key]: null } as Partial<SimpleVariant>)}
+                className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {canAddMore && (
+            <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground hover:bg-accent ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(fs); }}
+              />
+            </label>
+          )}
         </div>
+        <p className="text-[10px] text-muted-foreground">Touchez l&apos;icone pour ouvrir la galerie. Selection multiple supportee.</p>
       </div>
     </div>
   );
