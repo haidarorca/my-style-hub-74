@@ -208,43 +208,58 @@ function PresetChip({ label, active, onClick }: { label: string; active: boolean
 function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
   const addColor = (val: string) => { if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] }); };
   const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
-  const updateColor = (ci: number, val: string) => onUpdate({ colors: variant.colors.map((c, j) => j === ci ? val : c) });
   const addSize = (val: string) => { if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] }); };
   const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
-  const updateSize = (si: number, val: string) => onUpdate({ sizes: variant.sizes.map((s, j) => j === si ? val : s) });
   const [customColor, setCustomColor] = useState("");
   const [customSize, setCustomSize] = useState("");
   const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
   const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
   return (
-    <div className="bg-muted/30 rounded-lg p-2.5 space-y-3">
-      <div className="flex gap-2 items-end">
-        <div className="flex-1 min-w-0">
-          <Label className="text-[9px] text-muted-foreground">Nom du choix</Label>
-          <Input value={variant.label} onChange={e => onUpdate({ label: e.target.value })} className="h-9 text-sm mt-0.5" placeholder="Ex: T-shirt Basique" />
+    <div className="rounded-lg border bg-background p-2 space-y-2">
+      {/* Row 1: Name + Price + Delete - matches vendor.new grid */}
+      <div className="grid grid-cols-12 items-end gap-2">
+        <div className="col-span-5 sm:col-span-6">
+          <Label className="text-[10px]">Nom du choix</Label>
+          <Input className="h-8 text-sm" value={variant.label} onChange={e => onUpdate({ label: e.target.value })} placeholder="40 pieces, Rouge..." />
         </div>
-        <div className="w-28 shrink-0">
-          <Label className="text-[9px] text-muted-foreground">Prix FCFA</Label>
-          <Input type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} className="h-9 text-sm mt-0.5" placeholder="5000" />
+        <div className="col-span-3">
+          <Label className="text-[10px]">Prix FCFA</Label>
+          <Input className="h-8" type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} placeholder="---" />
         </div>
-        <button onClick={onRemove} className="h-9 w-9 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 shrink-0" title="Supprimer la variante"><X className="h-5 w-5" /></button>
+        <div className="col-span-3">
+          <Label className="text-[10px]">Stock</Label>
+          <Input className="h-8" type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} />
+        </div>
+        <div className="col-span-1">
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onRemove}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
+      {/* Row 2: Color hex picker */}
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px] shrink-0">Hex</Label>
+        <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-7 w-7 rounded border cursor-pointer" />
+        {variant.color_hex && <span className="text-[10px] text-muted-foreground">{variant.color_hex}</span>}
+      </div>
+
+      {/* Colors section - tags with X */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
             {variant.colors.length > 0 && (
-              <button onClick={() => onUpdate({ colors: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5" title="Supprimer toutes les couleurs">
+              <button onClick={() => onUpdate({ colors: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5">
                 <X className="h-2.5 w-2.5" /> Tout suppr
               </button>
             )}
           </div>
-          <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
-            {allColorsSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+          <button className="text-[9px] flex items-center gap-0.5 rounded px-1.5 py-0.5 hover:bg-muted" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
+            {allColorsSelected ? <X className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
             {allColorsSelected ? "Tout deselectionner" : "Tout selectionner"}
-          </Button>
+          </button>
         </div>
         <div className="flex flex-wrap gap-1">
           {COLOR_PRESETS.map(c => (
@@ -252,15 +267,12 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
           ))}
         </div>
         {variant.colors.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {variant.colors.map((c, ci) => (
-              <div key={ci} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
-                {ci === 0 && (
-                  <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="w-4 h-4 rounded cursor-pointer border-0 p-0 shrink-0" title="Couleur hex" />
-                )}
-                <Input value={c} onChange={e => updateColor(ci, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-14 bg-transparent" />
-                <button onClick={() => removeColor(ci)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
-              </div>
+              <span key={ci} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">
+                {c}
+                <button onClick={() => removeColor(ci)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+              </span>
             ))}
           </div>
         )}
@@ -270,20 +282,21 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
         </div>
       </div>
 
+      {/* Sizes section - tags with X */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
             {variant.sizes.length > 0 && (
-              <button onClick={() => onUpdate({ sizes: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5" title="Supprimer toutes les tailles">
+              <button onClick={() => onUpdate({ sizes: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5">
                 <X className="h-2.5 w-2.5" /> Tout suppr
               </button>
             )}
           </div>
-          <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
-            {allSizesSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+          <button className="text-[9px] flex items-center gap-0.5 rounded px-1.5 py-0.5 hover:bg-muted" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
+            {allSizesSelected ? <X className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
             {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
-          </Button>
+          </button>
         </div>
         <div className="flex flex-wrap gap-1">
           {SIZE_PRESETS.map(s => (
@@ -291,12 +304,12 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
           ))}
         </div>
         {variant.sizes.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {variant.sizes.map((s, si) => (
-              <div key={si} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
-                <Input value={s} onChange={e => updateSize(si, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-10 bg-transparent text-center" />
-                <button onClick={() => removeSize(si)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
-              </div>
+              <span key={si} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">
+                {s}
+                <button onClick={() => removeSize(si)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+              </span>
             ))}
           </div>
         )}
@@ -306,14 +319,28 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed">
-        <div>
-          <Label className="text-[9px] text-muted-foreground">Stock</Label>
-          <Input type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} className="h-8 text-xs mt-0.5" placeholder="0" />
-        </div>
-        <div>
-          <Label className="text-[9px] text-muted-foreground">Image URL</Label>
-          <Input value={variant.image_url || ""} onChange={e => onUpdate({ image_url: e.target.value || null })} className="h-8 text-[10px] mt-0.5" placeholder="https://..." />
+      {/* 3 Image URLs with preview */}
+      <div className="space-y-2 pt-1 border-t border-dashed">
+        <Label className="text-[10px]">Images variante (URLs)</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map(n => {
+            const urlKey = `image_url${n}` as keyof SimpleVariant;
+            const url = variant[urlKey] as string | null;
+            return (
+              <div key={n} className="space-y-1">
+                {url ? (
+                  <div className="relative aspect-square rounded overflow-hidden border bg-muted">
+                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <button onClick={() => onUpdate({ [urlKey]: null } as Partial<SimpleVariant>)} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <Input value={url || ""} onChange={e => onUpdate({ [urlKey]: e.target.value || null } as Partial<SimpleVariant>)} className="h-8 text-[10px]" placeholder={`URL ${n}...`} />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -340,7 +367,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url1: null, image_url2: null, image_url3: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -352,7 +379,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url1: v.image_url1, image_url2: v.image_url2, image_url3: v.image_url3, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
