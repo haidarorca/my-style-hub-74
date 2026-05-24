@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { exportProducts, downloadTemplate, previewImport, commitImport } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant } from "@/lib/visual-ai-import.service";
+import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
 
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
 const fmtFcfa = (n: number | null) => n === null || n === 0 ? "—" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
@@ -90,7 +90,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   const addLog = (msg: string, type = "info") => setLogs(p => [...p, { msg, type }]);
   const handleFiles = (newFiles: File[]) => { const accepted = newFiles.filter(f => f.type.startsWith("image/") || f.type.startsWith("video/")); if (accepted.length === 0) { toast.error("Images et videos uniquement"); return; } if (files.length + accepted.length > 20) { toast.error("Max 20 fichiers"); return; } const items = accepted.map(f => ({ file: f, preview: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "video" as const : "image" as const })); setFiles(p => [...p, ...items]); setVideoError(""); };
   const removeFile = (i: number) => setFiles(p => { const n = [...p]; URL.revokeObjectURL(n[i].preview); n.splice(i, 1); return n; });
-  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any; if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls }}) as any; if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(`Erreur: ${e.message}`, "err"); toast.error(e.message); } setIsAnalyzing(false); };
+  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any; if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const notationStr = mediaNotation.trim(); if (notationStr) addLog(`Notation: ${notationStr}`, "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: notationStr }}) as any; if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(`Erreur: ${e.message}`, "err"); toast.error(e.message); } setIsAnalyzing(false); };
   const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
   const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); }, []);
   const onDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }, []);
@@ -128,6 +128,26 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {/* Media Notation Input */}
+          {files.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-semibold flex items-center gap-1">
+                <Info className="h-3 w-3" /> Notation des medias (optionnel)
+              </Label>
+              <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[10px] text-blue-800 mb-1">
+                <strong>Format:</strong> 1,2 = INFO (prix/details) | 3,4 = PRODUIT (galerie) | <strong>,,5,6</strong> = VARIANTES
+              </div>
+              <Input
+                value={mediaNotation}
+                onChange={(e) => setMediaNotation(e.target.value)}
+                placeholder={`Ex: 1,2,3,4,,5,6 (${files.length} fichiers)`}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Les images avant la virgule double (,,) sont les infos et produit. Apres (,,) = variantes.
+              </p>
             </div>
           )}
           {videoError && <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800"><AlertTriangle className="h-3.5 w-3.5 inline mr-1" />{videoError}</div>}
@@ -281,8 +301,29 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             {draft.originalPrice && <p className="text-[10px] text-muted-foreground">{draft.originalPrice} {draft.originalCurrency} = {fmtFcfa(draft.price)}</p>}
           </div>
 
-          {/* Images */}
-          <div><Label className="text-[10px] uppercase">Images</Label><div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 mt-1">{draft.images.slice(0, 12).map((url, i) => (<div key={i} className="aspect-square rounded overflow-hidden border bg-muted"><img src={url} alt="" className="w-full h-full object-cover" loading="lazy" /></div>))}</div></div>
+          {/* Media Groups */}
+          {draft.mediaGroup && (
+            <div className="space-y-2">
+              {draft.mediaGroup.infoImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Images INFO (donnees extraites)</Label>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 mt-0.5">{draft.mediaGroup.infoImages.map((url, i) => (<div key={`info-${i}`} className="aspect-square rounded overflow-hidden border-2 border-amber-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>))}</div>
+                </div>
+              )}
+              {draft.mediaGroup.productImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-emerald-700 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Images PRODUIT (galerie)</Label>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 mt-0.5">{draft.mediaGroup.productImages.map((url, i) => (<div key={`prod-${i}`} className="aspect-square rounded overflow-hidden border-2 border-emerald-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>))}</div>
+                </div>
+              )}
+              {draft.mediaGroup.variantImages.length > 0 && (
+                <div>
+                  <Label className="text-[9px] uppercase text-purple-700 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Images VARIANTES</Label>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 mt-0.5">{draft.mediaGroup.variantImages.map((url, i) => (<div key={`var-${i}`} className="aspect-square rounded overflow-hidden border-2 border-purple-300 bg-muted"><img src={url} alt="" className="w-full h-full object-cover" /></div>))}</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Product info */}
           <div className="space-y-2">
