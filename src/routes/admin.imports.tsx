@@ -428,19 +428,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
           <div>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label>
-              <div className="flex items-center gap-1">
-                {variants.some(v => v.sizes.length > 0) && (
-                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setVariants(vs => vs.map(v => ({ ...v, sizes: [] })))}>
-                    <Ruler className="h-3 w-3" /> <X className="h-2.5 w-2.5" /> Tailles
-                  </Button>
-                )}
-                {variants.some(v => v.colors.length > 0) && (
-                  <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setVariants(vs => vs.map(v => ({ ...v, colors: [] })))}>
-                    <Palette className="h-3 w-3" /> <X className="h-2.5 w-2.5" /> Couleurs
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
-              </div>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
             </div>
             {variants.length === 0 ? (
               <div className="rounded-lg border border-dashed p-3 text-center">
