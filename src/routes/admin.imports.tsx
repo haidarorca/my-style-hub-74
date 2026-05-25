@@ -264,30 +264,18 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
           </Button>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {currentUrls.map(({ key, url }) => (
-          <div key={key as string} className="relative h-14 w-14 overflow-hidden rounded border">
-            <img src={url!} alt="" className="h-full w-full object-cover" />
-            <button
-              type="button"
-              onClick={() => onUpdate({ [key]: null } as Partial<SimpleVariant>)}
-              className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5"
-              aria-label="Supprimer l'image"
-            >
+      <div className="flex items-center gap-2">
+        {variant.image_url ? (
+          <div className="relative h-14 w-14 overflow-hidden rounded border">
+            <img src={variant.image_url} alt="" className="h-full w-full object-cover" />
+            <button type="button" onClick={() => onUpdate({ image_url: null })} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5" aria-label="Supprimer l'image">
               <X className="h-3 w-3" />
             </button>
           </div>
-        ))}
-        {canAddMore && (
+        ) : (
           <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground hover:bg-accent ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFile(fs[0]); }}
-            />
+            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadFile(f); }} />
           </label>
         )}
         <p className="text-[11px] text-muted-foreground">Image affichee quand cette variante est choisie.</p>
