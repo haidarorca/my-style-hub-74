@@ -77,7 +77,8 @@ export function parseMediaNotation(notation: string, allUrls: string[]): MediaGr
     return group;
   }
 
-  const parts = notation.split(",,").map(p => p.trim());
+  const normalized = notation.replace(/\s+/g, "").replace(/,+$/, "");
+  const parts = normalized.split(",,");
 
   if (parts.length >= 3) {
     group.infoImages = parseIndexSegment(parts[0], allUrls).map(i => allUrls[i]);
@@ -159,8 +160,13 @@ let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
   const aiIndices: number[] = Array.isArray(v.image_indices)
     ? v.image_indices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 1 && n <= selected.length)
     : [];
-  let imgs: string[] = aiIndices.map(i => selected[i - 1]).filter(Boolean);
-  // Fallback: positional variant image
+  // BACKEND AUTHORITY: lock variants to ONLY mediaGroup.variantImages
+  const variantOnlySet = new Set(mediaGroup.variantImages);
+  let imgs: string[] = aiIndices
+    .map(i => selected[i - 1])
+    .filter(Boolean)
+    .filter((url): url is string => variantOnlySet.has(url as string));
+  // Fallback: positional from variant group only
   if (imgs.length === 0 && variantImgUrls[idx]) imgs = [variantImgUrls[idx]];
   return {
     label: String(v.label || v.name || "Option").slice(0, 60),
