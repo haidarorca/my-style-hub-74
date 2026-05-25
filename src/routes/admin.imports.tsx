@@ -351,19 +351,6 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             {draft.originalPrice && <p className="text-[10px] text-muted-foreground">{draft.originalPrice} {draft.originalCurrency} = {fmtFcfa(draft.price)}</p>}
           </div>
 
-          {/* Descriptive colors - multicolor fixed indicator */}
-          {draft.isMulticolorFixed && draft.descriptiveColors.length > 0 && (
-            <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
-              <p className="text-[10px] uppercase text-purple-700 font-semibold flex items-center gap-1"><Palette className="h-3 w-3" /> Produit multicolore fixe</p>
-              <p className="text-[11px] text-purple-800 mt-1">Les couleurs suivantes sont descriptives uniquement, le client ne choisit pas:</p>
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {draft.descriptiveColors.map((c, i) => (
-                  <Badge key={i} variant="outline" className="text-[10px] bg-purple-100 text-purple-800 border-purple-300">{c}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
           {draft.mediaGroup && (
             <div className="space-y-2">
               {draft.mediaGroup.infoImages.length > 0 && (

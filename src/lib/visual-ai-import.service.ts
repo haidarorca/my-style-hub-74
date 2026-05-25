@@ -16,18 +16,6 @@ export interface SimpleVariant {
   color_hex: string;
   stock: number;
 }
-export interface DescriptiveAttributes {
-  colors: string[];
-  materials: string[];
-  features: string[];
-}
-export interface SmartVariantAnalysis {
-  is_multicolor_fixed: boolean;
-  descriptive_colors: string[];
-  variant_colors: string[];
-  variant_sizes: string[];
-  variant_images: string[];
-}
 export interface VisualDraft {
   id: string; name: string; designation: string; description: string;
   price: number | null; originalPrice: number | null; originalCurrency: string;
@@ -36,8 +24,6 @@ export interface VisualDraft {
   confidence: number; uncertainties: string[];
   mediaGroup: MediaGroup;
   status: "draft"; createdAt: number;
-  descriptiveColors: string[];
-  isMulticolorFixed: boolean;
 }
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
 const MAX_VIDEO_FRAMES = 8;
@@ -132,7 +118,7 @@ if (instructions) {
   instructionsBlock = `\n\nINSTRUCTIONS PERSONNALISEES DE L'UTILISATEUR - REGLES PRIORITAIRES:\n${instructions}\n\nTu DOIS respecter ces instructions AVANT toute autre regle. Elles prennent priorite sur tout.`;
 }
 
-const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES (numerotees de 1 a ${selected.length} dans l'ordre):\n- INFO: ${infoRange} (prix, description, details vendeur)\n- PRODUIT: ${prodRange} (photos du produit)\n- VARIANTES: ${varRange} (chaque image montre une option/couleur/modele different)\n\nREGLE IMAGES - CRITIQUE:\nPour CHAQUE variante, tu DOIS indiquer dans "image_indices" la liste des numeros d'images (1-based) qui correspondent visuellement a cette variante. Regarde la couleur, le modele, l'angle. Une image peut etre assignee a une seule variante. Si tu ne sais pas, mets [].\nExemple: t-shirt rouge visible sur image 4 et 5 -> image_indices: [4,5]. Variante "80 pieces" visible sur image 6 -> image_indices: [6].\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n1. descriptive_colors: couleurs visibles mais NON achetables separement (produit multicolore fixe)\n2. variant_colors: vraies options achetables (le client choisit)\n\nSi multicolore fixe: is_multicolor_fixed=true, descriptive_colors remplis, variant_colors=[]\nSi vraies options couleur: is_multicolor_fixed=false, variant_colors remplis\n\nvariant_sizes: vraies tailles/quantites ("40 pieces", "S", "M", "L")\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","is_multicolor_fixed":false,"descriptive_colors":[],"variant_colors":[],"variant_sizes":[],"variants":[{"label":"","price":0,"image_indices":[],"colors":[],"sizes":[]}],"tags":[],"productType":"","confidence":70,"uncertainties":[]}\n\nCategories:\n${catList}${instructionsBlock}`;
+const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES (numerotees de 1 a ${selected.length} dans l'ordre):\n- INFO: ${infoRange} (prix, description, details vendeur)\n- PRODUIT: ${prodRange} (photos du produit)\n- VARIANTES: ${varRange} (chaque image montre une option/couleur/modele different)\n\nREGLE IMAGES - CRITIQUE:\nPour CHAQUE variante, tu DOIS indiquer dans "image_indices" la liste des numeros d'images (1-based) qui correspondent visuellement a cette variante. Regarde la couleur, le modele, l'angle. Une image peut etre assignee a une seule variante. Si tu ne sais pas, mets [].\nExemple: t-shirt rouge visible sur image 4 et 5 -> image_indices: [4,5]. Variante "80 pieces" visible sur image 6 -> image_indices: [6].\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n- "colors": liste des couleurs disponibles (le client choisit)\n- "sizes": liste des tailles/quantites ("40 pieces", "S", "M", "L")\n- "label": nom de la variante visible sur les images\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","colors":[],"variant_sizes":[],"variants":[{"label":"","price":0,"image_indices":[],"colors":[],"sizes":[]}],"tags":[],"productType":"","confidence":70,"uncertainties":[]}\n\nCategories:\n${catList}${instructionsBlock}`;
 
 const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
 let aiResult: any = null; try { const apiKey = process.env.LOVABLE_API_KEY || ""; const res = await fetch(IA_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: "Expert produits e-commerce." }, { role: "user", content: parts }], max_tokens: 4096, temperature: 0.2 }), signal: AbortSignal.timeout(60000) }); if (!res.ok) throw new Error(`IA HTTP ${res.status}`); const json = await res.json(); const raw = json.choices?.[0]?.message?.content?.trim() || ""; try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); else throw new Error("JSON invalide"); } } catch (e: any) { return { success: false, draft: null, logs, errors: [`IA: ${e.message}`] }; }
@@ -141,15 +127,9 @@ const currency = aiResult?.originalCurrency || detectCurrency(JSON.stringify(aiR
 const originalPrice = aiResult?.originalPrice && Number(aiResult.originalPrice) > 0 ? Number(aiResult.originalPrice) : null;
 const priceFcfa = originalPrice ? toFcfa(originalPrice, currency) : null;
 
-// Smart color/size analysis
-const isMulticolorFixed = Boolean(aiResult?.is_multicolor_fixed);
-const descriptiveColors: string[] = Array.isArray(aiResult?.descriptive_colors) ? aiResult.descriptive_colors.map(String).filter(Boolean) : [];
-const variantColors: string[] = Array.isArray(aiResult?.variant_colors) ? aiResult.variant_colors.map(String).filter(Boolean) : [];
+// Extract colors and sizes from AI response
+const detectedColors: string[] = Array.isArray(aiResult?.colors) ? aiResult.colors.map(String).filter(Boolean) : [];
 const variantSizes: string[] = Array.isArray(aiResult?.variant_sizes) ? aiResult.variant_sizes.map(String).filter(Boolean) : [];
-
-// If not using smart analysis, fall back to legacy colors field
-const legacyColors: string[] = Array.isArray(aiResult?.colors) ? aiResult.colors.map(String).filter(Boolean) : [];
-const effectiveVariantColors = variantColors.length > 0 ? variantColors : (isMulticolorFixed ? [] : legacyColors);
 
 // Assign variant images to variants
 const variantImgUrls = mediaGroup.variantImages.length > 0 ? mediaGroup.variantImages : [];
@@ -172,7 +152,7 @@ let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
     label: String(v.label || v.name || "Option").slice(0, 60),
     price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
     image_url: imgs[0] || null,
-    colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
+    colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : detectedColors,
     sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
     color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
     stock: Number(v.stock) || 0,
@@ -185,16 +165,16 @@ if (variants.length === 0 && variantSizes.length > 0) {
     label: sz,
     price: priceFcfa || 0,
     image_url: variantImgUrls[idx] || null,
-    colors: effectiveVariantColors,
+    colors: detectedColors,
     sizes: [sz],
     color_hex: "",
     stock: 0,
   }));
 }
 
-// If still no variants and not multicolor fixed, create from colors
-if (variants.length === 0 && effectiveVariantColors.length > 0 && !isMulticolorFixed) {
-  variants = effectiveVariantColors.map((c, idx) => ({
+// If still no variants, create from colors
+if (variants.length === 0 && detectedColors.length > 0) {
+  variants = detectedColors.map((c, idx) => ({
     label: c,
     price: priceFcfa || 0,
     image_url: variantImgUrls[idx] || null,
@@ -207,7 +187,7 @@ if (variants.length === 0 && effectiveVariantColors.length > 0 && !isMulticolorF
 
 // If still no variants at all, create a single default variant
 if (variants.length === 0) {
-  variants = [{ label: "Standard", price: priceFcfa || 0, image_url: variantImgUrls[0] || null, colors: effectiveVariantColors, sizes: variantSizes, color_hex: "", stock: 0 }];
+  variants = [{ label: "Standard", price: priceFcfa || 0, image_url: variantImgUrls[0] || null, colors: detectedColors, sizes: variantSizes, color_hex: "", stock: 0 }];
 }
 
 const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : priceFcfa;
@@ -216,12 +196,7 @@ const uncertainties: string[] = Array.isArray(aiResult?.uncertainties) ? aiResul
 if (!originalPrice) uncertainties.push("Prix non visible - a completer en FCFA"); else uncertainties.push(`${originalPrice} ${currency} = ${priceFcfa} FCFA (verifiez)`);
 if (!catMatch) uncertainties.push("Categorie - selectionnez manuellement"); else if (catMatch.score < 50) uncertainties.push(`Categorie incertaine (${catMatch.score}%)`);
 
-// Build description including descriptive colors if multicolor fixed
 let finalDescription = String(aiResult?.description || "").slice(0, 2000);
-if (isMulticolorFixed && descriptiveColors.length > 0 && !finalDescription.toLowerCase().includes("multicolor")) {
-  const colorDesc = `Produit multicolore contenant: ${descriptiveColors.join(", ")}.`;
-  finalDescription = colorDesc + (finalDescription ? "\n\n" + finalDescription : "");
-}
 
 const draft: VisualDraft = {
   id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
@@ -238,8 +213,6 @@ const draft: VisualDraft = {
   mediaGroup,
   status: "draft",
   createdAt: Date.now(),
-  descriptiveColors,
-  isMulticolorFixed,
 };
 logs.push(`OK: "${draft.name}" | ${fromPrice} FCFA | ${variants.length}v`);
 return { success: true, draft, logs, errors: [] }; });
