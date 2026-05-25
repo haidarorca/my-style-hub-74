@@ -10,9 +10,7 @@ export interface MediaGroup {
 export interface SimpleVariant {
   label: string;
   price: number;
-  image_url1: string | null;
-  image_url2: string | null;
-  image_url3: string | null;
+  image_url: string | null;
   colors: string[];
   sizes: string[];
   color_hex: string;
@@ -160,9 +158,7 @@ let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
   return {
     label: String(v.label || v.name || "Option").slice(0, 60),
     price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
-    image_url1: imgs[0] || null,
-    image_url2: imgs[1] || null,
-    image_url3: imgs[2] || null,
+    image_url: imgs[0] || null,
     colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : effectiveVariantColors,
     sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
     color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
@@ -175,9 +171,7 @@ if (variants.length === 0 && variantSizes.length > 0) {
   variants = variantSizes.map((sz, idx) => ({
     label: sz,
     price: priceFcfa || 0,
-    image_url1: variantImgUrls[idx] || null,
-    image_url2: null,
-    image_url3: null,
+    image_url: variantImgUrls[idx] || null,
     colors: effectiveVariantColors,
     sizes: [sz],
     color_hex: "",
@@ -190,9 +184,7 @@ if (variants.length === 0 && effectiveVariantColors.length > 0 && !isMulticolorF
   variants = effectiveVariantColors.map((c, idx) => ({
     label: c,
     price: priceFcfa || 0,
-    image_url1: variantImgUrls[idx] || null,
-    image_url2: null,
-    image_url3: null,
+    image_url: variantImgUrls[idx] || null,
     colors: [c],
     sizes: variantSizes.length > 0 ? variantSizes : [],
     color_hex: "",
@@ -202,9 +194,7 @@ if (variants.length === 0 && effectiveVariantColors.length > 0 && !isMulticolorF
 
 // If still no variants at all, create a single default variant
 if (variants.length === 0) {
-  variants = [{ label: "Standard", price: priceFcfa || 0, image_url1: variantImgUrls[0] || null,
-    image_url2: null,
-    image_url3: null, colors: effectiveVariantColors, sizes: variantSizes, color_hex: "", stock: 0 }];
+  variants = [{ label: "Standard", price: priceFcfa || 0, image_url: variantImgUrls[0] || null, colors: effectiveVariantColors, sizes: variantSizes, color_hex: "", stock: 0 }];
 }
 
 const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : priceFcfa;
@@ -241,9 +231,7 @@ const draft: VisualDraft = {
 logs.push(`OK: "${draft.name}" | ${fromPrice} FCFA | ${variants.length}v`);
 return { success: true, draft, logs, errors: [] }; });
 
-export const publishDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ draft: z.object({ name: z.string().min(1), designation: z.string().optional(), description: z.string().optional(), price: z.number().min(0), categoryId: z.string().nullable(), images: z.array(z.string()), variants: z.array(z.object({ label: z.string(), price: z.number(), image_url1: z.string().nullable().optional(),
-    image_url2: z.string().nullable().optional(),
-    image_url3: z.string().nullable().optional(), colors: z.array(z.string()).default([]), sizes: z.array(z.string()).default([]), color_hex: z.string().optional(), stock: z.number().optional() })) }) }).parse(input)).handler(async ({ data }) => { const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; let adminShop: any; const { data: s } = await supabase.from("profiles").select("id, shop_name").eq("is_admin_shop", true).maybeSingle(); if (s) adminShop = s; else { const { data: a } = await supabase.from("profiles" as any).select("id, shop_name").eq("role", "admin").limit(1).single(); adminShop = a; } if (!adminShop) throw new Error("Boutique admin introuvable"); const shopId = adminShop.id; const ts = Date.now().toString(36).toUpperCase(); let code = `VIS-${ts}`; for (let i = 0; i < 10; i++) { const { data: dup } = await supabase.from("products").select("id").eq("vendor_id", shopId).eq("code", code).maybeSingle(); if (!dup) break; code = `VIS-${ts}-${i}`; } let productId: string | null = null; const uploadedPaths: string[] = []; try { const { data: prod, error: pErr } = await supabase.from("products").insert({ vendor_id: shopId, name: data.draft.name.trim(), code, designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null, price: data.draft.price, category_id: data.draft.categoryId, pending_category_request_id: null, requires_international_shipping: false, status: "approved" }).select("id").single(); if (pErr) throw pErr; productId = prod.id; if (data.draft.images.length > 0) { const imgRows: any[] = []; for (let i = 0; i < data.draft.images.length; i++) { try { const r = await fetch(data.draft.images[i], { signal: AbortSignal.timeout(15000) }); if (!r.ok) continue; const buf = Buffer.from(await r.arrayBuffer()); const ext = data.draft.images[i].split("?")[0].split(".").pop() || "jpg"; const p = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`; const { error: uErr } = await supabase.storage.from("product-images").upload(p, buf); if (uErr) continue; uploadedPaths.push(p); const { data: pub } = supabase.storage.from("product-images").getPublicUrl(p); imgRows.push({ product_id: productId, url: pub.publicUrl, position: i }); } catch { } } if (imgRows.length > 0) await supabase.from("product_images").insert(imgRows); } if (data.draft.variants.length > 0) {
+export const publishDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ draft: z.object({ name: z.string().min(1), designation: z.string().optional(), description: z.string().optional(), price: z.number().min(0), categoryId: z.string().nullable(), images: z.array(z.string()), variants: z.array(z.object({ label: z.string(), price: z.number(), image_url: z.string().nullable().optional(), colors: z.array(z.string()).default([]), sizes: z.array(z.string()).default([]), color_hex: z.string().optional(), stock: z.number().optional() })) }) }).parse(input)).handler(async ({ data }) => { const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; let adminShop: any; const { data: s } = await supabase.from("profiles").select("id, shop_name").eq("is_admin_shop", true).maybeSingle(); if (s) adminShop = s; else { const { data: a } = await supabase.from("profiles" as any).select("id, shop_name").eq("role", "admin").limit(1).single(); adminShop = a; } if (!adminShop) throw new Error("Boutique admin introuvable"); const shopId = adminShop.id; const ts = Date.now().toString(36).toUpperCase(); let code = `VIS-${ts}`; for (let i = 0; i < 10; i++) { const { data: dup } = await supabase.from("products").select("id").eq("vendor_id", shopId).eq("code", code).maybeSingle(); if (!dup) break; code = `VIS-${ts}-${i}`; } let productId: string | null = null; const uploadedPaths: string[] = []; try { const { data: prod, error: pErr } = await supabase.from("products").insert({ vendor_id: shopId, name: data.draft.name.trim(), code, designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null, price: data.draft.price, category_id: data.draft.categoryId, pending_category_request_id: null, requires_international_shipping: false, status: "approved" }).select("id").single(); if (pErr) throw pErr; productId = prod.id; if (data.draft.images.length > 0) { const imgRows: any[] = []; for (let i = 0; i < data.draft.images.length; i++) { try { const r = await fetch(data.draft.images[i], { signal: AbortSignal.timeout(15000) }); if (!r.ok) continue; const buf = Buffer.from(await r.arrayBuffer()); const ext = data.draft.images[i].split("?")[0].split(".").pop() || "jpg"; const p = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`; const { error: uErr } = await supabase.storage.from("product-images").upload(p, buf); if (uErr) continue; uploadedPaths.push(p); const { data: pub } = supabase.storage.from("product-images").getPublicUrl(p); imgRows.push({ product_id: productId, url: pub.publicUrl, position: i }); } catch { } } if (imgRows.length > 0) await supabase.from("product_images").insert(imgRows); } if (data.draft.variants.length > 0) {
           const vRows: any[] = [];
           for (const v of data.draft.variants) {
             const sizes = v.sizes?.filter(Boolean) || [];
@@ -260,7 +248,7 @@ export const publishDraft = createServerFn({ method: "POST" }).middleware([requi
                     color_hex: v.color_hex || null,
                     stock: v.stock || 0,
                     price_override: v.price,
-                    image_url: v.image_url1 || null,
+                    image_url: v.image_url || null,
                   });
                 }
               }
@@ -273,7 +261,7 @@ export const publishDraft = createServerFn({ method: "POST" }).middleware([requi
                   color_hex: v.color_hex || null,
                   stock: v.stock || 0,
                   price_override: v.price,
-                  image_url: v.image_url1 || null,
+                  image_url: v.image_url || null,
                 });
               }
             } else if (colors.length > 0) {
@@ -285,7 +273,7 @@ export const publishDraft = createServerFn({ method: "POST" }).middleware([requi
                   color_hex: v.color_hex || null,
                   stock: v.stock || 0,
                   price_override: v.price,
-                  image_url: v.image_url1 || null,
+                  image_url: v.image_url || null,
                 });
               }
             } else {
@@ -296,7 +284,7 @@ export const publishDraft = createServerFn({ method: "POST" }).middleware([requi
                 color_hex: v.color_hex || null,
                 stock: v.stock || 0,
                 price_override: v.price,
-                image_url: v.image_url1 || null,
+                image_url: v.image_url || null,
               });
             }
           }

@@ -212,37 +212,23 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
   const sizeValue = variant.sizes[0] ?? "";
   const colorValue = variant.colors[0] ?? "";
 
-  const variantImageSlots: Array<keyof SimpleVariant> = ["image_url1", "image_url2", "image_url3"];
-  const currentUrls = variantImageSlots
-    .map(k => ({ key: k, url: variant[k] as string | null }))
-    .filter(x => !!x.url);
-  const maxImages = variantImageSlots.length;
-  const canAddMore = currentUrls.length < maxImages;
+  const variantImageSlot: keyof SimpleVariant = "image_url";
+  const hasImage = !!variant.image_url;
+  const maxImages = 1;
+  const canAddMore = !hasImage;
 
-  const uploadFiles = async (files: File[]) => {
-    if (files.length === 0) return;
+  const uploadFile = async (file: File) => {
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non authentifie");
-      const freeSlots = variantImageSlots.filter(k => !variant[k]);
-      const toUpload = files.slice(0, freeSlots.length);
-      const patch: Partial<SimpleVariant> = {};
-      for (let i = 0; i < toUpload.length; i++) {
-        const file = toUpload[i];
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `${user.id}/visual-import/${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
-        (patch as any)[freeSlots[i]] = pub.publicUrl;
-      }
-      onUpdate(patch);
-      if (files.length > toUpload.length) {
-        toast.warning(`${toUpload.length}/${files.length} image(s) ajoutee(s). Limite: ${maxImages} par variante.`);
-      } else {
-        toast.success(`${toUpload.length} image(s) ajoutee(s)`);
-      }
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${user.id}/visual-import/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
+      onUpdate({ image_url: pub.publicUrl });
+      toast.success("Image ajoutee");
     } catch (e: any) {
       toast.error(e?.message || "Erreur upload");
     }
@@ -300,7 +286,7 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
               accept="image/*"
               multiple
               className="hidden"
-              onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(fs); }}
+              onChange={e => { const fs = Array.from(e.target.files || []); e.target.value = ""; uploadFile(fs[0]); }}
             />
           </label>
         )}
@@ -330,7 +316,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url1: null, image_url2: null, image_url3: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -342,7 +328,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url1: v.image_url1, image_url2: v.image_url2, image_url3: v.image_url3, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
