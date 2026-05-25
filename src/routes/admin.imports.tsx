@@ -207,15 +207,6 @@ function PresetChip({ label, active, onClick }: { label: string; active: boolean
 
 function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
   const [uploading, setUploading] = useState(false);
-  const [customColor, setCustomColor] = useState("");
-  const [customSize, setCustomSize] = useState("");
-
-  const addColor = (val: string) => { if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] }); };
-  const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
-  const addSize = (val: string) => { if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] }); };
-  const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
-  const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
-  const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
   // Map array-based data model onto single-value inputs (same UX as vendor.products.new)
   const sizeValue = variant.sizes[0] ?? "";
@@ -313,62 +304,7 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
             />
           </label>
         )}
-        <div className="flex gap-1">
-          <Input value={customColor} onChange={e => setCustomColor(e.target.value)} className="h-7 text-xs" placeholder="Couleur personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }} />
-          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }}><Plus className="h-3 w-3" /></Button>
-        </div>
-      </div>
-
-      {/* Sizes section - tags with X */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
-            {variant.sizes.length > 0 && (
-              <button onClick={() => onUpdate({ sizes: [] })} className="text-[9px] text-destructive hover:bg-destructive/10 rounded px-1 py-0.5 flex items-center gap-0.5">
-                <X className="h-2.5 w-2.5" /> Tout suppr
-              </button>
-            )}
-          </div>
-          <button className="text-[9px] flex items-center gap-0.5 rounded px-1.5 py-0.5 hover:bg-muted" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
-            {allSizesSelected ? <X className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
-            {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {SIZE_PRESETS.map(s => (
-            <PresetChip key={s} label={s} active={variant.sizes.includes(s)} onClick={() => variant.sizes.includes(s) ? onUpdate({ sizes: variant.sizes.filter(x => x !== s) }) : addSize(s)} />
-          ))}
-        </div>
-        {variant.sizes.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {variant.sizes.map((s, si) => (
-              <span key={si} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">
-                {s}
-                <button onClick={() => removeSize(si)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-1">
-          <Input value={customSize} onChange={e => setCustomSize(e.target.value)} className="h-7 text-xs" placeholder="Taille personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }} />
-          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }}><Plus className="h-3 w-3" /></Button>
-        </div>
-      </div>
-
-      {/* Single image URL with preview - matches vendor.new exactly */}
-      <div className="flex items-center gap-2 pt-1 border-t border-dashed">
-        {variant.image_url ? (
-          <div className="relative h-14 w-14 overflow-hidden rounded border">
-            <img src={variant.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-            <button onClick={() => onUpdate({ image_url: null })} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5">
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ) : (
-          <Input value={variant.image_url || ""} onChange={e => onUpdate({ image_url: e.target.value || null })} className="h-8 text-[10px] flex-1" placeholder="URL image variante..." />
-        )}
-        <p className="text-[10px] text-muted-foreground">1 image par variante</p>
+        <p className="text-[11px] text-muted-foreground">Image affichee quand cette variante est choisie.</p>
       </div>
     </div>
   );
@@ -394,7 +330,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const opts3 = useMemo(() => { if (!pick2) return []; const pid = idOf(pick2); return (cats || []).filter(c => c.level === 3 && c.parent_id === pid).map(c => ({ value: `cat:${c.id}`, label: c.name })); }, [cats, pick2]);
   const deepestPick = pick3 || pick2 || pick1 || "";
   const finalL3 = pick3 && cats ? cats.find(c => c.id === (pick3.startsWith("cat:") ? pick3.slice(4) : pick3)) : null;
-  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
+  const addVariant = () => setVariants(v => [...v, { label: "", price: 0, image_url1: null, image_url2: null, image_url3: null, colors: [], sizes: [], color_hex: "", stock: 0 }]);
   const removeVariant = (i: number) => setVariants(v => v.filter((_, j) => j !== i));
   const updateVariant = (i: number, patch: Partial<SimpleVariant>) => setVariants(v => v.map((x, j) => j === i ? { ...x, ...patch } : x));
   const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : (price ? Number(price) : 0);
@@ -406,7 +342,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } }) as any;
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url1: v.image_url1, image_url2: v.image_url2, image_url3: v.image_url3, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
