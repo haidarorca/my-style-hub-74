@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Package, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info, Settings2, Palette, Ruler } from "lucide-react";
+import { Package, Save, Trash2, CheckCircle2, XCircle, ImageIcon, Loader2, AlertTriangle, Save, FileSpreadsheet, Download, Table2, Sparkles, Upload, Film, X, Wand2, ChevronRight, CircleCheck, CircleX, Pencil, Plus, Minus, Info, Settings2, Palette, Ruler } from "lucide-react";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,14 +79,103 @@ export default function AdminImports() {
   );
 }
 
+// Instructions IA presets
+const INSTRUCTION_PRESETS: Record<string, string> = {
+  "Mode vetements": "Les variantes sont les tailles (S, M, L, XL). Les couleurs sont des variantes achetables. Cree une variante par couleur avec ses tailles. Nom court et professionnel. Description style boutique. Prix arrondis finissant par 900 ou 990 FCFA.",
+  "Mode jouets": "Les variantes sont les quantites (40 pieces, 80 pieces, 160 pieces). Ne cree PAS de variantes couleur si le produit est multicolore fixe. Utilise les couleurs comme attributs descriptifs uniquement. Nom commence par 'Jouet' ou 'Jeu'. Description mettant en avant les bienfaits educatifs.",
+  "Mode electronique": "Les variantes sont les capacites memoire ou les couleurs. Description technique precise. Mentionne la garantie. Prix exacts en FCFA. Ne pas arrondir.",
+  "Mode dropshipping": "Nom court et accrocheur. Description style TikTok/Instagram. Emojis dans la description. Prix psychologiques (finissant par 990). Marge de 40% incluse. Photos lifestyle prioritaires.",
+  "Mode Senegal": "Prix en FCFA uniquement. Description en francais simple. Mentionne 'Livraison partout au Senegal'. Categories existantes du marketplace. Ne cree pas de nouvelles categories.",
+};
+const INSTRUCTIONS_LS_KEY = "kawzone_vi_instructions";
+const INSTRUCTION_PRESETS_LS_KEY = "kawzone_vi_presets";
+
+function InstructionsPanel({ instructions, onChange }: { instructions: string; onChange: (v: string) => void }) {
+  const [showPanel, setShowPanel] = useState(false);
+  const [savedPresets, setSavedPresets] = useState<Record<string, string>>(() => { try { const r = localStorage.getItem(INSTRUCTION_PRESETS_LS_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; } });
+  const [presetName, setPresetName] = useState("");
+  const saveCurrentAsPreset = () => {
+    if (!presetName.trim() || !instructions.trim()) return;
+    const updated = { ...savedPresets, [presetName.trim()]: instructions.trim() };
+    setSavedPresets(updated);
+    localStorage.setItem(INSTRUCTION_PRESETS_LS_KEY, JSON.stringify(updated));
+    setPresetName("");
+    toast.success(`Modele "${presetName.trim()}" sauvegarde`);
+  };
+  const deletePreset = (name: string) => {
+    const updated = { ...savedPresets };
+    delete updated[name];
+    setSavedPresets(updated);
+    localStorage.setItem(INSTRUCTION_PRESETS_LS_KEY, JSON.stringify(updated));
+  };
+
+  return (
+    <div className="space-y-2">
+      <button onClick={() => setShowPanel(!showPanel)} className="flex items-center gap-1.5 text-[11px] font-medium text-primary hover:underline">
+        <Sparkles className="h-3.5 w-3.5" />
+        {showPanel ? "Masquer les instructions IA" : "Instructions IA (guider l'analyse)"}
+        {instructions.trim() && <Badge variant="secondary" className="text-[9px] h-4 px-1">Active</Badge>}
+      </button>
+      {showPanel && (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+          {/* Preset buttons */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] uppercase text-muted-foreground">Modeles rapides</Label>
+            <div className="flex flex-wrap gap-1">
+              {Object.keys(INSTRUCTION_PRESETS).map(name => (
+                <button key={name} onClick={() => onChange(INSTRUCTION_PRESETS[name])} className="text-[9px] px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
+                  {name}
+                </button>
+              ))}
+              {Object.keys(savedPresets).length > 0 && <Separator orientation="vertical" className="h-4 mx-1" />}
+              {Object.keys(savedPresets).map(name => (
+                <div key={name} className="flex items-center gap-0.5">
+                  <button onClick={() => onChange(savedPresets[name])} className="text-[9px] px-2 py-1 rounded-full bg-secondary text-secondary-foreground border hover:bg-secondary/80 transition-colors">
+                    {name}
+                  </button>
+                  <button onClick={() => deletePreset(name)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Textarea */}
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Vos instructions</Label>
+            <Textarea
+              value={instructions}
+              onChange={e => onChange(e.target.value)}
+              placeholder={"Exemples:\n- Les variantes sont les quantites (40p, 80p, 160p)\n- Ne pas creer de variantes couleur\n- Nom court sans caracteres chinois\n- Description style TikTok\n- Image 5 = variante 40p, Image 6 = variante 80p\n- Prix arrondis finissant par 990"}
+              rows={4}
+              className="text-xs resize-y"
+            />
+            <p className="text-[9px] text-muted-foreground">Ces instructions sont envoyees a l'IA avant l'analyse. Elles prennent priorite sur les regles automatiques.</p>
+          </div>
+
+          {/* Save preset */}
+          <div className="flex gap-2">
+            <Input value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="Nom du modele..." className="h-7 text-xs flex-1" />
+            <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={saveCurrentAsPreset} disabled={!presetName.trim() || !instructions.trim()}>
+              <Save className="h-3 w-3 mr-1" /> Sauver modele
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) => void }) {
   const [files, setFiles] = useState<{ file: File; preview: string; type: "image" | "video" }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
   const [videoError, setVideoError] = useState("");
+  const [instructions, setInstructions] = useState(() => { try { return localStorage.getItem(INSTRUCTIONS_LS_KEY) || ""; } catch { return ""; } });
   const [mediaNotation, setMediaNotation] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Persist instructions
+  useEffect(() => { localStorage.setItem(INSTRUCTIONS_LS_KEY, instructions); }, [instructions]);
   const fnUpload = useServerFn(uploadImportMedia);
   const fnExtractFrames = useServerFn(extractVideoFrames);
   const fnAnalyze = useServerFn(analyzeVisualMedia);
@@ -134,7 +223,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Import IA Visuel</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
+          <InstructionsPanel instructions={instructions} onChange={setInstructions} /><div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
             <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => handleFiles(Array.from(e.target.files || []))} />
             <Upload className="mx-auto h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground mb-2" />
             <p className="text-sm font-medium">Touchez ou cliquez pour selectionner</p>
