@@ -244,7 +244,7 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
       default: insert.value_text = String(data.value ?? ""); break;
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_custom_values")
       .upsert(insert, { onConflict: "column_id, order_shipment_assessment_id" });
 
