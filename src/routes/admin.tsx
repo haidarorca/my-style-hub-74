@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight,
+  Upload, Menu, ChevronRight, Home,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Catalogue",
     items: [
       { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
+      { to: "/admin/validation", label: "File validation", icon: ShieldCheck, perm: "product_validation" },
       { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
       { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
       { to: "/admin/imports", label: "Import / Export", icon: Upload, perm: "products" },
@@ -138,6 +139,32 @@ function AdminLayout() {
               <SheetHeader className="border-b px-4 py-3 text-left">
                 <SheetTitle className="text-base">Espace Admin</SheetTitle>
               </SheetHeader>
+
+              {/* NAVIGATION RAPIDE — Sortie admin */}
+              <div className="border-b bg-muted/30 p-3 space-y-1">
+                <p className="text-[10px] uppercase text-muted-foreground font-semibold tracking-wider px-2">
+                  Navigation rapide
+                </p>
+                <Link
+                  to="/"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  <Home className="h-4 w-4 text-primary shrink-0" />
+                  <span className="flex-1">Accueil principal</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+                <Link
+                  to="/products"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  <Store className="h-4 w-4 text-primary shrink-0" />
+                  <span className="flex-1">Retour boutique</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              </div>
+
               <div className="space-y-5 p-3">
                 {visibleGroups.map((g) => (
                   <div key={g.id}>
