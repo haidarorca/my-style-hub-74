@@ -212,23 +212,31 @@ function CartPage() {
   );
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
-  // International shipping detection
-  const needsIntlShipping = useMemo(
-    () => selectedItems.some((it: any) =>
+  // International shipping detection + source country deduction
+  const { needsIntlShipping, sourceCountryId } = useMemo(() => {
+    const intlItems = selectedItems.filter((it: any) =>
       it.products?.profiles?.ships_internationally === true ||
       it.products?.requires_international_shipping === true
-    ),
-    [selectedItems],
-  );
+    );
+    const needs = intlItems.length > 0;
+    // Deduce source country from vendors of international products
+    // If all vendors have the same source_country_id → use it
+    // If different sources → null (fallback to showing all matching destination)
+    const sourceIds = Array.from(new Set(
+      intlItems.map((it: any) => it.products?.profiles?.source_country_id).filter(Boolean)
+    ));
+    const sourceId = sourceIds.length === 1 ? sourceIds[0] : null;
+    return { needsIntlShipping: needs, sourceCountryId: sourceId };
+  }, [selectedItems]);
+
   const selectedShippingService = useMemo(
     () => shippingServices.find((service) => service.id === shippingServiceId) ?? null,
     [shippingServices, shippingServiceId],
   );
 
-  // Load shipping services as soon as an international product is selected.
-  // Note: we don't pre-filter by source country — admins may set up services
-  // without a fixed source. We always filter by destination + enabled, so the
-  // client sees every available option (Express, Fret normal, Bateau, …).
+  // Load shipping services filtered by source (vendor country) + destination (client country).
+  // This prevents showing a "Senegal → China" route when the client in Senegal
+  // is ordering from a Chinese vendor.
   useEffect(() => {
     if (!needsIntlShipping || !destinationCountryId) {
       setShippingServices([]);
@@ -240,7 +248,7 @@ function CartPage() {
       try {
         const services = await fetchShippingServices({
           data: {
-            source_country_id: null,
+            source_country_id: sourceCountryId,
             destination_country_id: destinationCountryId,
             only_enabled: true,
           },
@@ -257,7 +265,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsIntlShipping, destinationCountryId]);
+  }, [needsIntlShipping, destinationCountryId, sourceCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
