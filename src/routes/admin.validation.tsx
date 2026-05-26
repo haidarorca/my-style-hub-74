@@ -185,7 +185,7 @@ function ValidationDashboard() {
                 ))}
               </div>
             )}
-          </AdminTabsContent>
+          </AdminTabContent>
         ))}
       </AdminTabs>
 
