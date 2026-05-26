@@ -233,11 +233,10 @@ function OrdersPage() {
           ...it,
           vendor: vendorsMap.get(it.vendor_id) ?? null,
         }));
-        const commission = itemsWithVendor.reduce(
-          (s: number, it: any) => s + Number(it.commission_amount ?? 0),
-          0,
-        );
-        return { ...o, items: itemsWithVendor, _commission: commission };
+        // NOTE: commission_amount is intentionally NOT included in the client response.
+        // Commission data is internal marketplace information visible only to admin and vendors.
+        // Do NOT add commission fields here — they must remain server-side only.
+        return { ...o, items: itemsWithVendor };
       });
     },
   });
@@ -750,12 +749,8 @@ function OrdersPage() {
                         <span>Sous-total articles</span>
                         <span>{fmtFcfa(subTotal)}</span>
                       </div>
-                      {openOrder._commission > 0 && (
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span>dont commission/logistique</span>
-                          <span>{fmtFcfa(openOrder._commission)}</span>
-                        </div>
-                      )}
+                      {/* Commission data is intentionally hidden from clients.
+                          Only admin and the specific vendor can see commission details. */}
                       <div className="my-1 h-px bg-border" />
                       <div className="flex items-center justify-between font-bold">
                         <span>Total payé</span>

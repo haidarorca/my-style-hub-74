@@ -176,10 +176,36 @@ function ProductPage() {
     () => (data?.product_variants ?? []) as Variant[],
     [data?.product_variants],
   );
-  const images = useMemo(
-    () => (data?.product_images ?? []) as { url: string; position: number | null }[],
-    [data?.product_images],
-  );
+  // Build gallery images: product images + variant images
+  // When a variant is selected, its image is prioritized (prepended)
+  const images = useMemo(() => {
+    const productImgs = (data?.product_images ?? []) as { url: string; position: number | null }[];
+    const variantImgs = (data?.product_variants ?? []) as Variant[];
+
+    // Collect unique variant images (excluding the matched variant — handled separately)
+    const variantImageUrls = Array.from(
+      new Set(variantImgs.filter((v) => v.image_url && v.id !== matchedVariant?.id).map((v) => v.image_url!))
+    );
+
+    // Start with matched variant image if available
+    const galleryUrls: string[] = [];
+    if (matchedVariant?.image_url) {
+      galleryUrls.push(matchedVariant.image_url);
+    }
+
+    // Then product images (sorted by position)
+    const sortedProductImgs = [...productImgs].sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+    for (const img of sortedProductImgs) {
+      if (!galleryUrls.includes(img.url)) galleryUrls.push(img.url);
+    }
+
+    // Then other variant images
+    for (const url of variantImageUrls) {
+      if (!galleryUrls.includes(url)) galleryUrls.push(url);
+    }
+
+    return galleryUrls;
+  }, [data?.product_images, data?.product_variants, matchedVariant]);
 
   // Fire-and-forget: increment the private view counter (visible only to shop owner)
   useEffect(() => {
@@ -322,13 +348,14 @@ function ProductPage() {
         </div>
         {/* Gallery — swipeable */}
         {(() => {
-          const variantImg =
-            matchedVariant?.image_url ??
-            (color ? variants.find((v) => v.color === color && v.image_url)?.image_url : null);
-          const urls = images.map((i) => i.url);
-          const galleryUrls = variantImg
-            ? [variantImg, ...urls.filter((u) => u !== variantImg)]
-            : urls;
+          // images already contains: matched variant image first, then product images, then other variant images
+          // If a color is selected but no exact variant match, prioritize first variant with that color
+          const colorVariantImg = color && !matchedVariant
+            ? variants.find((v) => v.color === color && v.image_url)?.image_url
+            : null;
+          const galleryUrls = colorVariantImg && !images.includes(colorVariantImg)
+            ? [colorVariantImg, ...images]
+            : images;
           return (
             <ProductGallery
               urls={galleryUrls}
