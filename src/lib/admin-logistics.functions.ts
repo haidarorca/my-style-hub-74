@@ -75,7 +75,7 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
     const to = from + data.pageSize - 1;
 
     // Base query sur la vue
-    let q = supabaseAdmin
+    let q: any = (supabaseAdmin as any)
       .from("logistics_order_view")
       .select("*", { count: "exact" })
       .order("order_created_at", { ascending: false });
