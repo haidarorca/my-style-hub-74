@@ -329,7 +329,7 @@ function LogisticsPage() {
                   size="sm"
                   onClick={() => confirmPayment.mutate({
                     paymentId: detailOrder.order_id, // Simplifié — en réalité il faudrait l'ID du payment
-                    amount: detailOrder.amount_remaining,
+                    amount: detailOrder.amount_remaining ?? 0,
                   })}
                   disabled={confirmPayment.isPending}
                 >
