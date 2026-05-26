@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -212,22 +212,29 @@ function CartPage() {
   );
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
-  // International shipping detection + source country deduction
-  const { needsIntlShipping, sourceCountryId } = useMemo(() => {
-    const intlItems = selectedItems.filter((it: any) =>
-      it.products?.profiles?.ships_internationally === true ||
-      it.products?.requires_international_shipping === true
+  // Per-item international classification — determines which items need the
+  // international logistics pipeline (weighing, shipping service, etc.)
+  const isItemInternational = useCallback((it: any): boolean => {
+    // A product is international ONLY if it explicitly requires international shipping
+    // OR if the vendor is in commission mode (import products)
+    // ships_internationally on the vendor profile is NOT enough — a vendor can sell
+    // both local and international products.
+    return (
+      it.products?.requires_international_shipping === true ||
+      it.products?.profiles?.vendor_mode === "commission"
     );
-    const needs = intlItems.length > 0;
-    // Deduce source country from vendors of international products
-    // If all vendors have the same source_country_id → use it
-    // If different sources → null (fallback to showing all matching destination)
+  }, []);
+
+  // Global flag: does the selected cart contain ANY international items?
+  const { hasIntlItems, sourceCountryId } = useMemo(() => {
+    const intlItems = selectedItems.filter(isItemInternational);
+    const has = intlItems.length > 0;
     const sourceIds = Array.from(new Set(
       intlItems.map((it: any) => it.products?.profiles?.source_country_id).filter(Boolean)
     ));
     const sourceId = sourceIds.length === 1 ? sourceIds[0] : null;
-    return { needsIntlShipping: needs, sourceCountryId: sourceId };
-  }, [selectedItems]);
+    return { hasIntlItems: has, sourceCountryId: sourceId };
+  }, [selectedItems, isItemInternational]);
 
   const selectedShippingService = useMemo(
     () => shippingServices.find((service) => service.id === shippingServiceId) ?? null,
@@ -238,7 +245,7 @@ function CartPage() {
   // This prevents showing a "Senegal → China" route when the client in Senegal
   // is ordering from a Chinese vendor.
   useEffect(() => {
-    if (!needsIntlShipping || !destinationCountryId) {
+    if (!hasIntlItems || !destinationCountryId) {
       setShippingServices([]);
       setShippingServiceId(null);
       return;
@@ -265,7 +272,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsIntlShipping, destinationCountryId, sourceCountryId]);
+  }, [hasIntlItems, destinationCountryId, sourceCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
@@ -278,7 +285,7 @@ function CartPage() {
   const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
   const renderShippingServiceSelector = () => {
-    if (!needsIntlShipping) return null;
+    if (!hasIntlItems) return null;
     return (
       <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <Label className="flex items-center gap-2 text-sm font-semibold">
@@ -286,7 +293,7 @@ function CartPage() {
           Choisissez votre service de transport *
         </Label>
         <p className="text-[11px] text-muted-foreground">
-          Les frais seront calculés après pesée réelle du colis. La commande est bloquée tant qu’aucun service n’est choisi.
+          Obligatoire uniquement pour les produits import (marqués "Import"). Les frais seront calculés après pesée réelle. Les produits locaux ne nécessitent pas ce service.
         </p>
         {!destinationCountryId ? (
           <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>
@@ -493,7 +500,7 @@ function CartPage() {
       toast.error(t("checkout.country_required"));
       return;
     }
-    if (needsIntlShipping && !shippingServiceId) {
+    if (hasIntlItems && !shippingServiceId) {
       toast.error("Veuillez choisir un service de transport international.");
       return;
     }
@@ -549,7 +556,7 @@ function CartPage() {
         const saved = await createOrder({
           data: {
             destinationCountryId,
-            shippingServiceId: needsIntlShipping ? shippingServiceId : null,
+            shippingServiceId: hasIntlItems ? shippingServiceId : null,
             address: {
               full_name: addr.full_name,
               phone: addr.phone,
@@ -580,8 +587,8 @@ function CartPage() {
             city: addr.city,
             note: addr.note,
             destination_country_id: destinationCountryId,
-            shipping_service_id: needsIntlShipping ? shippingServiceId : null,
-            shipping_estimate_note: needsIntlShipping && shippingServiceId
+            shipping_service_id: hasIntlItems ? shippingServiceId : null,
+            shipping_estimate_note: hasIntlItems && shippingServiceId
               ? "Estimé — sera recalculé après pesée"
               : null,
           } as any);
@@ -698,7 +705,18 @@ function CartPage() {
                           {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                         </div>
                         <div className="flex flex-1 flex-col">
-                          <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
+                            {isItemInternational(it) ? (
+                              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                                <Plane className="h-3 w-3" /> Import
+                              </span>
+                            ) : (
+                              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                                Local
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{t("product.code")} : {it.products.code}</p>
                           {(it.product_variants?.size || it.product_variants?.color) && (
                             <p className="text-xs text-muted-foreground">
@@ -739,7 +757,7 @@ function CartPage() {
               </section>
               );
             })}
-            {needsIntlShipping && renderShippingServiceSelector()}
+            {hasIntlItems && renderShippingServiceSelector()}
           </div>
         )}
       </main>
@@ -781,7 +799,7 @@ function CartPage() {
             <Button
               className="h-12 rounded-full px-5 text-sm font-semibold"
               onClick={() => setCheckoutOpen(true)}
-              disabled={!pricesReady || selectedItems.length === 0 || (needsIntlShipping && !shippingServiceId)}
+              disabled={!pricesReady || selectedItems.length === 0 || (hasIntlItems && !shippingServiceId)}
             >
               {selectedItems.length === 0
                 ? t("cart.checkout")
