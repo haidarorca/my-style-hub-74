@@ -150,7 +150,7 @@ function Dashboard() {
               <div className="text-xs text-muted-foreground">Configurer les modes vendeurs et les taux par vendeur, catégorie ou produit</div>
             </div>
             <Button asChild size="sm" variant="secondary">
-              <Link to="/admin/commissions">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+              <Link to="/admin/commissions" search={{ source: undefined, destination: undefined }}>Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
             </Button>
           </CardContent>
         </Card>
