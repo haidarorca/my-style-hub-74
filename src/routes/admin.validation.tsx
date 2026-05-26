@@ -62,7 +62,6 @@ const TABS: { value: ProductStatus | "all"; label: string }[] = [
 
 function ValidationDashboard() {
   const { isSuperAdmin } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<ProductStatus | "all">("pending");
   const [search, setSearch] = useState("");
@@ -76,7 +75,7 @@ function ValidationDashboard() {
         .from("products")
         .select("id, name, description, price, status, category_id, user_id, shop_id, images, created_at, profiles(full_name), shops(name)")
         .order("created_at", { ascending: false });
-      if (tab !== "all") q = q.eq("status", tab);
+      if (tab !== "all") q = q.eq("status", tab as "approved" | "pending" | "rejected");
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as Product[];
@@ -86,15 +85,15 @@ function ValidationDashboard() {
   /* ── Mutations ── */
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: ProductStatus }) => {
-      const { error } = await supabase.from("products").update({ status }).eq("id", id);
+      const { error } = await supabase.from("products").update({ status: status as "approved" | "pending" | "rejected" }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin-validation-products"] });
-      toast({ title: "Statut mis à jour", description: `Produit ${STATUS_LABELS[vars.status].label.toLowerCase()}` });
+      toast.success("Statut mis à jour", { description: `Produit ${STATUS_LABELS[vars.status].label.toLowerCase()}` });
       setDetailProduct(null);
     },
-    onError: (e) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error("Erreur", { description: e.message }),
   });
 
   const deleteProduct = useMutation({
@@ -104,10 +103,10 @@ function ValidationDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-validation-products"] });
-      toast({ title: "Produit supprimé" });
+      toast.success("Produit supprimé");
       setDetailProduct(null);
     },
-    onError: (e) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error("Erreur", { description: e.message }),
   });
 
   /* ── Filter ── */
