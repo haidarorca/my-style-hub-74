@@ -3,14 +3,14 @@
  * Ajoute les boutons "Accueil", "Boutique", "Dashboard" pour éviter
  * la sensation d'être bloqué dans l'espace admin.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { Menu, X, Home, Store, LayoutDashboard, ChevronRight, Shield, Package, Users, Settings, BarChart3, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavSection {
   label: string;
-  items: { label: string; href: string; icon: React.ReactNode; badge?: number }[];
+  items: { label: string; href: string; icon: ReactNode; badge?: number }[];
 }
 
 const SECTIONS: NavSection[] = [
