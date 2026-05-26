@@ -91,16 +91,19 @@ function Dashboard() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold sm:text-2xl">Tableau de bord</h1>
+          <p className="text-xs text-muted-foreground">Vue d'ensemble de votre marketplace</p>
+        </div>
         <UpdateAppButton variant="outline" />
       </div>
 
       <TranslationSyncCard />
 
-      <div className="space-y-1">
-        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
+      <section className="space-y-2">
+        <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">À traiter en priorité</h2>
 
         {/* Étape 1 — Catégories proposées */}
         <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
