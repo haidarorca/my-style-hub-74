@@ -26,9 +26,9 @@ export type AuditLogRow = {
   action_label: string | null;
   target_type: string | null;
   target_id: string | null;
-  old_values: any;
-  new_values: any;
-  details: any;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  details: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -84,12 +84,12 @@ export const listAdminAuditLogs = createServerFn({ method: "POST" })
       "settings.update": "Paramètres modifiés",
     };
 
-    const enrichedRows: AuditLogRow[] = (rows ?? []).map((r: any) => ({
+    const enrichedRows: AuditLogRow[] = (rows ?? []).map((r) => ({
       ...r,
       action_label: actionLabelMap[r.action] ?? r.action,
-      old_values: r.old_values ?? null,
-      new_values: r.new_values ?? null,
-      details: r.details ?? null,
+      old_values: r.old_values as Record<string, unknown> | null,
+      new_values: r.new_values as Record<string, unknown> | null,
+      details: r.details as Record<string, unknown> | null,
     }));
 
     return { rows: enrichedRows, total: count ?? 0, page: data.page, pageSize: data.pageSize };

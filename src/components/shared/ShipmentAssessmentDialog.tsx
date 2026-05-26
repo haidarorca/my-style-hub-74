@@ -353,6 +353,7 @@ export function ShipmentAssessmentDialog({
                     id="auto-calc"
                     checked={autoCalc}
                     onCheckedChange={setAutoCalc}
+                    size="sm"
                   />
                 </div>
               </div>
