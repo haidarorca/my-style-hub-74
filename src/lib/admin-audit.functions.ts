@@ -26,9 +26,9 @@ export type AuditLogRow = {
   action_label: string | null;
   target_type: string | null;
   target_id: string | null;
-  old_values: Record<string, unknown> | null;
-  new_values: Record<string, unknown> | null;
-  details: Record<string, unknown> | null;
+  old_values: any;
+  new_values: any;
+  details: any;
   created_at: string;
 };
 
