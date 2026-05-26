@@ -72,7 +72,7 @@ const QUICK_FILTERS = [
 
 function LogisticsPage() {
   const { isAdmin } = useAuth();
-  const { toast } = useToast();
+  // toast imported from sonner
   const qc = useQueryClient();
 
   const [page, setPage] = useState(1);
