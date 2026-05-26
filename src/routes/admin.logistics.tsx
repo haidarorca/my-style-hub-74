@@ -115,10 +115,10 @@ function LogisticsPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      toast({ title: "Paiement confirmé" });
+      toast.success("Paiement confirmé");
       setDetailOrder(null);
     },
-    onError: (e) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast.error("Erreur", { description: e.message }),
   });
 
   const rows = data?.rows ?? [];
