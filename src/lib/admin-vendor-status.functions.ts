@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyVendorStatusChange } from "@/lib/notifications.functions";
+import { assertPermission, logAdminAction } from "./admin-auth.core";
 
 type ProfilePatch = Partial<{
   vendor_status: "active" | "pending" | "suspended" | "expired" | "blocked";
@@ -15,13 +16,6 @@ type ProfilePatch = Partial<{
   is_verified: boolean;
 }>;
 
-async function assertAdmin(supabase: { from: (t: string) => { select: (c: string) => { eq: (col: string, val: string) => { eq: (col: string, val: string) => { maybeSingle: () => Promise<{ data: unknown }> } } } } }, userId: string) {
-  const { data } = await supabase
-    .from("user_roles").select("role")
-    .eq("user_id", userId).eq("role", "admin").maybeSingle();
-  if (!data) throw new Error("Accès refusé : admin requis");
-}
-
 const StatusSchema = z.object({
   user_id: z.string().uuid(),
   status: z.enum(["active", "pending", "suspended", "expired", "blocked"]),
@@ -32,7 +26,15 @@ export const setVendorStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => StatusSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase as never, context.userId);
+    await assertPermission(context.userId, "vendors");
+
+    // Read current state for audit
+    const { data: before } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, shop_name, vendor_status")
+      .eq("id", data.user_id)
+      .maybeSingle();
+
     const patch: ProfilePatch = { vendor_status: data.status };
     const now = new Date().toISOString();
     if (data.status === "suspended") {
@@ -51,6 +53,15 @@ export const setVendorStatus = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.user_id);
     if (error) throw new Error(error.message);
+
+    // Audit log
+    logAdminAction({
+      action: `vendor.${data.status === "active" ? "activate" : data.status === "suspended" ? "suspend" : data.status === "blocked" ? "block" : "status_change"}`,
+      targetType: "vendor",
+      targetId: data.user_id,
+      oldValues: before ? { status: before.vendor_status, name: before.full_name, shop: before.shop_name } : undefined,
+      newValues: { status: data.status, reason: data.reason ?? null },
+    });
 
     // NOTIFIER le vendeur du changement de statut
     if (data.status === "active" || data.status === "suspended" || data.status === "blocked") {
@@ -75,7 +86,7 @@ export const setVendorAccessWindow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => AccessSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase as never, context.userId);
+    await assertPermission(context.userId, "vendors");
     const patch: ProfilePatch = { access_ends_at: data.access_ends_at };
     if (data.access_starts_at !== undefined) patch.access_starts_at = data.access_starts_at;
 
@@ -89,5 +100,13 @@ export const setVendorAccessWindow = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.user_id);
     if (error) throw new Error(error.message);
+
+    logAdminAction({
+      action: "vendor.access_update",
+      targetType: "vendor",
+      targetId: data.user_id,
+      newValues: { access_starts_at: data.access_starts_at, access_ends_at: data.access_ends_at },
+    });
+
     return { ok: true };
   });

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertPermission } from "./admin-auth.core";
 
 const STEPS = [
   "name", "code", "designation", "description", "category", "subcategory",
@@ -24,15 +25,6 @@ export const STEP_LABELS: Record<ModerationStep, string> = {
   global: "Message global",
 };
 
-async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["admin", "super_admin"]);
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
-}
 
 export type ReasonTemplate = {
   id: string;
@@ -47,7 +39,7 @@ export const listReasonTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ step: z.enum(STEPS) }).parse(input))
   .handler(async ({ data, context }): Promise<ReasonTemplate[]> => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "support");
     const { data: rows, error } = await supabaseAdmin
       .from("moderation_reason_templates")
       .select("id, step, label, video_url, is_default, position")
@@ -70,7 +62,7 @@ export const createReasonTemplate = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReasonTemplate> => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "support");
     const { data: row, error } = await supabaseAdmin
       .from("moderation_reason_templates")
       .insert({
@@ -90,7 +82,7 @@ export const deleteReasonTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "support");
     const { error } = await supabaseAdmin
       .from("moderation_reason_templates")
       .delete()
@@ -118,7 +110,7 @@ export const submitModerationDecision = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "support");
 
     const { data: product, error: prodErr } = await supabaseAdmin
       .from("products")
@@ -243,7 +235,7 @@ export const getVendorContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ vendor_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "support");
     const { data: row, error } = await supabaseAdmin
       .from("profiles")
       .select("phone, shop_whatsapp, full_name, shop_name, email")

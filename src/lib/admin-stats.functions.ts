@@ -1,17 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertPermission } from "./admin-auth.core";
 import { refreshAdminStatsCache, type StatsOverview } from "./admin-stats.core.server";
 import { sendInngestEvent } from "./inngest/client";
 
-async function assertAdmin(userId: string) {
-  const { data } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["admin", "super_admin"]);
-  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
-}
 
 const STALE_MS = 15 * 60 * 1000;
 
@@ -19,7 +12,7 @@ const STALE_MS = 15 * 60 * 1000;
 export const getAdminStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<StatsOverview> => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "settings");
 
     const { data } = await supabaseAdmin
       .from("admin_stats_cache")
@@ -44,6 +37,6 @@ export const getAdminStats = createServerFn({ method: "GET" })
 export const refreshAdminStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<StatsOverview> => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "settings");
     return refreshAdminStatsCache();
   });

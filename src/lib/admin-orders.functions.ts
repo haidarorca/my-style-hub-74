@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyCustomerOrderStatus } from "@/lib/notifications.functions";
+import { assertPermission, logAdminAction } from "./admin-auth.core";
 
 const ListSchema = z.object({
   page: z.number().int().min(1).default(1),
@@ -47,21 +48,11 @@ export type AdminOrderRow = {
   items: AdminOrderItem[];
 };
 
-async function assertAdmin(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!data) throw new Error("Accès refusé : admin requis");
-}
-
 export const listAdminOrders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => ListSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await assertPermission(context.userId, "orders");
 
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
@@ -148,7 +139,7 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await assertPermission(context.userId, "orders");
 
     // Recuperer la commande avant modification pour avoir les infos
     const { data: order } = await supabaseAdmin
@@ -162,6 +153,15 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
       .update({ status: data.status })
       .eq("id", data.order_id);
     if (error) throw new Error(error.message);
+
+    // Audit log
+    logAdminAction({
+      action: "order.status_change",
+      targetType: "order",
+      targetId: data.order_id,
+      oldValues: { status: order?.status, customer: order?.customer_name },
+      newValues: { status: data.status },
+    });
 
     // NOTIFIER le client du changement de statut
     if (order?.buyer_id) {

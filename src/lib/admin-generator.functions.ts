@@ -2,16 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertPermission } from "./admin-auth.core";
 
-async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["admin", "super_admin"]);
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
-}
 
 // ───────────────────────────────────────────────────────────
 // 1) FX rates (cached in admin_stats_cache 12h, source open.er-api.com)
@@ -57,7 +49,7 @@ export const getExchangeRate = createServerFn({ method: "POST" })
     z.object({ from: z.string().length(3), to: z.string().length(3) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "products");
     if (data.from.toUpperCase() === data.to.toUpperCase()) {
       return { rate: 1, fetched_at: new Date().toISOString(), base: data.from.toUpperCase() };
     }
@@ -101,7 +93,7 @@ export const analyzeSourceProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => AnalyzeSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "products");
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("AI gateway non configuré");
 
@@ -1046,7 +1038,7 @@ export const analyzeSourceUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => AnalyzeUrlSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "products");
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("AI gateway non configuré");
 
@@ -1407,7 +1399,7 @@ export const publishGeneratedProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PublishSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "products");
 
     // Verify shop exists and is admin shop
     const { data: shop, error: sErr } = await supabaseAdmin

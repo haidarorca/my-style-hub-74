@@ -9,30 +9,20 @@ import {
   type TaobaoSessionStatus,
 } from "@/lib/scraping/taobao-session.server";
 import { CdpClient } from "@/lib/scraping/cdp-client.server";
+import { assertPermission } from "./admin-auth.core";
 
-async function assertAdmin(supabase: { from: (t: string) => any }, userId: string): Promise<void> {
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role,is_suspended")
-    .eq("user_id", userId);
-  const ok = (roles ?? []).some(
-    (r: { role: string; is_suspended: boolean }) =>
-      !r.is_suspended && (r.role === "admin" || r.role === "super_admin"),
-  );
-  if (!ok) throw new Error("Forbidden");
-}
 
 export const getTaobaoSessionStatusFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<TaobaoSessionStatus> => {
-    await assertAdmin(context.supabase, context.userId);
+    await assertPermission(context.userId, "settings");
     return getTaobaoSessionStatus();
   });
 
 export const disconnectTaobaoSessionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ ok: true }> => {
-    await assertAdmin(context.supabase, context.userId);
+    await assertPermission(context.userId, "settings");
     await clearTaobaoSession();
     return { ok: true };
   });
@@ -40,7 +30,7 @@ export const disconnectTaobaoSessionFn = createServerFn({ method: "POST" })
 export const testTaobaoSessionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ ok: boolean; nickname: string | null; message: string }> => {
-    await assertAdmin(context.supabase, context.userId);
+    await assertPermission(context.userId, "settings");
     const cookies = await loadTaobaoCookies();
     if (!cookies?.length) {
       return { ok: false, nickname: null, message: "Aucune session enregistrée." };

@@ -3,16 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertPermission } from "./admin-auth.core";
 
-async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["admin", "super_admin"]);
-  if (error) throw new Error(`Erreur rôle: ${error.message}`);
-  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
-}
 
 export type AdminShopRow = {
   id: string;
@@ -33,7 +25,7 @@ export type AdminShopRow = {
 export const listAdminShops = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select(
@@ -74,7 +66,7 @@ export const createAdminShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ShopInput.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
 
     if (!data.source_country_id) {
       throw new Error("Le pays source est requis.");
@@ -146,7 +138,7 @@ export const updateAdminShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => UpdateInput.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
 
     const { data: existing, error: eErr } = await supabaseAdmin
       .from("profiles")
@@ -188,7 +180,7 @@ export const getAdminShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
     const { data: row, error } = await supabaseAdmin
       .from("profiles")
       .select(
@@ -205,7 +197,7 @@ export const getAdminShopDeletionInfo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
     const { data: row } = await supabaseAdmin
       .from("profiles")
       .select("id, shop_name, is_admin_shop")
@@ -236,7 +228,7 @@ export const deleteAdminShop = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), password: z.string().min(1).max(200) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "vendors");
 
     // Verify password by re-authenticating the calling admin
     const { data: userRes, error: uErr } = await supabaseAdmin.auth.admin.getUserById(context.userId);

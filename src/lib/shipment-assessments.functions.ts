@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertPermission } from "./admin-auth.core";
 
 export type ShipmentAssessmentStatus =
   | "pending_arrival"
@@ -38,16 +39,6 @@ export interface ShipmentAssessment {
   updated_at: string;
 }
 
-async function assertAdmin(userId: string) {
-  const { data } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["admin", "super_admin"])
-    .limit(1)
-    .maybeSingle();
-  if (!data) throw new Error("Accès refusé : admin requis");
-}
 
 // ---------- Admin: list assessments ----------
 export const listShipmentAssessments = createServerFn({ method: "POST" })
@@ -61,7 +52,7 @@ export const listShipmentAssessments = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "orders");
 
     let q = (supabaseAdmin as any)
       .from("order_shipment_assessments")
@@ -104,7 +95,7 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ order_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "orders");
 
     const { data: existing } = await (supabaseAdmin as any)
       .from("order_shipment_assessments")
@@ -175,7 +166,7 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => UpdateSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "orders");
     const { id, ...patch } = data;
     const { data: row, error } = await (supabaseAdmin as any)
       .from("order_shipment_assessments")
@@ -192,7 +183,7 @@ export const sendShipmentForValidation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "orders");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("order_shipment_assessments")
       .update({ status: "awaiting_client_validation" })
@@ -237,7 +228,7 @@ export const adminValidateShipment = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertPermission(context.userId, "orders");
 
     const { data: order } = await supabaseAdmin
       .from("orders")

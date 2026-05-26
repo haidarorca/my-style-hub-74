@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home,
+  Upload, Menu, ChevronRight, Home, FileText,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Catalogue",
     items: [
       { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
-      { to: "/admin/validation", label: "File validation", icon: ShieldCheck, perm: "product_validation" },
       { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
       { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
       { to: "/admin/imports", label: "Import / Export", icon: Upload, perm: "products" },
@@ -85,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/countries", label: "Pays", icon: Globe, superOnly: true },
       { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
       { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
+      { to: "/admin/audit-logs", label: "Journal d'audit", icon: FileText, superOnly: true },
     ],
   },
 ];
