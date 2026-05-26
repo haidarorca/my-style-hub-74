@@ -207,7 +207,7 @@ export const listCustomColumns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertPermission(context.userId, "orders");
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await (supabaseAdmin as any)
       .from("shipment_custom_columns")
       .select("*")
       .eq("is_active", true)
