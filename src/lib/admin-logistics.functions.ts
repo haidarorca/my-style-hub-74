@@ -226,7 +226,7 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "orders");
 
-    const { data: col } = await supabaseAdmin
+    const { data: col } = await (supabaseAdmin as any)
       .from("shipment_custom_columns")
       .select("column_type")
       .eq("id", data.columnId)
