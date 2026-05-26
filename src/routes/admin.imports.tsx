@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabList, AdminTabTrigger, AdminTabContent } from "@/components/admin/AdminTabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,13 +48,13 @@ export default function AdminImports() {
   return (
     <div className="space-y-4">
       <div><h1 className="flex items-center gap-2 text-xl font-bold"><Package className="h-5 w-5" /> Importation</h1><p className="text-xs text-muted-foreground">Excel/CSV ou IA Visuelle</p></div>
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="excel"><FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel/CSV</TabsTrigger>
-          <TabsTrigger value="visual"><Sparkles className="h-3.5 w-3.5 mr-1" /> IA Visuelle</TabsTrigger>
-          <TabsTrigger value="drafts"><Package className="h-3.5 w-3.5 mr-1" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px]">{activeDrafts.length}</Badge>}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="excel" className="space-y-4 pt-3">
+      <AdminTabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
+        <AdminTabList>
+          <AdminTabTrigger value="excel"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel/CSV</AdminTabTrigger>
+          <AdminTabTrigger value="visual"><Sparkles className="h-3.5 w-3.5" /> IA Visuelle</AdminTabTrigger>
+          <AdminTabTrigger value="drafts"><Package className="h-3.5 w-3.5" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="text-[9px] h-4 px-1">{activeDrafts.length}</Badge>}</AdminTabTrigger>
+        </AdminTabList>
+        <AdminTabContent value="excel" className="space-y-4 pt-3">
           <Card><CardHeader><CardTitle className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Excel / CSV</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
@@ -65,16 +66,16 @@ export default function AdminImports() {
               {preview && <Button onClick={async () => { try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile!); }); await fnCommit({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile!.name } }); toast.success("Importe !"); setPreview(null); setExcelFile(null); } catch (e: any) { toast.error(e.message); } }} className="w-full"><CheckCircle2 className="h-4 w-4 mr-1" /> Importer</Button>}
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="visual" className="space-y-4 pt-3"><VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingId(d.id); setMainTab("drafts"); }} /></TabsContent>
-        <TabsContent value="drafts" className="space-y-4 pt-3">
+        </AdminTabContent>
+        <AdminTabContent value="visual"><VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingId(d.id); setMainTab("drafts"); }} /></AdminTabContent>
+        <AdminTabContent value="drafts">
           {activeDrafts.length === 0 ? (
             <div className="rounded-xl border border-dashed p-10 text-center"><Package className="mx-auto h-10 w-10 text-muted-foreground opacity-60" /><p className="text-sm font-semibold">Aucun brouillon</p><Button variant="outline" size="sm" className="mt-3" onClick={() => setMainTab("visual")}><Sparkles className="h-3.5 w-3.5 mr-1" /> Importer</Button></div>
           ) : (
             <div className="grid grid-cols-1 gap-3">{activeDrafts.map(d => (<DraftCard key={d.id} draft={d} onEdit={() => setEditingId(d.id)} onRemove={() => setDrafts(p => p.filter(x => x.id !== d.id))} />))}</div>
           )}
-        </TabsContent>
-      </Tabs>
+        </AdminTabContent>
+      </AdminTabs>
       {editingDraft && (<DraftEditor draft={editingDraft} onClose={() => setEditingId(null)} onUpdate={(patch) => setDrafts(p => p.map(d => d.id === editingDraft.id ? { ...d, ...patch } : d))} onPublish={(id) => setDrafts(p => p.filter(d => d.id !== id))} />)}
     </div>
   );

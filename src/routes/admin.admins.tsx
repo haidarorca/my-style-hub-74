@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -198,10 +199,10 @@ function AdminsPage() {
       </div>
 
       <Tabs defaultValue="list">
-        <TabsList>
-          <TabsTrigger value="list"><ShieldCheck className="mr-1 h-4 w-4" /> Admins</TabsTrigger>
-          <TabsTrigger value="log"><History className="mr-1 h-4 w-4" /> Historique</TabsTrigger>
-        </TabsList>
+        <AdminTabList>
+          <AdminTabTrigger value="list"><ShieldCheck className="mr-1 h-4 w-4" /> Admins</AdminTabTrigger>
+          <AdminTabTrigger value="log"><History className="mr-1 h-4 w-4" /> Historique</AdminTabTrigger>
+        </AdminTabList>
 
         <TabsContent value="list" className="mt-4 space-y-3">
           {isLoading ? (
