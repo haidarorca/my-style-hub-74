@@ -5,8 +5,8 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { AdminTabs, AdminTabList, AdminTabTrigger, AdminTabContent } from "@/components/admin/AdminTabs";
 import { Button } from "@/components/ui/button";
