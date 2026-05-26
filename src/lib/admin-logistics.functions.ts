@@ -221,7 +221,7 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({
     columnId: z.string().uuid(),
     assessmentId: z.string().uuid(),
-    value: z.union([z.string(), z.number(), z.boolean(), z.string().nullable()]),
+    value: z.union([z.string().nullable(), z.number(), z.boolean()]),
   }).parse(input))
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "orders");

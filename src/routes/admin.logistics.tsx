@@ -8,19 +8,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import {
-  listLogisticsOrders, confirmShipmentPayment, updateShipmentTracking,
+  listLogisticsOrders, confirmShipmentPayment,
   type LogisticsOrderRow,
 } from "@/lib/admin-logistics.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Search, Plane, Scale, DollarSign, Package, Truck,
   ChevronLeft, ChevronRight, Loader2, Eye, CheckCircle,
-  Clock, AlertCircle, CreditCard, Box,
+  AlertCircle, CreditCard, Box,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,12 +60,12 @@ const PAYMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = 
 /* ── Filtres rapides ── */
 
 const QUICK_FILTERS = [
-  { id: "to_weigh",      label: "À peser",            logisticsStatus: "awaiting_weighing",           icon: Scale,       color: "bg-orange-500" },
-  { id: "awaiting_pay",  label: "Attente paiement",   paymentStatus: "pending",                       icon: DollarSign,  color: "bg-amber-500" },
-  { id: "partial",       label: "Paiement partiel",   paymentStatus: "partial",                       icon: CreditCard,  color: "bg-orange-500" },
-  { id: "to_ship",       label: "À expédier",         logisticsStatus: "validated", paymentStatus: "confirmed", icon: Truck, color: "bg-cyan-500" },
-  { id: "shipped",       label: "Expédiées",          logisticsStatus: "shipped",                      icon: Plane,       color: "bg-violet-500" },
-  { id: "remaining",     label: "Reste à payer",      hasRemaining: true as boolean,                  icon: AlertCircle, color: "bg-red-500" },
+  { id: "to_weigh",      label: "À peser",            logisticsStatus: "awaiting_weighing",           icon: Scale,       color: "bg-orange-500/20 text-orange-700" },
+  { id: "awaiting_pay",  label: "Attente paiement",   paymentStatus: "pending",                       icon: DollarSign,  color: "bg-amber-500/20 text-amber-700" },
+  { id: "partial",       label: "Paiement partiel",   paymentStatus: "partial",                       icon: CreditCard,  color: "bg-orange-500/20 text-orange-700" },
+  { id: "to_ship",       label: "À expédier",         logisticsStatus: "validated", paymentStatus: "confirmed", icon: Truck, color: "bg-cyan-500/20 text-cyan-700" },
+  { id: "shipped",       label: "Expédiées",          logisticsStatus: "shipped",                      icon: Plane,       color: "bg-violet-500/20 text-violet-700" },
+  { id: "remaining",     label: "Reste à payer",      hasRemaining: true as boolean,                  icon: AlertCircle, color: "bg-red-500/20 text-red-700" },
 ];
 
 /* ── Page ── */
@@ -179,7 +178,7 @@ function LogisticsPage() {
               onClick={() => { setActiveFilter(active ? null : f.id); setPage(1); }}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                active ? `${f.color.replace("bg-", "bg-opacity-20 bg-")} text-white` : "bg-muted text-muted-foreground hover:bg-accent",
+                active ? f.color : "bg-muted text-muted-foreground hover:bg-accent",
               )}
             >
               <Icon className="h-3 w-3" />
