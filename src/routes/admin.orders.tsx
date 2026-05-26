@@ -4,7 +4,8 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { useServerFn } from "@tanstack/react-start";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { Package, Phone, MapPin, Search, X, History } from "lucide-react";
+import { Package, Phone, MapPin, Search, X, History, Scale } from "lucide-react";
+import { ShipmentAssessmentDialog } from "@/components/shared/ShipmentAssessmentDialog";
 import { toast } from "sonner";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -305,6 +306,9 @@ type OrderCardProps = {
 
 const OrderCard = memo(function OrderCard({ order: o, onStatus, onZoom }: OrderCardProps) {
   const commission = o.items.reduce((s, it) => s + Number(it.commission_amount ?? 0), 0);
+  const [assessmentOpen, setAssessmentOpen] = useState(false);
+  // Only show weighing button for international orders (confirmed status)
+  const showWeighing = o.status === "confirmed";
   return (
     <li className="overflow-hidden rounded-xl border bg-card">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
@@ -315,6 +319,16 @@ const OrderCard = memo(function OrderCard({ order: o, onStatus, onZoom }: OrderC
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {showWeighing && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 text-xs border-amber-500/40 text-amber-700 hover:bg-amber-50"
+              onClick={() => setAssessmentOpen(true)}
+            >
+              <Scale className="h-3 w-3" /> Peser
+            </Button>
+          )}
           <Badge variant={statusVariant(o.status) as any}>
             {STATUSES.find((s) => s.value === o.status)?.label ?? o.status}
           </Badge>
@@ -445,6 +459,18 @@ const OrderCard = memo(function OrderCard({ order: o, onStatus, onZoom }: OrderC
           </div>
         )}
       </div>
+
+      {/* Dialogue évaluation logistique — création auto, zéro copier/coller */}
+      <ShipmentAssessmentDialog
+        orderId={o.id}
+        orderItems={o.items}
+        orderTotal={o.total}
+        customerName={o.customer_name}
+        customerPhone={o.customer_phone}
+        shippingServiceId={null}
+        open={assessmentOpen}
+        onClose={() => setAssessmentOpen(false)}
+      />
     </li>
   );
 });
