@@ -184,7 +184,7 @@ export const updateShipmentTracking = createServerFn({ method: "POST" })
     if (data.agentName !== undefined) update.agent_name = data.agentName || null;
     if (data.notes !== undefined) update.notes = data.notes || null;
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_tracking")
       .update(update)
       .eq("order_shipment_assessment_id", data.assessmentId);
