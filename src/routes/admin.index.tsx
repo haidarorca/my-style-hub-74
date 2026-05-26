@@ -91,16 +91,19 @@ function Dashboard() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold sm:text-2xl">Tableau de bord</h1>
+          <p className="text-xs text-muted-foreground">Vue d'ensemble de votre marketplace</p>
+        </div>
         <UpdateAppButton variant="outline" />
       </div>
 
       <TranslationSyncCard />
 
-      <div className="space-y-1">
-        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
+      <section className="space-y-2">
+        <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">À traiter en priorité</h2>
 
         {/* Étape 1 — Catégories proposées */}
         <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
@@ -137,7 +140,7 @@ function Dashboard() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       {isSuperAdmin && (
         <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
@@ -156,19 +159,23 @@ function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-        {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground">{t.label}</CardTitle>
-              <t.icon className={`h-4 w-4 ${t.color}`} />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold">{t.value ?? "—"}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <section className="space-y-2">
+        <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Indicateurs clés</h2>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {tiles.map((t) => (
+            <Card key={t.label} className="transition-shadow hover:shadow-md">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 sm:p-4 sm:pb-2">
+                <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">{t.label}</CardTitle>
+                <t.icon className={`h-4 w-4 ${t.color}`} />
+              </CardHeader>
+              <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+                <div className="text-lg font-bold sm:text-2xl">{t.value ?? "—"}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Vendeurs et leurs produits</CardTitle></CardHeader>
