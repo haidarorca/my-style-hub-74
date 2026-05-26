@@ -155,15 +155,79 @@ function CartPage() {
   // Guests can browse the cart and check out as a guest.
   // The dialog forces "new address" mode when there is no user.
 
-  const groups = new Map<string, { shopName: string; vendorId: string; items: typeof items }>();
-  for (const it of items) {
-    const p = (it as any).products;
-    if (!p) continue;
-    const profileShop = p.profiles;
-    const shopName = profileShop?.shop_name || profileShop?.full_name || t("product.shop");
-    const key = p.vendor_id;
-    if (!groups.has(key)) groups.set(key, { shopName, vendorId: key, items: [] });
-    groups.get(key)!.items.push(it);
+  // ── Two-level grouping: logistics type → vendor → items ──
+  // Scalable architecture: future logistics types (turkey, express, maritime)
+  // can be added as new groups without changing the UI structure.
+  type VendorGroup = { shopName: string; vendorId: string; items: any[] };
+  type LogisticsType = "import" | "local";
+  type LogisticsSection = {
+    type: LogisticsType;
+    label: string;
+    sublabel: string;
+    icon: typeof Plane;
+    color: string;
+    borderColor: string;
+    bgColor: string;
+    headerBg: string;
+    vendorGroups: Map<string, VendorGroup>;
+  };
+
+  const getItemLogisticsType = (it: any): LogisticsType =>
+    it.products?.requires_international_shipping === true ||
+    it.products?.profiles?.vendor_mode === "commission"
+      ? "import"
+      : "local";
+
+  const logisticsGroups = useMemo(() => {
+    const sections = new Map<LogisticsType, LogisticsSection>();
+    // Import section
+    sections.set("import", {
+      type: "import",
+      label: "Produits import / logistique internationale",
+      sublabel: "Nécessitent pesée, validation frais et transport international",
+      icon: Plane,
+      color: "text-blue-700",
+      borderColor: "border-blue-200",
+      bgColor: "bg-blue-50/50",
+      headerBg: "bg-blue-100/60",
+      vendorGroups: new Map(),
+    });
+    // Local section
+    sections.set("local", {
+      type: "local",
+      label: "Produits locaux",
+      sublabel: "Livraison simple sans logistique internationale",
+      icon: Store,
+      color: "text-emerald-700",
+      borderColor: "border-emerald-200",
+      bgColor: "bg-emerald-50/30",
+      headerBg: "bg-emerald-100/50",
+      vendorGroups: new Map(),
+    });
+
+    for (const it of items) {
+      const p = (it as any).products;
+      if (!p) continue;
+      const logisticsType = getItemLogisticsType(it);
+      const section = sections.get(logisticsType)!;
+      const profileShop = p.profiles;
+      const shopName = profileShop?.shop_name || profileShop?.full_name || t("product.shop");
+      const vendorKey = p.vendor_id;
+      if (!section.vendorGroups.has(vendorKey)) {
+        section.vendorGroups.set(vendorKey, { shopName, vendorId: vendorKey, items: [] });
+      }
+      section.vendorGroups.get(vendorKey)!.items.push(it);
+    }
+    return sections;
+  }, [items, t]);
+
+  // Flat vendor groups (backward compat for existing logic)
+  const groups = new Map<string, VendorGroup>();
+  for (const section of logisticsGroups.values()) {
+    for (const [key, vg] of section.vendorGroups) {
+      if (!groups.has(key)) groups.set(key, vg);
+      else groups.get(key)!.items.push(...vg.items);
+    }
   }
 
   // === Selection state (defaults: tout coché) ===
@@ -663,101 +727,116 @@ function CartPage() {
             {t("cart.empty")}
           </div>
         ) : (
-          <div className="space-y-4">
-            {Array.from(groups.values()).map((g) => {
-              const groupState = groupSelectionState(g.items as any[]);
+          <div className="space-y-6">
+            {(["import", "local"] as LogisticsType[]).map((logType) => {
+              const section = logisticsGroups.get(logType);
+              if (!section || section.vendorGroups.size === 0) return null;
+              const SectionIcon = section.icon;
               return (
-              <section key={g.vendorId} className="overflow-hidden rounded-xl bg-card shadow-soft">
-                <header className="flex items-center gap-3 border-b border-border bg-accent/40 px-3 py-2.5">
-                  <Checkbox
-                    checked={groupState}
-                    onCheckedChange={(v) => toggleGroup(g.items as any[], v === true)}
-                    aria-label={g.shopName}
-                  />
-                  <Store className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold">{g.shopName}</span>
-                  <span className="ms-auto text-[11px] text-muted-foreground">
-                    {(g.items as any[]).filter((it) => isSelected(it.id)).length}/{g.items.length}
-                  </span>
-                </header>
-                <ul>
-                  {g.items.map((it: any) => {
-                    const img = it.products?.product_images?.[0]?.url;
-                    const price = unitPrice(it);
-                    const cust = customizationSummary(it.customization);
-                    const checked = isSelected(it.id);
-                    return (
-                      <li
-                        key={it.id}
-                        className={cn(
-                          "flex gap-3 border-b border-border p-3 last:border-0 transition-colors",
-                          checked ? "bg-background" : "bg-muted/30 opacity-70",
-                        )}
-                      >
-                        <div className="flex items-start pt-1">
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(v) => toggleItem(it.id, v === true)}
-                            aria-label={it.products.name}
-                          />
-                        </div>
-                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-                          {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />}
-                        </div>
-                        <div className="flex flex-1 flex-col">
-                          <div className="flex items-center gap-2">
-                            <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
-                            {isItemInternational(it) ? (
-                              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                                <Plane className="h-3 w-3" /> Import
-                              </span>
-                            ) : (
-                              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                                Local
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">{t("product.code")} : {it.products.code}</p>
-                          {(it.product_variants?.size || it.product_variants?.color) && (
-                            <p className="text-xs text-muted-foreground">
-                              {it.product_variants.size && <>{t("product.size")} : {it.product_variants.size}</>}
-                              {it.product_variants.size && it.product_variants.color && " · "}
-                              {it.product_variants.color && <>{t("product.color")} : {it.product_variants.color}</>}
-                            </p>
-                          )}
-                          {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
-                          <div className="mt-auto flex items-end justify-between pt-2">
-                            <p className="text-sm font-bold text-primary min-h-5">
-                              {pricesReady ? (
-                                <>{price.toLocaleString("fr-FR")} FCFA</>
-                              ) : (
-                                <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
-                              )}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                              <div className="inline-flex items-center rounded-md border border-border">
-                                <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity - 1)}>
-                                  <Minus className="h-3.5 w-3.5" />
-                                </button>
-                                <span className="w-8 text-center text-sm font-semibold">{it.quantity}</span>
-                                <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity + 1)}>
-                                  <Plus className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+                <div key={logType} className="space-y-3">
+                  {/* Section header */}
+                  <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-2", section.borderColor, section.headerBg)}>
+                    <SectionIcon className={cn("h-4 w-4", section.color)} />
+                    <div>
+                      <p className={cn("text-sm font-semibold", section.color)}>{section.label}</p>
+                      <p className="text-[11px] text-muted-foreground">{section.sublabel}</p>
+                    </div>
+                    <span className="ms-auto text-[11px] font-medium text-muted-foreground">
+                      {Array.from(section.vendorGroups.values()).reduce((sum, vg) => sum + vg.items.length, 0)} article(s)
+                    </span>
+                  </div>
+
+                  {/* Vendor groups within this logistics section */}
+                  <div className="space-y-3">
+                    {Array.from(section.vendorGroups.values()).map((g) => {
+                      const groupState = groupSelectionState(g.items as any[]);
+                      return (
+                        <section key={`${logType}-${g.vendorId}`} className={cn("overflow-hidden rounded-xl border bg-card shadow-soft", section.borderColor)}>
+                          <header className={cn("flex items-center gap-3 border-b px-3 py-2.5", section.headerBg)}>
+                            <Checkbox
+                              checked={groupState}
+                              onCheckedChange={(v) => toggleGroup(g.items as any[], v === true)}
+                              aria-label={g.shopName}
+                            />
+                            <Store className={cn("h-4 w-4", section.color)} />
+                            <span className="text-sm font-semibold">{g.shopName}</span>
+                            <span className="ms-auto text-[11px] text-muted-foreground">
+                              {(g.items as any[]).filter((it) => isSelected(it.id)).length}/{g.items.length}
+                            </span>
+                          </header>
+                          <ul>
+                            {g.items.map((it: any) => {
+                              const img = it.products?.product_images?.[0]?.url;
+                              const price = unitPrice(it);
+                              const cust = customizationSummary(it.customization);
+                              const checked = isSelected(it.id);
+                              return (
+                                <li
+                                  key={it.id}
+                                  className={cn(
+                                    "flex gap-3 border-b p-3 last:border-0 transition-colors",
+                                    checked ? "bg-background" : "bg-muted/30 opacity-70",
+                                  )}
+                                >
+                                  <div className="flex items-start pt-1">
+                                    <Checkbox
+                                      checked={checked}
+                                      onCheckedChange={(v) => toggleItem(it.id, v === true)}
+                                      aria-label={it.products.name}
+                                    />
+                                  </div>
+                                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                                    {img && <img src={img} alt={it.products.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />}
+                                  </div>
+                                  <div className="flex flex-1 flex-col">
+                                    <p className="line-clamp-2 text-sm">{pickI18n(it.products.name, it.products.name_i18n, lang)}</p>
+                                    <p className="text-xs text-muted-foreground">{t("product.code")} : {it.products.code}</p>
+                                    {(it.product_variants?.size || it.product_variants?.color) && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {it.product_variants.size && <>{t("product.size")} : {it.product_variants.size}</>}
+                                        {it.product_variants.size && it.product_variants.color && " · "}
+                                        {it.product_variants.color && <>{t("product.color")} : {it.product_variants.color}</>}
+                                      </p>
+                                    )}
+                                    {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
+                                    <div className="mt-auto flex items-end justify-between pt-2">
+                                      <p className="text-sm font-bold text-primary min-h-5">
+                                        {pricesReady ? (
+                                          <>{price.toLocaleString("fr-FR")} FCFA</>
+                                        ) : (
+                                          <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
+                                        )}
+                                      </p>
+                                      <div className="flex items-center gap-2">
+                                        <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                        <div className="inline-flex items-center rounded-md border border-border">
+                                          <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity - 1)}>
+                                            <Minus className="h-3.5 w-3.5" />
+                                          </button>
+                                          <span className="w-8 text-center text-sm font-semibold">{it.quantity}</span>
+                                          <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity + 1)}>
+                                            <Plus className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+                      );
+                    })}
+                  </div>
+
+                  {/* Shipping service selector ONLY under import section */}
+                  {logType === "import" && hasIntlItems && renderShippingServiceSelector()}
+                </div>
               );
             })}
-            {hasIntlItems && renderShippingServiceSelector()}
           </div>
         )}
       </main>
