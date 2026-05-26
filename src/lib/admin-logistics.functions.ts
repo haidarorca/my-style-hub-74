@@ -75,7 +75,7 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
     const to = from + data.pageSize - 1;
 
     // Base query sur la vue
-    let q = supabaseAdmin
+    let q: any = (supabaseAdmin as any)
       .from("logistics_order_view")
       .select("*", { count: "exact" })
       .order("order_created_at", { ascending: false });
@@ -120,13 +120,13 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
     await assertPermission(context.userId, "orders");
 
     // Lire l'ancien état pour audit
-    const { data: before } = await supabaseAdmin
+    const { data: before } = await (supabaseAdmin as any)
       .from("shipment_payments")
       .select("*")
       .eq("id", data.paymentId)
       .maybeSingle();
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_payments")
       .update({
         amount_paid: data.amountConfirmed,
@@ -184,7 +184,7 @@ export const updateShipmentTracking = createServerFn({ method: "POST" })
     if (data.agentName !== undefined) update.agent_name = data.agentName || null;
     if (data.notes !== undefined) update.notes = data.notes || null;
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_tracking")
       .update(update)
       .eq("order_shipment_assessment_id", data.assessmentId);
@@ -207,7 +207,7 @@ export const listCustomColumns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertPermission(context.userId, "orders");
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await (supabaseAdmin as any)
       .from("shipment_custom_columns")
       .select("*")
       .eq("is_active", true)
@@ -226,7 +226,7 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "orders");
 
-    const { data: col } = await supabaseAdmin
+    const { data: col } = await (supabaseAdmin as any)
       .from("shipment_custom_columns")
       .select("column_type")
       .eq("id", data.columnId)
@@ -244,7 +244,7 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
       default: insert.value_text = String(data.value ?? ""); break;
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_custom_values")
       .upsert(insert, { onConflict: "column_id, order_shipment_assessment_id" });
 

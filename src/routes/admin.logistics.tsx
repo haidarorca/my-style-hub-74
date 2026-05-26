@@ -6,7 +6,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   listLogisticsOrders, confirmShipmentPayment,
   type LogisticsOrderRow,
@@ -72,7 +72,7 @@ const QUICK_FILTERS = [
 
 function LogisticsPage() {
   const { isAdmin } = useAuth();
-  const { toast } = useToast();
+  // toast imported from sonner
   const qc = useQueryClient();
 
   const [page, setPage] = useState(1);
@@ -115,10 +115,10 @@ function LogisticsPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      toast({ title: "Paiement confirmé" });
+      toast.success("Paiement confirmé");
       setDetailOrder(null);
     },
-    onError: (e) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast.error("Erreur", { description: e.message }),
   });
 
   const rows = data?.rows ?? [];
@@ -329,7 +329,7 @@ function LogisticsPage() {
                   size="sm"
                   onClick={() => confirmPayment.mutate({
                     paymentId: detailOrder.order_id, // Simplifié — en réalité il faudrait l'ID du payment
-                    amount: detailOrder.amount_remaining,
+                    amount: detailOrder.amount_remaining ?? 0,
                   })}
                   disabled={confirmPayment.isPending}
                 >
