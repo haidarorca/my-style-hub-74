@@ -4,7 +4,7 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { useServerFn } from "@tanstack/react-start";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { Package, Phone, MapPin, Search, X } from "lucide-react";
+import { Package, Phone, MapPin, Search, X, History } from "lucide-react";
 import { toast } from "sonner";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ const searchSchema = z.object({
   status: fallback(z.enum(["all", "new", "confirmed", "delivered", "cancelled"]), "all").default("all"),
   country: fallback(z.string(), "all").default("all"),
   commission: fallback(z.enum(["all", "yes", "no"]), "all").default("all"),
+  show_history: fallback(z.boolean(), false).default(false),
 });
 type SearchState = z.infer<typeof searchSchema>;
 
@@ -79,6 +80,14 @@ function AdminOrders() {
     }
   }, [debouncedQ, navigate, search.q]);
 
+  // Par defaut : masquer les commandes delivered > 30j et cancelled
+  const defaultDateFrom = useMemo(() => {
+    if (search.show_history || search.status !== "all") return null;
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split("T")[0];
+  }, [search.show_history, search.status]);
+
   const params = useMemo(
     () => ({
       page: search.page,
@@ -87,10 +96,10 @@ function AdminOrders() {
       status: search.status,
       country_id: search.country === "all" ? null : search.country,
       is_commission: search.commission,
-      date_from: null,
+      date_from: defaultDateFrom,
       date_to: null,
     }),
-    [search.page, search.q, search.status, search.country, search.commission],
+    [search.page, search.q, search.status, search.country, search.commission, defaultDateFrom],
   );
 
   const { data, isFetching, isLoading } = useQuery({
@@ -123,7 +132,13 @@ function AdminOrders() {
 
   const onReset = useCallback(() => {
     setQueryInput("");
-    navigate({ search: { page: 1, q: "", status: "all", country: "all", commission: "all" } });
+    navigate({ search: { page: 1, q: "", status: "all", country: "all", commission: "all", show_history: false } });
+  }, [navigate]);
+
+  const toggleHistory = useCallback(() => {
+    navigate({
+      search: (prev: SearchState) => ({ ...prev, show_history: !prev.show_history, page: 1 }),
+    });
   }, [navigate]);
 
   const rows = data?.rows ?? [];
@@ -131,7 +146,7 @@ function AdminOrders() {
   const totals = data?.totals;
 
   const filtersActive =
-    search.q || search.status !== "all" || search.country !== "all" || search.commission !== "all";
+    search.q || search.status !== "all" || search.country !== "all" || search.commission !== "all" || search.show_history;
 
   return (
     <div className="space-y-4">
@@ -214,11 +229,25 @@ function AdminOrders() {
               </SelectContent>
             </Select>
           </div>
-          {filtersActive ? (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReset}>
-              <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
-            </Button>
-          ) : null}
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-primary accent-primary"
+                checked={search.show_history}
+                onChange={toggleHistory}
+              />
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <History className="h-3.5 w-3.5" />
+                Afficher l&apos;historique (livrees &gt; 30j, annulees)
+              </span>
+            </label>
+            {filtersActive ? (
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReset}>
+                <X className="mr-1 h-3 w-3" /> Reinitialiser
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 

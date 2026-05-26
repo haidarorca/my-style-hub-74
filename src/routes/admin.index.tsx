@@ -6,7 +6,7 @@ import { getAdminStats } from "@/lib/admin-stats.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag } from "lucide-react";
+import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag, AlertTriangle, TrendingUp } from "lucide-react";
 import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 import { UpdateAppButton } from "@/components/UpdateAppButton";
 
@@ -142,6 +142,49 @@ function Dashboard() {
         </Card>
       </section>
 
+      {/* Section Urgences */}
+      <section className="space-y-2">
+        <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+          Urgences
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {/* Produit pending */}
+          <UrgenceCard
+            icon={Clock}
+            iconColor="text-amber-600"
+            iconBg="bg-amber-500/10"
+            label="Produits en attente"
+            value={pending.data ?? 0}
+            threshold={5}
+            href="/admin/products"
+            action="Valider"
+          />
+          {/* Signalements */}
+          <UrgenceCard
+            icon={Flag}
+            iconColor="text-red-600"
+            iconBg="bg-red-500/10"
+            label="Signalements ouverts"
+            value={reports.data ?? 0}
+            threshold={1}
+            href="/admin/products?tab=reported"
+            action="Examiner"
+          />
+          {/* Commandes en attente */}
+          <UrgenceCard
+            icon={ShoppingBag}
+            iconColor="text-blue-600"
+            iconBg="bg-blue-500/10"
+            label="Commandes en attente"
+            value={stats.data?.orders.pending ?? 0}
+            threshold={3}
+            href="/admin/orders"
+            action="Traiter"
+          />
+        </div>
+      </section>
+
       {isSuperAdmin && (
         <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
           <CardContent className="flex items-center gap-3 p-4">
@@ -209,5 +252,52 @@ function Dashboard() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/* ── Urgence Card ── */
+
+function UrgenceCard({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  label,
+  value,
+  threshold,
+  href,
+  action,
+}: {
+  icon: typeof Clock;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  value: number;
+  threshold: number;
+  href: string;
+  action: string;
+}) {
+  const isUrgent = value >= threshold && value > 0;
+
+  return (
+    <Card className={isUrgent ? "border-amber-500/30 bg-amber-500/5" : "border-border/60 bg-muted/20 opacity-70"}>
+      <CardContent className="flex items-center gap-3 p-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${iconBg}`}>
+          <Icon className={`h-5 w-5 ${iconColor}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className={`text-lg font-bold ${isUrgent ? "text-foreground" : "text-muted-foreground"}`}>
+            {value}
+          </div>
+        </div>
+        {isUrgent ? (
+          <Button asChild size="sm" variant="secondary" className="h-7 text-xs">
+            <Link to={href}>{action}</Link>
+          </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground">OK</span>
+        )}
+      </CardContent>
+    </Card>
   );
 }
