@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
-  listLogisticsOrders, confirmShipmentPayment,
+  listLogisticsOrders, confirmShipmentPayment, getOrCreateShipmentAssessment,
   type LogisticsOrderRow,
 } from "@/lib/admin-logistics.functions";
 import { Button } from "@/components/ui/button";
@@ -179,6 +179,15 @@ function LogisticsControlCenter() {
     onError: (e: Error) => toast.error(e.message || "Erreur"),
   });
 
+  const createAssessment = useMutation({
+    mutationFn: async (orderId: string) => {
+      const result = await getOrCreateShipmentAssessment({ data: { order_id: orderId } });
+      return result;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-logistics"] }); toast.success("Evaluation creee"); },
+    onError: (e: Error) => toast.error(e.message || "Erreur"),
+  });
+
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / pageSize);
@@ -268,7 +277,15 @@ function LogisticsControlCenter() {
                   <td className="px-2 py-1.5"><span className="font-mono">#{r.order_id.slice(0, 8)}</span><p className="text-[9px] text-muted-foreground">{fmtD(r.order_created_at)}</p></td>
                   <td className="px-2 py-1.5"><p className="font-medium">{r.customer_name ?? "—"}</p><p className="text-[9px] text-muted-foreground">{r.customer_phone ?? "—"}</p></td>
                   <td className="px-2 py-1.5">{r.order_status && <SB config={ORDER_S[r.order_status]} />}</td>
-                  <td className="px-2 py-1.5">{r.logistics_status && <SB config={LOG_S[r.logistics_status]} />}</td>
+                  <td className="px-2 py-1.5">
+                    {r.assessment_id ? (
+                      r.logistics_status && <SB config={LOG_S[r.logistics_status]} />
+                    ) : (
+                      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">
+                        A creer
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5">{r.payment_status && <SB config={PAY_S[r.payment_status]} />}</td>
                   <td className="px-2 py-1.5 text-right">{r.item_count}</td>
                   <td className="px-2 py-1.5 text-right font-medium">{fmtN(r.order_total)}</td>
@@ -371,7 +388,12 @@ function LogisticsControlCenter() {
 
               {/* Actions */}
               <section className="flex flex-wrap gap-2 pt-2 border-t">
-                {(detailRow.payment_status === "pending" || detailRow.payment_status === "partial") && (detailRow.amount_remaining ?? 0) > 0 && (
+                {!detailRow.assessment_id && (
+                  <Button size="sm" onClick={() => createAssessment.mutate(detailRow.order_id)} disabled={createAssessment.isPending}>
+                    <Scale className="h-4 w-4 mr-1" /> Creer evaluation
+                  </Button>
+                )}
+                {(detailRow.payment_status === "pending" || detailRow.payment_status === "partial") && (detailRow.amount_remaining ?? 0) > 0 && detailRow.assessment_id && (
                   <Button size="sm" onClick={() => confirmPay.mutate({ paymentId: detailRow.order_id, amount: detailRow.amount_remaining ?? 0 })} disabled={confirmPay.isPending}>
                     <Receipt className="h-4 w-4 mr-1" /> Confirmer paiement
                   </Button>

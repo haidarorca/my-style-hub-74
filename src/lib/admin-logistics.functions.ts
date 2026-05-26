@@ -74,10 +74,12 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
 
-    // Base query sur la vue
+    // La vue inclut maintenant TOUTES les commandes confirmed
+    // avec has_import_items pour filtrer uniquement les commandes logistiques
     let q = supabaseAdmin
       .from("logistics_order_view")
       .select("*", { count: "exact" })
+      .eq("has_import_items", true)
       .order("order_created_at", { ascending: false });
 
     // Filtres
@@ -103,6 +105,33 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
       page: data.page,
       pageSize: data.pageSize,
     };
+  });
+
+/**
+ * Crée automatiquement l'évaluation logistique pour une commande
+ * si elle n'existe pas encore. Appelé quand l'admin clique "Peser".
+ */
+export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ order_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    const { data: result, error } = await supabaseAdmin.rpc(
+      "get_or_create_shipment_assessment" as never,
+      { _order_id: data.order_id } as never,
+    );
+
+    if (error) throw new Error(error.message);
+
+    logAdminAction({
+      action: "shipment.assessment_created",
+      targetType: "order",
+      targetId: data.order_id,
+      newValues: { assessment_id: result },
+    });
+
+    return { assessment_id: result as string };
   });
 
 /* ── 2. CONFIRMER PAIEMENT ── */
