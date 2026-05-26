@@ -5,22 +5,32 @@
 -- 1. TYPES ÉNUMÉRÉS
 -- ═══════════════════════════════════════════════════════════
 
-CREATE TYPE IF NOT EXISTS public.payment_status AS ENUM (
-  'pending',     -- En attente de paiement
-  'partial',     -- Partiellement payé
-  'paid',        -- Payé (non confirmé par admin)
-  'confirmed',   -- Payé ET confirmé par admin
-  'waived',      -- Frais annulés
-  'refunded'     -- Remboursé
-);
+-- PostgreSQL does NOT support CREATE TYPE IF NOT EXISTS.
+-- Use DO blocks with exception handling for idempotency.
 
-CREATE TYPE IF NOT EXISTS public.payment_method AS ENUM (
-  'wave', 'orange_money', 'free_money', 'cash', 'bank_transfer', 'other'
-);
+DO $$ BEGIN
+  CREATE TYPE public.payment_status AS ENUM (
+    'pending', 'partial', 'paid', 'confirmed', 'waived', 'refunded'
+  );
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
 
-CREATE TYPE IF NOT EXISTS public.custom_column_type AS ENUM (
-  'text', 'number', 'date', 'boolean', 'select'
-);
+DO $$ BEGIN
+  CREATE TYPE public.payment_method AS ENUM (
+    'wave', 'orange_money', 'free_money', 'cash', 'bank_transfer', 'other'
+  );
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.custom_column_type AS ENUM (
+    'text', 'number', 'date', 'boolean', 'select'
+  );
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
 
 -- ═══════════════════════════════════════════════════════════
 -- 2. TABLE : PAIEMENTS EXPÉDITION

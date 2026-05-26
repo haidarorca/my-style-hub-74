@@ -122,7 +122,7 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
     // Lire l'ancien état pour audit
     const { data: before } = await supabaseAdmin
       .from("shipment_payments")
-      .select("*, logistics_order_view!inner(order_id)")
+      .select("*")
       .eq("id", data.paymentId)
       .maybeSingle();
 
