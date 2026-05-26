@@ -8,7 +8,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   listLogisticsOrders, confirmShipmentPayment,
   type LogisticsOrderRow,
@@ -144,7 +144,6 @@ function WorkflowTimeline({ row }: { row: LogisticsOrderRow }) {
 
 function LogisticsControlCenter() {
   const { isAdmin } = useAuth();
-  const { toast } = useToast();
   const qc = useQueryClient();
 
   const [page, setPage] = useState(1);
@@ -176,8 +175,8 @@ function LogisticsControlCenter() {
     mutationFn: async ({ paymentId, amount }: { paymentId: string; amount: number }) => {
       await confirmShipmentPayment({ data: { paymentId, amountConfirmed: amount } });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-logistics"] }); toast({ title: "Paiement confirme" }); setDetailRow(null); },
-    onError: (e: Error) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-logistics"] }); toast.success("Paiement confirme"); setDetailRow(null); },
+    onError: (e: Error) => toast.error(e.message || "Erreur"),
   });
 
   const rows = data?.rows ?? [];
