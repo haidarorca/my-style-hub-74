@@ -120,13 +120,13 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
     await assertPermission(context.userId, "orders");
 
     // Lire l'ancien état pour audit
-    const { data: before } = await supabaseAdmin
+    const { data: before } = await (supabaseAdmin as any)
       .from("shipment_payments")
       .select("*")
       .eq("id", data.paymentId)
       .maybeSingle();
 
-    const { error } = await supabaseAdmin
+    const { error } = await (supabaseAdmin as any)
       .from("shipment_payments")
       .update({
         amount_paid: data.amountConfirmed,
