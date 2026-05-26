@@ -31,7 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Scale, Plane, Send, Loader2, Check, Package, DollarSign,
-  TrendingUp, Weight, Camera, ChevronRight, AlertCircle,
+  TrendingUp, Weight, Camera, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdminOrderItem } from "@/lib/admin-orders.functions";
@@ -106,7 +106,7 @@ export function ShipmentAssessmentDialog({
   const [services, setServices] = useState<ShippingService[]>([]);
   const [serviceId, setServiceId] = useState<string | null>(shippingServiceId);
   const [autoCalc, setAutoCalc] = useState(true);
-  const [form, setForm] = useState<Record<string, any>>({});
+  const [form, setForm] = useState<Record<string, string | number>>({});
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [adminNote, setAdminNote] = useState("");
@@ -156,7 +156,7 @@ export function ShipmentAssessmentDialog({
     }
     const chargeableWeight = Math.max(realW, volW);
     const fee = Math.round(chargeableWeight * Number(selectedService.price_per_kg));
-    setForm((f: any) => ({
+    setForm((f) => ({
       ...f,
       air_freight_fee: fee,
       ...(volW > 0 ? { volumetric_weight_kg: Math.round(volW * 1000) / 1000 } : {}),
@@ -184,7 +184,7 @@ export function ShipmentAssessmentDialog({
     if (!data) return;
     setSaving(true);
     try {
-      const num = (v: any) => (v === "" || v == null ? null : Number(v));
+      const num = (v: string | number | null) => (v === "" || v == null ? null : Number(v));
       await updateFn({
         data: {
           id: data.id,
@@ -353,16 +353,15 @@ export function ShipmentAssessmentDialog({
                     id="auto-calc"
                     checked={autoCalc}
                     onCheckedChange={setAutoCalc}
-                    size="sm"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <NumField label="Poids réel (kg)" value={form.real_weight_kg} onChange={(v) => setForm((f: any) => ({ ...f, real_weight_kg: v }))} />
-                <NumField label="Poids volumétrique (kg)" value={form.volumetric_weight_kg} onChange={(v) => setForm((f: any) => ({ ...f, volumetric_weight_kg: v }))} disabled={autoCalc} />
-                <NumField label="Longueur (cm)" value={form.length_cm} onChange={(v) => setForm((f: any) => ({ ...f, length_cm: v }))} />
-                <NumField label="Largeur (cm)" value={form.width_cm} onChange={(v) => setForm((f: any) => ({ ...f, width_cm: v }))} />
-                <NumField label="Hauteur (cm)" value={form.height_cm} onChange={(v) => setForm((f: any) => ({ ...f, height_cm: v }))} />
+                <NumField label="Poids réel (kg)" value={form.real_weight_kg} onChange={(v) => setForm((f) => ({ ...f, real_weight_kg: v }))} />
+                <NumField label="Poids volumétrique (kg)" value={form.volumetric_weight_kg} onChange={(v) => setForm((f) => ({ ...f, volumetric_weight_kg: v }))} disabled={autoCalc} />
+                <NumField label="Longueur (cm)" value={form.length_cm} onChange={(v) => setForm((f) => ({ ...f, length_cm: v }))} />
+                <NumField label="Largeur (cm)" value={form.width_cm} onChange={(v) => setForm((f) => ({ ...f, width_cm: v }))} />
+                <NumField label="Hauteur (cm)" value={form.height_cm} onChange={(v) => setForm((f) => ({ ...f, height_cm: v }))} />
               </div>
               {autoCalc && selectedService && (
                 <p className="mt-1.5 text-[10px] text-muted-foreground">
@@ -379,7 +378,7 @@ export function ShipmentAssessmentDialog({
               {form.parcel_photo_url ? (
                 <div className="relative">
                   <img src={form.parcel_photo_url} alt="Colis" className="h-32 w-32 rounded-lg border object-cover" />
-                  <Button size="sm" variant="ghost" className="absolute top-0 right-0 h-6 w-6 p-0" onClick={() => setForm((f: any) => ({ ...f, parcel_photo_url: "" }))}>
+                  <Button size="sm" variant="ghost" className="absolute top-0 right-0 h-6 w-6 p-0" onClick={() => setForm((f) => ({ ...f, parcel_photo_url: "" }))}>
                     ✕
                   </Button>
                 </div>
@@ -387,7 +386,7 @@ export function ShipmentAssessmentDialog({
                 <Input
                   placeholder="URL de la photo du colis"
                   value={form.parcel_photo_url}
-                  onChange={(e) => setForm((f: any) => ({ ...f, parcel_photo_url: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, parcel_photo_url: e.target.value }))}
                   className="text-sm"
                 />
               )}
@@ -399,9 +398,9 @@ export function ShipmentAssessmentDialog({
                 <DollarSign className="h-3.5 w-3.5" /> Détail des frais
               </h3>
               <div className="space-y-2">
-                <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => { setAutoCalc(false); setForm((f: any) => ({ ...f, air_freight_fee: v })); }} />
-                <NumField label="Frais service (FCFA)" value={form.service_fee} onChange={(v) => setForm((f: any) => ({ ...f, service_fee: v }))} />
-                <NumField label="Frais supplémentaires (FCFA)" value={form.extra_fees} onChange={(v) => setForm((f: any) => ({ ...f, extra_fees: v }))} />
+                <NumField label="Frais avion (FCFA)" value={form.air_freight_fee} onChange={(v) => { setAutoCalc(false); setForm((f) => ({ ...f, air_freight_fee: v })); }} />
+                <NumField label="Frais service (FCFA)" value={form.service_fee} onChange={(v) => setForm((f) => ({ ...f, service_fee: v }))} />
+                <NumField label="Frais supplémentaires (FCFA)" value={form.extra_fees} onChange={(v) => setForm((f) => ({ ...f, extra_fees: v }))} />
               </div>
               <Separator />
               <div className="space-y-1 text-sm">
@@ -428,7 +427,7 @@ export function ShipmentAssessmentDialog({
               </h3>
               <Textarea
                 value={form.admin_comment}
-                onChange={(e) => setForm((f: any) => ({ ...f, admin_comment: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, admin_comment: e.target.value }))}
                 placeholder="Note interne (visible par le client si envoyé)"
                 rows={2}
               />
@@ -495,7 +494,7 @@ export function ShipmentAssessmentDialog({
 
 /* ── Sub-component: numeric input ── */
 
-function NumField({ label, value, onChange, disabled }: { label: string; value: any; onChange: (v: string) => void; disabled?: boolean }) {
+function NumField({ label, value, onChange, disabled }: { label: string; value: string | number; onChange: (v: string) => void; disabled?: boolean }) {
   return (
     <div>
       <label className="text-[11px] text-muted-foreground block mb-1">{label}</label>
