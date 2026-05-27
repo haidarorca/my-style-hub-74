@@ -1109,3 +1109,5 @@ function fmtD(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
+  });
+}
