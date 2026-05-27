@@ -51,16 +51,16 @@ export function SmartCard({
             <Icon className={cn("h-5 w-5", iconColor)} />
           </div>
           <div className="min-w-0">
-            <p className="admin-text-xs text-muted-foreground truncate">{title}</p>
+            <p className="text-xs text-muted-foreground truncate">{title}</p>
             {value !== undefined && (
-              <p className="admin-text-2xl mt-1">{value}</p>
+              <p className="text-2xl font-bold mt-1">{value}</p>
             )}
           </div>
         </div>
         {trend && (
           <span
             className={cn(
-              "admin-text-xs font-medium shrink-0",
+              "text-xs font-medium shrink-0",
               trend.positive !== false ? "text-success" : "text-destructive",
             )}
           >
@@ -83,8 +83,8 @@ export function SmartCard({
                 a.onClick();
               }}
               className={cn(
-                "btn-premium admin-text-xs font-medium rounded-lg px-3 py-1.5 transition-colors",
-                a.variant === "primary" && "gradient-btn-primary text-white shadow-sm",
+                "btn-premium text-xs font-medium rounded-lg px-3 py-1.5 transition-colors",
+                a.variant === "primary" && "bg-primary text-primary-foreground hover:bg-primary/90 text-white shadow-sm",
                 a.variant === "secondary" && "bg-secondary text-secondary-foreground hover:bg-accent",
                 a.variant === "ghost" && "text-muted-foreground hover:text-foreground hover:bg-accent",
                 !a.variant && "bg-secondary text-secondary-foreground hover:bg-accent",

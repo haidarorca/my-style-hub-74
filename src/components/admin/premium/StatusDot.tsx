@@ -52,7 +52,7 @@ export function StatusLabel({ status, label }: { status: string; label?: string 
   return (
     <span className="inline-flex items-center gap-1.5">
       <StatusDot status={status} />
-      <span className="admin-text-xs text-muted-foreground">{label ?? labels[status] ?? status}</span>
+      <span className="text-xs text-muted-foreground">{label ?? labels[status] ?? status}</span>
     </span>
   );
 }

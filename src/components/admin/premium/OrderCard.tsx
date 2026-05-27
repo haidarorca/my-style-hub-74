@@ -78,12 +78,12 @@ export function OrderCard({
       {/* Header row */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono admin-text-xs text-muted-foreground">#{order.orderId.slice(0, 6)}</span>
-          <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 admin-text-[9px] font-semibold", typeCfg.bg, typeCfg.color)}>
+          <span className="font-mono text-xs text-muted-foreground">#{order.orderId.slice(0, 6)}</span>
+          <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-semibold", typeCfg.bg, typeCfg.color)}>
             {typeCfg.label}
           </span>
           {order.isCommission && (
-            <span className="inline-flex items-center rounded-md border border-fuchsia-500/20 bg-fuchsia-500/10 px-1.5 py-0.5 admin-text-[9px] font-semibold text-fuchsia-400">
+            <span className="inline-flex items-center rounded-md border border-fuchsia-500/20 bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-fuchsia-400">
               Commission
             </span>
           )}
@@ -93,22 +93,22 @@ export function OrderCard({
 
       {/* Client */}
       <div className="mt-2 min-w-0">
-        <p className="admin-text-sm font-medium truncate">{order.customerName}</p>
+        <p className="text-sm font-medium truncate">{order.customerName}</p>
         {order.customerPhone && (
-          <p className="admin-text-xs text-muted-foreground">{order.customerPhone}</p>
+          <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
         )}
       </div>
 
       {/* Financial */}
       <div className="mt-3 flex items-center justify-between">
         <div>
-          <p className="admin-text-lg font-semibold">{fmtN(order.total)}</p>
+          <p className="text-lg font-semibold font-semibold">{fmtN(order.total)}</p>
           {order.remaining !== undefined && order.remaining > 0 && (
-            <p className="admin-text-xs text-destructive">Reste : {fmtN(order.remaining)}</p>
+            <p className="text-xs text-destructive">Reste : {fmtN(order.remaining)}</p>
           )}
         </div>
         {(order.daysPending ?? 0) > 5 && (
-          <span className={cn("admin-text-xs font-medium", isUrgent ? "text-destructive" : "text-warning")}>
+          <span className={cn("text-xs font-medium", isUrgent ? "text-destructive" : "text-warning")}>
             {order.daysPending}j
           </span>
         )}
@@ -118,7 +118,7 @@ export function OrderCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         <button
           onClick={onView}
-          className="btn-premium inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1.5 admin-text-xs font-medium text-secondary-foreground hover:bg-accent transition-colors"
+          className="btn-premium inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-accent transition-colors"
         >
           <Eye className="h-3 w-3" /> Détails
         </button>
@@ -126,7 +126,7 @@ export function OrderCard({
         {order.status === "new" && onConfirm && (
           <button
             onClick={onConfirm}
-            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-success/15 px-2.5 py-1.5 admin-text-xs font-medium text-success hover:bg-success/25 transition-colors"
+            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-success/15 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/25 transition-colors"
           >
             <CheckCircle className="h-3 w-3" /> Confirmer
           </button>
@@ -135,7 +135,7 @@ export function OrderCard({
         {order.orderType !== "local" && !order.assessmentId && onCreateAssessment && (
           <button
             onClick={onCreateAssessment}
-            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-primary/15 px-2.5 py-1.5 admin-text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
+            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-primary/15 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
           >
             <Scale className="h-3 w-3" /> Évaluer
           </button>
@@ -144,7 +144,7 @@ export function OrderCard({
         {order.assessmentId && order.remaining && order.remaining > 0 && onConfirmPayment && (
           <button
             onClick={onConfirmPayment}
-            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-warning/15 px-2.5 py-1.5 admin-text-xs font-medium text-warning hover:bg-warning/25 transition-colors"
+            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 transition-colors"
           >
             <Receipt className="h-3 w-3" /> Paiement
           </button>
@@ -155,7 +155,7 @@ export function OrderCard({
             href={`https://wa.me/${order.customerPhone.replace(/\D/g, "")}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 admin-text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            className="btn-premium inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
           >
             <Phone className="h-3 w-3" /> WhatsApp
           </a>
@@ -170,7 +170,7 @@ function StatusLabel({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <StatusDot status={status} />
-      <span className={cn("admin-text-xs", STATUS_CONFIG[status]?.color ?? "text-muted-foreground")}>
+      <span className={cn("text-xs", STATUS_CONFIG[status]?.color ?? "text-muted-foreground")}>
         {STATUS_CONFIG[status]?.label ?? status}
       </span>
     </span>

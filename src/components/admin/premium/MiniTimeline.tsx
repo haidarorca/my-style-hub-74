@@ -44,7 +44,7 @@ export function MiniTimeline({ steps, currentStep, className }: MiniTimelineProp
               {(isDone || isActive || i === currentStep + 1) && (
                 <span
                   className={cn(
-                    "admin-text-[9px] whitespace-nowrap",
+                    "text-[9px] whitespace-nowrap",
                     isActive ? "text-primary font-medium" : "text-muted-foreground/50",
                   )}
                 >

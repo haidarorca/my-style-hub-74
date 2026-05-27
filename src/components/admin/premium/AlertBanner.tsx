@@ -77,12 +77,12 @@ export function AlertBanner({
     >
       <Icon className={cn("h-5 w-5 shrink-0 mt-0.5", cfg.iconColor)} />
       <div className="min-w-0 flex-1">
-        <p className="admin-text-sm font-semibold">{title}</p>
-        <p className="admin-text-xs text-muted-foreground mt-0.5">{description}</p>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         {action && (
           <button
             onClick={action.onClick}
-            className="btn-premium mt-2 inline-flex items-center gap-1 rounded-lg bg-primary/15 px-3 py-1.5 admin-text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
+            className="btn-premium mt-2 inline-flex items-center gap-1 rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
           >
             {action.label}
             <ArrowRight className="h-3 w-3" />

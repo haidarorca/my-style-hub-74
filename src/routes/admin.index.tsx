@@ -113,7 +113,7 @@ function ActionCenter() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
         <Zap className="h-12 w-12 mb-4 opacity-20" />
-        <p className="admin-text-sm">Accès réservé aux administrateurs.</p>
+        <p className="text-sm">Accès réservé aux administrateurs.</p>
       </div>
     );
   }
@@ -126,14 +126,14 @@ function ActionCenter() {
   const alerts = buildAlerts(ls);
 
   return (
-    <div className="admin-layout space-y-6 pb-safe">
+    <div className="space-y-6 pb-safe">
       {/* ═════ HEADER PERSONNALISÉ ═════ */}
       <header>
-        <h1 className="admin-text-2xl flex items-center gap-3">
+        <h1 className="text-2xl font-bold flex items-center gap-3">
           <Zap className="h-7 w-7 text-primary" />
           Action Center
         </h1>
-        <p className="admin-text-sm text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Bonjour, {user?.email?.split("@")[0] ?? "Admin"} · Voici vos priorités aujourd&apos;hui
         </p>
       </header>
@@ -158,7 +158,7 @@ function ActionCenter() {
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Colonne gauche : Priorités (3/5) */}
         <div className="lg:col-span-3 space-y-3">
-          <h2 className="admin-text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Zap className="h-3.5 w-3.5" />
             Vos priorités
           </h2>
@@ -215,7 +215,7 @@ function ActionCenter() {
 
         {/* Colonne droite : Métriques (2/5) */}
         <div className="lg:col-span-2 space-y-3">
-          <h2 className="admin-text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <ShoppingBag className="h-3.5 w-3.5" />
             Métriques clés
           </h2>
@@ -232,8 +232,8 @@ function ActionCenter() {
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-center gap-3">
               <DollarSign className="h-5 w-5 text-destructive shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="admin-text-xs text-muted-foreground">Reste à payer global</p>
-                <p className="admin-text-lg font-bold text-destructive">{ls.total_remaining.toLocaleString("fr-FR")} FCFA</p>
+                <p className="text-xs text-muted-foreground">Reste à payer global</p>
+                <p className="text-lg font-semibold font-bold text-destructive">{ls.total_remaining.toLocaleString("fr-FR")} FCFA</p>
               </div>
             </div>
           )}
@@ -243,7 +243,7 @@ function ActionCenter() {
       {/* ═════ PIPELINE LOGISTIQUE ═════ */}
       {ls && (
         <section>
-          <h2 className="admin-text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
             <Truck className="h-3.5 w-3.5" />
             Pipeline logistique
           </h2>
@@ -260,12 +260,12 @@ function ActionCenter() {
                 const height = Math.max((bar.count / maxCount) * 100, 8);
                 return (
                   <div key={bar.label} className="flex flex-col items-center gap-1.5 flex-1 group cursor-pointer">
-                    <span className="admin-text-sm font-bold">{bar.count}</span>
+                    <span className="text-sm font-bold">{bar.count}</span>
                     <div
                       className={cn("w-full rounded-t-md transition-all duration-500 group-hover:opacity-80", bar.color)}
                       style={{ height: `${height}%` }}
                     />
-                    <span className="admin-text-[9px] text-muted-foreground text-center leading-tight">{bar.label}</span>
+                    <span className="text-[9px] text-muted-foreground text-center leading-tight">{bar.label}</span>
                   </div>
                 );
               })}
@@ -277,11 +277,11 @@ function ActionCenter() {
       {/* ═════ COMMANDES RÉCENTES ═════ */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="admin-text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <ShoppingBag className="h-3.5 w-3.5" />
             Commandes récentes
           </h2>
-          <Button asChild variant="ghost" size="sm" className="admin-text-xs h-7">
+          <Button asChild variant="ghost" size="sm" className="text-xs h-7">
             <Link to="/admin/orders">Tout voir <ArrowRight className="h-3 w-3 ml-1" /></Link>
           </Button>
         </div>
@@ -289,7 +289,7 @@ function ActionCenter() {
         {rows.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-muted-foreground">
             <Box className="h-10 w-10 mb-3 opacity-20" />
-            <p className="admin-text-sm">Aucune commande récente</p>
+            <p className="text-sm">Aucune commande récente</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -346,8 +346,8 @@ function MiniKPI({
         <Icon className={cn("h-4 w-4", color)} />
       </div>
       <div className="min-w-0">
-        <p className="admin-text-[10px] text-muted-foreground truncate">{label}</p>
-        <p className="admin-text-base font-bold leading-tight">{value ?? "—"}</p>
+        <p className="text-[10px] text-muted-foreground truncate">{label}</p>
+        <p className="text-base font-bold leading-tight">{value ?? "—"}</p>
       </div>
     </div>
   );
@@ -385,9 +385,9 @@ function OrderDetailDrawer({
       onClose={onClose}
       title={
         <span className="flex items-center gap-2">
-          <span className="font-mono admin-text-xs text-muted-foreground">#{order.orderId.slice(0, 8)}</span>
+          <span className="font-mono text-xs text-muted-foreground">#{order.orderId.slice(0, 8)}</span>
           <span className={cn(
-            "inline-flex items-center rounded-md border px-1.5 py-0.5 admin-text-[9px] font-semibold",
+            "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
             order.orderType === "import" ? "bg-sky-500/10 border-sky-500/20 text-sky-400" :
               order.orderType === "mixed" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
                 "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
@@ -405,7 +405,7 @@ function OrderDetailDrawer({
       <div className="space-y-5">
         {/* Urgence */}
         {isUrgent && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 admin-text-xs font-medium text-destructive">
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
             <Zap className="h-3.5 w-3.5" />
             {daysPending} jours d&apos;attente — Action requise
           </div>
@@ -413,7 +413,7 @@ function OrderDetailDrawer({
 
         {/* Timeline */}
         <div>
-          <p className="admin-text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
             Workflow {order.orderType === "import" ? "(Complet)" : order.orderType === "mixed" ? "(Hybride)" : "(Simple)"}
           </p>
           <MiniTimeline steps={workflow} currentStep={statusIndex} />
@@ -421,16 +421,16 @@ function OrderDetailDrawer({
 
         {/* Financier */}
         <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
-          <p className="admin-text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Financier</p>
-          <div className="flex justify-between admin-text-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Financier</p>
+          <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Produits</span>
             <span className="font-medium">{fmtN(order.total)}</span>
           </div>
-          <div className="flex justify-between admin-text-sm">
+          <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Frais transport</span>
             <span>{fmtN(order.shippingFees)}</span>
           </div>
-          <div className="border-t border-border pt-2 flex justify-between admin-text-sm font-bold">
+          <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
             <span>Reste à payer</span>
             <span className={(order.remaining ?? 0) > 0 ? "text-destructive" : "text-success"}>
               {fmtN(order.remaining)}
@@ -443,7 +443,7 @@ function OrderDetailDrawer({
           {!order.assessmentId && order.orderType !== "local" && (
             <Button
               size="sm"
-              className="gradient-btn-primary"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={onCreateAssessment}
               disabled={isCreatingAssessment}
             >

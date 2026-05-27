@@ -68,8 +68,8 @@ export function DrawerPanel({
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0 flex-1">
-            {title && <div className="admin-text-lg font-semibold">{title}</div>}
-            {subtitle && <div className="mt-0.5 admin-text-xs text-muted-foreground">{subtitle}</div>}
+            {title && <div className="text-lg font-semibold font-semibold">{title}</div>}
+            {subtitle && <div className="mt-0.5 text-xs text-muted-foreground">{subtitle}</div>}
           </div>
           <button
             onClick={onClose}
