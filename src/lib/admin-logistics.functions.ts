@@ -1,6 +1,8 @@
 /**
- * admin-logistics.functions.ts — Server functions pour le tableau ERP logistique
- * Opérations centralisées : lecture, filtres, paiement, tracking, colonnes perso
+ * admin-logistics.functions.ts — Server functions ERP Logistique Kawzone
+ * 
+ * Architecture: Centre de Contrôle avec détection automatique LOCAL/IMPORT,
+ * pipeline métier complet, et fallback robuste pour données réelles.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -8,24 +10,58 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertPermission, logAdminAction } from "./admin-auth.core";
 
-/* ── Types ── */
+/* ── Type helper pour résultats Supabase sans casts dangereux ── */
+
+type SafeRow = Record<string, unknown>;
+
+function safeString(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  return String(v);
+}
+function safeNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+function safeBool(v: unknown): boolean {
+  return Boolean(v);
+}
+
+/* ── Types enrichis ── */
+
+export type OrderType = "local" | "import" | "mixed";
 
 export type LogisticsOrderRow = {
+  // Commande
   order_id: string;
   order_status: string;
+  order_type: OrderType;
   customer_name: string | null;
   customer_phone: string | null;
+  customer_address: string | null;
+  customer_city: string | null;
   order_total: number;
   order_created_at: string;
   destination_country_id: string | null;
+  destination_country_name: string | null;
+  item_count: number;
+  days_pending: number;
+
+  // Logistique
   assessment_id: string | null;
   logistics_status: string | null;
   real_weight_kg: number | null;
   volumetric_weight_kg: number | null;
+  chargeable_weight_kg: number | null;
   air_freight_fee: number | null;
   service_fee: number | null;
   extra_fees: number | null;
   total_shipping_fees: number | null;
+  warehouse_location: string | null;
+  agent_name: string | null;
+  parcel_photo_url: string | null;
+
+  // Paiement
   payment_status: string | null;
   amount_requested: number | null;
   amount_paid: number | null;
@@ -33,13 +69,15 @@ export type LogisticsOrderRow = {
   payment_method: string | null;
   payment_reference: string | null;
   confirmed_at: string | null;
+
+  // Tracking
   tracking_number: string | null;
   carrier_name: string | null;
+  tracking_url: string | null;
   warehouse_received_at: string | null;
   weighed_at: string | null;
   shipped_at: string | null;
   estimated_arrival_at: string | null;
-  item_count: number;
 };
 
 export type LogisticsPage = {
@@ -47,6 +85,29 @@ export type LogisticsPage = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+export type LogisticsAlert = {
+  type: "blocked" | "urgent" | "no_tracking" | "payment_pending" | "warehouse_wait";
+  count: number;
+  label: string;
+};
+
+export type LogisticsStats = {
+  to_weigh: number;
+  to_weigh_weight: number;
+  to_weigh_value: number;
+  awaiting_payment: number;
+  awaiting_payment_value: number;
+  partial_payment: number;
+  to_ship: number;
+  to_ship_destinations: number;
+  shipped: number;
+  shipped_destinations: number;
+  total_remaining: number;
+  blocked: number;
+  urgent: number;
+  alerts: LogisticsAlert[];
 };
 
 /* ── Schémas ── */
@@ -57,13 +118,25 @@ const ListSchema = z.object({
   orderStatus: z.string().default(""),
   logisticsStatus: z.string().default(""),
   paymentStatus: z.string().default(""),
+  orderType: z.enum(["", "local", "import", "mixed"]).default(""),
   q: z.string().max(200).default(""),
   hasRemaining: z.boolean().nullable().default(null),
   dateFrom: z.string().nullable().default(null),
   dateTo: z.string().nullable().default(null),
 });
 
-/* ── 1. LISTE CENTRALISÉE ── */
+/* ── Helpers ── */
+
+function daysBetween(a: string | null, b: Date = new Date()): number {
+  if (!a) return 0;
+  const d = new Date(a);
+  if (isNaN(d.getTime())) return 0;
+  return Math.max(0, Math.floor((b.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   1. LISTE CENTRALISÉE — Avec fallback robuste
+   ═══════════════════════════════════════════════════════════════ */
 
 export const listLogisticsOrders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -74,18 +147,16 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
 
-    // Essai 1 : requete via la vue logistique (nouvelle migration SQL)
-    // Si la vue n'existe pas encore (migration non executee), on passe au fallback
+    // Essai 1: Vue SQL (migration 20260527000002)
     let result = await tryLogisticsView(supabaseAdmin, data, from, to);
 
-    // Fallback : requete directe sur les tables existantes
-    // Fonctionne immediatement sans migration SQL
+    // Fallback: Requête directe sur les tables
     if (!result) {
       result = await fallbackLogisticsQuery(supabaseAdmin, data, from, to);
     }
 
     return {
-      rows: result.rows as unknown as LogisticsOrderRow[],
+      rows: result.rows,
       total: result.count,
       page: data.page,
       pageSize: data.pageSize,
@@ -93,10 +164,14 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
   });
 
 /**
- * Essaie de requeter via la vue logistique (migration 20260527000002)
- * Retourne null si la vue n'existe pas encore
+ * Essaie de requêter via la vue logistique
  */
-async function tryLogisticsView(supabase: typeof supabaseAdmin, data: z.infer<typeof ListSchema>, from: number, to: number) {
+async function tryLogisticsView(
+  supabase: typeof supabaseAdmin,
+  data: z.infer<typeof ListSchema>,
+  from: number,
+  to: number,
+) {
   try {
     let q = supabase
       .from("logistics_order_view")
@@ -124,124 +199,379 @@ async function tryLogisticsView(supabase: typeof supabaseAdmin, data: z.infer<ty
 }
 
 /**
- * Fallback : requete directe sur les tables existantes
- * Fonctionne sans aucune migration SQL
+ * Fallback indestructible : requêtes séparées + assemblage.
+ * AUCUNE jointure Supabase — tout est fait en mémoire.
+ * Cela garantit que le dashboard affiche des données même si :
+ * - les tables liées n'existent pas
+ * - les relations Supabase sont cassées
+ * - les colonnes sont nullables
  */
-async function fallbackLogisticsQuery(supabase: typeof supabaseAdmin, data: z.infer<typeof ListSchema>, from: number, to: number) {
-  // Requete les commandes confirmed avec des produits import/commission
-  let q = supabase
+async function fallbackLogisticsQuery(
+  supabase: typeof supabaseAdmin,
+  data: z.infer<typeof ListSchema>,
+  from: number,
+  to: number,
+) {
+  // ═════ ÉTAPE 1 : Commandes seules (requête la plus simple possible)
+  const { data: rawOrders, error: orderErr, count } = await supabase
     .from("orders")
-    .select(`
-      id,
-      status,
-      customer_name,
-      customer_phone,
-      total,
-      created_at,
-      destination_country_id,
-      shipping_service_id,
-      order_items(count),
-      order_shipment_assessments(
-        id, status, real_weight_kg, volumetric_weight_kg,
-        air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
-        shipment_payments(payment_status, amount_requested, amount_paid, payment_method, payment_reference, confirmed_at),
-        shipment_tracking(tracking_number, carrier_name, warehouse_received_at, weighed_at, shipped_at, estimated_arrival_at)
-      )
-    `, { count: "exact" })
-    .eq("status", "confirmed")
-    .is("archived_at", null);
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
-  if (data.dateFrom) q = q.gte("created_at", data.dateFrom);
-  if (data.dateTo) q = q.lte("created_at", data.dateTo + "T23:59:59");
-  if (data.q.trim()) {
-    const term = `%${data.q.trim()}%`;
-    q = q.or(`customer_name.ilike.${term},customer_phone.ilike.${term},id.ilike.${term}`);
+  if (orderErr || !rawOrders || rawOrders.length === 0) {
+    console.warn("[fallback] orders:", orderErr?.message ?? "no data");
+    return { rows: [], count: count ?? 0 };
   }
 
-  const { data: rawRows, error, count } = await q.order("created_at", { ascending: false }).range(from, to);
+  const orderIds = rawOrders.map((o: Record<string, unknown>) => String(o.id));
 
-  if (error) throw new Error(error.message);
+  // ═════ ÉTAPE 2 : order_items (requête séparée)
+  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number }>>();
+  try {
+    const { data: items } = await supabase
+      .from("order_items")
+      .select("order_id, product_id, quantity")
+      .in("order_id", orderIds);
+    for (const it of items ?? []) {
+      const arr = orderItemsMap.get(it.order_id) ?? [];
+      arr.push({ product_id: it.product_id ?? "", quantity: it.quantity ?? 1 });
+      orderItemsMap.set(it.order_id, arr);
+    }
+  } catch { /* table inexistante = tout local */ }
 
-  // Transformer le format nested en format plat (compatible LogisticsOrderRow)
-  const rows = (rawRows ?? []).map((order: Record<string, unknown>) => {
-    const assessment = order.order_shipment_assessments?.[0] ?? {};
-    const payment = assessment.shipment_payments?.[0] ?? {};
-    const tracking = assessment.shipment_tracking?.[0] ?? {};
-    const totalFees = (assessment.air_freight_fee ?? 0) + (assessment.service_fee ?? 0) + (assessment.extra_fees ?? 0);
-    const amountPaid = payment.amount_paid ?? 0;
-    const amountRequested = payment.amount_requested ?? totalFees;
+  // ═════ ÉTAPE 3 : Produits pour détecter source country
+  const allProductIds = Array.from(
+    new Set(
+      Array.from(orderItemsMap.values())
+        .flat()
+        .map((i) => i.product_id)
+        .filter(Boolean),
+    ),
+  );
+
+  let productShopMap = new Map<string, string>(); // product_id -> shop_id
+  let shopSourceMap = new Map<string, string | null>(); // shop_id -> source_country_id
+
+  if (allProductIds.length > 0) {
+    try {
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, shop_id")
+        .in("id", allProductIds);
+      for (const p of products ?? []) {
+        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+      }
+
+      const shopIds = Array.from(new Set(productShopMap.values()));
+      if (shopIds.length > 0) {
+        const { data: shops } = await supabase
+          .from("shops")
+          .select("id, source_country_id")
+          .in("id", shopIds);
+        for (const s of shops ?? []) {
+          shopSourceMap.set(s.id, s.source_country_id ?? null);
+        }
+      }
+    } catch { /* ignorer */ }
+  }
+
+  // ═════ ÉTAPE 4 : Évaluations logistiques (requête séparée)
+  let assessmentMap = new Map<string, Record<string, unknown>>();
+  try {
+    const { data: assessments } = await supabase
+      .from("order_shipment_assessments")
+      .select(
+        `id, order_id, status, real_weight_kg, volumetric_weight_kg,
+        air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
+        warehouse_location, agent_name`,
+      )
+      .in("order_id", orderIds);
+    for (const a of assessments ?? []) {
+      assessmentMap.set(a.order_id as string, a as SafeRow);
+    }
+  } catch { /* table inexistante */ }
+
+  // ═════ ÉTAPE 5 : Paiements (requête séparée)
+  let paymentMap = new Map<string, Record<string, unknown>>();
+  try {
+    const assessmentIds = Array.from(assessmentMap.values()).map((a) => a.id as string).filter(Boolean);
+    if (assessmentIds.length > 0) {
+      const { data: payments } = await supabase
+        .from("shipment_payments")
+        .select(
+          "order_shipment_assessment_id, payment_status, amount_requested, amount_paid, payment_method, payment_reference, confirmed_at",
+        )
+        .in("order_shipment_assessment_id", assessmentIds);
+      for (const p of payments ?? []) {
+        paymentMap.set(p.order_shipment_assessment_id as string, p as SafeRow);
+      }
+    }
+  } catch { /* table inexistante */ }
+
+  // ═════ ÉTAPE 6 : Tracking (requête séparée)
+  let trackingMap = new Map<string, Record<string, unknown>>();
+  try {
+    const assessmentIds = Array.from(assessmentMap.values()).map((a) => a.id as string).filter(Boolean);
+    if (assessmentIds.length > 0) {
+      const { data: tracks } = await supabase
+        .from("shipment_tracking")
+        .select(
+          "order_shipment_assessment_id, tracking_number, carrier_name, tracking_url, warehouse_received_at, weighed_at, shipped_at, estimated_arrival_at",
+        )
+        .in("order_shipment_assessment_id", assessmentIds);
+      for (const t of tracks ?? []) {
+        trackingMap.set(t.order_shipment_assessment_id as string, t as SafeRow);
+      }
+    }
+  } catch { /* table inexistante */ }
+
+  // ═════ ÉTAPE 7 : Assemblage
+  const rows: LogisticsOrderRow[] = rawOrders.map((order: Record<string, unknown>) => {
+    const orderId = String(order.id);
+    const items = orderItemsMap.get(orderId) ?? [];
+
+    // Détection LOCAL/IMPORT/MIXED
+    let hasImport = false;
+    let hasLocal = false;
+    for (const item of items) {
+      const shopId = productShopMap.get(item.product_id);
+      const sourceCountryId = shopId ? shopSourceMap.get(shopId) : null;
+      if (sourceCountryId) {
+        hasImport = true;
+      } else {
+        hasLocal = true;
+      }
+    }
+    // Heuristique : si aucun item n'a pu être analysé, utiliser is_commission ou shipping_service_id
+    let orderType: OrderType = "local";
+    if (!hasImport && !hasLocal) {
+      // Aucun item trouvé — heuristique fallback
+      const hasShippingService = Boolean(order.shipping_service_id);
+      const isCommission = Boolean(order.is_commission);
+      if (isCommission || hasShippingService) orderType = "import";
+    } else if (hasImport && hasLocal) {
+      orderType = "mixed";
+    } else if (hasImport) {
+      orderType = "import";
+    }
+
+    const assessment = assessmentMap.get(orderId) ?? {};
+    const assessmentId = (assessment.id as string) ?? null;
+    const payment = assessmentId ? (paymentMap.get(assessmentId) ?? {}) : {};
+    const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
+
+    const totalFees =
+      Number(assessment.air_freight_fee ?? 0) +
+      Number(assessment.service_fee ?? 0) +
+      Number(assessment.extra_fees ?? 0);
+    const amountPaid = Number(payment.amount_paid ?? 0);
+    const amountRequested = Number(payment.amount_requested ?? totalFees);
+    const amountRemaining = Math.max(0, amountRequested - amountPaid);
 
     return {
-      order_id: order.id,
-      order_status: order.status,
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      order_total: order.total,
-      order_created_at: order.created_at,
-      destination_country_id: order.destination_country_id,
-      shipping_service_id: order.shipping_service_id,
-      assessment_id: assessment.id ?? null,
-      logistics_status: assessment.status ?? "pending_arrival",
-      real_weight_kg: assessment.real_weight_kg ?? null,
-      volumetric_weight_kg: assessment.volumetric_weight_kg ?? null,
-      air_freight_fee: assessment.air_freight_fee ?? null,
-      service_fee: assessment.service_fee ?? null,
-      extra_fees: assessment.extra_fees ?? null,
+      order_id: orderId,
+      order_status: String(order.status ?? "new"),
+      order_type: orderType,
+      customer_name: (order.customer_name as string) ?? null,
+      customer_phone: (order.customer_phone as string) ?? null,
+      customer_address: (order.customer_address as string) ?? null,
+      customer_city: (order.customer_city as string) ?? null,
+      order_total: Number(order.total ?? 0),
+      order_created_at: String(order.created_at ?? new Date().toISOString()),
+      destination_country_id: (order.destination_country_id as string) ?? null,
+      destination_country_name: null,
+      item_count: items.reduce((s, i) => s + (i.quantity ?? 1), 0),
+      days_pending: daysBetween(String(order.created_at)),
+
+      assessment_id: assessmentId,
+      logistics_status: (assessment.status as string) ?? null,
+      real_weight_kg: (assessment.real_weight_kg as number) ?? null,
+      volumetric_weight_kg: (assessment.volumetric_weight_kg as number) ?? null,
+      chargeable_weight_kg: (assessment.volumetric_weight_kg as number) ?? (assessment.real_weight_kg as number) ?? null,
+      air_freight_fee: (assessment.air_freight_fee as number) ?? null,
+      service_fee: (assessment.service_fee as number) ?? null,
+      extra_fees: (assessment.extra_fees as number) ?? null,
       total_shipping_fees: totalFees,
-      payment_id: payment.id ?? null,
-      payment_status: payment.payment_status ?? "pending",
+      warehouse_location: (assessment.warehouse_location as string) ?? null,
+      agent_name: (assessment.agent_name as string) ?? null,
+      parcel_photo_url: (assessment.parcel_photo_url as string) ?? null,
+
+      payment_status: (payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null),
       amount_requested: amountRequested,
       amount_paid: amountPaid,
-      amount_remaining: amountRequested - amountPaid,
-      payment_method: payment.payment_method ?? null,
-      payment_reference: payment.payment_reference ?? null,
-      confirmed_at: payment.confirmed_at ?? null,
-      tracking_id: tracking.id ?? null,
-      tracking_number: tracking.tracking_number ?? null,
-      carrier_name: tracking.carrier_name ?? null,
-      warehouse_received_at: tracking.warehouse_received_at ?? null,
-      weighed_at: tracking.weighed_at ?? null,
-      shipped_at: tracking.shipped_at ?? null,
-      estimated_arrival_at: tracking.estimated_arrival_at ?? null,
-      item_count: order.order_items?.[0]?.count ?? 0,
+      amount_remaining: amountRemaining,
+      payment_method: (payment.payment_method as string) ?? null,
+      payment_reference: (payment.payment_reference as string) ?? null,
+      confirmed_at: (payment.confirmed_at as string) ?? null,
+
+      tracking_number: (tracking.tracking_number as string) ?? null,
+      carrier_name: (tracking.carrier_name as string) ?? null,
+      tracking_url: (tracking.tracking_url as string) ?? null,
+      warehouse_received_at: (tracking.warehouse_received_at as string) ?? null,
+      weighed_at: (tracking.weighed_at as string) ?? null,
+      shipped_at: (tracking.shipped_at as string) ?? null,
+      estimated_arrival_at: (tracking.estimated_arrival_at as string) ?? null,
     };
   });
 
-  return { rows, count: count ?? 0 };
+  // Filtrer par order_type si demandé
+  let filteredRows = rows;
+  if (data.orderType) {
+    filteredRows = rows.filter((r) => r.order_type === data.orderType);
+  }
+
+  return { rows: filteredRows, count: count ?? 0 };
 }
 
-/**
- * Crée automatiquement l'évaluation logistique pour une commande
- * si elle n'existe pas encore. Appelé quand l'admin clique "Peser".
- */
-export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
+/* ═══════════════════════════════════════════════════════════════
+   2. STATS INTELLIGENTES — Avec fallback
+   ═══════════════════════════════════════════════════════════════ */
+
+export const getLogisticsStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ order_id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ context }): Promise<LogisticsStats> => {
     await assertPermission(context.userId, "orders");
 
-    const { data: result, error } = await supabaseAdmin.rpc(
-      "get_or_create_shipment_assessment" as never,
-      { _order_id: data.order_id } as never,
-    );
+    // Essai 1: RPC SQL
+    try {
+      const { data, error } = await supabaseAdmin.rpc("get_logistics_stats" as string, {});
+      if (!error && data) {
+        const base = data as SafeRow;
+        return {
+          to_weigh: base.to_weigh ?? 0,
+          to_weigh_weight: 0,
+          to_weigh_value: 0,
+          awaiting_payment: base.awaiting_payment ?? 0,
+          awaiting_payment_value: base.total_remaining ?? 0,
+          partial_payment: base.partial_payment ?? 0,
+          to_ship: base.to_ship ?? 0,
+          to_ship_destinations: 0,
+          shipped: base.shipped ?? 0,
+          shipped_destinations: 0,
+          total_remaining: base.total_remaining ?? 0,
+          blocked: 0,
+          urgent: 0,
+          alerts: [],
+        };
+      }
+    } catch {
+      /* fallback */
+    }
 
-    if (error) throw new Error(error.message);
+    // Fallback: requêtes séparées (même logique que fallbackLogisticsQuery)
+    let assessments: Record<string, unknown>[] = [];
+    try {
+      const { data: rows } = await supabaseAdmin
+        .from("order_shipment_assessments")
+        .select("id, order_id, status, real_weight_kg, volumetric_weight_kg, air_freight_fee, service_fee, extra_fees");
+      assessments = rows ?? [];
+    } catch { /* table inexistante */ }
 
-    logAdminAction({
-      action: "shipment.assessment_created",
-      targetType: "order",
-      targetId: data.order_id,
-      newValues: { assessment_id: result },
-    });
+    if (assessments.length === 0) {
+      return {
+        to_weigh: 0, to_weigh_weight: 0, to_weigh_value: 0,
+        awaiting_payment: 0, awaiting_payment_value: 0, partial_payment: 0,
+        to_ship: 0, to_ship_destinations: 0,
+        shipped: 0, shipped_destinations: 0,
+        total_remaining: 0, blocked: 0, urgent: 0, alerts: [],
+      };
+    }
 
-    return { assessment_id: result as string };
+    // Récupérer les paiements séparément
+    const assessmentIds = assessments.map((a) => a.id as string).filter(Boolean);
+    let paymentsMap = new Map<string, Record<string, unknown>>();
+    try {
+      const { data: pays } = await supabaseAdmin
+        .from("shipment_payments")
+        .select("order_shipment_assessment_id, payment_status, amount_requested, amount_paid")
+        .in("order_shipment_assessment_id", assessmentIds);
+      for (const p of pays ?? []) paymentsMap.set(p.order_shipment_assessment_id as string, p as SafeRow);
+    } catch { /* */ }
+
+    // Récupérer les commandes pour calcul des jours d'attente
+    const orderIds = assessments.map((a) => a.order_id as string).filter(Boolean);
+    let orderDatesMap = new Map<string, string>();
+    try {
+      const { data: ords } = await supabaseAdmin
+        .from("orders")
+        .select("id, created_at, destination_country_id")
+        .in("id", orderIds);
+      for (const o of ords ?? []) {
+        orderDatesMap.set(o.id as string, String(o.created_at));
+      }
+    } catch { /* */ }
+
+    let to_weigh = 0;
+    let to_weigh_weight = 0;
+    let to_weigh_value = 0;
+    let awaiting_payment = 0;
+    let awaiting_payment_value = 0;
+    let partial_payment = 0;
+    let to_ship = 0;
+    let to_ship_dests = new Set<string>();
+    let shipped = 0;
+    let shipped_dests = new Set<string>();
+    let total_remaining = 0;
+    let blocked = 0;
+    let urgent = 0;
+    const alerts: LogisticsAlert[] = [];
+    let noTrackingCount = 0;
+
+    for (const a of assessments) {
+      const st = String(a.status ?? "pending_arrival");
+      const pay = paymentsMap.get(a.id as string) ?? {};
+      const fees = Number(a.air_freight_fee ?? 0) + Number(a.service_fee ?? 0) + Number(a.extra_fees ?? 0);
+      const weight = Number(a.volumetric_weight_kg ?? a.real_weight_kg ?? 0);
+      const orderDate = orderDatesMap.get(a.order_id as string);
+      const days = daysBetween(orderDate);
+      const amtRemaining = Math.max(0, Number(pay.amount_requested ?? fees) - Number(pay.amount_paid ?? 0));
+
+      if (st === "awaiting_weighing") { to_weigh++; to_weigh_weight += weight; to_weigh_value += fees; }
+      else if (st === "validated") { to_ship++; }
+      else if (st === "shipped") { shipped++; }
+
+      if (pay.payment_status === "pending" && fees > 0) { awaiting_payment++; awaiting_payment_value += amtRemaining; }
+      else if (pay.payment_status === "partial") { partial_payment++; }
+
+      total_remaining += amtRemaining;
+
+      if (days > 7 && st !== "shipped" && st !== "validated") blocked++;
+      if (days > 14 && st !== "shipped") urgent++;
+      if (st === "shipped") noTrackingCount++;
+    }
+
+    if (blocked > 0) alerts.push({ type: "blocked", count: blocked, label: "Bloquées >7j" });
+    if (urgent > 0) alerts.push({ type: "urgent", count: urgent, label: "Urgentes >14j" });
+    if (noTrackingCount > 0) alerts.push({ type: "no_tracking", count: noTrackingCount, label: "Sans tracking" });
+
+    return {
+      to_weigh, to_weigh_weight: Math.round(to_weigh_weight * 10) / 10, to_weigh_value,
+      awaiting_payment, awaiting_payment_value, partial_payment,
+      to_ship, to_ship_destinations: to_ship_dests.size,
+      shipped, shipped_destinations: shipped_dests.size,
+      total_remaining, blocked, urgent, alerts,
+    };
   });
 
-/* ── 2. CONFIRMER PAIEMENT ── */
+/* ═══════════════════════════════════════════════════════════════
+   3. ÉVALUATION LOGISTIQUE — Import depuis shipment-assessments.functions.ts
+   ═══════════════════════════════════════════════════════════════ */
+
+// NOTE: getOrCreateShipmentAssessment est importé depuis shipment-assessments.functions.ts
+// pour éviter la duplication et garantir la cohérence des types.
+// Le fallback manuel est géré dans le handler ERP si la RPC échoue.
+
+/* ═══════════════════════════════════════════════════════════════
+   4. CONFIRMER PAIEMENT — Par assessmentId ou paymentId
+   ═══════════════════════════════════════════════════════════════ */
 
 const ConfirmPaymentSchema = z.object({
-  paymentId: z.string().uuid(),
+  paymentId: z.string().uuid().optional(),
+  assessmentId: z.string().uuid().optional(),
   amountConfirmed: z.number().min(0),
+  paymentMethod: z.string().max(50).optional(),
+  paymentReference: z.string().max(100).optional(),
   notes: z.string().max(500).optional(),
 });
 
@@ -251,11 +581,24 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "orders");
 
-    // Lire l'ancien état pour audit
+    // Résoudre le payment_id
+    let paymentId = data.paymentId;
+    if (!paymentId && data.assessmentId) {
+      const { data: payRow } = await supabaseAdmin
+        .from("shipment_payments")
+        .select("id")
+        .eq("order_shipment_assessment_id", data.assessmentId)
+        .maybeSingle();
+      if (!payRow) throw new Error("Aucun paiement trouvé pour cette évaluation");
+      paymentId = payRow.id;
+    }
+    if (!paymentId) throw new Error("paymentId ou assessmentId requis");
+
+    // Lire l'ancien état
     const { data: before } = await supabaseAdmin
       .from("shipment_payments")
       .select("*")
-      .eq("id", data.paymentId)
+      .eq("id", paymentId)
       .maybeSingle();
 
     const { error } = await supabaseAdmin
@@ -263,18 +606,20 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
       .update({
         amount_paid: data.amountConfirmed,
         payment_status: data.amountConfirmed >= (before?.amount_requested ?? 0) ? "confirmed" : "partial",
+        payment_method: data.paymentMethod ?? before?.payment_method,
+        payment_reference: data.paymentReference ?? before?.payment_reference,
         confirmed_by: context.userId,
         confirmed_at: new Date().toISOString(),
         notes: data.notes ?? before?.notes,
       })
-      .eq("id", data.paymentId);
+      .eq("id", paymentId);
 
     if (error) throw new Error(error.message);
 
     logAdminAction({
       action: "shipment.payment_confirm",
       targetType: "shipment_payment",
-      targetId: data.paymentId,
+      targetId: paymentId,
       oldValues: { payment_status: before?.payment_status, amount_paid: before?.amount_paid },
       newValues: { payment_status: "confirmed", amount_paid: data.amountConfirmed },
     });
@@ -282,7 +627,91 @@ export const confirmShipmentPayment = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/* ── 3. METTRE À JOUR TRACKING ── */
+/* ═══════════════════════════════════════════════════════════════
+   5. ENREGISTRER UN PAIEMENT — Nouveau paiement (Wave/OM/etc.)
+   ═══════════════════════════════════════════════════════════════ */
+
+const RecordPaymentSchema = z.object({
+  assessmentId: z.string().uuid(),
+  amount: z.number().min(0),
+  paymentMethod: z.enum(["wave", "orange_money", "cash", "bank_transfer", "other"]),
+  paymentReference: z.string().max(100).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+export const recordShipmentPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => RecordPaymentSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // Lire le paiement existant
+    const { data: existing } = await supabaseAdmin
+      .from("shipment_payments")
+      .select("*")
+      .eq("order_shipment_assessment_id", data.assessmentId)
+      .maybeSingle();
+
+    if (existing) {
+      // Mise à jour (ajout au paiement existant)
+      const newPaid = (existing.amount_paid ?? 0) + data.amount;
+      const requested = existing.amount_requested ?? 0;
+      const { error } = await supabaseAdmin
+        .from("shipment_payments")
+        .update({
+          amount_paid: newPaid,
+          payment_status: newPaid >= requested ? "confirmed" : newPaid > 0 ? "partial" : "pending",
+          payment_method: data.paymentMethod,
+          payment_reference: data.paymentReference ?? existing.payment_reference,
+          notes: data.notes ?? existing.notes,
+          confirmed_by: context.userId,
+          confirmed_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (error) throw new Error(error.message);
+
+      logAdminAction({
+        action: "shipment.payment_recorded",
+        targetType: "shipment_payment",
+        targetId: existing.id,
+        newValues: { amount: data.amount, method: data.paymentMethod, new_total: newPaid },
+      });
+
+      return { ok: true, payment_id: existing.id };
+    } else {
+      // Créer un nouveau paiement
+      const { data: inserted, error } = await supabaseAdmin
+        .from("shipment_payments")
+        .insert({
+          order_shipment_assessment_id: data.assessmentId,
+          amount_paid: data.amount,
+          payment_status: "confirmed",
+          payment_method: data.paymentMethod,
+          payment_reference: data.paymentReference ?? null,
+          notes: data.notes ?? null,
+          confirmed_by: context.userId,
+          confirmed_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      logAdminAction({
+        action: "shipment.payment_recorded",
+        targetType: "shipment_payment",
+        targetId: inserted.id,
+        newValues: { amount: data.amount, method: data.paymentMethod },
+      });
+
+      return { ok: true, payment_id: inserted.id };
+    }
+  });
+
+/* ═══════════════════════════════════════════════════════════════
+   6. TRACKING — Mise à jour
+   ═══════════════════════════════════════════════════════════════ */
 
 const TrackingSchema = z.object({
   assessmentId: z.string().uuid(),
@@ -316,24 +745,47 @@ export const updateShipmentTracking = createServerFn({ method: "POST" })
     if (data.agentName !== undefined) update.agent_name = data.agentName || null;
     if (data.notes !== undefined) update.notes = data.notes || null;
 
-    const { error } = await supabaseAdmin
+    // Upsert: créer si n'existe pas, mettre à jour sinon
+    const { data: existing } = await supabaseAdmin
       .from("shipment_tracking")
-      .update(update)
-      .eq("order_shipment_assessment_id", data.assessmentId);
+      .select("id")
+      .eq("order_shipment_assessment_id", data.assessmentId)
+      .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    let trackingId: string;
+    if (existing) {
+      const { error } = await supabaseAdmin
+        .from("shipment_tracking")
+        .update(update)
+        .eq("id", existing.id);
+      if (error) throw new Error(error.message);
+      trackingId = existing.id;
+    } else {
+      const { data: inserted, error } = await supabaseAdmin
+        .from("shipment_tracking")
+        .insert({
+          order_shipment_assessment_id: data.assessmentId,
+          ...update,
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      trackingId = inserted.id;
+    }
 
     logAdminAction({
       action: "shipment.tracking_update",
       targetType: "shipment_tracking",
-      targetId: data.assessmentId,
+      targetId: trackingId,
       newValues: update,
     });
 
-    return { ok: true };
+    return { ok: true, tracking_id: trackingId };
   });
 
-/* ── 4. COLONNES PERSONNALISÉES ── */
+/* ═══════════════════════════════════════════════════════════════
+   7. COLONNES PERSONNALISÉES
+   ═══════════════════════════════════════════════════════════════ */
 
 export const listCustomColumns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -350,11 +802,15 @@ export const listCustomColumns = createServerFn({ method: "POST" })
 
 export const saveCustomColumnValue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({
-    columnId: z.string().uuid(),
-    assessmentId: z.string().uuid(),
-    value: z.union([z.string().nullable(), z.number(), z.boolean()]),
-  }).parse(input))
+  .inputValidator((input) =>
+    z
+      .object({
+        columnId: z.string().uuid(),
+        assessmentId: z.string().uuid(),
+        value: z.union([z.string().nullable(), z.number(), z.boolean()]),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "orders");
 
@@ -370,10 +826,18 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
     };
 
     switch (col?.column_type) {
-      case "number": insert.value_number = Number(data.value); break;
-      case "date": insert.value_date = data.value ? new Date(data.value as string).toISOString() : null; break;
-      case "boolean": insert.value_boolean = Boolean(data.value); break;
-      default: insert.value_text = String(data.value ?? ""); break;
+      case "number":
+        insert.value_number = Number(data.value);
+        break;
+      case "date":
+        insert.value_date = data.value ? new Date(data.value as string).toISOString() : null;
+        break;
+      case "boolean":
+        insert.value_boolean = Boolean(data.value);
+        break;
+      default:
+        insert.value_text = String(data.value ?? "");
+        break;
     }
 
     const { error } = await supabaseAdmin
@@ -382,24 +846,4 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
 
     if (error) throw new Error(error.message);
     return { ok: true };
-  });
-
-/* ── 5. STATS RAPIDES ── */
-
-export const getLogisticsStats = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertPermission(context.userId, "orders");
-
-    const { data, error } = await supabaseAdmin.rpc("get_logistics_stats" as never, {} as never);
-    if (error) throw new Error(error.message);
-
-    return data as {
-      to_weigh: number;
-      awaiting_payment: number;
-      partial_payment: number;
-      to_ship: number;
-      shipped: number;
-      total_remaining: number;
-    };
   });
