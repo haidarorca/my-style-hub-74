@@ -1087,7 +1087,9 @@ function SB({ config }: { config?: { label: string; color: string } | null }) {
 
 function OrderTypeBadge({ type, size = "default" }: { type?: OrderType | string | null; size?: "default" | "sm" }) {
   const safeType = safeOrderType(type);
-  const config = ORDER_TYPE_CONFIG[safeType];
+  const config = ORDER_TYPE_CONFIG[safeType] ?? {
+    label: "?", color: "bg-gray-100 text-gray-500 border-gray-300", icon: Package,
+  };
   const Icon = config.icon;
   return (
     <span className={cn("inline-flex items-center gap-0.5 rounded-full border font-medium", config.color, size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]")}>
