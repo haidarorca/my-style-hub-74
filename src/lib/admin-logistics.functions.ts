@@ -74,38 +74,141 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
 
-    // La vue inclut maintenant TOUTES les commandes confirmed
-    // avec has_import_items pour filtrer uniquement les commandes logistiques
-    let q = supabaseAdmin
+    // Essai 1 : requete via la vue logistique (nouvelle migration SQL)
+    // Si la vue n'existe pas encore (migration non executee), on passe au fallback
+    let result = await tryLogisticsView(supabaseAdmin, data, from, to);
+
+    // Fallback : requete directe sur les tables existantes
+    // Fonctionne immediatement sans migration SQL
+    if (!result) {
+      result = await fallbackLogisticsQuery(supabaseAdmin, data, from, to);
+    }
+
+    return {
+      rows: result.rows as unknown as LogisticsOrderRow[],
+      total: result.count,
+      page: data.page,
+      pageSize: data.pageSize,
+    };
+  });
+
+/**
+ * Essaie de requeter via la vue logistique (migration 20260527000002)
+ * Retourne null si la vue n'existe pas encore
+ */
+async function tryLogisticsView(supabase: typeof supabaseAdmin, data: z.infer<typeof ListSchema>, from: number, to: number) {
+  try {
+    let q = supabase
       .from("logistics_order_view")
-      .select("*", { count: "exact" })
+      .select("*", { count: "exact", head: false })
       .eq("has_import_items", true)
       .order("order_created_at", { ascending: false });
 
-    // Filtres
     if (data.orderStatus) q = q.eq("order_status", data.orderStatus);
     if (data.logisticsStatus) q = q.eq("logistics_status", data.logisticsStatus);
     if (data.paymentStatus) q = q.eq("payment_status", data.paymentStatus);
     if (data.hasRemaining === true) q = q.gt("amount_remaining", 0);
-    if (data.hasRemaining === false) q = q.lte("amount_remaining", 0);
     if (data.dateFrom) q = q.gte("order_created_at", data.dateFrom);
     if (data.dateTo) q = q.lte("order_created_at", data.dateTo + "T23:59:59");
-
     if (data.q.trim()) {
       const term = `%${data.q.trim()}%`;
       q = q.or(`customer_name.ilike.${term},customer_phone.ilike.${term},order_id.ilike.${term},tracking_number.ilike.${term}`);
     }
 
     const { data: rows, error, count } = await q.range(from, to);
-    if (error) throw new Error(error.message);
+    if (error) return null;
+    return { rows: rows ?? [], count: count ?? 0 };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fallback : requete directe sur les tables existantes
+ * Fonctionne sans aucune migration SQL
+ */
+async function fallbackLogisticsQuery(supabase: typeof supabaseAdmin, data: z.infer<typeof ListSchema>, from: number, to: number) {
+  // Requete les commandes confirmed avec des produits import/commission
+  let q = supabase
+    .from("orders")
+    .select(`
+      id,
+      status,
+      customer_name,
+      customer_phone,
+      total,
+      created_at,
+      destination_country_id,
+      shipping_service_id,
+      order_items(count),
+      order_shipment_assessments(
+        id, status, real_weight_kg, volumetric_weight_kg,
+        air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
+        shipment_payments(payment_status, amount_requested, amount_paid, payment_method, payment_reference, confirmed_at),
+        shipment_tracking(tracking_number, carrier_name, warehouse_received_at, weighed_at, shipped_at, estimated_arrival_at)
+      )
+    `, { count: "exact" })
+    .eq("status", "confirmed")
+    .is("archived_at", null);
+
+  if (data.dateFrom) q = q.gte("created_at", data.dateFrom);
+  if (data.dateTo) q = q.lte("created_at", data.dateTo + "T23:59:59");
+  if (data.q.trim()) {
+    const term = `%${data.q.trim()}%`;
+    q = q.or(`customer_name.ilike.${term},customer_phone.ilike.${term},id.ilike.${term}`);
+  }
+
+  const { data: rawRows, error, count } = await q.order("created_at", { ascending: false }).range(from, to);
+
+  if (error) throw new Error(error.message);
+
+  // Transformer le format nested en format plat (compatible LogisticsOrderRow)
+  const rows = (rawRows ?? []).map((order: Record<string, unknown>) => {
+    const assessment = order.order_shipment_assessments?.[0] ?? {};
+    const payment = assessment.shipment_payments?.[0] ?? {};
+    const tracking = assessment.shipment_tracking?.[0] ?? {};
+    const totalFees = (assessment.air_freight_fee ?? 0) + (assessment.service_fee ?? 0) + (assessment.extra_fees ?? 0);
+    const amountPaid = payment.amount_paid ?? 0;
+    const amountRequested = payment.amount_requested ?? totalFees;
 
     return {
-      rows: (rows ?? []) as unknown as LogisticsOrderRow[],
-      total: count ?? 0,
-      page: data.page,
-      pageSize: data.pageSize,
+      order_id: order.id,
+      order_status: order.status,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+      order_total: order.total,
+      order_created_at: order.created_at,
+      destination_country_id: order.destination_country_id,
+      shipping_service_id: order.shipping_service_id,
+      assessment_id: assessment.id ?? null,
+      logistics_status: assessment.status ?? "pending_arrival",
+      real_weight_kg: assessment.real_weight_kg ?? null,
+      volumetric_weight_kg: assessment.volumetric_weight_kg ?? null,
+      air_freight_fee: assessment.air_freight_fee ?? null,
+      service_fee: assessment.service_fee ?? null,
+      extra_fees: assessment.extra_fees ?? null,
+      total_shipping_fees: totalFees,
+      payment_id: payment.id ?? null,
+      payment_status: payment.payment_status ?? "pending",
+      amount_requested: amountRequested,
+      amount_paid: amountPaid,
+      amount_remaining: amountRequested - amountPaid,
+      payment_method: payment.payment_method ?? null,
+      payment_reference: payment.payment_reference ?? null,
+      confirmed_at: payment.confirmed_at ?? null,
+      tracking_id: tracking.id ?? null,
+      tracking_number: tracking.tracking_number ?? null,
+      carrier_name: tracking.carrier_name ?? null,
+      warehouse_received_at: tracking.warehouse_received_at ?? null,
+      weighed_at: tracking.weighed_at ?? null,
+      shipped_at: tracking.shipped_at ?? null,
+      estimated_arrival_at: tracking.estimated_arrival_at ?? null,
+      item_count: order.order_items?.[0]?.count ?? 0,
     };
   });
+
+  return { rows, count: count ?? 0 };
+}
 
 /**
  * Crée automatiquement l'évaluation logistique pour une commande
