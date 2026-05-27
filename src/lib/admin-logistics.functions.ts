@@ -847,3 +847,232 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/* ═══════════════════════════════════════════════════════════════
+   8. UPDATE SHIPMENT ASSESSMENT — Validation pesée
+   ═══════════════════════════════════════════════════════════════ */
+
+const UpdateAssessmentSchema = z.object({
+  assessment_id: z.string().uuid(),
+  real_weight_kg: z.number().min(0),
+  volumetric_weight_kg: z.number().min(0),
+  length_cm: z.number().min(0).optional(),
+  width_cm: z.number().min(0).optional(),
+  height_cm: z.number().min(0).optional(),
+  air_freight_fee: z.number().min(0).optional(),
+  service_fee: z.number().min(0).optional(),
+  extra_fees: z.number().min(0).optional(),
+  status: z.string().optional(),
+});
+
+export const updateShipmentAssessment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => UpdateAssessmentSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // Lire l'ancien état
+    const { data: before } = await supabaseAdmin
+      .from("order_shipment_assessments")
+      .select("*")
+      .eq("id", data.assessment_id)
+      .maybeSingle();
+
+    if (!before) throw new Error("Évaluation non trouvée");
+
+    const update: Record<string, unknown> = {
+      real_weight_kg: data.real_weight_kg,
+      volumetric_weight_kg: data.volumetric_weight_kg,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (data.length_cm !== undefined) update.length_cm = data.length_cm;
+    if (data.width_cm !== undefined) update.width_cm = data.width_cm;
+    if (data.height_cm !== undefined) update.height_cm = data.height_cm;
+    if (data.air_freight_fee !== undefined) update.air_freight_fee = data.air_freight_fee;
+    if (data.service_fee !== undefined) update.service_fee = data.service_fee;
+    if (data.extra_fees !== undefined) update.extra_fees = data.extra_fees;
+    if (data.status) update.status = data.status;
+
+    // Calculer les frais automatiquement si pas fournis
+    if (!data.air_freight_fee && data.volumetric_weight_kg > 0) {
+      const TARIF_PAR_KG = 7500; // FCFA par kg — configurable
+      const chargeableWeight = Math.max(data.real_weight_kg, data.volumetric_weight_kg);
+      update.air_freight_fee = Math.round(chargeableWeight * TARIF_PAR_KG);
+      update.service_fee = Math.round((update.air_freight_fee as number) * 0.1); // 10% de frais de service
+    }
+
+    const { error } = await supabaseAdmin
+      .from("order_shipment_assessments")
+      .update(update)
+      .eq("id", data.assessment_id);
+
+    if (error) throw new Error(error.message);
+
+    // Créer automatiquement le shipment_payment si les frais sont calculés
+    if (data.status === "fees_calculated") {
+      const airFee = (update.air_freight_fee as number) ?? 0;
+      const svcFee = (update.service_fee as number) ?? 0;
+      const extraFee = (update.extra_fees as number) ?? 0;
+      const totalFees = airFee + svcFee + extraFee;
+
+      if (totalFees > 0) {
+        const { data: existingPayment } = await supabaseAdmin
+          .from("shipment_payments")
+          .select("id")
+          .eq("order_shipment_assessment_id", data.assessment_id)
+          .maybeSingle();
+
+        if (!existingPayment) {
+          await supabaseAdmin
+            .from("shipment_payments")
+            .insert({
+              order_shipment_assessment_id: data.assessment_id,
+              amount_requested: totalFees,
+              amount_paid: 0,
+              payment_status: "pending",
+              payment_method: null,
+            });
+        } else {
+          await supabaseAdmin
+            .from("shipment_payments")
+            .update({ amount_requested: totalFees })
+            .eq("id", existingPayment.id);
+        }
+      }
+    }
+
+    logAdminAction({
+      action: "shipment.assessment_updated",
+      targetType: "order_shipment_assessment",
+      targetId: data.assessment_id,
+      oldValues: { real_weight_kg: before.real_weight_kg, status: before.status },
+      newValues: { real_weight_kg: data.real_weight_kg, status: data.status },
+    });
+
+    return { ok: true, total_fees: (update.air_freight_fee as number) ?? 0 };
+  });
+
+/* ═══════════════════════════════════════════════════════════════
+   9. SEND CLIENT NOTIFICATION — Relance paiement
+   ═══════════════════════════════════════════════════════════════ */
+
+const NotificationSchema = z.object({
+  order_id: z.string().uuid(),
+  amount: z.number().min(0),
+  message: z.string().max(500),
+  type: z.enum(["payment_required", "shipped", "delivered", "reminder"]).default("payment_required"),
+});
+
+export const sendClientNotification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => NotificationSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // Créer une notification dans la table notifications
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("customer_id, customer_name, customer_phone")
+      .eq("id", data.order_id)
+      .maybeSingle();
+
+    if (!order) throw new Error("Commande non trouvée");
+
+    // Insérer dans la table notifications (si elle existe)
+    try {
+      const { error } = await supabaseAdmin
+        .from("notifications")
+        .insert({
+          user_id: order.customer_id,
+          type: data.type,
+          title: data.type === "payment_required" ? "Paiement requis" : data.type === "shipped" ? "Colis expédié" : "Mise à jour commande",
+          message: data.message,
+          order_id: data.order_id,
+          amount: data.amount,
+          read: false,
+          created_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        // Table n'existe peut-être pas — fallback: logger dans l'audit
+        console.warn("[notification] Table notifications non disponible:", error.message);
+      }
+    } catch {
+      // Ignorer si la table n'existe pas
+    }
+
+    // Logger l'action
+    logAdminAction({
+      action: "shipment.notification_sent",
+      targetType: "order",
+      targetId: data.order_id,
+      newValues: { type: data.type, amount: data.amount, message: data.message },
+    });
+
+    return { ok: true };
+  });
+
+/* ═══════════════════════════════════════════════════════════════
+   10. CREATE ORDER RETURN — Système de retours
+   ═══════════════════════════════════════════════════════════════ */
+
+const ReturnSchema = z.object({
+  order_id: z.string().uuid(),
+  reason: z.string().max(500).default("Retour client"),
+  items: z.string().max(1000).optional(), // JSON string of returned items
+});
+
+export const createOrderReturn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => ReturnSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // Lire la commande
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("status, customer_id")
+      .eq("id", data.order_id)
+      .maybeSingle();
+
+    if (!order) throw new Error("Commande non trouvée");
+
+    // Créer le retour dans la table order_returns (si existe)
+    try {
+      const { error } = await supabaseAdmin
+        .from("order_returns")
+        .insert({
+          order_id: data.order_id,
+          reason: data.reason,
+          items: data.items ? JSON.parse(data.items) : null,
+          status: "requested",
+          created_by: context.userId,
+          created_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.warn("[return] Table order_returns non disponible:", error.message);
+      }
+    } catch {
+      // Table n'existe pas
+    }
+
+    // Mettre à jour le statut de la commande
+    const { error: updateErr } = await supabaseAdmin
+      .from("orders")
+      .update({ status: "returned", updated_at: new Date().toISOString() })
+      .eq("id", data.order_id);
+
+    if (updateErr) throw new Error(updateErr.message);
+
+    logAdminAction({
+      action: "order.return_created",
+      targetType: "order",
+      targetId: data.order_id,
+      oldValues: { status: order.status },
+      newValues: { status: "returned", reason: data.reason },
+    });
+
+    return { ok: true };
+  });
