@@ -126,7 +126,7 @@ function AdminLayout() {
   const activeGroup = visibleGroups.find((g) => g.items.some(isActive)) ?? visibleGroups[0];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-muted/40 via-muted/20 to-background">
+    <div className="admin-premium min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-xl pt-safe">
         {/* Top bar */}
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3">
