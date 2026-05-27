@@ -687,9 +687,9 @@ function LogisticsControlCenter() {
 
               {/* Statuts */}
               <div className="flex flex-wrap gap-2">
-                {detailRow.order_status && <SB config={ORDER_S[detailRow.order_status]} />}
-                {detailRow.logistics_status && <SB config={LOG_S[detailRow.logistics_status]} />}
-                {detailRow.payment_status && <SB config={PAY_S[detailRow.payment_status]} />}
+                {detailRow.order_status && <SB config={safeOrderStatus(detailRow.order_status)} />}
+                {detailRow.logistics_status && <SB config={safeLogStatus(detailRow.logistics_status)} />}
+                {detailRow.payment_status && <SB config={safePayStatus(detailRow.payment_status)} />}
               </div>
 
               {/* Financier */}
@@ -872,12 +872,12 @@ function DesktopRow({ row, onView }: { row: LogisticsOrderRow; onView: () => voi
       </td>
 
       {/* Statut commande */}
-      <td className="px-2 py-1.5">{row.order_status && <SB config={ORDER_S[row.order_status]} />}</td>
+      <td className="px-2 py-1.5">{row.order_status && <SB config={safeOrderStatus(row.order_status)} />}</td>
 
       {/* Statut logistique */}
       <td className="px-2 py-1.5">
         {row.assessment_id ? (
-          row.logistics_status && <SB config={LOG_S[row.logistics_status]} />
+          row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />
         ) : (
           <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">
             À créer
@@ -888,7 +888,7 @@ function DesktopRow({ row, onView }: { row: LogisticsOrderRow; onView: () => voi
       {/* Paiement */}
       <td className="px-2 py-1.5">
         {row.payment_status && row.total_shipping_fees ? (
-          <SB config={PAY_S[row.payment_status]} />
+          <SB config={safePayStatus(row.payment_status)} />
         ) : (
           <span className="text-gray-400">—</span>
         )}
@@ -979,8 +979,8 @@ function MobileLogisticsCard({
           <p className="text-[10px] text-muted-foreground">{row.customer_phone}</p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          {row.order_status && <SB config={ORDER_S[row.order_status]} />}
-          {row.logistics_status && <SB config={LOG_S[row.logistics_status]} />}
+          {row.order_status && <SB config={safeOrderStatus(row.order_status)} />}
+          {row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />}
         </div>
       </div>
 
@@ -1056,39 +1056,41 @@ function MobileLogisticsCard({
 }
 
 /* ═══════════════════════════════════════════════════════════
-   HELPERS COMPONENTS
+   SAFE CONFIG LOOKUPS — Jamais de crash runtime
    ═══════════════════════════════════════════════════════════ */
 
-function SB({ config }: { config: { label: string; color: string } }) {
+function safeOrderStatus(status: string | null | undefined) {
+  return ORDER_S[status ?? ""] ?? { label: status ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
+}
+function safeLogStatus(status: string | null | undefined) {
+  return LOG_S[status ?? ""] ?? { label: status ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
+}
+function safePayStatus(status: string | null | undefined) {
+  return PAY_S[status ?? ""] ?? { label: status ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
+}
+function safeOrderType(type: string | null | undefined): OrderType {
+  return type === "local" || type === "import" || type === "mixed" ? type : "local";
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS COMPONENTS — Avec fallbacks
+   ═══════════════════════════════════════════════════════════ */
+
+function SB({ config }: { config?: { label: string; color: string } | null }) {
+  const safe = config ?? { label: "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border",
-        config.color,
-      )}
-    >
-      {config.label}
+    <span className={cn("inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border", safe.color)}>
+      {safe.label}
     </span>
   );
 }
 
-function OrderTypeBadge({
-  type,
-  size = "default",
-}: {
-  type: OrderType;
-  size?: "default" | "sm";
-}) {
-  const config = ORDER_TYPE_CONFIG[type];
+function OrderTypeBadge({ type, size = "default" }: { type?: OrderType | string | null; size?: "default" | "sm" }) {
+  const safeType = safeOrderType(type);
+  const config = ORDER_TYPE_CONFIG[safeType];
   const Icon = config.icon;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-full border font-medium",
-        config.color,
-        size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]",
-      )}
-    >
+    <span className={cn("inline-flex items-center gap-0.5 rounded-full border font-medium", config.color, size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]")}>
       <Icon className={cn(size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3")} />
       {config.label}
     </span>
@@ -1105,5 +1107,3 @@ function fmtD(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
-  });
-}
