@@ -206,23 +206,22 @@ function LogisticsControlCenter() {
   const [filterPayStatus, setFilterPayStatus] = useState("");
   const [filterOrderStatus, setFilterOrderStatus] = useState("");
 
-  const extraFilters = useMemo(() => {
-    const c = activeCard ? { logisticsStatus: activeCard === "to_weigh" ? "awaiting_weighing" : activeCard === "awaiting_pay" ? "" : activeCard === "to_ship" ? "validated" : activeCard === "shipped" ? "shipped" : "" } : {};
-    return c;
-  }, [activeCard]);
+  // Filtre logistique effectif : la carte KPI prime sur le filtre manuel
+  const effectiveLogStatus = useMemo(() => {
+    if (!activeCard) return filterLogStatus;
+    return activeCard === "to_weigh" ? "awaiting_weighing"
+      : activeCard === "to_ship" ? "validated"
+      : activeCard === "shipped" ? "shipped"
+      : filterLogStatus;
+  }, [activeCard, filterLogStatus]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-logistics", page, search, activeCard, showArchived, filterType, filterLogStatus, filterPayStatus, filterOrderStatus],
+    queryKey: ["admin-logistics", page, search, activeCard, showArchived, filterType, effectiveLogStatus, filterPayStatus, filterOrderStatus],
     queryFn: async () => {
       const result = await listLogisticsOrders({
-        data: { page, pageSize, q: search, orderStatus: filterOrderStatus, logisticsStatus: filterLogStatus, paymentStatus: filterPayStatus, orderType: filterType as any, hasRemaining: null, dateFrom: null, dateTo: null },
+        data: { page, pageSize, q: search, orderStatus: filterOrderStatus, logisticsStatus: effectiveLogStatus, paymentStatus: filterPayStatus, orderType: filterType as "local" | "import" | "mixed" | "", hasRemaining: null, dateFrom: null, dateTo: null, includeArchived: showArchived },
       });
-      // Filtrage archivage côté client si demandé
-      let rows = result.rows;
-      if (!showArchived) {
-        rows = rows.filter((r) => !isArchived(r));
-      }
-      return { ...result, rows };
+      return result;
     },
     enabled: isAdmin,
   });
@@ -290,13 +289,12 @@ function LogisticsControlCenter() {
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / pageSize);
-  const archivedCount = useMemo(() => (data?.rows ?? []).filter(isArchived).length, [data]);
 
-  // Valeurs uniques pour filtres Excel
-  const uniqueTypes = useMemo(() => [...new Set(rows.map((r) => r.order_type).filter(Boolean))], [rows]);
-  const uniqueLogStatuses = useMemo(() => [...new Set(rows.map((r) => r.logistics_status).filter(Boolean))], [rows]);
-  const uniquePayStatuses = useMemo(() => [...new Set(rows.map((r) => r.payment_status).filter(Boolean))], [rows]);
-  const uniqueOrderStatuses = useMemo(() => [...new Set(rows.map((r) => r.order_status).filter(Boolean))], [rows]);
+  // Options hardcodées pour filtres Excel (indépendantes des données paginées)
+  const uniqueTypes = ["local", "import", "mixed"];
+  const uniqueLogStatuses = ["pending_arrival", "awaiting_weighing", "fees_calculated", "awaiting_client_validation", "validated", "ready_to_ship", "shipped"];
+  const uniquePayStatuses = ["pending", "partial", "paid", "confirmed", "waived"];
+  const uniqueOrderStatuses = ["new", "confirmed", "processing", "shipped", "delivered", "cancelled"];
 
   if (!isAdmin) {
     return (
@@ -318,7 +316,7 @@ function LogisticsControlCenter() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {total.toLocaleString("fr-FR")} commande{total > 1 ? "s" : ""} · {rows.filter((r) => !isArchived(r)).length} active{rows.filter((r) => !isArchived(r)).length > 1 ? "s" : ""}
-            {!showArchived && archivedCount > 0 && <span className="text-muted-foreground"> · {archivedCount} archivée{archivedCount > 1 ? "s" : ""}</span>}
+            {!showArchived && <span className="text-muted-foreground"> · archivages masquées</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -339,7 +337,7 @@ function LogisticsControlCenter() {
           </span>
         </label>
         {showArchived && (
-          <Badge variant="secondary" className="text-xs">{archivedCount} archivée{archivedCount > 1 ? "s" : ""}</Badge>
+          <Badge variant="secondary" className="text-xs">{total} archivée{total > 1 ? "s" : ""} affichée{total > 1 ? "s" : ""}</Badge>
         )}
       </div>
 

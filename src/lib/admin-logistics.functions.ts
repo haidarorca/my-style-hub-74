@@ -123,6 +123,7 @@ const ListSchema = z.object({
   hasRemaining: z.boolean().nullable().default(null),
   dateFrom: z.string().nullable().default(null),
   dateTo: z.string().nullable().default(null),
+  includeArchived: z.boolean().default(false),
 });
 
 /* ── Helpers ── */
@@ -190,6 +191,11 @@ async function tryLogisticsView(
       q = q.or(`customer_name.ilike.${term},customer_phone.ilike.${term},order_id.ilike.${term},tracking_number.ilike.${term}`);
     }
 
+    // ═════ Pré-filtre archivage côté serveur (Bug fix: évite de polluer la pagination)
+    if (!data.includeArchived) {
+      q = q.not("order_status", "eq", "delivered").not("order_status", "eq", "validated");
+    }
+
     const { data: rows, error, count } = await q.range(from, to);
     if (error) return null;
     return { rows: rows ?? [], count: count ?? 0 };
@@ -213,15 +219,27 @@ async function fallbackLogisticsQuery(
   to: number,
 ) {
   // ═════ ÉTAPE 1 : Commandes seules (requête la plus simple possible)
-  const { data: rawOrders, error: orderErr, count } = await supabase
+  // NOTE: on récupère sans pagination pour filtrer les archivées côté serveur,
+  // puis on pagine manuellement. Limite de garde-fou à 500 records.
+  let { data: rawOrders, error: orderErr, count } = await supabase
     .from("orders")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
-    .range(from, to);
+    .limit(500);
 
   if (orderErr || !rawOrders || rawOrders.length === 0) {
     console.warn("[fallback] orders:", orderErr?.message ?? "no data");
     return { rows: [], count: count ?? 0 };
+  }
+
+  // ═════ Pré-filtre archivage côté serveur (AVANT pagination — Bug fix)
+  if (!data.includeArchived) {
+    rawOrders = rawOrders.filter((order: Record<string, unknown>) => {
+      const status = String(order.status ?? "");
+      return status !== "delivered" && status !== "validated";
+    });
+    // Recalculer le count après filtrage
+    count = rawOrders.length;
   }
 
   const orderIds = rawOrders.map((o: Record<string, unknown>) => String(o.id));
@@ -421,7 +439,11 @@ async function fallbackLogisticsQuery(
     filteredRows = rows.filter((r) => r.order_type === data.orderType);
   }
 
-  return { rows: filteredRows, count: count ?? 0 };
+  // ═════ Pagination manuelle (Bug fix: appliquée APRÈS tous les filtres)
+  const totalAfterFilters = filteredRows.length;
+  const paginatedRows = filteredRows.slice(from, to + 1);
+
+  return { rows: paginatedRows, count: totalAfterFilters };
 }
 
 /* ═══════════════════════════════════════════════════════════════
