@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminTabs, AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -91,10 +90,10 @@ function ProductsAdminPage() {
           navigate({ search: (prev: SearchState) => ({ ...prev, tab: v as "moderation" | "reported", page: 1 }) })
         }
       >
-        <AdminTabList>
-          <AdminTabTrigger value="moderation"><PackageCheck className="mr-1 h-3 w-3" /> Modération</AdminTabTrigger>
-          <AdminTabTrigger value="reported"><Flag className="mr-1 h-3 w-3" /> Signalés</AdminTabTrigger>
-        </AdminTabList>
+        <TabsList>
+          <TabsTrigger value="moderation"><PackageCheck className="mr-1 h-3 w-3" /> Modération</TabsTrigger>
+          <TabsTrigger value="reported"><Flag className="mr-1 h-3 w-3" /> Signalés</TabsTrigger>
+        </TabsList>
       </Tabs>
 
       {search.tab === "moderation" ? (

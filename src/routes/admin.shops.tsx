@@ -171,7 +171,7 @@ function AdminShopsPage() {
               <DropdownMenuSeparator />
               {rows.map((s) => (
                 <DropdownMenuItem key={s.id} asChild>
-                  <Link to="/admin/shops/$shopId/import-export" params={{ shopId: s.id }}>
+                  <Link to="/admin/shops_/$shopId/import-export" params={{ shopId: s.id }}>
                     {s.shop_name}
                   </Link>
                 </DropdownMenuItem>

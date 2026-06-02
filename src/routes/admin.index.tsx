@@ -1,566 +1,206 @@
-/**
- * admin.index.tsx — ACTION CENTER
- * 
- * Le cerveau opérationnel de Kawzone Admin. Orienté ACTIONS, pas données.
- * L'opérateur ouvre cette page et sait immédiatement quoi faire.
- * 
- * Architecture: 5 sections priorisées
- * 1. Alertes critiques (si applicable)
- * 2. Priorités + Métriques clés (2 colonnes)
- * 3. Pipeline logistique
- * 4. Commandes récentes (OrderCards)
- */
-import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useAuth } from "@/hooks/use-auth";
-import {
-  SmartCard,
-  AlertBanner,
-  OrderCard,
-  DrawerPanel,
-  MiniTimeline,
-  getWorkflow,
-} from "@/components/admin/premium";
-import type { OrderCardData } from "@/components/admin/premium";
-import {
-  Zap, Truck, Scale, DollarSign, Package,
-  Users, ShoppingBag, Percent, Clock,
-  ArrowRight, Receipt, Phone, Ban, CheckCircle,
-  Box, AlertTriangle,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { getAdminStats } from "@/lib/admin-stats.functions";
-import { getLogisticsStats } from "@/lib/admin-logistics.functions";
-import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
-import { confirmShipmentPayment } from "@/lib/admin-logistics.functions";
-import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag } from "lucide-react";
+import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
+import { UpdateAppButton } from "@/components/UpdateAppButton";
 
 export const Route = createFileRoute("/admin/")({
-  component: ActionCenter,
+  component: Dashboard,
 });
 
-/* ═══════════════════════════════════════════════════════════
-   ACTION CENTER — Composant principal
-   ═══════════════════════════════════════════════════════════ */
+function useCount(table: string, filter?: { col: string; val: string }) {
+  return useQuery({
+    queryKey: ["count", table, filter?.col, filter?.val],
+    queryFn: async () => {
+      try {
+        let q = supabase.from(table as never).select("id", { count: "exact", head: true });
+        if (filter) q = (q as never as { eq: (c: string, v: string) => typeof q }).eq(filter.col, filter.val);
+        const { count, error } = await q;
+        if (error) throw error;
+        return count ?? 0;
+      } catch (err) {
+        // Soft-fail: a single failed count must not crash the whole dashboard.
+        console.warn(`[admin] count(${table}) failed:`, err);
+        return 0;
+      }
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
 
-function ActionCenter() {
-  const { isAdmin, user } = useAuth();
-  const qc = useQueryClient();
-
-  const [selectedOrder, setSelectedOrder] = useState<OrderCardData | null>(null);
-
+function Dashboard() {
+  const { isSuperAdmin } = useAuth();
   const fetchStats = useServerFn(getAdminStats);
-  const fetchLogisticsStats = useServerFn(getLogisticsStats);
-  const fetchRecentOrders = useServerFn(listLogisticsOrders);
-  const confirmPay = useServerFn(confirmShipmentPayment);
-  const createAssessmentFn = useServerFn(getOrCreateShipmentAssessment);
 
-  /* ── Queries ── */
+  // Aggregated stats from the cached overview (15-min Inngest refresh + lazy compute).
   const stats = useQuery({
-    queryKey: ["admin", "stats"],
+    queryKey: ["admin", "stats", "overview"],
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
 
-  const logisticsStats = useQuery({
-    queryKey: ["admin", "logistics-stats"],
-    queryFn: () => fetchLogisticsStats({ data: {} }),
-    staleTime: 60_000,
-  });
+  // Validation queues stay live (counts on small filtered subsets, cheap).
+  const pending = useCount("products", { col: "status", val: "pending" });
+  const reports = useCount("product_reports", { col: "status", val: "open" });
+  const pendingCats = useCount("category_requests", { col: "status", val: "pending" });
+  const categories = useCount("categories");
 
-  const recentOrders = useQuery({
-    queryKey: ["admin", "recent-orders"],
-    queryFn: () =>
-      fetchRecentOrders({
-        data: {
-          page: 1, pageSize: 6, q: "",
-          orderStatus: "", logisticsStatus: "", paymentStatus: "",
-          orderType: "", hasRemaining: null, dateFrom: null, dateTo: null,
-        },
-      }),
-    staleTime: 30_000,
-  });
+  const tiles = [
+    { label: "Clients", value: stats.data?.customers.total, icon: Users, color: "text-primary" },
+    { label: "Vendeurs actifs", value: stats.data?.vendors.active, icon: Users, color: "text-emerald-600" },
+    { label: "Commandes", value: stats.data?.orders.total, icon: ShoppingBag, color: "text-blue-600" },
+    { label: "Revenu 30j (FCFA)", value: stats.data ? new Intl.NumberFormat("fr-FR").format(stats.data.orders.revenue_30d) : undefined, icon: Wallet, color: "text-amber-600" },
+    { label: "À valider", value: pending.data, icon: Clock, color: "text-amber-600" },
+    { label: "Catégories", value: categories.data, icon: FolderTree, color: "text-blue-600" },
+    { label: "Signalements ouverts", value: reports.data, icon: Flag, color: "text-destructive" },
+    { label: "Cmd en attente", value: stats.data?.orders.pending, icon: Package, color: "text-amber-600" },
+  ];
 
-  /* ── Mutations ── */
-  const paymentMutation = useMutation({
-    mutationFn: ({ assessmentId, amount }: { assessmentId: string; amount: number }) =>
-      confirmPay({ data: { assessmentId, amountConfirmed: amount } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] });
-      toast.success("Paiement confirmé");
-      setSelectedOrder(null);
+  const vendorStats = useQuery({
+    queryKey: ["admin", "vendor-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_admin_vendor_product_stats");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        user_id: string;
+        shop_name: string | null;
+        full_name: string | null;
+        email: string | null;
+        total: number | string;
+        approved: number | string;
+        pending: number | string;
+      }>;
+      return rows.map((v) => ({
+        user_id: v.user_id,
+        name: v.shop_name || v.full_name || v.email || "—",
+        email: v.email,
+        total: Number(v.total) || 0,
+        approved: Number(v.approved) || 0,
+        pending: Number(v.pending) || 0,
+      }));
     },
-    onError: (e: Error) => toast.error(e.message),
+    staleTime: 5 * 60_000,
+    retry: 1,
   });
-
-  const assessmentMutation = useMutation({
-    mutationFn: (orderId: string) => createAssessmentFn({ data: { order_id: orderId } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] });
-      toast.success("Évaluation créée");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-        <Zap className="h-12 w-12 mb-4 opacity-20" />
-        <p className="text-sm">Accès réservé aux administrateurs.</p>
-      </div>
-    );
-  }
-
-  const gs = stats.data;
-  const ls = logisticsStats.data;
-  const rows = (recentOrders.data?.rows ?? []) as Array<Record<string, unknown>>;
-
-  /* ── Alertes prioritaires ── */
-  const alerts = buildAlerts(ls);
 
   return (
-    <div className="space-y-6 pb-safe">
-      {/* ═════ HEADER PERSONNALISÉ ═════ */}
-      <header>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
-          <Zap className="h-7 w-7 text-primary" />
-          Action Center
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Bonjour, {user?.email?.split("@")[0] ?? "Admin"} · Voici vos priorités aujourd&apos;hui
-        </p>
-      </header>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <UpdateAppButton variant="outline" />
+      </div>
 
-      {/* ═════ ALERTES CRITIQUES ═════ */}
-      {alerts.length > 0 && (
-        <section className="space-y-2">
-          {alerts.map((alert) => (
-            <AlertBanner
-              key={alert.id}
-              severity={alert.severity}
-              title={alert.title}
-              description={alert.description}
-              action={alert.action}
-              onDismiss={() => {}}
-            />
-          ))}
-        </section>
-      )}
+      <TranslationSyncCard />
 
-      {/* ═════ PRIORITÉS + MÉTRIQUES ═════ */}
-      <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Colonne gauche : Priorités (3/5) */}
-        <div className="lg:col-span-3 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5" />
-            Vos priorités
-          </h2>
+      <div className="space-y-1">
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Urgences */}
-            {(ls?.urgent ?? 0) > 0 && (
-              <SmartCard
-                title="Urgences"
-                value={ls?.urgent}
-                icon={AlertTriangle}
-                iconColor="text-destructive"
-                iconBg="bg-destructive/10"
-                trend={{ value: "> 14 jours", positive: false }}
-                actions={[{ label: "Traiter maintenant", onClick: () => { }, variant: "primary" }]}
-                delay={0}
-              />
-            )}
-
-            {/* À peser */}
-            <SmartCard
-              title="À peser"
-              value={ls?.to_weigh}
-              icon={Scale}
-              iconColor="text-orange-400"
-              iconBg="bg-orange-500/10"
-              actions={[{ label: "Voir", onClick: () => { }, variant: "secondary" }]}
-              delay={50}
-            />
-
-            {/* Paiements */}
-            <SmartCard
-              title="Paiements en attente"
-              value={ls?.awaiting_payment}
-              icon={DollarSign}
-              iconColor="text-warning"
-              iconBg="bg-warning/10"
-              actions={[{ label: "Relancer", onClick: () => { }, variant: "secondary" }]}
-              delay={100}
-            />
-
-            {/* À expédier */}
-            <SmartCard
-              title="À expédier"
-              value={ls?.to_ship}
-              icon={Truck}
-              iconColor="text-sky-400"
-              iconBg="bg-sky-500/10"
-              actions={[{ label: "Voir", onClick: () => { }, variant: "secondary" }]}
-              delay={150}
-            />
-          </div>
-        </div>
-
-        {/* Colonne droite : Métriques (2/5) */}
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <ShoppingBag className="h-3.5 w-3.5" />
-            Métriques clés
-          </h2>
-
-          <div className="grid grid-cols-2 gap-3">
-            <MiniKPI label="Commandes" value={gs?.orders?.total} icon={ShoppingBag} color="text-primary" />
-            <MiniKPI label="Vendeurs" value={gs?.vendors?.active} icon={Users} color="text-emerald-400" />
-            <MiniKPI label="Revenu 30j" value={gs ? `${(gs.orders.revenue_30d / 1000).toFixed(0)}k` : undefined} icon={DollarSign} color="text-warning" />
-            <MiniKPI label="Expédiées" value={ls?.shipped} icon={Package} color="text-violet-400" />
-          </div>
-
-          {/* Reste à payer */}
-          {ls && ls.total_remaining > 0 && (
-            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-destructive shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">Reste à payer global</p>
-                <p className="text-lg font-semibold font-bold text-destructive">{ls.total_remaining.toLocaleString("fr-FR")} FCFA</p>
+        {/* Étape 1 — Catégories proposées */}
+        <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white">
+              <Inbox className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">1. Catégories proposées par les vendeurs</div>
+              <div className="text-xs text-muted-foreground">
+                {pendingCats.data ?? 0} demande{(pendingCats.data ?? 0) > 1 ? "s" : ""} en attente — accepter, modifier, fusionner ou refuser
               </div>
             </div>
-          )}
-        </div>
-      </section>
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/admin/category-requests">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
 
-      {/* ═════ PIPELINE LOGISTIQUE ═════ */}
-      {ls && (
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
-            <Truck className="h-3.5 w-3.5" />
-            Pipeline logistique
-          </h2>
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-end gap-3 h-20">
-              {[
-                { label: "À peser", count: ls.to_weigh, color: "bg-orange-500" },
-                { label: "Paiement", count: ls.awaiting_payment, color: "bg-warning" },
-                { label: "Partiel", count: ls.partial_payment ?? 0, color: "bg-sky-500" },
-                { label: "À expédier", count: ls.to_ship, color: "bg-cyan-500" },
-                { label: "Expédiées", count: ls.shipped, color: "bg-violet-500" },
-              ].map((bar) => {
-                const maxCount = Math.max(ls.to_weigh + ls.awaiting_payment + ls.partial_payment + ls.to_ship + ls.shipped, 1);
-                const height = Math.max((bar.count / maxCount) * 100, 8);
-                return (
-                  <div key={bar.label} className="flex flex-col items-center gap-1.5 flex-1 group cursor-pointer">
-                    <span className="text-sm font-bold">{bar.count}</span>
-                    <div
-                      className={cn("w-full rounded-t-md transition-all duration-500 group-hover:opacity-80", bar.color)}
-                      style={{ height: `${height}%` }}
-                    />
-                    <span className="text-[9px] text-muted-foreground text-center leading-tight">{bar.label}</span>
-                  </div>
-                );
-              })}
+        {/* Étape 2 — Produits */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <PackageCheck className="h-6 w-6" />
             </div>
-          </div>
-        </section>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">2. Produits en attente de validation</div>
+              <div className="text-xs text-muted-foreground">
+                {pending.data ?? 0} produit{(pending.data ?? 0) > 1 ? "s" : ""} — validez d'abord les catégories liées
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link to="/admin/products">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isSuperAdmin && (
+        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <Percent className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">Commissions</div>
+              <div className="text-xs text-muted-foreground">Configurer les modes vendeurs et les taux par vendeur, catégorie ou produit</div>
+            </div>
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/admin/commissions">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
-      {/* ═════ COMMANDES RÉCENTES ═════ */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <ShoppingBag className="h-3.5 w-3.5" />
-            Commandes récentes
-          </h2>
-          <Button asChild variant="ghost" size="sm" className="text-xs h-7">
-            <Link to="/admin/orders">Tout voir <ArrowRight className="h-3 w-3 ml-1" /></Link>
-          </Button>
-        </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        {tiles.map((t) => (
+          <Card key={t.label}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">{t.label}</CardTitle>
+              <t.icon className={`h-4 w-4 ${t.color}`} />
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-2xl font-bold">{t.value ?? "—"}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-        {rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground">
-            <Box className="h-10 w-10 mb-3 opacity-20" />
-            <p className="text-sm">Aucune commande récente</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {rows.map((row: any, i) => (
-              <OrderCard
-                key={row.order_id ?? row.id}
-                order={mapToOrderCard(row)}
-                onView={() => setSelectedOrder(mapToOrderCard(row))}
-                onCreateAssessment={() => assessmentMutation.mutate(row.order_id ?? row.id)}
-                delay={i * 50}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ═════ DRAWER DÉTAIL ═════ */}
-      {selectedOrder && (
-        <OrderDetailDrawer
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onConfirmPayment={(assessmentId, amount) =>
-            paymentMutation.mutate({ assessmentId, amount })
-          }
-          onCreateAssessment={() =>
-            assessmentMutation.mutate(selectedOrder.orderId)
-          }
-          isCreatingAssessment={assessmentMutation.isPending}
-          isConfirmingPayment={paymentMutation.isPending}
-        />
-      )}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Vendeurs et leurs produits</CardTitle></CardHeader>
+        <CardContent>
+          {vendorStats.isError ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">Impossible de charger les statistiques vendeurs.</p>
+              <Button size="sm" variant="outline" onClick={() => vendorStats.refetch()}>Réessayer</Button>
+            </div>
+          ) : vendorStats.isPending ? (
+            <p className="text-sm text-muted-foreground">Chargement…</p>
+          ) : vendorStats.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun vendeur.</p>
+          ) : (
+            <ul className="divide-y">
+              {vendorStats.data.map((v) => (
+                <li key={v.user_id} className="flex items-center gap-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{v.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{v.email}</div>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <div className="text-center"><div className="font-bold">{v.total}</div><div className="text-muted-foreground">total</div></div>
+                    <div className="text-center"><div className="font-bold text-emerald-600">{v.approved}</div><div className="text-muted-foreground">publiés</div></div>
+                    <div className="text-center"><div className="font-bold text-amber-600">{v.pending}</div><div className="text-muted-foreground">en attente</div></div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MINI KPI — Petit composant métrique
-   ═══════════════════════════════════════════════════════════ */
-
-function MiniKPI({
-  label,
-  value,
-  icon: Icon,
-  color,
-}: {
-  label: string;
-  value?: number | string;
-  icon: typeof ShoppingBag;
-  color: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3 flex items-center gap-2.5">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-        <Icon className={cn("h-4 w-4", color)} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] text-muted-foreground truncate">{label}</p>
-        <p className="text-base font-bold leading-tight">{value ?? "—"}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   ORDER DETAIL DRAWER — Contenu du drawer
-   ═══════════════════════════════════════════════════════════ */
-
-function OrderDetailDrawer({
-  order,
-  onClose,
-  onConfirmPayment,
-  onCreateAssessment,
-  isCreatingAssessment,
-  isConfirmingPayment,
-}: {
-  order: OrderCardData;
-  onClose: () => void;
-  onConfirmPayment: (assessmentId: string, amount: number) => void;
-  onCreateAssessment: () => void;
-  isCreatingAssessment: boolean;
-  isConfirmingPayment: boolean;
-}) {
-  const workflow = getWorkflow(order.orderType);
-  // Mappe le logistics_status vers un index de workflow
-  const statusIndex = getWorkflowStepIndex(order.orderType, order.logisticsStatus ?? order.status);
-
-  const daysPending = order.daysPending ?? 0;
-  const isUrgent = daysPending > 14;
-
-  return (
-    <DrawerPanel
-      isOpen={true}
-      onClose={onClose}
-      title={
-        <span className="flex items-center gap-2">
-          <span className="font-mono text-xs text-muted-foreground">#{order.orderId.slice(0, 8)}</span>
-          <span className={cn(
-            "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
-            order.orderType === "import" ? "bg-sky-500/10 border-sky-500/20 text-sky-400" :
-              order.orderType === "mixed" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
-                "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
-          )}>
-            {order.orderType.toUpperCase()}
-          </span>
-        </span>
-      }
-      subtitle={
-        <span>
-          {order.customerName} {order.customerPhone && `· ${order.customerPhone}`}
-        </span>
-      }
-    >
-      <div className="space-y-5">
-        {/* Urgence */}
-        {isUrgent && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
-            <Zap className="h-3.5 w-3.5" />
-            {daysPending} jours d&apos;attente — Action requise
-          </div>
-        )}
-
-        {/* Timeline */}
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Workflow {order.orderType === "import" ? "(Complet)" : order.orderType === "mixed" ? "(Hybride)" : "(Simple)"}
-          </p>
-          <MiniTimeline steps={workflow} currentStep={statusIndex} />
-        </div>
-
-        {/* Financier */}
-        <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Financier</p>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Produits</span>
-            <span className="font-medium">{fmtN(order.total)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Frais transport</span>
-            <span>{fmtN(order.shippingFees)}</span>
-          </div>
-          <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
-            <span>Reste à payer</span>
-            <span className={(order.remaining ?? 0) > 0 ? "text-destructive" : "text-success"}>
-              {fmtN(order.remaining)}
-            </span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
-          {!order.assessmentId && order.orderType !== "local" && (
-            <Button
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={onCreateAssessment}
-              disabled={isCreatingAssessment}
-            >
-              <Scale className="h-4 w-4 mr-1.5" /> Créer évaluation
-            </Button>
-          )}
-
-          {order.assessmentId && (order.remaining ?? 0) > 0 && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => onConfirmPayment(order.assessmentId!, order.remaining ?? 0)}
-              disabled={isConfirmingPayment}
-            >
-              <Receipt className="h-4 w-4 mr-1.5" /> Confirmer paiement
-            </Button>
-          )}
-
-          {order.customerPhone && (
-            <Button size="sm" variant="outline" asChild>
-              <a href={`https://wa.me/${order.customerPhone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                <Phone className="h-4 w-4 mr-1.5" /> WhatsApp
-              </a>
-            </Button>
-          )}
-
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            <Ban className="h-4 w-4 mr-1.5" /> Fermer
-          </Button>
-        </div>
-      </div>
-    </DrawerPanel>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════════════════════════════ */
-
-function buildAlerts(ls: { urgent: number; blocked: number; awaiting_payment: number } | undefined) {
-  const alerts: Array<{
-    id: string;
-    severity: "critical" | "warning" | "info";
-    title: string;
-    description: string;
-    action?: { label: string; onClick: () => void };
-  }> = [];
-
-  if (ls) {
-    if (ls.urgent > 0) {
-      alerts.push({
-        id: "urgent",
-        severity: "critical",
-        title: `${ls.urgent} commande${ls.urgent > 1 ? "s" : ""} urgente${ls.urgent > 1 ? "s" : ""}`,
-        description: `Bloquée${ls.urgent > 1 ? "s" : ""} depuis plus de 14 jours — action immédiate requise`,
-        action: { label: "Traiter", onClick: () => { } },
-      });
-    }
-    if (ls.awaiting_payment > 0) {
-      alerts.push({
-        id: "payment",
-        severity: "warning",
-        title: `${ls.awaiting_payment} paiement${ls.awaiting_payment > 1 ? "s" : ""} en attente`,
-        description: `Client${ls.awaiting_payment > 1 ? "s" : ""} en attente de confirmation`,
-        action: { label: "Relancer", onClick: () => { } },
-      });
-    }
-  }
-
-  return alerts;
-}
-
-function mapToOrderCard(row: Record<string, unknown>): OrderCardData {
-  const orderType = String(row.order_type ?? "local");
-  return {
-    id: String(row.order_id ?? row.id ?? ""),
-    orderId: String(row.order_id ?? row.id ?? ""),
-    customerName: String(row.customer_name ?? "—"),
-    customerPhone: (row.customer_phone as string) ?? null,
-    status: String(row.order_status ?? row.status ?? "new"),
-    orderType: orderType === "import" || orderType === "mixed" || orderType === "local" ? orderType as "local" | "import" | "mixed" : "local",
-    total: Number(row.order_total ?? row.total ?? 0),
-    remaining: Number(row.amount_remaining ?? 0) || undefined,
-    shippingFees: Number(row.total_shipping_fees ?? 0) || undefined,
-    logisticsStatus: (row.logistics_status as string) ?? null,
-    paymentStatus: (row.payment_status as string) ?? null,
-    daysPending: Number(row.days_pending ?? 0) || undefined,
-    isCommission: Boolean(row.is_commission ?? false),
-    createdAt: String(row.order_created_at ?? row.created_at ?? ""),
-    assessmentId: (row.assessment_id as string) ?? null,
-  };
-}
-
-function getWorkflowStepIndex(orderType: string, status: string): number {
-  if (orderType === "local") {
-    const map: Record<string, number> = { new: 0, confirmed: 1, delivered: 2 };
-    return map[status] ?? 0;
-  }
-  if (orderType === "mixed") {
-    const map: Record<string, number> = { new: 0, confirmed: 1, evaluation: 2, shipped: 3, delivered: 4 };
-    return map[status] ?? 0;
-  }
-  // import
-  const map: Record<string, number> = {
-    pending_arrival: 0, new: 0,
-    awaiting_weighing: 1, warehouse: 1,
-    fees_calculated: 2, weighing: 2,
-    awaiting_client_validation: 3, sent: 3,
-    payment_pending: 4, payment: 4,
-    validated: 5,
-    ready_to_ship: 6, shipped: 6,
-    delivered: 7,
-  };
-  return map[status] ?? 0;
-}
-
-function fmtN(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 }

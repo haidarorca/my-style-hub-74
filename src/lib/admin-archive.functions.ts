@@ -2,8 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertPermission } from "./admin-auth.core";
 
+async function assertAdmin(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", ["admin", "super_admin"])
+    .limit(1)
+    .maybeSingle();
+  if (!data) throw new Error("Accès refusé : admin requis");
+}
 
 export const setOrderArchived = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -16,7 +25,7 @@ export const setOrderArchived = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "products");
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
       .from("orders")
       .update({ archived_at: data.archived ? new Date().toISOString() : null } as any)
@@ -36,7 +45,7 @@ export const setOrdersArchivedBulk = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "products");
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
       .from("orders")
       .update({ archived_at: data.archived ? new Date().toISOString() : null } as any)

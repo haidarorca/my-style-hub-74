@@ -333,30 +333,15 @@ function AssessmentDialog({
     [services, serviceId],
   );
 
-  // Auto-compute volumetric weight from dimensions, then chargeable weight = max(real, volumetric)
-  // Standard air freight divisor: 5000 (1 kg = 5000 cm³)
+  // Auto-compute air_freight_fee from weight × price/kg
   useEffect(() => {
     if (!autoCalc || !selectedService) return;
-    const realW = Number(form.real_weight_kg || 0);
-    const l = Number(form.length_cm || 0);
-    const wdt = Number(form.width_cm || 0);
-    const h = Number(form.height_cm || 0);
-    if (!Number.isFinite(realW) || realW <= 0) return;
-    // Auto-calculate volumetric weight if dimensions provided
-    let volW = 0;
-    if (l > 0 && wdt > 0 && h > 0) {
-      volW = (l * wdt * h) / 5000;
-    }
-    const chargeableWeight = Math.max(realW, volW);
-    const fee = Math.round(chargeableWeight * Number(selectedService.price_per_kg));
-    setForm((f) => ({
-      ...f,
-      air_freight_fee: fee as any,
-      // Auto-fill volumetric weight if calculated from dimensions
-      ...(volW > 0 ? { volumetric_weight_kg: Math.round(volW * 1000) / 1000 as any } : {}),
-    }));
+    const w = Number(form.real_weight_kg || 0);
+    if (!Number.isFinite(w) || w <= 0) return;
+    const fee = Math.round(w * Number(selectedService.price_per_kg));
+    setForm((f) => ({ ...f, air_freight_fee: fee as any }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCalc, selectedService?.id, form.real_weight_kg, form.length_cm, form.width_cm, form.height_cm]);
+  }, [autoCalc, selectedService?.id, form.real_weight_kg]);
 
   const total = useMemo(
     () => Number(form.air_freight_fee || 0) + Number(form.service_fee || 0) + Number(form.extra_fees || 0),

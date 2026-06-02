@@ -2,7 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertPermission, logAdminAction } from "./admin-auth.core";
+
+async function assertAdmin(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", ["admin", "super_admin"]);
+  if (error) throw new Error(`Erreur rôle: ${error.message}`);
+  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
+}
 
 /* ============================================================
    Moderation list (pending / approved / rejected)
@@ -48,7 +57,7 @@ export const listAdminProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => (input ? ModerationInput.parse(input) : ModerationInput.parse({})))
   .handler(async ({ data, context }): Promise<AdminProductsPage> => {
-    await assertPermission(context.userId, "product_validation");
+    await assertAdmin(context.userId);
 
     let q = supabaseAdmin
       .from("products")
@@ -175,7 +184,7 @@ export const listReportedProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => (input ? ReportedInput.parse(input) : ReportedInput.parse({})))
   .handler(async ({ data, context }): Promise<AdminReportsPage> => {
-    await assertPermission(context.userId, "support");
+    await assertAdmin(context.userId);
 
     let q = supabaseAdmin
       .from("product_reports")
@@ -285,15 +294,7 @@ export const setProductStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "product_validation");
-
-    // Read current state for audit log
-    const { data: before } = await supabaseAdmin
-      .from("products")
-      .select("id, name, code, status, vendor_id")
-      .eq("id", data.product_id)
-      .maybeSingle();
-
+    await assertAdmin(context.userId);
     if (data.status === "approved") {
       const { data: product, error: productErr } = await supabaseAdmin
         .from("products")
@@ -321,15 +322,6 @@ export const setProductStatus = createServerFn({ method: "POST" })
     if (data.status === "approved") payload.is_edit = false;
     const { error } = await supabaseAdmin.from("products").update(payload).eq("id", data.product_id);
     if (error) throw new Error(error.message);
-
-    // Audit log
-    logAdminAction({
-      action: `product.${data.status}`,
-      targetType: "product",
-      targetId: data.product_id,
-      oldValues: before ? { status: before.status, name: before.name, code: before.code } : undefined,
-      newValues: { status: data.status, rejection_reason: data.status === "rejected" ? (data.rejection_reason || "Non conforme") : null },
-    });
 
     // Notify vendor about the new status
     const { data: product } = await supabaseAdmin
@@ -369,7 +361,7 @@ export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
     z.object({ product_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true; mode: "deleted" | "archived"; message: string }> => {
-    await assertPermission(context.userId, "product_validation");
+    await assertAdmin(context.userId);
 
     const { data: product, error: prodErr } = await supabaseAdmin
       .from("products")
@@ -397,13 +389,6 @@ export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
         })
         .eq("id", data.product_id);
       if (archErr) throw new Error(archErr.message);
-      logAdminAction({
-        action: "product.archive",
-        targetType: "product",
-        targetId: data.product_id,
-        oldValues: { name: product.name, code: product.code, status: "approved", vendor_id: product.vendor_id },
-        newValues: { archived: true, reason: "Has sales history" },
-      });
       return {
         ok: true,
         mode: "archived",
@@ -433,13 +418,6 @@ export const deleteOrArchiveProduct = createServerFn({ method: "POST" })
     const { error: delErr } = await supabaseAdmin.from("products").delete().eq("id", data.product_id);
     if (delErr) throw new Error(delErr.message);
 
-    logAdminAction({
-      action: "product.delete",
-      targetType: "product",
-      targetId: data.product_id,
-      oldValues: { name: product.name, code: product.code, vendor_id: product.vendor_id },
-    });
-
     return { ok: true, mode: "deleted", message: `« ${product.name} » a été supprimé définitivement.` };
   });
 
@@ -454,19 +432,11 @@ export const setReportStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "support");
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
       .from("product_reports")
       .update({ status: data.status })
       .eq("id", data.report_id);
     if (error) throw new Error(error.message);
-
-    logAdminAction({
-      action: `report.${data.status === "reviewed" ? "review" : "dismiss"}`,
-      targetType: "report",
-      targetId: data.report_id,
-      newValues: { status: data.status },
-    });
-
     return { ok: true };
   });

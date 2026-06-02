@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertPermission } from "./admin-auth.core";
 
 export interface ShippingService {
   id: string;
@@ -20,6 +19,16 @@ export interface ShippingService {
   updated_at: string;
 }
 
+async function assertAdmin(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", ["admin", "super_admin"])
+    .limit(1)
+    .maybeSingle();
+  if (!data) throw new Error("Accès refusé : admin requis");
+}
 
 // PUBLIC list (used at checkout). Filter on route if provided.
 export const listShippingServices = createServerFn({ method: "POST" })
@@ -70,7 +79,7 @@ export const upsertShippingService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => UpsertSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "orders");
+    await assertAdmin(context.userId);
     const { id, ...patch } = data;
     if (id) {
       const { data: row, error } = await (supabaseAdmin as any)
@@ -95,7 +104,7 @@ export const deleteShippingService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "orders");
+    await assertAdmin(context.userId);
     const { error } = await (supabaseAdmin as any)
       .from("shipping_services")
       .delete()

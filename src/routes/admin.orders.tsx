@@ -1,642 +1,421 @@
-/**
- * admin.orders.tsx — ORDER HUB
- *
- * Architecture: Centre de commandes unifié qui fusionne :
- * - /admin/orders (commandes)
- * - /admin/logistics (logistique)
- * - /admin/shipments (expéditions)
- * - /admin/commission-orders (commission)
- *
- * En une seule page avec :
- * - Tabs intelligents (Toutes | À traiter | Logistique | Commission)
- * - Tableau unifié avec statuts combinés
- * - Drawer latéral pour les détails (pas de page séparée)
- * - Actions inline (statut, évaluation, paiement, tracking)
- * - Filtres contextuels par tab
- */
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { Package, Phone, MapPin, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import {
-  ShoppingBag, Search, X, Package, Truck, Scale, DollarSign,
-  Percent, Eye, ChevronRight, ChevronLeft, Loader2, Filter,
-  Box, Receipt, Phone, Ban, CheckCircle, AlertCircle, Globe,
-  MapPin, Layers, Zap, Clock, RefreshCw, ArrowRight,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  listAdminOrders, updateAdminOrderStatus,
+  listAdminOrders,
+  updateAdminOrderStatus,
+  type AdminOrderRow,
 } from "@/lib/admin-orders.functions";
-import {
-  listLogisticsOrders, confirmShipmentPayment,
-  getLogisticsStats, type LogisticsOrderRow,
-} from "@/lib/admin-logistics.functions";
-import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
-import { useAuth } from "@/hooks/use-auth";
 
-export const Route = createFileRoute("/admin/orders")({
-  component: OrderHub,
+const STATUSES = [
+  { value: "new", label: "En attente de validation" },
+  { value: "confirmed", label: "Confirmée" },
+  { value: "delivered", label: "Livrée" },
+  { value: "cancelled", label: "Annulée" },
+] as const;
+
+const searchSchema = z.object({
+  page: fallback(z.number().int().min(1), 1).default(1),
+  q: fallback(z.string(), "").default(""),
+  status: fallback(z.enum(["all", "new", "confirmed", "delivered", "cancelled"]), "all").default("all"),
+  country: fallback(z.string(), "all").default("all"),
+  commission: fallback(z.enum(["all", "yes", "no"]), "all").default("all"),
 });
-
-/* ═══════════════════════════════════════════════════════════
-   TYPES & CONFIGS
-   ═══════════════════════════════════════════════════════════ */
-
-type TabId = "all" | "action" | "logistics" | "commission";
-
-interface TabConfig {
-  id: TabId;
-  label: string;
-  icon: typeof ShoppingBag;
-  description: string;
-}
-
-const TABS: TabConfig[] = [
-  { id: "all", label: "Toutes", icon: ShoppingBag, description: "Toutes les commandes" },
-  { id: "action", label: "À traiter", icon: Zap, description: "Nouvelles et en attente" },
-  { id: "logistics", label: "Logistique", icon: Truck, description: "Import et expédition" },
-  { id: "commission", label: "Commission", icon: Percent, description: "Commandes commission" },
-];
+type SearchState = z.infer<typeof searchSchema>;
 
 const PAGE_SIZE = 25;
 
-/* ═══════════════════════════════════════════════════════════
-   STATUTS CONFIGS — Avec fallbacks
-   ═══════════════════════════════════════════════════════════ */
+export const Route = createFileRoute("/admin/orders")({
+  validateSearch: zodValidator(searchSchema),
+  component: () => (
+    <PermissionGate perm="orders">
+      <AdminOrders />
+    </PermissionGate>
+  ),
+});
 
-const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  new: { label: "Nouvelle", color: "bg-amber-100 text-amber-700 border-amber-300" },
-  confirmed: { label: "Confirmée", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  processing: { label: "En cours", color: "bg-purple-100 text-purple-700 border-purple-300" },
-  shipped: { label: "Expédiée", color: "bg-violet-100 text-violet-700 border-violet-300" },
-  delivered: { label: "Livrée", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  cancelled: { label: "Annulée", color: "bg-red-100 text-red-700 border-red-300" },
-  refunded: { label: "Remboursée", color: "bg-gray-100 text-gray-600 border-gray-300" },
-};
+const statusVariant = (s: string) =>
+  s === "delivered"
+    ? "default"
+    : s === "cancelled"
+    ? "destructive"
+    : s === "confirmed"
+    ? "secondary"
+    : "outline";
 
-function safeOrderStatus(s: string | null | undefined) {
-  return ORDER_STATUS[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
-}
-
-const LOGISTICS_STATUS: Record<string, { label: string; color: string }> = {
-  pending_arrival: { label: "Attente", color: "bg-gray-100 text-gray-600 border-gray-300" },
-  awaiting_weighing: { label: "À peser", color: "bg-orange-100 text-orange-700 border-orange-300" },
-  fees_calculated: { label: "Frais calc.", color: "bg-sky-100 text-sky-700 border-sky-300" },
-  awaiting_client_validation: { label: "Client", color: "bg-purple-100 text-purple-700 border-purple-300" },
-  validated: { label: "Validée", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  rejected: { label: "Rejetée", color: "bg-red-100 text-red-700 border-red-300" },
-  ready_to_ship: { label: "Prête", color: "bg-cyan-100 text-cyan-700 border-cyan-300" },
-  shipped: { label: "Expédiée", color: "bg-violet-100 text-violet-700 border-violet-300" },
-};
-
-function safeLogisticsStatus(s: string | null | undefined) {
-  return LOGISTICS_STATUS[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
-}
-
-const PAYMENT_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "À payer", color: "bg-amber-100 text-amber-700 border-amber-300" },
-  partial: { label: "Partiel", color: "bg-orange-100 text-orange-700 border-orange-300" },
-  paid: { label: "Payé", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  confirmed: { label: "Confirmé", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  waived: { label: "Gratuit", color: "bg-gray-100 text-gray-500 border-gray-300" },
-};
-
-function safePaymentStatus(s: string | null | undefined) {
-  return PAYMENT_STATUS[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
-}
-
-const ORDER_TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof Globe }> = {
-  local: { label: "LOCAL", color: "bg-emerald-100 text-emerald-700 border-emerald-300", icon: MapPin },
-  import: { label: "IMPORT", color: "bg-sky-100 text-sky-700 border-sky-300", icon: Globe },
-  mixed: { label: "MIXTE", color: "bg-amber-100 text-amber-700 border-amber-300", icon: Layers },
-};
-
-/* ═══════════════════════════════════════════════════════════
-   ORDER HUB — Composant principal
-   ═══════════════════════════════════════════════════════════ */
-
-function OrderHub() {
-  const { isAdmin } = useAuth();
+function AdminOrders() {
   const qc = useQueryClient();
+  const navigate = useNavigate({ from: "/admin/orders" });
+  const search = Route.useSearch();
 
-  const [activeTab, setActiveTab] = useState<TabId>("all");
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [detailOrder, setDetailOrder] = useState<LogisticsOrderRow | null>(null);
-
-  const fetchOrders = useServerFn(listAdminOrders);
-  const fetchLogistics = useServerFn(listLogisticsOrders);
-  const fetchLogisticsStats = useServerFn(getLogisticsStats);
+  const fetchList = useServerFn(listAdminOrders);
   const updateStatus = useServerFn(updateAdminOrderStatus);
-  const confirmPay = useServerFn(confirmShipmentPayment);
-  const createAssessmentFn = useServerFn(getOrCreateShipmentAssessment);
 
-  /* ── Query : Commandes admin ── */
-  const adminOrders = useQuery({
-    queryKey: ["admin-orders", page, search, activeTab],
-    queryFn: () => fetchOrders({
-      data: {
-        page, pageSize: PAGE_SIZE,
-        status: activeTab === "action" ? "new" : "all",
-        q: search, country: "all", commission: activeTab === "commission" ? "yes" : "all",
-        show_history: false,
-      },
+  const [zoomImg, setZoomImg] = useState<string | null>(null);
+  const [queryInput, setQueryInput] = useState(search.q);
+  const debouncedQ = useDebouncedValue(queryInput, 300);
+
+  useEffect(() => {
+    if (debouncedQ !== search.q) {
+      navigate({
+        search: (prev: SearchState) => ({ ...prev, q: debouncedQ, page: 1 }),
+        replace: true,
+      });
+    }
+  }, [debouncedQ, navigate, search.q]);
+
+  const params = useMemo(
+    () => ({
+      page: search.page,
+      pageSize: PAGE_SIZE,
+      q: search.q,
+      status: search.status,
+      country_id: search.country === "all" ? null : search.country,
+      is_commission: search.commission,
+      date_from: null,
+      date_to: null,
     }),
-    enabled: isAdmin && activeTab !== "logistics",
+    [search.page, search.q, search.status, search.country, search.commission],
+  );
+
+  const { data, isFetching, isLoading } = useQuery({
+    queryKey: ["admin", "orders", params],
+    queryFn: () => fetchList({ data: params }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
-  /* ── Query : Commandes logistique ── */
-  const logisticsOrders = useQuery({
-    queryKey: ["admin-logistics", page, search, activeTab],
-    queryFn: () => fetchLogistics({
-      data: { page, pageSize: PAGE_SIZE, q: search, orderStatus: "", logisticsStatus: "", paymentStatus: "", orderType: "", hasRemaining: null, dateFrom: null, dateTo: null },
-    }),
-    enabled: isAdmin && activeTab === "logistics",
-  });
+  const { data: countries } = useCountries({ onlyEnabled: true });
+  const labelOf = useCountryLabel();
 
-  /* ── Query : Stats logistique ── */
-  const logisticsStats = useQuery({
-    queryKey: ["admin-logistics-stats"],
-    queryFn: () => fetchLogisticsStats({ data: {} }),
-    enabled: isAdmin,
-  });
-
-  /* ── Mutation : Changer statut ── */
-  const statusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
-      updateStatus({ data: { orderId, status } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-orders"] });
-      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      toast.success("Statut mis à jour");
+  const onStatusChange = useCallback(
+    async (orderId: string, status: string) => {
+      try {
+        await updateStatus({ data: { order_id: orderId, status: status as any } });
+        toast.success("Statut mis à jour");
+        qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
     },
-    onError: (e: Error) => toast.error(e.message),
-  });
+    [qc, updateStatus],
+  );
 
-  /* ── Mutation : Confirmer paiement ── */
-  const paymentMutation = useMutation({
-    mutationFn: ({ assessmentId, amount }: { assessmentId: string; amount: number }) =>
-      confirmPay({ data: { assessmentId, amountConfirmed: amount } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] });
-      toast.success("Paiement confirmé");
-      setDetailOrder(null);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const onPage = useCallback(
+    (next: number) => navigate({ search: (prev: SearchState) => ({ ...prev, page: next }) }),
+    [navigate],
+  );
 
-  /* ── Mutation : Créer évaluation ── */
-  const assessmentMutation = useMutation({
-    mutationFn: (orderId: string) => createAssessmentFn({ data: { order_id: orderId } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
-      qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] });
-      toast.success("Évaluation créée");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const onReset = useCallback(() => {
+    setQueryInput("");
+    navigate({ search: { page: 1, q: "", status: "all", country: "all", commission: "all" } });
+  }, [navigate]);
 
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-        <ShoppingBag className="h-12 w-12 mb-4 opacity-30" />
-        <p className="text-sm">Accès réservé aux administrateurs.</p>
-      </div>
-    );
-  }
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const totals = data?.totals;
 
-  const rows = activeTab === "logistics"
-    ? (logisticsOrders.data?.rows ?? []) as unknown as Array<Record<string, unknown>>
-    : (adminOrders.data?.rows ?? []);
-  const total = activeTab === "logistics"
-    ? (logisticsOrders.data?.total ?? 0)
-    : (adminOrders.data?.total ?? 0);
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const isLoading = activeTab === "logistics" ? logisticsOrders.isLoading : adminOrders.isLoading;
-  const ls = logisticsStats.data;
+  const filtersActive =
+    search.q || search.status !== "all" || search.country !== "all" || search.commission !== "all";
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5" />
-            Order Hub
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {total.toLocaleString("fr-FR")} commande{total > 1 ? "s" : ""} · Centre de traitement unifié
-          </p>
-        </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Client, téléphone, N° commande..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9"
-          />
-          {search && (
-            <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0" onClick={() => setSearch("")}>
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
+      <div>
+        <h1 className="text-xl font-bold">Toutes les commandes</h1>
+        <p className="text-xs text-muted-foreground">
+          {total} commande{total > 1 ? "s" : ""}
+          {isFetching ? " · …" : ""}
+          {totals
+            ? ` · Revenus ${new Intl.NumberFormat("fr-FR").format(totals.revenue)} FCFA`
+            : ""}
+        </p>
       </div>
 
-      {/* KPI Logistique rapide (visible sur tab logistics) */}
-      {activeTab === "logistics" && ls && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {[
-            { label: "À peser", value: ls.to_weigh, icon: Scale, color: "text-orange-600", bg: "bg-orange-50" },
-            { label: "Attente paiement", value: ls.awaiting_payment, icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50" },
-            { label: "À expédier", value: ls.to_ship, icon: Truck, color: "text-cyan-600", bg: "bg-cyan-50" },
-            { label: "Expédiées", value: ls.shipped, icon: Package, color: "text-violet-600", bg: "bg-violet-50" },
-          ].map((kpi) => (
-            <Card key={kpi.label} className={kpi.bg}>
-              <CardContent className="flex items-center gap-2 p-2">
-                <kpi.icon className={cn("h-4 w-4", kpi.color)} />
-                <div>
-                  <p className="text-[10px] text-muted-foreground">{kpi.label}</p>
-                  <p className="text-lg font-bold">{(kpi.value ?? 0).toLocaleString("fr-FR")}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide border-b">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setPage(1); }}
-            className={cn(
-              "shrink-0 flex items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-xs font-medium transition-all",
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tableau */}
-      <div className="rounded-xl border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b bg-muted/60">
-                {activeTab === "logistics" ? (
-                  <>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Type</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Commande</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Client</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Statut</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Logistique</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Paiement</th>
-                    <th className="px-2 py-2 text-right font-semibold uppercase text-[10px]">Total</th>
-                    <th className="px-2 py-2 text-right font-semibold uppercase text-[10px]">Frais</th>
-                    <th className="px-2 py-2 text-right font-semibold uppercase text-[10px]">Reste</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Actions</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Commande</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Client</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Statut</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Type</th>
-                    <th className="px-2 py-2 text-right font-semibold uppercase text-[10px]">Total</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Date</th>
-                    <th className="px-2 py-2 text-left font-semibold uppercase text-[10px]">Actions</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={activeTab === "logistics" ? 10 : 7} className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={activeTab === "logistics" ? 10 : 7} className="py-8 text-center text-muted-foreground"><Box className="h-8 w-8 mx-auto mb-2 opacity-30" />Aucune commande</td></tr>
-              ) : (
-                rows.map((row: any) => (
-                  <OrderRow
-                    key={row.id ?? row.order_id}
-                    row={row}
-                    isLogistics={activeTab === "logistics"}
-                    onView={() => setDetailOrder(row as unknown as LogisticsOrderRow)}
-                    onStatusChange={(status) => statusMutation.mutate({ orderId: row.id ?? row.order_id, status })}
-                    onCreateAssessment={() => assessmentMutation.mutate(row.id ?? row.order_id)}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-3 py-2">
-            <span className="text-xs text-muted-foreground">Page {page}/{totalPages} · {total} résultats</span>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" className="h-7" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-7" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-                <ChevronRight className="h-3 w-3" />
-              </Button>
+      <Card>
+        <CardContent className="space-y-3 p-3">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Client, téléphone, adresse…"
+                className="pl-8"
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
+              />
             </div>
+            <Select
+              value={search.status}
+              onValueChange={(v) =>
+                navigate({
+                  search: (prev: SearchState) => ({ ...prev, status: v as any, page: 1 }),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={search.country}
+              onValueChange={(v) =>
+                navigate({ search: (prev: SearchState) => ({ ...prev, country: v, page: 1 }) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pays" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les pays</SelectItem>
+                {(countries ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.flag_emoji ?? "🏳️"} {labelOf(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={search.commission}
+              onValueChange={(v) =>
+                navigate({
+                  search: (prev: SearchState) => ({ ...prev, commission: v as any, page: 1 }),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Commission" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes</SelectItem>
+                <SelectItem value="yes">Commission uniquement</SelectItem>
+                <SelectItem value="no">Sans commission</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </div>
+          {filtersActive ? (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReset}>
+              <X className="mr-1 h-3 w-3" /> Réinitialiser les filtres
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
 
-      {/* Dialog détail */}
-      {detailOrder && (
-        <OrderDetailDialog
-          order={detailOrder}
-          onClose={() => setDetailOrder(null)}
-          onConfirmPayment={(assessmentId, amount) => paymentMutation.mutate({ assessmentId, amount })}
-          onCreateAssessment={() => assessmentMutation.mutate(detailOrder.order_id)}
-          isCreatingAssessment={assessmentMutation.isPending}
-          isConfirmingPayment={paymentMutation.isPending}
-        />
+      {isLoading ? (
+        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+          Chargement…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          <Package className="mx-auto mb-2 h-8 w-8 opacity-50" />
+          Aucune commande.
+        </div>
+      ) : (
+        <ul className="space-y-4">
+          {rows.map((o) => (
+            <OrderCard key={o.id} order={o} onStatus={onStatusChange} onZoom={setZoomImg} />
+          ))}
+        </ul>
       )}
+
+      <PaginationBar page={search.page} pageSize={PAGE_SIZE} total={total} onPageChange={onPage} />
+
+      <Dialog open={!!zoomImg} onOpenChange={(o) => !o && setZoomImg(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Image de personnalisation</DialogTitle>
+          </DialogHeader>
+          {zoomImg && (
+            <div className="space-y-3">
+              <img
+                src={zoomImg}
+                alt="zoom"
+                loading="lazy"
+                decoding="async"
+                className="max-h-[70vh] w-full object-contain"
+              />
+              <a href={zoomImg} target="_blank" rel="noreferrer">
+                <Button variant="outline" className="w-full">
+                  Ouvrir dans un nouvel onglet
+                </Button>
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ORDER ROW — Ligne de tableau
-   ═══════════════════════════════════════════════════════════ */
+type OrderCardProps = {
+  order: AdminOrderRow;
+  onStatus: (id: string, status: string) => void;
+  onZoom: (url: string) => void;
+};
 
-function OrderRow({
-  row,
-  isLogistics,
-  onView,
-  onStatusChange,
-  onCreateAssessment,
-}: {
-  row: any;
-  isLogistics: boolean;
-  onView: () => void;
-  onStatusChange: (status: string) => void;
-  onCreateAssessment: () => void;
-}) {
-  const orderId = row.id ?? row.order_id ?? "?";
-  const status = row.status ?? row.order_status ?? "new";
-  const logStatus = row.logistics_status ?? null;
-  const payStatus = row.payment_status ?? null;
-  const total = row.total ?? row.order_total ?? 0;
-  const customerName = row.customer_name ?? "—";
-  const customerPhone = row.customer_phone ?? null;
-  const isCommission = row.is_commission ?? false;
-  const orderType = row.order_type ?? (isCommission ? "import" : "local");
-  const assessmentId = row.assessment_id ?? null;
-  const remaining = row.amount_remaining ?? 0;
-  const shippingFees = row.total_shipping_fees ?? 0;
-
-  if (isLogistics) {
-    const typeConfig = ORDER_TYPE_CONFIG[orderType] ?? ORDER_TYPE_CONFIG.local;
-    const TypeIcon = typeConfig.icon;
-
-    return (
-      <tr className="border-b hover:bg-muted/20 transition-colors">
-        <td className="px-2 py-1.5">
-          <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-medium", typeConfig.color)}>
-            <TypeIcon className="h-2.5 w-2.5" /> {typeConfig.label}
-          </span>
-        </td>
-        <td className="px-2 py-1.5"><span className="font-mono">#{String(orderId).slice(0, 8)}</span></td>
-        <td className="px-2 py-1.5">
-          <p className="font-medium truncate max-w-[100px]">{customerName}</p>
-          {customerPhone && <p className="text-[9px] text-muted-foreground">{customerPhone}</p>}
-        </td>
-        <td className="px-2 py-1.5"><StatusBadge config={safeOrderStatus(status)} /></td>
-        <td className="px-2 py-1.5">
-          {assessmentId ? <StatusBadge config={safeLogisticsStatus(logStatus)} /> : <span className="text-[9px] text-gray-400">Non évaluée</span>}
-        </td>
-        <td className="px-2 py-1.5">
-          {payStatus ? <StatusBadge config={safePaymentStatus(payStatus)} /> : <span className="text-gray-400">—</span>}
-        </td>
-        <td className="px-2 py-1.5 text-right font-medium">{fmtN(total)}</td>
-        <td className="px-2 py-1.5 text-right">{shippingFees > 0 ? fmtN(shippingFees) : "—"}</td>
-        <td className="px-2 py-1.5 text-right">
-          <span className={cn("font-medium", remaining > 0 ? "text-red-600" : "text-emerald-600")}>
-            {shippingFees > 0 ? fmtN(remaining) : "—"}
-          </span>
-        </td>
-        <td className="px-2 py-1.5">
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onView} title="Détails">
-              <Eye className="h-3 w-3" />
-            </Button>
-            {!assessmentId && (
-              <Button size="sm" variant="outline" className="h-6 text-[9px] px-1.5" onClick={onCreateAssessment}>
-                <Scale className="h-3 w-3 mr-0.5" /> Évaluer
-              </Button>
-            )}
-            {customerPhone && (
-              <a href={`https://wa.me/${customerPhone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="h-6 w-6 flex items-center justify-center rounded hover:bg-emerald-50 text-emerald-600" title="WhatsApp">
-                <Phone className="h-3 w-3" />
-              </a>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
-  }
-
-  // Mode non-logistics (all, action, commission)
-  const typeConfig = ORDER_TYPE_CONFIG[orderType] ?? ORDER_TYPE_CONFIG.local;
-  const TypeIcon = typeConfig.icon;
-
+const OrderCard = memo(function OrderCard({ order: o, onStatus, onZoom }: OrderCardProps) {
+  const commission = o.items.reduce((s, it) => s + Number(it.commission_amount ?? 0), 0);
   return (
-    <tr className="border-b hover:bg-muted/20 transition-colors">
-      <td className="px-2 py-1.5"><span className="font-mono">#{String(orderId).slice(0, 8)}</span></td>
-      <td className="px-2 py-1.5">
-        <p className="font-medium truncate max-w-[120px]">{customerName}</p>
-        {customerPhone && <p className="text-[9px] text-muted-foreground">{customerPhone}</p>}
-      </td>
-      <td className="px-2 py-1.5"><StatusBadge config={safeOrderStatus(status)} /></td>
-      <td className="px-2 py-1.5">
-        <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-medium", typeConfig.color)}>
-          <TypeIcon className="h-2.5 w-2.5" /> {typeConfig.label}
-        </span>
-      </td>
-      <td className="px-2 py-1.5 text-right font-medium">{fmtN(total)}</td>
-      <td className="px-2 py-1.5 text-[9px] text-muted-foreground">
-        {row.created_at ? fmtD(row.created_at) : row.order_created_at ? fmtD(row.order_created_at) : "—"}
-      </td>
-      <td className="px-2 py-1.5">
-        <div className="flex items-center gap-1">
-          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onView}><Eye className="h-3 w-3" /></Button>
-          {status === "new" && (
-            <Button size="sm" variant="outline" className="h-6 text-[9px] px-1.5" onClick={() => onStatusChange("confirmed")}>
-              <CheckCircle className="h-3 w-3 mr-0.5" /> Confirmer
-            </Button>
-          )}
-          {customerPhone && (
-            <a href={`https://wa.me/${customerPhone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="h-6 w-6 flex items-center justify-center rounded hover:bg-emerald-50 text-emerald-600">
-              <Phone className="h-3 w-3" />
+    <li className="overflow-hidden rounded-xl border bg-card">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-accent/30 px-3 py-2">
+        <div>
+          <div className="text-xs font-semibold">Commande #{o.id.slice(0, 8)}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {new Date(o.created_at).toLocaleString("fr-FR")}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={statusVariant(o.status) as any}>
+            {STATUSES.find((s) => s.value === o.status)?.label ?? o.status}
+          </Badge>
+          <Select value={o.status} onValueChange={(v) => onStatus(o.id, v)}>
+            <SelectTrigger className="h-7 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </header>
+
+      <div className="border-b bg-muted/20 px-3 py-2 text-xs">
+        <div className="font-semibold">{o.customer_name ?? "—"}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+          {o.customer_phone && (
+            <a href={`tel:${o.customer_phone}`} className="inline-flex items-center gap-1 hover:text-primary">
+              <Phone className="h-3 w-3" /> {o.customer_phone}
             </a>
           )}
+          {(o.address || o.city) && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {[o.address, o.city].filter(Boolean).join(", ")}
+            </span>
+          )}
         </div>
-      </td>
-    </tr>
-  );
-}
+        {o.note && <div className="mt-1 italic text-muted-foreground">Note : {o.note}</div>}
+      </div>
 
-/* ═══════════════════════════════════════════════════════════
-   ORDER DETAIL DIALOG — Drawer de détails
-   ═══════════════════════════════════════════════════════════ */
-
-function OrderDetailDialog({
-  order,
-  onClose,
-  onConfirmPayment,
-  onCreateAssessment,
-  isCreatingAssessment,
-  isConfirmingPayment,
-}: {
-  order: LogisticsOrderRow;
-  onClose: () => void;
-  onConfirmPayment: (assessmentId: string, amount: number) => void;
-  onCreateAssessment: () => void;
-  isCreatingAssessment: boolean;
-  isConfirmingPayment: boolean;
-}) {
-  const daysPending = order.days_pending ?? 0;
-  const isUrgent = daysPending > 14;
-  const isBlocked = daysPending > 7 && (order.logistics_status ?? "") !== "shipped";
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto gap-0 p-0">
-        <DialogHeader className="p-4 pb-3 border-b">
-          <DialogTitle className="text-base flex items-center gap-2">
-            <ShoppingBag className="h-4 w-4" />
-            Commande #{order.order_id.slice(0, 8)}
-          </DialogTitle>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <p className="text-xs text-muted-foreground">{order.customer_name} · {order.customer_phone}</p>
-            <StatusBadge config={safeOrderStatus(order.order_status)} />
-            {order.order_type && (
-              <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
-                ORDER_TYPE_CONFIG[order.order_type]?.color ?? ORDER_TYPE_CONFIG.local.color)}>
-                {(ORDER_TYPE_CONFIG[order.order_type]?.icon ?? MapPin)({ className: "h-2.5 w-2.5" })}
-                {ORDER_TYPE_CONFIG[order.order_type]?.label ?? "?"}
-              </span>
-            )}
-          </div>
-        </DialogHeader>
-
-        <div className="p-4 space-y-4">
-          {/* Urgence */}
-          {(isUrgent || isBlocked) && (
-            <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium",
-              isUrgent ? "bg-red-50 border-red-200 text-red-700" : "bg-orange-50 border-orange-200 text-orange-700")}>
-              {isUrgent ? <Zap className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-              {daysPending} jours d'attente
-            </div>
-          )}
-
-          {/* Statuts */}
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge config={safeOrderStatus(order.order_status)} />
-            {order.logistics_status && <StatusBadge config={safeLogisticsStatus(order.logistics_status)} />}
-            {order.payment_status && <StatusBadge config={safePaymentStatus(order.payment_status)} />}
-          </div>
-
-          {/* Financier */}
-          <section className="rounded-xl border bg-muted/30 p-3 space-y-2">
-            <p className="text-[10px] uppercase font-semibold text-muted-foreground">Financier</p>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Produits</span><span>{fmtN(order.order_total)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Frais transport</span><span>{fmtN(order.total_shipping_fees)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Payé</span><span className="text-emerald-600">{fmtN(order.amount_paid)}</span></div>
-            <div className="border-t pt-1 flex justify-between font-bold text-sm">
-              <span>Reste</span>
-              <span className={(order.amount_remaining ?? 0) > 0 ? "text-red-600" : "text-emerald-600"}>{fmtN(order.amount_remaining)}</span>
-            </div>
-          </section>
-
-          {/* Poids */}
-          {(order.real_weight_kg || order.volumetric_weight_kg) && (
-            <section className="rounded-xl border bg-muted/30 p-3 space-y-1">
-              <p className="text-[10px] uppercase font-semibold text-muted-foreground">Poids</p>
-              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Réel</span><span>{order.real_weight_kg ?? "—"} kg</span></div>
-              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Volumétrique</span><span>{order.volumetric_weight_kg ?? "—"} kg</span></div>
-              <div className="flex justify-between text-xs font-medium"><span>Facturable</span><span>{order.chargeable_weight_kg ?? "—"} kg</span></div>
-            </section>
-          )}
-
-          {/* Tracking */}
-          {order.tracking_number && (
-            <section className="rounded-xl border bg-muted/30 p-3 space-y-1">
-              <p className="text-[10px] uppercase font-semibold text-muted-foreground">Tracking</p>
-              <div className="flex items-center gap-2 text-xs">
-                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-mono">{order.tracking_number}</span>
+      <ul>
+        {o.items.map((it) => {
+          const c = (it.customization ?? {}) as Record<string, any>;
+          return (
+            <li key={it.id} className="flex gap-3 border-b p-3 last:border-0">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+                {it.product_image_url && (
+                  <img
+                    src={it.product_image_url}
+                    alt={it.product_name}
+                    loading="lazy"
+                    decoding="async"
+                    width={64}
+                    height={64}
+                    className="h-full w-full object-cover"
+                  />
+                )}
               </div>
-              {order.carrier_name && <p className="text-xs text-muted-foreground">Transporteur: {order.carrier_name}</p>}
-            </section>
-          )}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-sm font-semibold">{it.product_name}</div>
+                <div className="text-xs text-muted-foreground">
+                  Code {it.product_code} · Qté {it.quantity} ·{" "}
+                  {Number(it.unit_price).toLocaleString("fr-FR")} FCFA
+                </div>
+                {(it.size || it.color) && (
+                  <div className="text-xs text-muted-foreground">
+                    {it.size && <>Taille : {it.size}</>}
+                    {it.size && it.color && " · "}
+                    {it.color && <>Couleur : {it.color}</>}
+                  </div>
+                )}
+                {it.source_url && (
+                  <div className="mt-1 flex items-center gap-1 text-xs">
+                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
+                      Source admin
+                    </span>
+                    <a
+                      href={it.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate text-primary underline"
+                      title={it.source_url}
+                    >
+                      {it.source_url}
+                    </a>
+                  </div>
+                )}
+                {(c.text || c.image_url) && (
+                  <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
+                    <div className="mb-1 font-semibold text-primary">Personnalisation</div>
+                    {c.text && (
+                      <div
+                        className="rounded bg-background p-2 text-base"
+                        style={{ fontFamily: c.font || undefined, color: c.color || undefined }}
+                      >
+                        {c.text}
+                      </div>
+                    )}
+                    {c.image_url && (
+                      <button
+                        onClick={() => onZoom(c.image_url)}
+                        className="mt-2 block h-20 w-20 overflow-hidden rounded border bg-muted"
+                      >
+                        <img
+                          src={c.image_url}
+                          alt="logo"
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-contain"
+                        />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
-          {/* Actions */}
-          <section className="flex flex-wrap gap-2 pt-2 border-t">
-            {!order.assessment_id && (
-              <Button size="sm" onClick={onCreateAssessment} disabled={isCreatingAssessment}>
-                <Scale className="h-4 w-4 mr-1" /> Créer évaluation
-              </Button>
-            )}
-            {order.assessment_id && (order.payment_status === "pending" || order.payment_status === "partial") && (order.amount_remaining ?? 0) > 0 && (
-              <Button size="sm" onClick={() => onConfirmPayment(order.assessment_id!, order.amount_remaining ?? 0)} disabled={isConfirmingPayment}>
-                <Receipt className="h-4 w-4 mr-1" /> Confirmer paiement
-              </Button>
-            )}
-            {order.customer_phone && (
-              <Button size="sm" variant="outline" asChild>
-                <a href={`https://wa.me/${order.customer_phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                  <Phone className="h-4 w-4 mr-1" /> WhatsApp
-                </a>
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={onClose}><Ban className="h-4 w-4 mr-1" /> Fermer</Button>
-          </section>
+      <div className="space-y-1 border-t bg-muted/10 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Total</span>
+          <span className="font-bold text-primary">
+            {Number(o.total).toLocaleString("fr-FR")} FCFA
+          </span>
         </div>
-      </DialogContent>
-    </Dialog>
+        {commission > 0 && (
+          <div className="flex items-center justify-between text-emerald-700">
+            <span>Commission plateforme</span>
+            <span className="font-semibold">{commission.toLocaleString("fr-FR")} FCFA</span>
+          </div>
+        )}
+      </div>
+    </li>
   );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════════════════════════════ */
-
-function StatusBadge({ config }: { config?: { label: string; color: string } | null }) {
-  const safe = config ?? { label: "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
-  return <span className={cn("inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border", safe.color)}>{safe.label}</span>;
-}
-
-function fmtN(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
-
-function fmtD(d: string | null | undefined): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
-}
+});

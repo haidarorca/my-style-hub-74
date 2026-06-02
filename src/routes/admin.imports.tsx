@@ -1,7 +1,7 @@
 /**
  * admin.imports.tsx
  * Import IA Visuelle - Variantes avec sous-options (couleurs + tailles)
- * Notation: 1,2,,3,4,,5,7 gives info=1-2, product=3-4, variants=5-7
+ * Notation: 1,2,,3,4,,5,7 → info=1-2 | product=3-4 | variants=5-7
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -15,8 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { AdminTabs, AdminTabList, AdminTabTrigger, AdminTabContent } from "@/components/admin/AdminTabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,13 +23,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { exportProducts, downloadTemplate, previewImport, commitImport } from "@/lib/import-export.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
-import InstructionsPanel from "@/components/admin/InstructionsPanel";
 
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
-const fmtFcfa = (n: number | null) => n === null || n === 0 ? "-" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+const fmtFcfa = (n: number | null) => n === null || n === 0 ? "—" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 type Pick = string; const idOf = (v: Pick) => v.slice(4);
 interface CatRow { id: string; name: string; level: number; parent_id: string | null; }
-const LS_KEY = "kawzone_v5"; function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } } function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
+const LS_KEY = "kawzone_v4"; function loadDrafts(): VisualDraft[] { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; } catch { return []; } } function saveDrafts(drafts: VisualDraft[]) { localStorage.setItem(LS_KEY, JSON.stringify(drafts)); }
 
 const COLOR_PRESETS = ["Rouge", "Bleu", "Noir", "Blanc", "Vert", "Jaune", "Orange", "Rose", "Gris", "Marron", "Violet", "Beige"];
 const SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "36", "38", "40", "42", "44", "46"];
@@ -48,13 +46,13 @@ export default function AdminImports() {
   return (
     <div className="space-y-4">
       <div><h1 className="flex items-center gap-2 text-xl font-bold"><Package className="h-5 w-5" /> Importation</h1><p className="text-xs text-muted-foreground">Excel/CSV ou IA Visuelle</p></div>
-      <AdminTabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
-        <AdminTabList>
-          <AdminTabTrigger value="excel"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel/CSV</AdminTabTrigger>
-          <AdminTabTrigger value="visual"><Sparkles className="h-3.5 w-3.5" /> IA Visuelle</AdminTabTrigger>
-          <AdminTabTrigger value="drafts"><Package className="h-3.5 w-3.5" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="text-[9px] h-4 px-1">{activeDrafts.length}</Badge>}</AdminTabTrigger>
-        </AdminTabList>
-        <AdminTabContent value="excel" className="space-y-4 pt-3">
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "excel" | "visual" | "drafts")}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="excel"><FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel/CSV</TabsTrigger>
+          <TabsTrigger value="visual"><Sparkles className="h-3.5 w-3.5 mr-1" /> IA Visuelle</TabsTrigger>
+          <TabsTrigger value="drafts"><Package className="h-3.5 w-3.5 mr-1" /> Brouillons {activeDrafts.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px]">{activeDrafts.length}</Badge>}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="excel" className="space-y-4 pt-3">
           <Card><CardHeader><CardTitle className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Excel / CSV</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
@@ -62,26 +60,24 @@ export default function AdminImports() {
                 <Button variant="outline" size="sm" onClick={() => fnExport({ data: { scope: "admin", shopId: "", status: "any" } }).then((r: any) => { const b = atob(r.base64); const bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); const blob = new Blob([bytes], { type: r.mime }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = r.fileName; a.click(); URL.revokeObjectURL(url); }).catch(() => toast.error("Erreur"))}><Table2 className="mr-1 h-3.5 w-3.5" /> Exporter</Button>
               </div>
               <Separator /><Input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { setExcelFile(e.target.files?.[0] ?? null); setPreview(null); }} />
-              <Button onClick={async () => { if (!excelFile) return; setPreviewLoading(true); try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile); }); const r = await fnPreview({ data: { scope: "admin", shopId: "00000000-0000-0000-0000-000000000000", fileBase64: b64, fileName: excelFile.name } as any }); setPreview(r); } catch (e: any) { toast.error(e.message); } setPreviewLoading(false); }} disabled={!excelFile || previewLoading} className="w-full">{previewLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}</Button>
-              {preview && <Button onClick={async () => { try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile!); }); await fnCommit({ data: { importId: (preview as any)?.id ?? "" } as any }); toast.success("Importe !"); setPreview(null); setExcelFile(null); } catch (e: any) { toast.error(e.message); } }} className="w-full"><CheckCircle2 className="h-4 w-4 mr-1" /> Importer</Button>}
+              <Button onClick={async () => { if (!excelFile) return; setPreviewLoading(true); try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile); }); const r = await fnPreview({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile.name } }); setPreview(r); } catch (e: any) { toast.error(e.message); } setPreviewLoading(false); }} disabled={!excelFile || previewLoading} className="w-full">{previewLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}</Button>
+              {preview && <Button onClick={async () => { try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile!); }); await fnCommit({ data: { scope: "admin", shopId: "", fileBase64: b64, fileName: excelFile!.name } }); toast.success("Importe !"); setPreview(null); setExcelFile(null); } catch (e: any) { toast.error(e.message); } }} className="w-full"><CheckCircle2 className="h-4 w-4 mr-1" /> Importer</Button>}
             </CardContent>
           </Card>
-        </AdminTabContent>
-        <AdminTabContent value="visual"><VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingId(d.id); setMainTab("drafts"); }} /></AdminTabContent>
-        <AdminTabContent value="drafts">
+        </TabsContent>
+        <TabsContent value="visual" className="space-y-4 pt-3"><VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingId(d.id); setMainTab("drafts"); }} /></TabsContent>
+        <TabsContent value="drafts" className="space-y-4 pt-3">
           {activeDrafts.length === 0 ? (
             <div className="rounded-xl border border-dashed p-10 text-center"><Package className="mx-auto h-10 w-10 text-muted-foreground opacity-60" /><p className="text-sm font-semibold">Aucun brouillon</p><Button variant="outline" size="sm" className="mt-3" onClick={() => setMainTab("visual")}><Sparkles className="h-3.5 w-3.5 mr-1" /> Importer</Button></div>
           ) : (
             <div className="grid grid-cols-1 gap-3">{activeDrafts.map(d => (<DraftCard key={d.id} draft={d} onEdit={() => setEditingId(d.id)} onRemove={() => setDrafts(p => p.filter(x => x.id !== d.id))} />))}</div>
           )}
-        </AdminTabContent>
-      </AdminTabs>
+        </TabsContent>
+      </Tabs>
       {editingDraft && (<DraftEditor draft={editingDraft} onClose={() => setEditingId(null)} onUpdate={(patch) => setDrafts(p => p.map(d => d.id === editingDraft.id ? { ...d, ...patch } : d))} onPublish={(id) => setDrafts(p => p.filter(d => d.id !== id))} />)}
     </div>
   );
 }
-
-const INSTRUCTIONS_LS_KEY = "kawzone_vi_instructions";
 
 function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) => void }) {
   const [files, setFiles] = useState<{ file: File; preview: string; type: "image" | "video" }[]>([]);
@@ -89,23 +85,21 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
   const [videoError, setVideoError] = useState("");
-  const [instructions, setInstructions] = useState(() => { try { return localStorage.getItem(INSTRUCTIONS_LS_KEY) || ""; } catch { return ""; } });
   const [mediaNotation, setMediaNotation] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Persist instructions
-  useEffect(() => { localStorage.setItem(INSTRUCTIONS_LS_KEY, instructions); }, [instructions]);
   const fnUpload = useServerFn(uploadImportMedia);
   const fnExtractFrames = useServerFn(extractVideoFrames);
   const fnAnalyze = useServerFn(analyzeVisualMedia);
   const addLog = (msg: string, type = "info") => setLogs(p => [...p, { msg, type }]);
   const handleFiles = (newFiles: File[]) => { const accepted = newFiles.filter(f => f.type.startsWith("image/") || f.type.startsWith("video/")); if (accepted.length === 0) { toast.error("Images et videos uniquement"); return; } if (files.length + accepted.length > 20) { toast.error("Max 20 fichiers"); return; } const items = accepted.map(f => ({ file: f, preview: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "video" as const : "image" as const })); setFiles(p => [...p, ...items]); setVideoError(""); };
   const removeFile = (i: number) => setFiles(p => { const n = [...p]; URL.revokeObjectURL(n[i].preview); n.splice(i, 1); return n; });
-  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type } as any }); if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 } as any }); if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { const errMsg = e?.message || e?.error || JSON.stringify(e).slice(0,100) || "Erreur"; addLog(`${f.file.name}: ${errMsg}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const notationStr = mediaNotation.trim(); if (notationStr) addLog(`Notation: ${notationStr}`, "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: notationStr } as any }); if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(e.message, "err"); toast.error(e.message); } setIsAnalyzing(false); };
+  const handleAnalyze = async () => { if (files.length === 0) { toast.error("Ajoutez des medias"); return; } setIsAnalyzing(true); setLogs([]); setVideoError(""); addLog("Demarrage...", "info"); try { const imageUrls: string[] = []; const videoFrameUrls: string[] = []; for (let i = 0; i < files.length; i++) { const f = files[i]; try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(f.file); }); const res = await fnUpload({ data: { fileBase64: b64, fileName: f.file.name, mimeType: f.file.type }}) as any; if (f.type === "image") imageUrls.push(res.url); else { const fr = await fnExtractFrames({ data: { videoUrl: res.url, maxFrames: 8 }}) as any; if (fr.error) { setVideoError(`Video "${f.file.name}": ${fr.error}`); addLog(`Video ${f.file.name}: ${fr.error}`, "err"); } if (fr.frameUrls?.length > 0) { videoFrameUrls.push(...fr.frameUrls); addLog(`${fr.frameCount} frames`, "ok"); } else { addLog(`Aucune frame de ${f.file.name}`, "warn"); } } } catch (e: any) { addLog(`${f.file.name}: ${e.message}`, "err"); } } const effective = imageUrls.length > 0 ? imageUrls : videoFrameUrls; if (effective.length === 0) throw new Error("Aucun media utilisable. " + (videoError || "Ajoutez des images.")); addLog("Analyse IA...", "info"); const notationStr = mediaNotation.trim(); if (notationStr) addLog(`Notation: ${notationStr}`, "info"); const analysis = await fnAnalyze({ data: { imageUrls, videoFrameUrls, mediaNotation: notationStr }}) as any; if (analysis.logs) analysis.logs.forEach((l: string) => addLog(l, l.includes("OK") ? "ok" : l.includes("Erreur") ? "err" : "info")); if (!analysis.success || !analysis.draft) throw new Error(analysis.errors?.[0] || "Echec"); onDraftCreated(analysis.draft); toast.success(`OK! Prix from: ${fmtFcfa(analysis.draft.price)} | ${analysis.draft.variants.length} variantes`); setFiles([]); } catch (e: any) { addLog(e.message, "err"); toast.error(e.message); } setIsAnalyzing(false); };
   const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
   const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); }, []);
   const onDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }, []);
   return (
     <div className="space-y-4">
+      {/* Help Notice */}
       <Card className="bg-blue-50/50 border-blue-200">
         <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1 text-blue-800"><Info className="h-3.5 w-3.5" /> Comment organiser vos medias</CardTitle></CardHeader>
         <CardContent className="text-[11px] text-blue-800 space-y-2 pt-0">
@@ -126,13 +120,10 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
           <div className="rounded bg-white/70 p-2">
             <p className="font-semibold mb-1">Notation: utilisez ,, pour separer les groupes</p>
             <ul className="space-y-0.5 list-disc list-inside text-[10px]">
-              <li>INFO: images 1-2 (prix/details)</li>
-              <li>PRODUIT: images 3-4+ (galerie)</li>
-              <li>VARIANTES: apres les 2 virgules</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,,5,7</code> → INFO:1-2 | PRODUIT:3-4 | VARIANTES:5,7</li>
+              <li><code className="bg-blue-100 px-1 rounded">1,2,,3,4,5,6</code> → INFO:1-2 | PRODUIT:3-6 (pas de variants)</li>
+              <li><code className="bg-blue-100 px-1 rounded">1-3,,4,5,,6-8</code> → INFO:1-3 | PRODUIT:4-5 | VARIANTES:6-8</li>
               <li>Sans notation: les 2 premieres = info, le reste = produit</li>
-              <li>Exemple un : images un et deux pour informations, images trois et quatre pour produit, images cinq et sept pour variantes.</li>
-              <li>Exemple deux : images un et deux pour informations, images trois a six pour produit, sans variantes.</li>
-              <li>Exemple trois : images un a trois pour informations, images quatre et cinq pour produit, images six a huit pour variantes.</li>
             </ul>
           </div>
           <p className="text-amber-700"><AlertTriangle className="h-3 w-3 inline mr-0.5" /> <strong>Conseil video:</strong> Si la video ne se lit pas, utilisez des captures d&apos;ecran.</p>
@@ -141,7 +132,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Import IA Visuel</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <InstructionsPanel instructions={instructions} onChange={setInstructions} /><div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
+          <div onClick={() => fileInputRef.current?.click()} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`}>
             <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => handleFiles(Array.from(e.target.files || []))} />
             <Upload className="mx-auto h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground mb-2" />
             <p className="text-sm font-medium">Touchez ou cliquez pour selectionner</p>
@@ -162,6 +153,7 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
               </div>
             </div>
           )}
+          {/* Media Notation Input */}
           {files.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase font-semibold flex items-center gap-1">
@@ -170,8 +162,15 @@ function VisualImporter({ onDraftCreated }: { onDraftCreated: (d: VisualDraft) =
               <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[10px] text-blue-800 mb-1">
                 <strong>Format:</strong> 1,2 = INFO | 3,4 = PRODUIT | <strong>,,5,6</strong> = VARIANTES. Utilisez <strong>,,</strong> pour separer les groupes.
               </div>
-              <Input value={mediaNotation} onChange={(e) => setMediaNotation(e.target.value)} placeholder={`Ex: 1,2,,3,4,,5,7 (${files.length} fichiers)`} className="text-sm" />
-              <p className="text-[10px] text-muted-foreground">Separez avec ,,: INFO ,, PRODUIT ,, VARIANTES. Ex: 1,2,,3,4,,5,7</p>
+              <Input
+                value={mediaNotation}
+                onChange={(e) => setMediaNotation(e.target.value)}
+                placeholder={`Ex: 1,2,,3,4,,5,7 (${files.length} fichiers)`}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Separez avec ,,: INFO ,, PRODUIT ,, VARIANTES. Ex: 1,2,,3,4,,5,7
+              </p>
             </div>
           )}
           {videoError && <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800"><AlertTriangle className="h-3.5 w-3.5 inline mr-1" />{videoError}</div>}
@@ -208,84 +207,146 @@ function DraftCard({ draft, onEdit, onRemove }: { draft: VisualDraft; onEdit: ()
 /** Preset chip for quick color/size selection */
 function PresetChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-muted hover:bg-muted/80 text-muted-foreground border-muted-foreground/20"}`}>{label}</button>
+    <button
+      onClick={onClick}
+      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-muted hover:bg-muted/80 text-muted-foreground border-muted-foreground/20"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
-function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVariant; index: number; onUpdate: (patch: Partial<SimpleVariant>) => void; onRemove: () => void; }) {
-  const [uploading, setUploading] = useState(false);
-
-  // Map array-based data model onto single-value inputs (same UX as vendor.products.new)
-  const sizeValue = variant.sizes[0] ?? "";
-  const colorValue = variant.colors[0] ?? "";
-
-  const variantImageSlot: keyof SimpleVariant = "image_url";
-  const hasImage = !!variant.image_url;
-  const maxImages = 1;
-  const canAddMore = !hasImage;
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Non authentifie");
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `${user.id}/visual-import/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
-      onUpdate({ image_url: pub.publicUrl });
-      toast.success("Image ajoutee");
-    } catch (e: any) {
-      toast.error(e?.message || "Erreur upload");
-    }
-    setUploading(false);
+function VariantRow({ variant, index, onUpdate, onRemove }: {
+  variant: SimpleVariant; index: number;
+  onUpdate: (patch: Partial<SimpleVariant>) => void;
+  onRemove: () => void;
+}) {
+  const addColor = (val: string) => {
+    if (!variant.colors.includes(val)) onUpdate({ colors: [...variant.colors, val] });
   };
+  const removeColor = (ci: number) => onUpdate({ colors: variant.colors.filter((_, j) => j !== ci) });
+  const updateColor = (ci: number, val: string) => onUpdate({ colors: variant.colors.map((c, j) => j === ci ? val : c) });
+
+  const addSize = (val: string) => {
+    if (!variant.sizes.includes(val)) onUpdate({ sizes: [...variant.sizes, val] });
+  };
+  const removeSize = (si: number) => onUpdate({ sizes: variant.sizes.filter((_, j) => j !== si) });
+  const updateSize = (si: number, val: string) => onUpdate({ sizes: variant.sizes.map((s, j) => j === si ? val : s) });
+
+  const [customColor, setCustomColor] = useState("");
+  const [customSize, setCustomSize] = useState("");
+
+  const allColorsSelected = COLOR_PRESETS.every(c => variant.colors.includes(c));
+  const allSizesSelected = SIZE_PRESETS.every(s => variant.sizes.includes(s));
 
   return (
-    <div className="rounded-lg border bg-background p-2 space-y-2">
-      <div className="grid grid-cols-12 items-end gap-2">
-        <div className="col-span-2">
-          <Label className="text-[10px]">Taille</Label>
-          <Input className="h-8" value={sizeValue} onChange={e => onUpdate({ sizes: e.target.value ? [e.target.value] : [] })} placeholder="S, M, 42..." />
+    <div className="bg-muted/30 rounded-lg p-2.5 space-y-3">
+      {/* Main: Label + Price + Remove */}
+      <div className="flex gap-2 items-end">
+        <div className="flex-1 min-w-0">
+          <Label className="text-[9px] text-muted-foreground">Nom du choix</Label>
+          <Input value={variant.label} onChange={e => onUpdate({ label: e.target.value })} className="h-9 text-sm mt-0.5" placeholder="Ex: T-shirt Basique" />
         </div>
-        <div className="col-span-3">
-          <Label className="text-[10px]">Couleur / Modele</Label>
-          <Input className="h-8" value={colorValue} onChange={e => onUpdate({ colors: e.target.value ? [e.target.value] : [] })} placeholder="Rouge / Modele A" />
+        <div className="w-28 shrink-0">
+          <Label className="text-[9px] text-muted-foreground">Prix FCFA</Label>
+          <Input type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} className="h-9 text-sm mt-0.5" placeholder="5000" />
         </div>
-        <div className="col-span-1">
-          <Label className="text-[10px]">Hex</Label>
-          <input type="color" value={variant.color_hex || "#000000"} onChange={e => onUpdate({ color_hex: e.target.value })} className="h-8 w-full rounded border" />
+        <button onClick={onRemove} className="h-9 w-9 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 shrink-0" title="Supprimer la variante"><X className="h-5 w-5" /></button>
+      </div>
+
+      {/* Colors section */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Palette className="h-3 w-3" /> Couleurs ({variant.colors.length})</Label>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allColorsSelected) onUpdate({ colors: [] }); else onUpdate({ colors: [...new Set([...variant.colors, ...COLOR_PRESETS])] }); }}>
+              {allColorsSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+              {allColorsSelected ? "Tout deselectionner" : "Tout selectionner"}
+            </Button>
+          </div>
         </div>
-        <div className="col-span-2">
-          <Label className="text-[10px]">Stock</Label>
-          <Input className="h-8" type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} />
+        {/* Preset chips */}
+        <div className="flex flex-wrap gap-1">
+          {COLOR_PRESETS.map(c => (
+            <PresetChip key={c} label={c} active={variant.colors.includes(c)} onClick={() => variant.colors.includes(c) ? onUpdate({ colors: variant.colors.filter(x => x !== c) }) : addColor(c)} />
+          ))}
         </div>
-        <div className="col-span-3">
-          <Label className="text-[10px]">Prix FCFA</Label>
-          <Input className="h-8" type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} placeholder="---" />
-        </div>
-        <div className="col-span-1">
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onRemove}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+        {/* Selected colors with X + custom input */}
+        {variant.colors.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {variant.colors.map((c, ci) => (
+              <div key={ci} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
+                {ci === 0 && (
+                  <input
+                    type="color"
+                    value={variant.color_hex || "#000000"}
+                    onChange={e => onUpdate({ color_hex: e.target.value })}
+                    className="w-4 h-4 rounded cursor-pointer border-0 p-0 shrink-0"
+                    title="Couleur hex"
+                  />
+                )}
+                <Input value={c} onChange={e => updateColor(ci, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-14 bg-transparent" />
+                <button onClick={() => removeColor(ci)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Custom color input */}
+        <div className="flex gap-1">
+          <Input value={customColor} onChange={e => setCustomColor(e.target.value)} className="h-7 text-xs" placeholder="Couleur personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }} />
+          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customColor.trim()) { addColor(customColor.trim()); setCustomColor(""); } }}><Plus className="h-3 w-3" /></Button>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {variant.image_url ? (
-          <div className="relative h-14 w-14 overflow-hidden rounded border">
-            <img src={variant.image_url} alt="" className="h-full w-full object-cover" />
-            <button type="button" onClick={() => onUpdate({ image_url: null })} className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5" aria-label="Supprimer l'image">
-              <X className="h-3 w-3" />
-            </button>
+
+      {/* Sizes section */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[9px] text-muted-foreground flex items-center gap-1"><Ruler className="h-3 w-3" /> Tailles ({variant.sizes.length})</Label>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => { if (allSizesSelected) onUpdate({ sizes: [] }); else onUpdate({ sizes: [...new Set([...variant.sizes, ...SIZE_PRESETS])] }); }}>
+              {allSizesSelected ? <X className="h-2.5 w-2.5 mr-0.5" /> : <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+              {allSizesSelected ? "Tout deselectionner" : "Tout selectionner"}
+            </Button>
           </div>
-        ) : (
-          <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded border-2 border-dashed text-xs text-muted-foreground hover:bg-accent ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadFile(f); }} />
-          </label>
+        </div>
+        {/* Preset chips */}
+        <div className="flex flex-wrap gap-1">
+          {SIZE_PRESETS.map(s => (
+            <PresetChip key={s} label={s} active={variant.sizes.includes(s)} onClick={() => variant.sizes.includes(s) ? onUpdate({ sizes: variant.sizes.filter(x => x !== s) }) : addSize(s)} />
+          ))}
+        </div>
+        {/* Selected sizes with X */}
+        {variant.sizes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {variant.sizes.map((s, si) => (
+              <div key={si} className="flex items-center gap-1 bg-background rounded-md border px-1.5 py-0.5">
+                <Input value={s} onChange={e => updateSize(si, e.target.value)} className="h-5 text-[10px] border-0 p-0 w-10 bg-transparent text-center" />
+                <button onClick={() => removeSize(si)} className="text-destructive hover:bg-destructive/10 rounded p-0.5"><X className="h-2.5 w-2.5" /></button>
+              </div>
+            ))}
+          </div>
         )}
-        <p className="text-[11px] text-muted-foreground">Image affichee quand cette variante est choisie.</p>
+        {/* Custom size input */}
+        <div className="flex gap-1">
+          <Input value={customSize} onChange={e => setCustomSize(e.target.value)} className="h-7 text-xs" placeholder="Taille personnalisee..." onKeyDown={e => { if (e.key === "Enter" && customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }} />
+          <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (customSize.trim()) { addSize(customSize.trim()); setCustomSize(""); } }}><Plus className="h-3 w-3" /></Button>
+        </div>
+      </div>
+
+      {/* Stock + Image URL */}
+      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed">
+        <div>
+          <Label className="text-[9px] text-muted-foreground">Stock</Label>
+          <Input type="number" min={0} value={variant.stock} onChange={e => onUpdate({ stock: Number(e.target.value) })} className="h-8 text-xs mt-0.5" placeholder="0" />
+        </div>
+        <div>
+          <Label className="text-[9px] text-muted-foreground">Image URL</Label>
+          <Input value={variant.image_url || ""} onChange={e => onUpdate({ image_url: e.target.value || null })} className="h-8 text-[10px] mt-0.5" placeholder="https://..." />
+        </div>
       </div>
     </div>
   );
@@ -299,6 +360,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
   const [price, setPrice] = useState<string>(draft.price !== null ? String(draft.price) : "");
   const [variants, setVariants] = useState<SimpleVariant[]>(draft.variants.length > 0 ? draft.variants : []);
   const { data: cats } = useQuery<CatRow[]>({ queryKey: ["cats-vi"], queryFn: async () => { const { data } = await supabase.from("categories").select("id, name, level, parent_id").order("position"); return (data || []) as CatRow[]; } });
+  const hasMatch = !!draft.categoryName;
   const l3id = draft.categoryId || "";
   const l3cat = cats?.find(c => c.id === l3id);
   const l2cat = l3cat && cats?.find(c => c.id === l3cat.parent_id && c.level === 2);
@@ -323,7 +385,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
     if (!deepestPick) { toast.error("Categorie obligatoire"); return; }
     setSubmitting(true);
     try {
-      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } as any });
+      const result = await fnPublish({ data: { draft: { name: name.trim(), designation: designation.trim(), description: description.trim(), price: Number(price), categoryId: finalL3?.id || null, images: draft.images, variants: variants.map(v => ({ label: v.label, price: v.price, image_url: v.image_url, colors: v.colors, sizes: v.sizes, color_hex: v.color_hex, stock: v.stock })) } } }) as any;
       toast.success(`Publie! Code: ${result.code}`); onPublish(draft.id); onClose();
     } catch (e: any) { toast.error(e.message || "Echec"); }
     setSubmitting(false);
@@ -346,12 +408,14 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
           )}
         </DialogHeader>
         <div className="p-3 sm:p-4 space-y-4">
+          {/* Price */}
           <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
             <p className="text-[10px] uppercase text-muted-foreground">Prix affiche (from)</p>
             <p className="text-2xl font-bold text-primary">{fmtFcfa(fromPrice)}</p>
             {draft.originalPrice && <p className="text-[10px] text-muted-foreground">{draft.originalPrice} {draft.originalCurrency} = {fmtFcfa(draft.price)}</p>}
           </div>
 
+          {/* Media Groups */}
           {draft.mediaGroup && (
             <div className="space-y-2">
               {draft.mediaGroup.infoImages.length > 0 && (
@@ -375,6 +439,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             </div>
           )}
 
+          {/* Product info */}
           <div className="space-y-2">
             <div><Label className="text-[10px] uppercase">Nom <span className="text-destructive">*</span></Label><Input value={name} onChange={e => setName(e.target.value)} className="mt-0.5 h-9" /></div>
             <div><Label className="text-[10px] uppercase">Designation</Label><Input value={designation} onChange={e => setDesignation(e.target.value)} className="mt-0.5 h-9" /></div>
@@ -382,6 +447,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
             <div><Label className="text-[10px] uppercase">Description</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="mt-0.5 text-sm" /></div>
           </div>
 
+          {/* Category */}
           <div>
             <Label className="text-[10px] uppercase font-semibold">Categorie</Label>
             <div className="grid grid-cols-1 gap-1.5 mt-1">
@@ -393,28 +459,39 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
 
           <Separator />
 
+          {/* Variants */}
           <div>
-            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <div className="flex items-center justify-between mb-2">
               <Label className="text-[10px] uppercase font-semibold">Variantes ({variants.length})</Label>
-              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addVariant}>
+                <Plus className="h-3 w-3 mr-1" /> Ajouter
+              </Button>
             </div>
             {variants.length === 0 ? (
               <div className="rounded-lg border border-dashed p-3 text-center">
                 <p className="text-[11px] text-muted-foreground">Aucune variante.</p>
-                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}><Plus className="h-3 w-3 mr-1" /> Ajouter une variante</Button>
+                <Button variant="outline" size="sm" className="mt-2 h-6 text-[10px]" onClick={addVariant}>
+                  <Plus className="h-3 w-3 mr-1" /> Ajouter une variante
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
                 {variants.map((v, i) => (
-                  <VariantRow key={i} variant={v} index={i} onUpdate={(patch) => updateVariant(i, patch)} onRemove={() => removeVariant(i)} />
+                  <VariantRow key={i} variant={v} index={i}
+                    onUpdate={(patch) => updateVariant(i, patch)}
+                    onRemove={() => removeVariant(i)}
+                  />
                 ))}
               </div>
             )}
             {variants.length > 0 && (
-              <p className="text-[10px] text-muted-foreground mt-2">Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong></p>
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Prix affiche aux clients: <strong className="text-foreground">{fmtFcfa(fromPrice)}</strong>
+              </p>
             )}
           </div>
 
+          {/* Actions */}
           <div className="flex gap-2 pt-2 pb-1">
             <Button variant="outline" onClick={onClose} className="gap-1 flex-1 sm:flex-none"><X className="h-4 w-4" /> Fermer</Button>
             <Button variant="secondary" onClick={handleSave} className="gap-1 flex-1 sm:flex-none"><Save className="h-4 w-4" /> Sauver</Button>

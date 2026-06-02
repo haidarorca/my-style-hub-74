@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminTabs, AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,12 +62,12 @@ function CommissionsPage() {
         </p>
       </div>
       <Tabs defaultValue="matrix">
-        <AdminTabList className="w-full">
-          <AdminTabTrigger value="matrix" className="flex-1">Matrice pays</AdminTabTrigger>
-          <AdminTabTrigger value="global" className="flex-1">Globale</AdminTabTrigger>
-          <AdminTabTrigger value="vendors" className="flex-1">Vendeurs</AdminTabTrigger>
-          <AdminTabTrigger value="history" className="flex-1">Historique</AdminTabTrigger>
-        </AdminTabList>
+        <TabsList className="w-full">
+          <TabsTrigger value="matrix" className="flex-1">Matrice pays</TabsTrigger>
+          <TabsTrigger value="global" className="flex-1">Globale</TabsTrigger>
+          <TabsTrigger value="vendors" className="flex-1">Vendeurs</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1">Historique</TabsTrigger>
+        </TabsList>
         <TabsContent value="matrix" className="pt-3"><MatrixTab /></TabsContent>
         <TabsContent value="global" className="pt-3"><GlobalTab /></TabsContent>
         <TabsContent value="vendors" className="pt-3"><VendorsTab /></TabsContent>

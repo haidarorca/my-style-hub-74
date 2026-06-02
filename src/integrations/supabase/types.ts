@@ -707,78 +707,6 @@ export type Database = {
           },
         ]
       }
-      import_jobs: {
-        Row: {
-          attempts: number
-          completed_at: string | null
-          confidence: number
-          created_at: string
-          draft: Json | null
-          error_message: string | null
-          extraction_source: string | null
-          final_url: string | null
-          id: string
-          kind: string
-          logs: Json
-          platform: string | null
-          progress: number
-          shop_id: string
-          source_product_id: string | null
-          source_url: string
-          started_at: string | null
-          status: string
-          updated_at: string
-          user_id: string
-          validation_issues: string[]
-        }
-        Insert: {
-          attempts?: number
-          completed_at?: string | null
-          confidence?: number
-          created_at?: string
-          draft?: Json | null
-          error_message?: string | null
-          extraction_source?: string | null
-          final_url?: string | null
-          id?: string
-          kind?: string
-          logs?: Json
-          platform?: string | null
-          progress?: number
-          shop_id: string
-          source_product_id?: string | null
-          source_url: string
-          started_at?: string | null
-          status?: string
-          updated_at?: string
-          user_id: string
-          validation_issues?: string[]
-        }
-        Update: {
-          attempts?: number
-          completed_at?: string | null
-          confidence?: number
-          created_at?: string
-          draft?: Json | null
-          error_message?: string | null
-          extraction_source?: string | null
-          final_url?: string | null
-          id?: string
-          kind?: string
-          logs?: Json
-          platform?: string | null
-          progress?: number
-          shop_id?: string
-          source_product_id?: string | null
-          source_url?: string
-          started_at?: string | null
-          status?: string
-          updated_at?: string
-          user_id?: string
-          validation_issues?: string[]
-        }
-        Relationships: []
-      }
       import_products: {
         Row: {
           ai_metadata: Json | null
@@ -1228,24 +1156,18 @@ export type Database = {
         Row: {
           created_at: string
           product_id: string
-          source_platform: string | null
-          source_product_id: string | null
           source_url: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           product_id: string
-          source_platform?: string | null
-          source_product_id?: string | null
           source_url?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           product_id?: string
-          source_platform?: string | null
-          source_product_id?: string | null
           source_url?: string | null
           updated_at?: string
         }
@@ -2146,42 +2068,6 @@ export type Database = {
           },
         ]
       }
-      taobao_sessions: {
-        Row: {
-          connected_at: string | null
-          cookies_encrypted: string | null
-          expires_at: string | null
-          id: string
-          last_check_at: string | null
-          nickname: string | null
-          status: string
-          updated_at: string
-          user_agent: string | null
-        }
-        Insert: {
-          connected_at?: string | null
-          cookies_encrypted?: string | null
-          expires_at?: string | null
-          id?: string
-          last_check_at?: string | null
-          nickname?: string | null
-          status?: string
-          updated_at?: string
-          user_agent?: string | null
-        }
-        Update: {
-          connected_at?: string | null
-          cookies_encrypted?: string | null
-          expires_at?: string | null
-          id?: string
-          last_check_at?: string | null
-          nickname?: string | null
-          status?: string
-          updated_at?: string
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
       ui_overrides: {
         Row: {
           key: string
@@ -2470,22 +2356,6 @@ export type Database = {
         Returns: string
       }
       compute_text_hash: { Args: { _t: string }; Returns: string }
-      create_imported_product_atomic: {
-        Args: {
-          _category_id: string
-          _description: string
-          _designation: string
-          _images: Json
-          _name: string
-          _price: number
-          _shop_id: string
-          _source_platform: string
-          _source_product_id: string
-          _source_url: string
-          _variants: Json
-        }
-        Returns: Json
-      }
       current_user_has_permission: {
         Args: { _perm: Database["public"]["Enums"]["admin_permission"] }
         Returns: boolean
@@ -2629,13 +2499,6 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
-      taobao_session_clear: { Args: never; Returns: undefined }
-      taobao_session_load: { Args: { _key: string }; Returns: Json }
-      taobao_session_mark_expired: { Args: never; Returns: undefined }
-      taobao_session_save: {
-        Args: { _cookies: Json; _key: string; _nickname: string; _ua: string }
-        Returns: undefined
-      }
       upsert_commission_rule: {
         Args: {
           _category_id?: string

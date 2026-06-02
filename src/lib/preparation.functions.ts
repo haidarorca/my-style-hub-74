@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertPermission } from "./admin-auth.core";
 
 const InputSchema = z.object({
   order_ids: z.array(z.string().uuid()).min(1).max(100),
@@ -157,6 +156,15 @@ function buildGroups(
   return groups;
 }
 
+async function assertAdmin(supabase: any, userId: string) {
+  const { data } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (!data) throw new Error("Accès refusé : admin requis");
+}
 
 export const getVendorPreparation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -206,7 +214,7 @@ export const getAdminPreparation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => InputSchema.parse(input))
   .handler(async ({ data, context }): Promise<PrepResult> => {
-    await assertPermission(context.userId, "orders");
+    await assertAdmin(context.supabase, context.userId);
 
     const { data: orders, error: e1 } = await supabaseAdmin
       .from("orders")
@@ -265,7 +273,7 @@ export const markOrdersInPreparation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (data.mode === "admin") {
-      await assertPermission(context.userId, "orders");
+      await assertAdmin(context.supabase, context.userId);
       const { error } = await supabaseAdmin
         .from("orders")
         .update({ status: "confirmed" })

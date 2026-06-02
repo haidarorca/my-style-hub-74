@@ -50,9 +50,9 @@ function parseIndexSegment(segment: string, allUrls: string[]): number[] {
 
 /**
  * Parse media notation using ,, as group separator.
- * "1,2,,3,4,,5,7" gives info=[1,2], product=[3,4], variants=[5,7]
- * "1,2,,3,4"      gives info=[1,2], product=[3,4], variants=[]
- * "1,2,3,4"       gives info=[1,2], product=[3,4] (default, no ,,)
+ * "1,2,,3,4,,5,7" → info=[1,2], product=[3,4], variants=[5,7]
+ * "1,2,,3,4"      → info=[1,2], product=[3,4], variants=[]
+ * "1,2,3,4"       → info=[1,2], product=[3,4] (default, no ,,)
  */
 export function parseMediaNotation(notation: string, allUrls: string[]): MediaGroup {
   const group: MediaGroup = { infoImages: [], productImages: [], variantImages: [] };
@@ -63,23 +63,26 @@ export function parseMediaNotation(notation: string, allUrls: string[]): MediaGr
     return group;
   }
 
-  const normalized = notation.replace(/\s+/g, "").replace(/,+$/, "");
-  const parts = normalized.split(",,");
+  const parts = notation.split(",,").map(p => p.trim());
 
   if (parts.length >= 3) {
+    // INFO ,, PRODUCT ,, VARIANTS
     group.infoImages = parseIndexSegment(parts[0], allUrls).map(i => allUrls[i]);
     group.productImages = parseIndexSegment(parts[1], allUrls).map(i => allUrls[i]);
     group.variantImages = parseIndexSegment(parts[2], allUrls).map(i => allUrls[i]);
   } else if (parts.length === 2) {
+    // INFO ,, PRODUCT (no variants)
     group.infoImages = parseIndexSegment(parts[0], allUrls).map(i => allUrls[i]);
     group.productImages = parseIndexSegment(parts[1], allUrls).map(i => allUrls[i]);
   } else {
+    // No ,, separator — default: first 2 = info, rest = product
     const allIndices = parseIndexSegment(parts[0], allUrls);
     const infoEnd = Math.min(2, allIndices.length);
     group.infoImages = allIndices.slice(0, infoEnd).map(i => allUrls[i]);
     group.productImages = allIndices.slice(infoEnd).map(i => allUrls[i]);
   }
 
+  // Fallbacks
   if (group.infoImages.length === 0 && allUrls.length > 0) {
     group.infoImages = [allUrls[0]];
   }
@@ -98,97 +101,31 @@ export const uploadImportMedia = createServerFn({ method: "POST" }).middleware([
 
 export const extractVideoFrames = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ videoUrl: z.string().url(), maxFrames: z.number().int().min(1).max(MAX_VIDEO_FRAMES).default(MAX_VIDEO_FRAMES) }).parse(input)).handler(async ({ data }) => { const frameUrls: string[] = []; let error = ""; try { const fs = await import("fs"); const path = await import("path"); const { execSync } = await import("child_process"); const os = await import("os"); const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "vai-")); const videoPath = path.join(tempDir, "v.mp4"); const res = await fetch(data.videoUrl, { signal: AbortSignal.timeout(30000) }); fs.writeFileSync(videoPath, Buffer.from(await res.arrayBuffer())); const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, { encoding: "utf-8", timeout: 10000 }).trim()) || 60; try { execSync(`ffmpeg -i "${videoPath}" -vf "select='gt(scene,0.3)'" -vsync vfr -q:v 2 "${tempDir}/s_%04d.jpg" 2>/dev/null`, { timeout: 30000 }); } catch { } const scenes = fs.readdirSync(tempDir).filter(f => f.startsWith("s_")).sort(); const frames: string[] = []; if (scenes.length < 3) { const interval = Math.min(dur, 60) / (data.maxFrames + 1); for (let i = 1; i <= data.maxFrames; i++) { const out = path.join(tempDir, `f_${i}.jpg`); try { execSync(`ffmpeg -ss ${(interval * i).toFixed(1)} -i "${videoPath}" -vf "scale=720:-1" -vframes 1 -q:v 2 "${out}"`, { timeout: 10000 }); if (fs.existsSync(out) && fs.statSync(out).size > 1000) frames.push(out); } catch { } } } else { for (const s of scenes.slice(0, data.maxFrames)) frames.push(path.join(tempDir, s)); } const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; for (let i = 0; i < frames.length; i++) { const buf = fs.readFileSync(frames[i]); const up = `temp/f/${Date.now()}_${i}.jpg`; for (const b of ["imports", "product-images"]) { const { error: e } = await supabase.storage.from(b).upload(up, buf); if (!e) { const { data: u } = supabase.storage.from(b).getPublicUrl(up); frameUrls.push(u.publicUrl); break; } } } } catch (e: any) { error = e.message; } return { frameUrls, frameCount: frameUrls.length, error }; });
 
-export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ imageUrls: z.array(z.string().url()).max(30).default([]), videoFrameUrls: z.array(z.string().url()).max(MAX_VIDEO_FRAMES).default([]), mediaNotation: z.string().default(""), instructions: z.string().default("") }).parse(input)).handler(async ({ data }) => { const logs: string[] = []; const allUrls = [...data.imageUrls, ...data.videoFrameUrls]; if (allUrls.length === 0) return { success: false, draft: null, logs, errors: ["Aucun media"] };
+export const analyzeVisualMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ imageUrls: z.array(z.string().url()).max(30).default([]), videoFrameUrls: z.array(z.string().url()).max(MAX_VIDEO_FRAMES).default([]), mediaNotation: z.string().default("") }).parse(input)).handler(async ({ data }) => { const logs: string[] = []; const allUrls = [...data.imageUrls, ...data.videoFrameUrls]; if (allUrls.length === 0) return { success: false, draft: null, logs, errors: ["Aucun media"] };
 
+// Parse media groups from notation
 const mediaGroup = parseMediaNotation(data.mediaNotation, allUrls);
 logs.push(`Media: ${allUrls.length} total | Info:${mediaGroup.infoImages.length} Prod:${mediaGroup.productImages.length} Var:${mediaGroup.variantImages.length}`); const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: allCats } = await supabase.from("categories").select("id, name, level, parent_id, name_i18n").order("position"); const cats = (allCats || []) as CatRow[]; const catList = cats.filter(c => c.level === 3).map(c => { const l2 = cats.find(p => p.id === c.parent_id && p.level === 2); const l1 = l2 ? cats.find(p => p.id === l2.parent_id && p.level === 1) : null; return `${l1?.name || ""}>${l2?.name || ""}>${c.name}`; }).slice(0, 50).join("\n");
 
-const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10);
-const infoCount = mediaGroup.infoImages.length;
-const prodCount = mediaGroup.productImages.length;
-const varCount = Math.max(0, selected.length - infoCount - prodCount);
-const infoRange = infoCount > 0 ? `Images 1 a ${infoCount}` : "(aucune)";
-const prodRange = prodCount > 0 ? `Images ${infoCount + 1} a ${infoCount + prodCount}` : "(aucune)";
-const varRange = varCount > 0 ? `Images ${infoCount + prodCount + 1} a ${selected.length}` : "(aucune)";
+const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES:\n- ${mediaGroup.infoImages.length} images INFO (contiennent prix, description, details du vendeur)\n- ${mediaGroup.productImages.length} images PRODUIT (photos du produit)\n- ${mediaGroup.variantImages.length} images VARIANTES (chaque image = une option differente)\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n- Chaque variante = NOM + PRIX en FCFA\n- Si images variantes fournies, utilise-les pour detecter les options\n- colors: liste des couleurs detectees ["Rouge", "Bleu"]\n- sizes: liste des tailles detectees ["M", "L", "XL"]\n- Exemples: {"label":"Rouge","price":3825,"colors":["Rouge"],"sizes":["M","L"]}\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","priceInFcfa":0,"variants":[{"label":"","price":0,"image_url":"","colors":[],"sizes":[]}],"colors":[],"materials":[],"detectedBrand":null,"detectedText":[],"tags":[],"features":[],"categoryHint":"","productType":"","confidence":70,"uncertainties":[]}\nCategories:\n${catList}`;
 
-// Build user instructions section
-const instructions = data.instructions?.trim();
-let instructionsBlock = "";
-if (instructions) {
-  instructionsBlock = `\n\nINSTRUCTIONS PERSONNALISEES DE L'UTILISATEUR - REGLES PRIORITAIRES:\n${instructions}\n\nTu DOIS respecter ces instructions AVANT toute autre regle. Elles prennent priorite sur tout.`;
-}
-
-const prompt = `Analyse ces images de produit e-commerce. EXTRAIS UNIQUEMENT ce qui est visible. Ne invente rien.\n\nIMAGES FOURNIES (numerotees de 1 a ${selected.length} dans l'ordre):\n- INFO: ${infoRange} (prix, description, details vendeur)\n- PRODUIT: ${prodRange} (photos du produit)\n- VARIANTES: ${varRange} (chaque image montre une option/couleur/modele different)\n\nREGLE IMAGES - CRITIQUE:\nPour CHAQUE variante, tu DOIS indiquer dans "image_indices" la liste des numeros d'images (1-based) qui correspondent visuellement a cette variante. Regarde la couleur, le modele, l'angle. Une image peut etre assignee a une seule variante. Si tu ne sais pas, mets [].\nExemple: t-shirt rouge visible sur image 4 et 5 -> image_indices: [4,5]. Variante "80 pieces" visible sur image 6 -> image_indices: [6].\n\nREGLES PRIX:\n- Detecte la devise (¥=CNY, $=USD, €=EUR)\n- Convertis en FCFA: CNYx85, USDx605, EURx655\n- Prix non visible: price: null\n\nREGLES VARIANTES:\n- "colors": liste des couleurs disponibles (le client choisit)\n- "sizes": liste des tailles/quantites ("40 pieces", "S", "M", "L")\n- "label": nom de la variante visible sur les images\n\nReponds JSON strict:\n{"name":"","designation":"","description":"","originalPrice":0,"originalCurrency":"CNY","colors":[],"variant_sizes":[],"variants":[{"label":"","price":0,"image_indices":[],"colors":[],"sizes":[]}],"tags":[],"productType":"","confidence":70,"uncertainties":[]}\n\nCategories:\n${catList}${instructionsBlock}`;
-
-const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
+const selected = [...mediaGroup.infoImages, ...mediaGroup.productImages, ...mediaGroup.variantImages].slice(0, 10); const parts: any[] = [{ type: "text", text: prompt }]; for (const url of selected) parts.push({ type: "image_url", image_url: { url, detail: "high" } });
 let aiResult: any = null; try { const apiKey = process.env.LOVABLE_API_KEY || ""; const res = await fetch(IA_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: "Expert produits e-commerce." }, { role: "user", content: parts }], max_tokens: 4096, temperature: 0.2 }), signal: AbortSignal.timeout(60000) }); if (!res.ok) throw new Error(`IA HTTP ${res.status}`); const json = await res.json(); const raw = json.choices?.[0]?.message?.content?.trim() || ""; try { const c = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim(); aiResult = JSON.parse(c); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) aiResult = JSON.parse(m[0]); else throw new Error("JSON invalide"); } } catch (e: any) { return { success: false, draft: null, logs, errors: [`IA: ${e.message}`] }; }
 
 const currency = aiResult?.originalCurrency || detectCurrency(JSON.stringify(aiResult));
 const originalPrice = aiResult?.originalPrice && Number(aiResult.originalPrice) > 0 ? Number(aiResult.originalPrice) : null;
 const priceFcfa = originalPrice ? toFcfa(originalPrice, currency) : null;
 
-// Extract colors and sizes from AI response
-const detectedColors: string[] = Array.isArray(aiResult?.colors) ? aiResult.colors.map(String).filter(Boolean) : [];
-const variantSizes: string[] = Array.isArray(aiResult?.variant_sizes) ? aiResult.variant_sizes.map(String).filter(Boolean) : [];
-
-// Assign variant images to variants
-const variantImgUrls = mediaGroup.variantImages.length > 0 ? mediaGroup.variantImages : [];
-
 const rawVariants = Array.isArray(aiResult?.variants) ? aiResult.variants : [];
-let variants: SimpleVariant[] = rawVariants.map((v: any, idx: number) => {
-  // Map AI image indices (1-based) to actual URLs from the selected array
-  const aiIndices: number[] = Array.isArray(v.image_indices)
-    ? v.image_indices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 1 && n <= selected.length)
-    : [];
-  // BACKEND AUTHORITY: lock variants to ONLY mediaGroup.variantImages
-  const variantOnlySet = new Set(mediaGroup.variantImages);
-  let imgs: string[] = aiIndices
-    .map(i => selected[i - 1])
-    .filter(Boolean)
-    .filter((url): url is string => variantOnlySet.has(url as string));
-  // Fallback: positional from variant group only
-  if (imgs.length === 0 && variantImgUrls[idx]) imgs = [variantImgUrls[idx]];
-  return {
-    label: String(v.label || v.name || "Option").slice(0, 60),
-    price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
-    image_url: imgs[0] || null,
-    colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : detectedColors,
-    sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : variantSizes.length > 0 ? variantSizes : (v.size ? [String(v.size)] : []),
-    color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
-    stock: Number(v.stock) || 0,
-  };
-}).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
-
-// If no variants extracted but we have variant sizes, auto-create variants
-if (variants.length === 0 && variantSizes.length > 0) {
-  variants = variantSizes.map((sz, idx) => ({
-    label: sz,
-    price: priceFcfa || 0,
-    image_url: variantImgUrls[idx] || null,
-    colors: detectedColors,
-    sizes: [sz],
-    color_hex: "",
-    stock: 0,
-  }));
-}
-
-// If still no variants, create from colors
-if (variants.length === 0 && detectedColors.length > 0) {
-  variants = detectedColors.map((c, idx) => ({
-    label: c,
-    price: priceFcfa || 0,
-    image_url: variantImgUrls[idx] || null,
-    colors: [c],
-    sizes: variantSizes.length > 0 ? variantSizes : [],
-    color_hex: "",
-    stock: 0,
-  }));
-}
-
-// If still no variants at all, create a single default variant
-if (variants.length === 0) {
-  variants = [{ label: "Standard", price: priceFcfa || 0, image_url: variantImgUrls[0] || null, colors: detectedColors, sizes: variantSizes, color_hex: "", stock: 0 }];
-}
+const variants: SimpleVariant[] = rawVariants.map((v: any) => ({
+  label: String(v.label || v.name || "Option").slice(0, 60),
+  price: v.price && Number(v.price) > 0 ? (Number(v.price) < 1000 ? toFcfa(Number(v.price), currency) : Number(v.price)) : (priceFcfa || 0),
+  image_url: v.image_url || null,
+  colors: Array.isArray(v.colors) ? v.colors.map(String).filter(Boolean) : v.color ? [String(v.color)] : [],
+  sizes: Array.isArray(v.sizes) ? v.sizes.map(String).filter(Boolean) : v.size ? [String(v.size)] : [],
+  color_hex: /^#[0-9a-fA-F]{6}$/.test(v.color_hex) ? v.color_hex : "",
+  stock: Number(v.stock) || 0,
+})).filter((v: SimpleVariant) => v.label && v.label !== "Option" && v.label !== "");
 
 const fromPrice = variants.length > 0 ? Math.min(...variants.map(v => v.price).filter(p => p > 0)) : priceFcfa;
 const catMatch = findCategory(aiResult?.name || "", aiResult?.productType || aiResult?.categoryHint || "", Array.isArray(aiResult?.tags) ? aiResult.tags : [], cats);
@@ -196,83 +133,8 @@ const uncertainties: string[] = Array.isArray(aiResult?.uncertainties) ? aiResul
 if (!originalPrice) uncertainties.push("Prix non visible - a completer en FCFA"); else uncertainties.push(`${originalPrice} ${currency} = ${priceFcfa} FCFA (verifiez)`);
 if (!catMatch) uncertainties.push("Categorie - selectionnez manuellement"); else if (catMatch.score < 50) uncertainties.push(`Categorie incertaine (${catMatch.score}%)`);
 
-let finalDescription = String(aiResult?.description || "").slice(0, 2000);
-
-const draft: VisualDraft = {
-  id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-  name: String(aiResult?.name || "Produit").slice(0, 100),
-  designation: String(aiResult?.designation || "").slice(0, 120),
-  description: finalDescription.slice(0, 2000),
-  price: fromPrice, originalPrice, originalCurrency: currency,
-  images: mediaGroup.productImages.length > 0 ? mediaGroup.productImages : allUrls,
-  variants,
-  categoryId: catMatch?.l3Id || null,
-  categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null,
-  confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)),
-  uncertainties: [...new Set(uncertainties)],
-  mediaGroup,
-  status: "draft",
-  createdAt: Date.now(),
-};
+const draft: VisualDraft = { id: `vd-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, name: String(aiResult?.name || "Produit").slice(0, 100), designation: String(aiResult?.designation || "").slice(0, 120), description: String(aiResult?.description || "").slice(0, 2000), price: fromPrice, originalPrice, originalCurrency: currency, images: mediaGroup.productImages.length > 0 ? mediaGroup.productImages : allUrls, variants, categoryId: catMatch?.l3Id || null, categoryName: catMatch ? `${catMatch.l1Name} > ${catMatch.l2Name} > ${catMatch.l3Name}` : null, confidence: Math.min(95, Math.max(10, Number(aiResult?.confidence) || 50)), uncertainties: [...new Set(uncertainties)], mediaGroup, status: "draft", createdAt: Date.now() };
 logs.push(`OK: "${draft.name}" | ${fromPrice} FCFA | ${variants.length}v`);
 return { success: true, draft, logs, errors: [] }; });
 
-export const publishDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ draft: z.object({ name: z.string().min(1), designation: z.string().optional(), description: z.string().optional(), price: z.number().min(0), categoryId: z.string().nullable(), images: z.array(z.string()), variants: z.array(z.object({ label: z.string(), price: z.number(), image_url: z.string().nullable().optional(), colors: z.array(z.string()).default([]), sizes: z.array(z.string()).default([]), color_hex: z.string().optional(), stock: z.number().optional() })) }) }).parse(input)).handler(async ({ data }) => { const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; let adminShop: any; const { data: s } = await supabase.from("profiles").select("id, shop_name").eq("is_admin_shop", true).maybeSingle(); if (s) adminShop = s; else { const { data: a } = await (supabase as any).from("profiles").select("id, shop_name").eq("role" as any, "admin").limit(1).single(); adminShop = a; } if (!adminShop) throw new Error("Boutique admin introuvable"); const shopId = adminShop.id; const ts = Date.now().toString(36).toUpperCase(); let code = `VIS-${ts}`; for (let i = 0; i < 10; i++) { const { data: dup } = await supabase.from("products").select("id").eq("vendor_id", shopId).eq("code", code).maybeSingle(); if (!dup) break; code = `VIS-${ts}-${i}`; } let productId: string | null = null; const uploadedPaths: string[] = []; try { const { data: prod, error: pErr } = await supabase.from("products").insert({ vendor_id: shopId, name: data.draft.name.trim(), code, designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null, price: data.draft.price, category_id: data.draft.categoryId, pending_category_request_id: null, requires_international_shipping: false, status: "approved" }).select("id").single(); if (pErr) throw pErr; productId = prod.id; if (data.draft.images.length > 0) { const imgRows: any[] = []; for (let i = 0; i < data.draft.images.length; i++) { try { const r = await fetch(data.draft.images[i], { signal: AbortSignal.timeout(15000) }); if (!r.ok) continue; const buf = Buffer.from(await r.arrayBuffer()); const ext = data.draft.images[i].split("?")[0].split(".").pop() || "jpg"; const p = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`; const { error: uErr } = await supabase.storage.from("product-images").upload(p, buf); if (uErr) continue; uploadedPaths.push(p); const { data: pub } = supabase.storage.from("product-images").getPublicUrl(p); imgRows.push({ product_id: productId, url: pub.publicUrl, position: i }); } catch { } } if (imgRows.length > 0) await supabase.from("product_images").insert(imgRows); } if (data.draft.variants.length > 0) {
-          const vRows: any[] = [];
-          for (const v of data.draft.variants) {
-            const sizes = v.sizes?.filter(Boolean) || [];
-            const colors = v.colors?.filter(Boolean) || [];
-            const baseLabel = v.label?.slice(0, 40) || "";
-            // Flatten: if both sizes and colors, create all combinations
-            if (sizes.length > 0 && colors.length > 0) {
-              for (const sz of sizes) {
-                for (const c of colors) {
-                  vRows.push({
-                    product_id: productId!,
-                    size: sz,
-                    color: c,
-                    color_hex: v.color_hex || null,
-                    stock: v.stock || 0,
-                    price_override: v.price,
-                    image_url: v.image_url || null,
-                  });
-                }
-              }
-            } else if (sizes.length > 0) {
-              for (const sz of sizes) {
-                vRows.push({
-                  product_id: productId!,
-                  size: sz,
-                  color: "",
-                  color_hex: v.color_hex || null,
-                  stock: v.stock || 0,
-                  price_override: v.price,
-                  image_url: v.image_url || null,
-                });
-              }
-            } else if (colors.length > 0) {
-              for (const c of colors) {
-                vRows.push({
-                  product_id: productId!,
-                  size: baseLabel,
-                  color: c,
-                  color_hex: v.color_hex || null,
-                  stock: v.stock || 0,
-                  price_override: v.price,
-                  image_url: v.image_url || null,
-                });
-              }
-            } else {
-              vRows.push({
-                product_id: productId!,
-                size: baseLabel,
-                color: "",
-                color_hex: v.color_hex || null,
-                stock: v.stock || 0,
-                price_override: v.price,
-                image_url: v.image_url || null,
-              });
-            }
-          }
-          if (vRows.length > 0) await supabase.from("product_variants").insert(vRows);
-        } try { const { autoTranslateProduct } = await import("@/lib/auto-translate"); void autoTranslateProduct({ productId, name: data.draft.name.trim(), designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null }); } catch { } return { success: true, productId, code }; } catch (e: any) { if (productId) { await supabase.from("product_variants").delete().eq("product_id", productId); await supabase.from("product_images").delete().eq("product_id", productId); await supabase.from("products").delete().eq("id", productId); } if (uploadedPaths.length > 0) await supabase.storage.from("product-images").remove(uploadedPaths); throw new Error(e.message || "Publication echoue"); } });
+export const publishDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((input: unknown) => z.object({ draft: z.object({ name: z.string().min(1), designation: z.string().optional(), description: z.string().optional(), price: z.number().min(0), categoryId: z.string().nullable(), images: z.array(z.string()), variants: z.array(z.object({ label: z.string(), price: z.number(), image_url: z.string().nullable(), colors: z.array(z.string()).default([]), sizes: z.array(z.string()).default([]), color_hex: z.string().optional(), stock: z.number().optional() })) }) }).parse(input)).handler(async ({ data }) => { const supabase = (await import("@/integrations/supabase/client.server")).supabaseAdmin; let adminShop: any; const { data: s } = await supabase.from("profiles").select("id, shop_name").eq("is_admin_shop", true).maybeSingle(); if (s) adminShop = s; else { const { data: a } = await supabase.from("profiles").select("id, shop_name").eq("role", "admin").limit(1).single(); adminShop = a; } if (!adminShop) throw new Error("Boutique admin introuvable"); const shopId = adminShop.id; const ts = Date.now().toString(36).toUpperCase(); let code = `VIS-${ts}`; for (let i = 0; i < 10; i++) { const { data: dup } = await supabase.from("products").select("id").eq("vendor_id", shopId).eq("code", code).maybeSingle(); if (!dup) break; code = `VIS-${ts}-${i}`; } let productId: string | null = null; const uploadedPaths: string[] = []; try { const { data: prod, error: pErr } = await supabase.from("products").insert({ vendor_id: shopId, name: data.draft.name.trim(), code, designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null, price: data.draft.price, category_id: data.draft.categoryId, pending_category_request_id: null, requires_international_shipping: false, status: "approved" }).select("id").single(); if (pErr) throw pErr; productId = prod.id; if (data.draft.images.length > 0) { const imgRows: any[] = []; for (let i = 0; i < data.draft.images.length; i++) { try { const r = await fetch(data.draft.images[i], { signal: AbortSignal.timeout(15000) }); if (!r.ok) continue; const buf = Buffer.from(await r.arrayBuffer()); const ext = data.draft.images[i].split("?")[0].split(".").pop() || "jpg"; const p = `${shopId}/${productId}/${Date.now()}-${i}.${ext}`; const { error: uErr } = await supabase.storage.from("product-images").upload(p, buf); if (uErr) continue; uploadedPaths.push(p); const { data: pub } = supabase.storage.from("product-images").getPublicUrl(p); imgRows.push({ product_id: productId, url: pub.publicUrl, position: i }); } catch { } } if (imgRows.length > 0) await supabase.from("product_images").insert(imgRows); } if (data.draft.variants.length > 0) { const vRows = data.draft.variants.map(v => ({ product_id: productId!, size: v.sizes.join(", ") || v.label.slice(0, 40), color: v.colors.join(", ") || "", color_hex: v.color_hex || null, stock: v.stock || 0, price_override: v.price, image_url: v.image_url })); await supabase.from("product_variants").insert(vRows); } try { const { autoTranslateProduct } = await import("@/lib/auto-translate"); void autoTranslateProduct({ productId, name: data.draft.name.trim(), designation: data.draft.designation?.trim() || null, description: data.draft.description?.trim() || null }); } catch { } return { success: true, productId, code }; } catch (e: any) { if (productId) { await supabase.from("product_variants").delete().eq("product_id", productId); await supabase.from("product_images").delete().eq("product_id", productId); await supabase.from("products").delete().eq("id", productId); } if (uploadedPaths.length > 0) await supabase.storage.from("product-images").remove(uploadedPaths); throw new Error(e.message || "Publication echoue"); } });

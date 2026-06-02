@@ -2,8 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertPermission } from "./admin-auth.core";
 
+async function assertAdmin(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", ["admin", "super_admin"]);
+  if (error) throw new Error(`Erreur rôle: ${error.message}`);
+  if (!data || data.length === 0) throw new Error("Accès refusé : admin requis");
+}
 
 export type CustomerStatus = "active" | "blocked";
 
@@ -41,7 +49,7 @@ export const listCustomers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => (input ? ListInput.parse(input) : ListInput.parse({})))
   .handler(async ({ data, context }): Promise<CustomerListPage> => {
-    await assertPermission(context.userId, "customers");
+    await assertAdmin(context.userId);
 
     // 1) acheteur ids (filter by suspended flag when status set)
     let roleQ = supabaseAdmin.from("user_roles").select("user_id, is_suspended").eq("role", "acheteur");
@@ -209,7 +217,7 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ user_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<CustomerDetail> => {
-    await assertPermission(context.userId, "customers");
+    await assertAdmin(context.userId);
 
     const [{ data: prof }, { data: roleRow }, { data: addrs }, { data: orders }, authRes] = await Promise.all([
       supabaseAdmin.from("profiles").select("id, email, full_name, phone, sex, address, created_at").eq("id", data.user_id).maybeSingle(),
@@ -267,7 +275,7 @@ export const setCustomerBlocked = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ user_id: z.string().uuid(), blocked: z.boolean() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "customers");
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
       .from("user_roles")
       .update({ is_suspended: data.blocked })
@@ -290,7 +298,7 @@ export const updateCustomerProfile = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "customers");
+    await assertAdmin(context.userId);
     const patch: { full_name?: string | null; phone?: string | null; address?: string | null } = {};
     if (data.full_name !== undefined) patch.full_name = data.full_name;
     if (data.phone !== undefined) patch.phone = data.phone;
@@ -304,7 +312,7 @@ export const deleteCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ user_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "customers");
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
     if (error) throw new Error(error.message);
     return { ok: true };

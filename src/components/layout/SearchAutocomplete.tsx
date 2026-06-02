@@ -83,7 +83,7 @@ export function SearchAutocomplete() {
     debounceNavRef.current = setTimeout(() => {
       const q = query.trim();
       if (!q && urlQ) {
-        router.navigate({ to: "/search", search: { q: "" }, replace: true });
+        router.navigate({ to: "/search", search: {}, replace: true });
       } else if (q && q !== (urlQ ?? "")) {
         router.navigate({ to: "/search", search: { q }, replace: true });
       }
