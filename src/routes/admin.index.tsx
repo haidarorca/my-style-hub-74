@@ -6,7 +6,20 @@ import { getAdminStats } from "@/lib/admin-stats.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Users, FolderTree, Flag, Clock, PackageCheck, ArrowRight, Inbox, Percent, Wallet, ShoppingBag } from "lucide-react";
+import {
+  ShoppingBag,
+  PackageCheck,
+  Flag,
+  ArrowRight,
+  Wallet,
+  Users,
+  Truck,
+  HeadphonesIcon,
+  MessageSquare,
+  FolderTree,
+  LayoutDashboard,
+  BarChart3,
+} from "lucide-react";
 import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 import { UpdateAppButton } from "@/components/UpdateAppButton";
 
@@ -14,18 +27,31 @@ export const Route = createFileRoute("/admin/")({
   component: Dashboard,
 });
 
-function useCount(table: string, filter?: { col: string; val: string }) {
+/* ── Generic count helper (eq or in) ─────────────────────── */
+function useCount(
+  table: string,
+  filter?: { col: string; val: string } | { col: string; in: string[] }
+) {
   return useQuery({
-    queryKey: ["count", table, filter?.col, filter?.val],
+    queryKey: ["count", table, JSON.stringify(filter)],
     queryFn: async () => {
       try {
-        let q = supabase.from(table as never).select("id", { count: "exact", head: true });
-        if (filter) q = (q as never as { eq: (c: string, v: string) => typeof q }).eq(filter.col, filter.val);
+        let q = supabase
+          .from(table as never)
+          .select("id", { count: "exact", head: true });
+        if (filter && "val" in filter) {
+          q = (
+            q as never as { eq: (c: string, v: string) => typeof q }
+          ).eq(filter.col, filter.val);
+        } else if (filter && "in" in filter) {
+          q = (
+            q as never as { in: (c: string, v: string[]) => typeof q }
+          ).in(filter.col, filter.in);
+        }
         const { count, error } = await q;
         if (error) throw error;
         return count ?? 0;
       } catch (err) {
-        // Soft-fail: a single failed count must not crash the whole dashboard.
         console.warn(`[admin] count(${table}) failed:`, err);
         return 0;
       }
@@ -35,172 +61,362 @@ function useCount(table: string, filter?: { col: string; val: string }) {
   });
 }
 
+/* ── Compact action card ─────────────────────────────────── */
+function ActionCard({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  title,
+  count,
+  to,
+  visible = true,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  count: number;
+  to: string;
+  visible?: boolean;
+}) {
+  if (!visible || count === 0) return null;
+  return (
+    <Card className="border-border/60 transition-shadow hover:shadow-sm">
+      <CardContent className="flex items-center gap-2 p-3">
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconBg}`}
+        >
+          <Icon className={`h-4 w-4 ${iconColor}`} />
+        </div>
+        <div className="min-w-0 flex-1 text-sm font-medium truncate">
+          {count} {title}
+        </div>
+        <Button asChild size="sm" variant="secondary" className="h-7 text-xs">
+          <Link to={to}>
+            Ouvrir <ArrowRight className="ml-1 h-3 w-3" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ── KPI tile component ──────────────────────────────────── */
+function KpiTile({
+  label,
+  value,
+  icon: Icon,
+  iconColor,
+}: {
+  label: string;
+  value: number | string | undefined;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+        <CardTitle className="text-xs font-medium text-muted-foreground">
+          {label}
+        </CardTitle>
+        <Icon className={`h-4 w-4 ${iconColor}`} />
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="text-2xl font-bold tabular-nums">
+          {value ?? "—"}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ── Shortcut card component ─────────────────────────────── */
+function ShortcutCard({
+  icon: Icon,
+  label,
+  to,
+  iconColor,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  to: string;
+  iconColor: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm"
+    >
+      <Icon className={`h-6 w-6 ${iconColor}`} />
+      <span className="text-xs font-medium">{label}</span>
+    </Link>
+  );
+}
+
+/* ── Main Dashboard ──────────────────────────────────────── */
 function Dashboard() {
   const { isSuperAdmin } = useAuth();
   const fetchStats = useServerFn(getAdminStats);
 
-  // Aggregated stats from the cached overview (15-min Inngest refresh + lazy compute).
+  /* ── Cached overview stats ── */
   const stats = useQuery({
     queryKey: ["admin", "stats", "overview"],
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
 
-  // Validation queues stay live (counts on small filtered subsets, cheap).
-  const pending = useCount("products", { col: "status", val: "pending" });
-  const reports = useCount("product_reports", { col: "status", val: "open" });
-  const pendingCats = useCount("category_requests", { col: "status", val: "pending" });
-  const categories = useCount("categories");
-
-  const tiles = [
-    { label: "Clients", value: stats.data?.customers.total, icon: Users, color: "text-primary" },
-    { label: "Vendeurs actifs", value: stats.data?.vendors.active, icon: Users, color: "text-emerald-600" },
-    { label: "Commandes", value: stats.data?.orders.total, icon: ShoppingBag, color: "text-blue-600" },
-    { label: "Revenu 30j (FCFA)", value: stats.data ? new Intl.NumberFormat("fr-FR").format(stats.data.orders.revenue_30d) : undefined, icon: Wallet, color: "text-amber-600" },
-    { label: "À valider", value: pending.data, icon: Clock, color: "text-amber-600" },
-    { label: "Catégories", value: categories.data, icon: FolderTree, color: "text-blue-600" },
-    { label: "Signalements ouverts", value: reports.data, icon: Flag, color: "text-destructive" },
-    { label: "Cmd en attente", value: stats.data?.orders.pending, icon: Package, color: "text-amber-600" },
-  ];
-
-  const vendorStats = useQuery({
-    queryKey: ["admin", "vendor-stats"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_admin_vendor_product_stats");
-      if (error) throw error;
-      const rows = (data ?? []) as Array<{
-        user_id: string;
-        shop_name: string | null;
-        full_name: string | null;
-        email: string | null;
-        total: number | string;
-        approved: number | string;
-        pending: number | string;
-      }>;
-      return rows.map((v) => ({
-        user_id: v.user_id,
-        name: v.shop_name || v.full_name || v.email || "—",
-        email: v.email,
-        total: Number(v.total) || 0,
-        approved: Number(v.approved) || 0,
-        pending: Number(v.pending) || 0,
-      }));
-    },
-    staleTime: 5 * 60_000,
-    retry: 1,
+  /* ── SECTION 1 : KPI Actions (requiring human intervention) ── */
+  const newOrders = useCount("orders", { col: "status", val: "new" });
+  const pendingProducts = useCount("products", {
+    col: "status",
+    val: "pending",
+  });
+  const logisticsActions = useCount("orders", {
+    col: "logistics_status",
+    in: ["awaiting_weighing", "fees_calculated", "awaiting_client_validation"],
+  });
+  const supportTickets = useCount("support_conversations", {
+    col: "status",
+    in: ["new", "open", "urgent"],
+  });
+  const openReports = useCount("product_reports", {
+    col: "status",
+    val: "open",
+  });
+  const pendingCats = useCount("category_requests", {
+    col: "status",
+    val: "pending",
   });
 
+  const kpiData = [
+    {
+      label: "Nouvelles commandes",
+      value: newOrders.data,
+      icon: ShoppingBag,
+      color: "text-blue-600",
+    },
+    {
+      label: "Produits à modérer",
+      value: pendingProducts.data,
+      icon: PackageCheck,
+      color: "text-amber-600",
+    },
+    {
+      label: "Actions logistiques",
+      value: logisticsActions.data,
+      icon: Truck,
+      color: "text-orange-600",
+    },
+    {
+      label: "Tickets support",
+      value: supportTickets.data,
+      icon: HeadphonesIcon,
+      color: "text-rose-600",
+    },
+    {
+      label: "Signalements",
+      value: openReports.data,
+      icon: Flag,
+      color: "text-destructive",
+    },
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <div>
+          <h1 className="text-xl font-bold">Centre d&apos;Actions</h1>
+          <p className="text-xs text-muted-foreground">
+            Ce qui nécessite votre attention aujourd&apos;hui
+          </p>
+        </div>
         <UpdateAppButton variant="outline" />
       </div>
 
-      <TranslationSyncCard />
-
-      <div className="space-y-1">
-        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation — à traiter dans l'ordre</h2>
-
-        {/* Étape 1 — Catégories proposées */}
-        <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white">
-              <Inbox className="h-6 w-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">1. Catégories proposées par les vendeurs</div>
-              <div className="text-xs text-muted-foreground">
-                {pendingCats.data ?? 0} demande{(pendingCats.data ?? 0) > 1 ? "s" : ""} en attente — accepter, modifier, fusionner ou refuser
-              </div>
-            </div>
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/admin/category-requests">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Étape 2 — Produits */}
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <PackageCheck className="h-6 w-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">2. Produits en attente de validation</div>
-              <div className="text-xs text-muted-foreground">
-                {pending.data ?? 0} produit{(pending.data ?? 0) > 1 ? "s" : ""} — validez d'abord les catégories liées
-              </div>
-            </div>
-            <Button asChild size="sm">
-              <Link to="/admin/products">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 1 — KPI ACTIONS                                */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Actions requises
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {kpiData.map((k) => (
+            <KpiTile
+              key={k.label}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              iconColor={k.color}
+            />
+          ))}
+        </div>
       </div>
 
-      {isSuperAdmin && (
-        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
-              <Percent className="h-6 w-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">Commissions</div>
-              <div className="text-xs text-muted-foreground">Configurer les modes vendeurs et les taux par vendeur, catégorie ou produit</div>
-            </div>
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/admin/commissions">Ouvrir <ArrowRight className="ml-1 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 2 — ACTIONS PRIORITAIRES (compact)             */}
+      {/* (hidden when count = 0)                                */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="space-y-2">
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Prioritaires
+        </h2>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-        {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground">{t.label}</CardTitle>
-              <t.icon className={`h-4 w-4 ${t.color}`} />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl font-bold">{t.value ?? "—"}</div>
-            </CardContent>
-          </Card>
-        ))}
+        <ActionCard
+          icon={PackageCheck}
+          iconColor="text-amber-700"
+          iconBg="bg-amber-100"
+          title="produits à modérer"
+          count={pendingProducts.data ?? 0}
+          to="/admin/products"
+        />
+
+        <ActionCard
+          icon={FolderTree}
+          iconColor="text-amber-700"
+          iconBg="bg-amber-100"
+          title="demandes de catégories"
+          count={pendingCats.data ?? 0}
+          to="/admin/category-requests"
+        />
+
+        <ActionCard
+          icon={ShoppingBag}
+          iconColor="text-blue-700"
+          iconBg="bg-blue-100"
+          title="nouvelles commandes"
+          count={newOrders.data ?? 0}
+          to="/admin/orders"
+        />
+
+        <ActionCard
+          icon={Truck}
+          iconColor="text-orange-700"
+          iconBg="bg-orange-100"
+          title="actions logistiques"
+          count={logisticsActions.data ?? 0}
+          to="/admin/logistics"
+        />
+
+        <ActionCard
+          icon={Flag}
+          iconColor="text-red-700"
+          iconBg="bg-red-100"
+          title="signalements produits"
+          count={openReports.data ?? 0}
+          to="/admin/products"
+        />
+
+        <ActionCard
+          icon={HeadphonesIcon}
+          iconColor="text-rose-700"
+          iconBg="bg-rose-100"
+          title="tickets support"
+          count={supportTickets.data ?? 0}
+          to="/admin/support"
+        />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Vendeurs et leurs produits</CardTitle></CardHeader>
-        <CardContent>
-          {vendorStats.isError ? (
-            <div className="flex flex-col gap-2 text-sm">
-              <p className="text-muted-foreground">Impossible de charger les statistiques vendeurs.</p>
-              <Button size="sm" variant="outline" onClick={() => vendorStats.refetch()}>Réessayer</Button>
-            </div>
-          ) : vendorStats.isPending ? (
-            <p className="text-sm text-muted-foreground">Chargement…</p>
-          ) : vendorStats.data.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun vendeur.</p>
-          ) : (
-            <ul className="divide-y">
-              {vendorStats.data.map((v) => (
-                <li key={v.user_id} className="flex items-center gap-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">{v.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">{v.email}</div>
-                  </div>
-                  <div className="flex gap-3 text-xs">
-                    <div className="text-center"><div className="font-bold">{v.total}</div><div className="text-muted-foreground">total</div></div>
-                    <div className="text-center"><div className="font-bold text-emerald-600">{v.approved}</div><div className="text-muted-foreground">publiés</div></div>
-                    <div className="text-center"><div className="font-bold text-amber-600">{v.pending}</div><div className="text-muted-foreground">en attente</div></div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 3 — RACCOURCIS RAPIDES                         */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Accès rapide
+        </h2>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+          <ShortcutCard
+            icon={ShoppingBag}
+            label="Commandes"
+            to="/admin/orders"
+            iconColor="text-blue-600"
+          />
+          <ShortcutCard
+            icon={Truck}
+            label="Logistique"
+            to="/admin/logistics"
+            iconColor="text-orange-600"
+          />
+          <ShortcutCard
+            icon={PackageCheck}
+            label="Produits"
+            to="/admin/products"
+            iconColor="text-amber-600"
+          />
+          <ShortcutCard
+            icon={Users}
+            label="Vendeurs"
+            to="/admin/vendors"
+            iconColor="text-emerald-600"
+          />
+          <ShortcutCard
+            icon={MessageSquare}
+            label="Support"
+            to="/admin/support"
+            iconColor="text-rose-600"
+          />
+          <ShortcutCard
+            icon={Wallet}
+            label="Finances"
+            to="/admin/commissions"
+            iconColor="text-violet-600"
+          />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 4 — VUE D&apos;ENSEMBLE BUSINESS                    */}
+      {/* (secondary, informational only)                        */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Vue d&apos;ensemble
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiTile
+            label="Revenu 30j (FCFA)"
+            value={
+              stats.data
+                ? new Intl.NumberFormat("fr-FR").format(
+                    stats.data.orders.revenue_30d
+                  )
+                : undefined
+            }
+            icon={Wallet}
+            iconColor="text-amber-600"
+          />
+          <KpiTile
+            label="Clients"
+            value={stats.data?.customers.total}
+            icon={Users}
+            iconColor="text-primary"
+          />
+          <KpiTile
+            label="Vendeurs actifs"
+            value={stats.data?.vendors.active}
+            icon={LayoutDashboard}
+            iconColor="text-emerald-600"
+          />
+          <KpiTile
+            label="Commandes total"
+            value={stats.data?.orders.total}
+            icon={BarChart3}
+            iconColor="text-blue-600"
+          />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 5 — OUTILS SYSTÈME                             */}
+      {/* (TranslationSyncCard — periodic maintenance tool)        */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Outils système
+        </h2>
+        <TranslationSyncCard />
+      </div>
     </div>
   );
 }
