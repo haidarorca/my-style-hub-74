@@ -46,7 +46,7 @@ export function useWorkflowOrders() {
     queryKey: ["workflow-orders"],
     queryFn: async () => {
       const result = await listLogisticsOrders({
-        data: { page: 1, pageSize: 500 },
+        data: { page: 1, pageSize: 100 },
       });
       return result;
     },
