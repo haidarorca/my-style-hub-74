@@ -34,14 +34,9 @@ export function WorkflowRow({ row, onViewDetail }: Props) {
       {/* ── Ligne collapsed ───────────────────────── */}
       <div
         className="grid items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent/50 transition-colors"
-        style={{ gridTemplateColumns: "28px 60px 80px 1fr 90px 90px 90px 80px 28px" }}
+        style={{ gridTemplateColumns: "60px 80px 1fr 90px 90px 90px 80px 28px" }}
         onClick={() => setExpanded(!expanded)}
       >
-        {/* Checkbox */}
-        <div className="flex items-center justify-center">
-          <input type="checkbox" className="w-3.5 h-3.5 rounded" onClick={(e) => e.stopPropagation()} />
-        </div>
-
         {/* Type badge */}
         <div className="flex items-center gap-1">
           <span

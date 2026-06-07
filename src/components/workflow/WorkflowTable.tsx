@@ -21,9 +21,8 @@ export function WorkflowTable({ rows, onViewDetail }: Props) {
       {/* Header */}
       <div
         className="grid items-center gap-2 px-3 py-1.5 text-[10px] uppercase font-semibold text-muted-foreground border-b"
-        style={{ gridTemplateColumns: "28px 60px 80px 1fr 90px 90px 90px 80px 28px" }}
+        style={{ gridTemplateColumns: "60px 80px 1fr 90px 90px 90px 80px 28px" }}
       >
-        <div></div>
         <div>Type</div>
         <div>ID</div>
         <div>Client</div>

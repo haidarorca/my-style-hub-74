@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText,
+  Upload, Menu, ChevronRight, Home, FileText, Zap,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ type NavItem = {
   exact?: boolean;
   perm?: AdminPermission;
   superOnly?: boolean;
+  badge?: string;
 };
 
 type NavGroup = { id: string; label: string; items: NavItem[] };
@@ -62,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
       { to: "/admin/logistics", label: "Logistique ERP", icon: Truck, perm: "orders" },
+      { to: "/admin/workflow-center", label: "Workflow Center", icon: Zap, perm: "orders", badge: "BETA" },
       { to: "/admin/commission-orders", label: "Cmd commission", icon: Briefcase, perm: "orders" },
       { to: "/admin/shipments", label: "Expéditions Chine", icon: PackageCheck, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
@@ -190,7 +192,12 @@ function AdminLayout() {
                           >
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{item.label}</span>
-                            {!active && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                            {item.badge && (
+                              <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold text-orange-700">
+                                {item.badge}
+                              </span>
+                            )}
+                            {!active && !item.badge && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                           </Link>
                         );
                       })}
@@ -253,6 +260,11 @@ function AdminLayout() {
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" /> {item.label}
+                    {item.badge && (
+                      <span className="ml-0.5 rounded-full bg-orange-100 px-1.5 py-0 text-[8px] font-bold text-orange-700">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -277,6 +289,11 @@ function AdminLayout() {
                 )}
               >
                 <Icon className="h-3.5 w-3.5" /> {item.label}
+                {item.badge && (
+                  <span className="ml-0.5 rounded-full bg-orange-100 px-1.5 py-0 text-[8px] font-bold text-orange-700">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
