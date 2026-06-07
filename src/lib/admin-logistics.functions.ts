@@ -60,6 +60,9 @@ export type LogisticsOrderRow = {
   warehouse_location: string | null;
   agent_name: string | null;
   parcel_photo_url: string | null;
+  shipping_service_id: string | null;
+  admin_comment: string | null;
+  client_response_note: string | null;
 
   // Paiement
   payment_status: string | null;
@@ -302,7 +305,7 @@ async function fallbackLogisticsQuery(
       .select(
         `id, order_id, status, real_weight_kg, volumetric_weight_kg,
         air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
-        warehouse_location, agent_name`,
+        warehouse_location, agent_name, shipping_service_id, client_response_note`,
       )
       .in("order_id", orderIds);
     for (const a of assessments ?? []) {
@@ -414,6 +417,9 @@ async function fallbackLogisticsQuery(
       warehouse_location: (assessment.warehouse_location as string) ?? null,
       agent_name: (assessment.agent_name as string) ?? null,
       parcel_photo_url: (assessment.parcel_photo_url as string) ?? null,
+      shipping_service_id: (assessment.shipping_service_id as string) ?? null,
+      admin_comment: (assessment.admin_comment as string) ?? null,
+      client_response_note: (assessment.client_response_note as string) ?? null,
 
       payment_status: (payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null),
       amount_requested: amountRequested,
@@ -885,6 +891,9 @@ const UpdateAssessmentSchema = z.object({
   service_fee: z.number().min(0).optional(),
   extra_fees: z.number().min(0).optional(),
   status: z.string().optional(),
+  parcel_photo_url: z.string().optional(),
+  admin_comment: z.string().optional(),
+  shipping_service_id: z.string().uuid().optional(),
 });
 
 export const updateShipmentAssessment = createServerFn({ method: "POST" })

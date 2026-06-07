@@ -12,6 +12,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
@@ -20,10 +21,15 @@ import {
   type LogisticsOrderRow, type LogisticsStats, type OrderType,
 } from "@/lib/admin-logistics.functions";
 import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
+import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -35,7 +41,7 @@ import {
   Loader2, Eye, CheckCircle, AlertCircle, CreditCard, Box, Phone, Ban,
   Warehouse, UserCheck, Ship, Receipt, Globe, MapPin, Layers, Clock, Zap,
   TrendingUp, Filter, X, BarChart3, ChevronDown, RotateCcw, Bell, Undo2,
-  FileText, ArrowDownToLine, History,
+  FileText, ArrowDownToLine, History, Plus, PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -198,6 +204,7 @@ function LogisticsControlCenter() {
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [detailRow, setDetailRow] = useState<LogisticsOrderRow | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [uuidInput, setUuidInput] = useState("");
   const pageSize = 25;
 
   // Filtres Excel-like par colonne
@@ -267,9 +274,9 @@ function LogisticsControlCenter() {
     onError: (e: Error) => toast.error(e.message || "Erreur"),
   });
 
-  // MUTATION : Valider la pesée (correction)
+  // MUTATION : Valider la pesée (correction) avec frais auto
   const validateWeighing = useMutation({
-    mutationFn: async ({ assessmentId, realWeight, volumetricWeight, length, width, height }: { assessmentId: string; realWeight: number; volumetricWeight: number; length: number; width: number; height: number }) => {
+    mutationFn: async ({ assessmentId, realWeight, volumetricWeight, length, width, height, airFreightFee, serviceFee }: { assessmentId: string; realWeight: number; volumetricWeight: number; length: number; width: number; height: number; airFreightFee: number; serviceFee: number }) => {
       await updateShipmentAssessment({
         data: {
           assessment_id: assessmentId,
@@ -278,11 +285,49 @@ function LogisticsControlCenter() {
           length_cm: length,
           width_cm: width,
           height_cm: height,
+          air_freight_fee: airFreightFee > 0 ? airFreightFee : undefined,
+          service_fee: serviceFee > 0 ? serviceFee : undefined,
           status: "fees_calculated",
         },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-logistics"] }); qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] }); toast.success("Pesée validée — frais calculés"); setDetailRow(null); },
+    onError: (e: Error) => toast.error(e.message || "Erreur"),
+  });
+
+  // MUTATION : Sauvegarde rapide (photo, commentaire, service)
+  const quickSave = useMutation({
+    mutationFn: async ({ assessmentId, parcelPhotoUrl, adminComment, serviceId }: { assessmentId: string; parcelPhotoUrl: string; adminComment: string; serviceId: string | null }) => {
+      await updateShipmentAssessment({
+        data: {
+          assessment_id: assessmentId,
+          parcel_photo_url: parcelPhotoUrl || null,
+          admin_comment: adminComment || null,
+          shipping_service_id: serviceId,
+        },
+      });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-logistics"] }); toast.success("Sauvegardé"); },
+    onError: (e: Error) => toast.error(e.message || "Erreur"),
+  });
+
+  // MUTATION : Changer le statut logistique (prêt à embarquer / expédié / retour pesée)
+  const updateStatus = useMutation({
+    mutationFn: async ({ assessmentId, status }: { assessmentId: string; status: string }) => {
+      await updateShipmentAssessment({
+        data: { assessment_id: assessmentId, status: status as any },
+      });
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-logistics"] });
+      qc.invalidateQueries({ queryKey: ["admin-logistics-stats"] });
+      const labels: Record<string, string> = {
+        ready_to_ship: "Prêt à embarquer",
+        shipped: "Expédié",
+        awaiting_weighing: "Retour à la pesée",
+      };
+      toast.success(labels[vars.status] || "Statut mis à jour");
+    },
     onError: (e: Error) => toast.error(e.message || "Erreur"),
   });
 
@@ -319,10 +364,32 @@ function LogisticsControlCenter() {
             {!showArchived && <span className="text-muted-foreground"> · archivages masquées</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Client, téléphone, N° commande, tracking…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+          </div>
+          {/* Saisie UUID manuelle */}
+          <div className="flex items-center gap-1">
+            <Input
+              placeholder="ID commande (UUID)"
+              value={uuidInput}
+              onChange={(e) => setUuidInput(e.target.value)}
+              className="w-48 text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const id = uuidInput.trim();
+                if (!/^[0-9a-f-]{36}$/i.test(id)) { toast.error("UUID invalide (36 caractères requis)"); return; }
+                createAssessment.mutate(id);
+                setUuidInput("");
+              }}
+              disabled={createAssessment.isPending || !uuidInput.trim()}
+            >
+              {createAssessment.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            </Button>
           </div>
         </div>
       </div>
@@ -493,6 +560,30 @@ function LogisticsControlCenter() {
                 )}
               </section>
 
+              {/* Photo colis */}
+              {detailRow.parcel_photo_url && (
+                <section className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground">Photo du colis</p>
+                  <img src={detailRow.parcel_photo_url} alt="Colis" className="h-32 w-32 rounded-lg border object-cover" />
+                </section>
+              )}
+
+              {/* Commentaire admin */}
+              {detailRow.admin_comment && (
+                <section className="rounded-xl border bg-muted/30 p-3">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Commentaire admin</p>
+                  <p className="text-xs text-muted-foreground">{detailRow.admin_comment}</p>
+                </section>
+              )}
+
+              {/* Note client */}
+              {detailRow.client_response_note && (
+                <section className="rounded-xl border border-purple-200 bg-purple-50 p-3">
+                  <p className="text-[10px] uppercase font-semibold text-purple-700 mb-1">Réponse client</p>
+                  <p className="text-xs text-purple-800">{detailRow.client_response_note}</p>
+                </section>
+              )}
+
               {/* Poids */}
               {(detailRow.real_weight_kg || detailRow.volumetric_weight_kg) && (
                 <section className="rounded-xl border bg-muted/30 p-3 space-y-1">
@@ -507,8 +598,12 @@ function LogisticsControlCenter() {
               {detailRow.logistics_status === "awaiting_weighing" && detailRow.assessment_id && (
                 <WeighingValidationPanel
                   assessmentId={detailRow.assessment_id}
+                  shippingServiceId={detailRow.shipping_service_id}
+                  parcelPhotoUrl={detailRow.parcel_photo_url}
+                  adminComment={detailRow.admin_comment}
                   onValidate={(data) => validateWeighing.mutate({ assessmentId: detailRow.assessment_id!, ...data })}
-                  isLoading={validateWeighing.isPending}
+                  onQuickSave={(data) => quickSave.mutate({ assessmentId: detailRow.assessment_id!, ...data })}
+                  isLoading={validateWeighing.isPending || quickSave.isPending}
                 />
               )}
 
@@ -535,6 +630,24 @@ function LogisticsControlCenter() {
                     <Scale className="h-4 w-4 mr-1" /> Créer évaluation
                   </Button>
                 )}
+
+                {/* Boutons états finaux logistique */}
+                {detailRow.assessment_id && detailRow.logistics_status === "validated" && (
+                  <Button size="sm" variant="default" onClick={() => updateStatus.mutate({ assessmentId: detailRow.assessment_id!, status: "ready_to_ship" })} disabled={updateStatus.isPending}>
+                    <PackageCheck className="h-4 w-4 mr-1" /> Prêt à embarquer
+                  </Button>
+                )}
+                {detailRow.assessment_id && detailRow.logistics_status === "ready_to_ship" && (
+                  <Button size="sm" variant="default" className="bg-violet-600 hover:bg-violet-700" onClick={() => updateStatus.mutate({ assessmentId: detailRow.assessment_id!, status: "shipped" })} disabled={updateStatus.isPending}>
+                    <Plane className="h-4 w-4 mr-1" /> Marquer expédié
+                  </Button>
+                )}
+                {detailRow.assessment_id && detailRow.logistics_status === "rejected" && (
+                  <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ assessmentId: detailRow.assessment_id!, status: "awaiting_weighing" })} disabled={updateStatus.isPending}>
+                    <RotateCcw className="h-4 w-4 mr-1" /> Revenir à pesée
+                  </Button>
+                )}
+
                 {detailRow.assessment_id && (detailRow.payment_status === "pending" || detailRow.payment_status === "partial") && (detailRow.amount_remaining ?? 0) > 0 && (
                   <>
                     <Button size="sm" onClick={() => confirmPay.mutate({ assessmentId: detailRow.assessment_id!, amount: detailRow.amount_remaining ?? 0 })} disabled={confirmPay.isPending}>
@@ -570,17 +683,43 @@ function LogisticsControlCenter() {
 
 function WeighingValidationPanel({
   assessmentId,
+  shippingServiceId,
+  parcelPhotoUrl,
+  adminComment,
   onValidate,
+  onQuickSave,
   isLoading,
 }: {
   assessmentId: string;
-  onValidate: (data: { realWeight: number; volumetricWeight: number; length: number; width: number; height: number }) => void;
+  shippingServiceId: string | null;
+  parcelPhotoUrl: string | null;
+  adminComment: string | null;
+  onValidate: (data: { realWeight: number; volumetricWeight: number; length: number; width: number; height: number; airFreightFee: number; serviceFee: number }) => void;
+  onQuickSave: (data: { parcelPhotoUrl: string; adminComment: string; serviceId: string | null }) => void;
   isLoading: boolean;
 }) {
+  const listServicesFn = useServerFn(listShippingServices);
+  const [services, setServices] = useState<ShippingService[]>([]);
+  const [serviceId, setServiceId] = useState<string | null>(shippingServiceId);
+  const [autoCalc, setAutoCalc] = useState(true);
   const [realWeight, setRealWeight] = useState("");
   const [length, setLength] = useState("");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
+  const [photoUrl, setPhotoUrl] = useState(parcelPhotoUrl ?? "");
+  const [comment, setComment] = useState(adminComment ?? "");
+
+  // Charger les services de transport
+  useEffect(() => {
+    listServicesFn({ data: { source_country_id: null, destination_country_id: null, only_enabled: true } })
+      .then(setServices)
+      .catch(() => setServices([]));
+  }, [listServicesFn]);
+
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === serviceId) ?? null,
+    [services, serviceId],
+  );
 
   const volumetricWeight = useMemo(() => {
     const l = parseFloat(length) || 0;
@@ -597,6 +736,17 @@ function WeighingValidationPanel({
     return Math.max(rw, volumetricWeight);
   }, [realWeight, volumetricWeight]);
 
+  // Calcul auto frais avion : poids facturable × price_per_kg
+  const autoAirFreight = useMemo(() => {
+    if (!autoCalc || !selectedService || chargeableWeight <= 0) return 0;
+    return Math.round(chargeableWeight * Number(selectedService.price_per_kg));
+  }, [autoCalc, selectedService, chargeableWeight]);
+
+  const autoServiceFee = useMemo(() => {
+    if (!autoCalc || autoAirFreight <= 0) return 0;
+    return Math.round(autoAirFreight * 0.1); // 10% frais de service
+  }, [autoCalc, autoAirFreight]);
+
   const handleValidate = () => {
     const rw = parseFloat(realWeight);
     if (!rw || rw <= 0) { toast.error("Poids réel requis"); return; }
@@ -604,12 +754,54 @@ function WeighingValidationPanel({
     const w = parseFloat(width);
     const h = parseFloat(height);
     if (!l || !w || !h) { toast.error("Dimensions requises"); return; }
-    onValidate({ realWeight: rw, volumetricWeight, length: l, width: w, height: h });
+    onValidate({
+      realWeight: rw,
+      volumetricWeight,
+      length: l,
+      width: w,
+      height: h,
+      airFreightFee: autoCalc ? autoAirFreight : 0,
+      serviceFee: autoCalc ? autoServiceFee : 0,
+    });
+  };
+
+  const handleQuickSave = () => {
+    onQuickSave({ parcelPhotoUrl: photoUrl, adminComment: comment, serviceId });
   };
 
   return (
     <section className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-3">
       <p className="text-[10px] uppercase font-semibold text-orange-700 flex items-center gap-1"><Scale className="h-3 w-3" /> Validation pesée</p>
+
+      {/* Sélection service transport */}
+      <div>
+        <label className="text-[10px] text-muted-foreground">Service de transport</label>
+        <Select value={serviceId ?? ""} onValueChange={(v) => setServiceId(v || null)}>
+          <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Choisir un service" /></SelectTrigger>
+          <SelectContent>
+            {services.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name} — {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedService && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Calcul : MAX(poids réel, volumétrique) × {Number(selectedService.price_per_kg).toLocaleString("fr-FR")} FCFA/kg
+          </p>
+        )}
+      </div>
+
+      {/* Calcul auto toggle */}
+      <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+        <Checkbox checked={autoCalc} onCheckedChange={(v) => setAutoCalc(!!v)} />
+        <span className={autoCalc ? "text-orange-700 font-medium" : "text-muted-foreground"}>
+          Calcul automatique des frais avion (poids × prix/kg)
+        </span>
+      </label>
+
+      {/* Poids & dimensions */}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Poids réel (kg)</label>
@@ -628,12 +820,40 @@ function WeighingValidationPanel({
           <Input type="number" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="25" className="h-8 text-xs" />
         </div>
       </div>
+
+      {/* Résultats calcul */}
       {volumetricWeight > 0 && (
-        <div className="text-xs space-y-1">
+        <div className="text-xs space-y-1 border-t border-orange-200 pt-2">
           <div className="flex justify-between"><span className="text-muted-foreground">Poids volumétrique</span><span>{volumetricWeight.toFixed(2)} kg</span></div>
           <div className="flex justify-between font-bold"><span>Poids facturable</span><span className="text-orange-700">{chargeableWeight.toFixed(2)} kg</span></div>
         </div>
       )}
+      {autoCalc && autoAirFreight > 0 && (
+        <div className="text-xs space-y-1 rounded-lg bg-emerald-50 border border-emerald-200 p-2">
+          <div className="flex justify-between"><span className="text-muted-foreground">Frais avion (auto)</span><span className="font-medium">{autoAirFreight.toLocaleString("fr-FR")} FCFA</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Frais service (10%)</span><span className="font-medium">{autoServiceFee.toLocaleString("fr-FR")} FCFA</span></div>
+          <div className="flex justify-between font-bold text-emerald-700"><span>Total frais</span><span>{(autoAirFreight + autoServiceFee).toLocaleString("fr-FR")} FCFA</span></div>
+        </div>
+      )}
+
+      {/* Photo colis */}
+      <div>
+        <label className="text-[10px] text-muted-foreground">Photo du colis (URL)</label>
+        <Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="h-8 text-xs" />
+        {photoUrl && <img src={photoUrl} alt="Colis" className="mt-1 h-20 w-20 rounded border object-cover" />}
+      </div>
+
+      {/* Commentaire admin */}
+      <div>
+        <label className="text-[10px] text-muted-foreground">Commentaire admin</label>
+        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Note interne..." rows={2} className="text-xs" />
+      </div>
+
+      {/* Bouton sauvegarde rapide */}
+      <Button size="sm" variant="outline" className="w-full" onClick={handleQuickSave} disabled={isLoading}>
+        <FileText className="h-3.5 w-3.5 mr-1" /> Sauvegarder photo & commentaire
+      </Button>
+
       <Button size="sm" className="w-full" onClick={handleValidate} disabled={isLoading}>
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
         Valider pesée & calculer frais
