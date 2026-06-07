@@ -2,6 +2,7 @@ import type { CustomerSnapshot } from "@/types/workflow";
 
 interface Props {
   customer?: CustomerSnapshot;
+  compact?: boolean;
 }
 
 const TIER_CONFIG = {
@@ -11,11 +12,24 @@ const TIER_CONFIG = {
   blocked: { icon: "🚫", label: "Bloqué", className: "bg-red-100 text-red-700" },
 };
 
-export function CustomerBadge({ customer }: Props) {
+export function CustomerBadge({ customer, compact }: Props) {
   if (!customer) return null;
 
   const tier = TIER_CONFIG[customer.tier] ?? TIER_CONFIG.new;
 
+  /* Mode compact (mobile) : emoji seul avec tooltip */
+  if (compact) {
+    return (
+      <span
+        className="text-[10px] shrink-0"
+        title={`${tier.label} · ${customer.order_count} commandes · Solde: ${customer.total_remaining.toLocaleString("fr-FR")} FCFA`}
+      >
+        {tier.icon}
+      </span>
+    );
+  }
+
+  /* Mode standard (desktop) : badge complet */
   return (
     <div className="flex items-center gap-1.5">
       <span

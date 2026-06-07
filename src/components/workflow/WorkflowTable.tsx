@@ -18,9 +18,9 @@ export function WorkflowTable({ rows, onViewDetail }: Props) {
 
   return (
     <div className="space-y-2">
-      {/* Header */}
+      {/* Header — Desktop uniquement */}
       <div
-        className="grid items-center gap-2 px-3 py-1.5 text-[10px] uppercase font-semibold text-muted-foreground border-b"
+        className="hidden lg:grid items-center gap-2 px-3 py-1.5 text-[10px] uppercase font-semibold text-muted-foreground border-b"
         style={{ gridTemplateColumns: "60px 80px 1fr 90px 90px 90px 80px 28px" }}
       >
         <div>Type</div>
