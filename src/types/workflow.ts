@@ -20,6 +20,7 @@ export type WorkflowRow = LogisticsOrderRow & {
 };
 
 export type WorkflowFilterKey =
+  | "actions"
   | "all"
   | "to_weigh"
   | "waiting_client"

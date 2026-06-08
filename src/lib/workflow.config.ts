@@ -5,6 +5,14 @@ import type {
   PaymentBadgeVariant,
 } from "@/types/workflow";
 
+// ── CONFIG ───────────────────────────────────────────────────────
+
+/**
+ * Seuil de virtualisation — nombre de rows avant activation de
+ * @tanstack/react-virtual. Modifiable sans refactor du reste du code.
+ */
+export const WORKFLOW_VIRTUALIZATION_THRESHOLD = 300;
+
 // ── STEPS ────────────────────────────────────────────────────────
 
 export const IMPORT_STEPS: WorkflowStep[] = [
@@ -46,6 +54,7 @@ export type WorkflowFilterDef = {
 };
 
 export const WORKFLOW_FILTERS: WorkflowFilterDef[] = [
+  { key: "actions", label: "Actions", color: "text-red-600" },
   { key: "all", label: "Toutes" },
   { key: "to_weigh", label: "À peser", color: "text-orange-600" },
   { key: "waiting_client", label: "Attente client", color: "text-yellow-600" },
@@ -59,6 +68,19 @@ export function applyWorkflowFilter(
   filter: WorkflowFilterKey
 ): WorkflowRow[] {
   switch (filter) {
+    case "actions":
+      return rows.filter(
+        (r) =>
+          r.logistics_status === "awaiting_weighing" ||
+          r.logistics_status === "rejected" ||
+          r.logistics_status === "fees_calculated" ||
+          (r.logistics_status === "validated" && (r.amount_remaining ?? 0) > 0) ||
+          (r.logistics_status === "ready_to_ship" && !r.tracking_number) ||
+          (r.order_type === "local" &&
+            (r.logistics_status === "new" ||
+              r.logistics_status === null ||
+              r.logistics_status === undefined))
+      );
     case "to_weigh":
       return rows.filter((r) => r.logistics_status === "awaiting_weighing");
     case "waiting_client":
@@ -88,6 +110,18 @@ export function computeFilterCounts(
   rows: WorkflowRow[]
 ): Record<WorkflowFilterKey, number> {
   return {
+    actions: rows.filter(
+      (r) =>
+        r.logistics_status === "awaiting_weighing" ||
+        r.logistics_status === "rejected" ||
+        r.logistics_status === "fees_calculated" ||
+        (r.logistics_status === "validated" && (r.amount_remaining ?? 0) > 0) ||
+        (r.logistics_status === "ready_to_ship" && !r.tracking_number) ||
+        (r.order_type === "local" &&
+          (r.logistics_status === "new" ||
+            r.logistics_status === null ||
+            r.logistics_status === undefined))
+    ).length,
     all: rows.length,
     to_weigh: rows.filter((r) => r.logistics_status === "awaiting_weighing")
       .length,
