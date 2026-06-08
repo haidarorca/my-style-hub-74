@@ -247,6 +247,23 @@ async function fallbackLogisticsQuery(
 
   const orderIds = rawOrders.map((o: Record<string, unknown>) => String(o.id));
 
+  // ═════ ÉTAPE 1b : Pays de destination (résolution noms pour filtres Phase 1 ERP)
+  const countryIds = rawOrders
+    .map((o: Record<string, unknown>) => o.destination_country_id as string)
+    .filter(Boolean);
+  let countryNameMap = new Map<string, string>();
+  if (countryIds.length > 0) {
+    try {
+      const { data: countries } = await supabase
+        .from("countries")
+        .select("id, name")
+        .in("id", countryIds);
+      for (const c of countries ?? []) {
+        if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+      }
+    } catch { /* ignorer — fallback null */ }
+  }
+
   // ═════ ÉTAPE 2 : order_items (requête séparée)
   let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number }>>();
   try {
@@ -429,7 +446,7 @@ async function fallbackLogisticsQuery(
       order_total: Number(order.total ?? 0),
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
-      destination_country_name: null,
+      destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
       item_count: items.reduce((s, i) => s + (i.quantity ?? 1), 0),
       days_pending: daysBetween(String(order.created_at)),
 
