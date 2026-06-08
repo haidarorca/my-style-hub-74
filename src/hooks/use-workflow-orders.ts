@@ -73,6 +73,23 @@ export function useWorkflowOrders() {
     return applyWorkflowFilter(rows, filter);
   };
 
+  /* Recherche globale clientside — pure, sans etat */
+  const applySearch = (subset: WorkflowRow[], term: string): WorkflowRow[] => {
+    if (!term || term.trim() === "") return subset;
+    const q = term.toLowerCase().trim();
+    return subset.filter((row) => {
+      return (
+        (row.order_id ?? "").toLowerCase().includes(q) ||
+        (row.customer_name ?? "").toLowerCase().includes(q) ||
+        (row.customer_phone ?? "").toLowerCase().includes(q) ||
+        (row.tracking_number ?? "").toLowerCase().includes(q) ||
+        (row.admin_comment ?? "").toLowerCase().includes(q) ||
+        String(row.order_total ?? "").includes(q) ||
+        String(row.amount_remaining ?? "").includes(q)
+      );
+    });
+  };
+
   const urgentRows = useMemo(
     () => rows.filter((r) => r.days_pending > 7),
     [rows]
@@ -82,6 +99,7 @@ export function useWorkflowOrders() {
     rows,
     counts,
     applyFilter,
+    applySearch,
     urgentRows,
     isLoading,
     error,

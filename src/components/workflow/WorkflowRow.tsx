@@ -61,21 +61,30 @@ export function WorkflowRow({ row, onViewDetail }: Props) {
   const isRelancer = ls === "awaiting_client_validation";
   const isRetour = ls === "rejected";
 
-  const actionLabel = isPeser
-    ? "Peser"
-    : isEnvoyer
-      ? "Envoyer"
-      : isPayer
-        ? "Payer"
-        : isEmbarquer
-          ? "Embarquer"
-          : isExpedier
-            ? "Expedier"
-            : isRelancer
-              ? "Relancer"
-              : isRetour
-                ? "Retour"
-                : "Voir";
+  /* Bouton action rapide — LOCAL ou IMPORT */
+  const isLocal = row.order_type === "local";
+  const isLocalNew = isLocal && (ls === "new" || ls === null || ls === undefined);
+  const isLocalConfirmed = isLocal && ls === "confirmed";
+
+  const actionLabel = isLocalNew
+    ? "Confirmer"
+    : isLocalConfirmed
+      ? "Livrer"
+      : isPeser
+        ? "Peser"
+        : isEnvoyer
+          ? "Envoyer"
+          : isPayer
+            ? "Payer"
+            : isEmbarquer
+              ? "Embarquer"
+              : isExpedier
+                ? "Expedier"
+                : isRelancer
+                  ? "Relancer"
+                  : isRetour
+                    ? "Retour"
+                    : "Voir";
 
   /* Fond de carte selon priorite — visible immediatement */
   const cardBg = isUrgent
@@ -87,21 +96,25 @@ export function WorkflowRow({ row, onViewDetail }: Props) {
         : "bg-white border-gray-200";
 
   /* Fond du bouton action — plein, pas outline */
-  const btnClass = isPeser
-    ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent"
-    : isEnvoyer
+  const btnClass = isLocalNew
+    ? "bg-emerald-500 hover:bg-emerald-600 text-white border-transparent"
+    : isLocalConfirmed
       ? "bg-blue-500 hover:bg-blue-600 text-white border-transparent"
-      : isPayer
-        ? "bg-red-500 hover:bg-red-600 text-white border-transparent"
-        : isEmbarquer
-          ? "bg-emerald-500 hover:bg-emerald-600 text-white border-transparent"
-          : isExpedier
-            ? "bg-blue-500 hover:bg-blue-600 text-white border-transparent"
-            : isRelancer
-              ? "bg-amber-500 hover:bg-amber-600 text-white border-transparent"
-              : isRetour
-                ? "bg-gray-500 hover:bg-gray-600 text-white border-transparent"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300";
+      : isPeser
+        ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent"
+        : isEnvoyer
+          ? "bg-blue-500 hover:bg-blue-600 text-white border-transparent"
+          : isPayer
+            ? "bg-red-500 hover:bg-red-600 text-white border-transparent"
+            : isEmbarquer
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white border-transparent"
+              : isExpedier
+                ? "bg-blue-500 hover:bg-blue-600 text-white border-transparent"
+                : isRelancer
+                  ? "bg-amber-500 hover:bg-amber-600 text-white border-transparent"
+                  : isRetour
+                    ? "bg-gray-500 hover:bg-gray-600 text-white border-transparent"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300";
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">

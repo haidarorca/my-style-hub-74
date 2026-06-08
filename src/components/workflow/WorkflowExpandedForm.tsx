@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, CreditCard, Receipt } from "lucide-react";
-import { updateShipmentAssessment, confirmShipmentPayment, updateShipmentTracking } from "@/lib/admin-logistics.functions";
+import { updateShipmentAssessment, confirmShipmentPayment, updateShipmentTracking, getOrCreateShipmentAssessment } from "@/lib/admin-logistics.functions";
 import { useShippingServices } from "@/hooks/use-shipping-services";
 import { fmtF } from "@/lib/workflow.config";
 import type { WorkflowRow } from "@/types/workflow";
@@ -61,11 +61,29 @@ export function WorkflowExpandedForm({ row }: Props) {
     return Math.round(chargeableWeight * pricePerKg);
   }, [autoCalc, chargeableWeight, pricePerKg]);
 
+  /* ═── Mutation ensureAssessment : cree l'evaluation si absente ── */
+  const ensureAssessment = useMutation({
+    mutationFn: async () => {
+      const result = await getOrCreateShipmentAssessment({
+        data: { order_id: row.order_id },
+      });
+      return result.id;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workflow-orders"] }),
+    onError: (e: Error) => toast.error("Erreur création évaluation : " + e.message),
+  });
+
+  /* Helper : retourne assessment_id existant ou cree un nouveau */
+  const getAssessmentId = async (): Promise<string> => {
+    if (row.assessment_id) return row.assessment_id;
+    return await ensureAssessment.mutateAsync();
+  };
+
   const validateWeighing = useMutation({
     mutationFn: async () => {
-      if (!row.assessment_id) throw new Error("Pas d'évaluation");
+      const assessmentId = await getAssessmentId();
       const payload: Record<string, unknown> = {
-        assessment_id: row.assessment_id,
+        assessment_id: assessmentId,
         real_weight_kg: parseFloat(realWeight),
         volumetric_weight_kg: volumetricWeight,
         length_cm: parseFloat(length),
@@ -89,9 +107,9 @@ export function WorkflowExpandedForm({ row }: Props) {
 
   const updateStatus = useMutation({
     mutationFn: async (status: string) => {
-      if (!row.assessment_id) throw new Error("Pas d'évaluation");
+      const assessmentId = await getAssessmentId();
       await updateShipmentAssessment({
-        data: { assessment_id: row.assessment_id, status: status as any },
+        data: { assessment_id: assessmentId, status: status as any },
       });
     },
     onSuccess: (_, status) => {
@@ -108,12 +126,12 @@ export function WorkflowExpandedForm({ row }: Props) {
 
   const saveTrackingAndShip = useMutation({
     mutationFn: async () => {
-      if (!row.assessment_id) throw new Error("Pas d'évaluation");
+      const assessmentId = await getAssessmentId();
       // Étape 1 : sauvegarder le tracking
       if (tracking.trim()) {
         await updateShipmentTracking({
           data: {
-            assessmentId: row.assessment_id,
+            assessmentId: assessmentId,
             trackingNumber: tracking.trim(),
             shippedAt: new Date().toISOString(),
           },
@@ -121,7 +139,7 @@ export function WorkflowExpandedForm({ row }: Props) {
       }
       // Étape 2 : mettre à jour le statut
       await updateShipmentAssessment({
-        data: { assessment_id: row.assessment_id, status: "shipped" as any },
+        data: { assessment_id: assessmentId, status: "shipped" as any },
       });
     },
     onSuccess: () => {
@@ -133,10 +151,10 @@ export function WorkflowExpandedForm({ row }: Props) {
 
   const confirmPayment = useMutation({
     mutationFn: async () => {
-      if (!row.assessment_id) throw new Error("Pas d'évaluation");
+      const assessmentId = await getAssessmentId();
       await confirmShipmentPayment({
         data: {
-          assessmentId: row.assessment_id,
+          assessmentId: assessmentId,
           amount: parseFloat(paymentAmount),
         },
       });
@@ -179,6 +197,45 @@ export function WorkflowExpandedForm({ row }: Props) {
   );
 
   // ─── FORMULAIRE PESÉE ───────────────────────────
+  /* ═── WORKFLOW LOCAL (3 etapes) ─────────────────────────────── */
+  if (row.order_type === "local") {
+    if (ls === "new" || ls === null || ls === undefined) {
+      return (
+        <div className="pt-2 space-y-2">
+          <p className="text-xs text-muted-foreground">Commande locale — en attente de confirmation</p>
+          <Button size="sm" onClick={() => updateStatus.mutate("confirmed")}>
+            <CheckCircle className="h-3.5 w-3.5 mr-1" />
+            Confirmer commande
+          </Button>
+        </div>
+      );
+    }
+    if (ls === "confirmed") {
+      return (
+        <div className="pt-2 space-y-2">
+          <p className="text-xs text-muted-foreground">Commande locale — prête pour livraison</p>
+          <Button size="sm" onClick={() => updateStatus.mutate("delivered")}>
+            <PackageCheck className="h-3.5 w-3.5 mr-1" />
+            Marquer livrée
+          </Button>
+        </div>
+      );
+    }
+    if (ls === "delivered") {
+      return (
+        <div className="pt-2">
+          <span className="text-xs text-emerald-600 font-medium">Commande livrée</span>
+        </div>
+      );
+    }
+    return (
+      <div className="pt-2">
+        <span className="text-xs text-muted-foreground">Statut : {ls}</span>
+      </div>
+    );
+  }
+
+  /* ═── WORKFLOW IMPORT / MIXTE (7 etapes) ────────────────────── */
   if (ls === "awaiting_weighing") {
     return (
       <div className="space-y-3 pt-2">

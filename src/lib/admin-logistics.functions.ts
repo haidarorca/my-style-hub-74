@@ -352,30 +352,53 @@ async function fallbackLogisticsQuery(
     const orderId = String(order.id);
     const items = orderItemsMap.get(orderId) ?? [];
 
-    // Détection LOCAL/IMPORT/MIXED
+    // ═══════════════════════════════════════════════════════════════
+    // Détection LOCAL / IMPORT / MIXED — Hiérarchie de signaux
+    // Ordre de priorité décroissante (du plus sûr au moins sûr)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Signal 1 : Commande commission → toujours IMPORT
+    const isCommission = Boolean(order.is_commission);
+    // Signal 2 : shipping_service_id renseigné → IMPORT (choisi au checkout)
+    const hasShippingService = Boolean(order.shipping_service_id);
+    // Signal 3 : source_country_id direct sur la commande → IMPORT
+    const hasSourceCountry = Boolean(order.source_country_id);
+
+    // Signal 4 : Analyse des items par boutique
     let hasImport = false;
     let hasLocal = false;
+    let itemsAnalyzed = 0;
     for (const item of items) {
       const shopId = productShopMap.get(item.product_id);
-      const sourceCountryId = shopId ? shopSourceMap.get(shopId) : null;
+      if (!shopId) continue;
+      itemsAnalyzed++;
+      const sourceCountryId = shopSourceMap.get(shopId);
       if (sourceCountryId) {
         hasImport = true;
       } else {
         hasLocal = true;
+        // Warning silencieux : boutique sans source_country_id configuré
+        console.warn(`[Workflow] Boutique ${shopId} vend sans source_country_id (item ${item.product_id})`);
       }
     }
-    // Heuristique : si aucun item n'a pu être analysé, utiliser is_commission ou shipping_service_id
+
+    // Décision selon la hiérarchie
     let orderType: OrderType = "local";
-    if (!hasImport && !hasLocal) {
-      // Aucun item trouvé — heuristique fallback
-      const hasShippingService = Boolean(order.shipping_service_id);
-      const isCommission = Boolean(order.is_commission);
-      if (isCommission || hasShippingService) orderType = "import";
+    if (isCommission) {
+      orderType = "import";
+    } else if (hasShippingService) {
+      orderType = "import";
+    } else if (hasSourceCountry) {
+      orderType = "import";
+    } else if (itemsAnalyzed === 0) {
+      // Aucun item analysable (produits supprimés ou tables inaccessibles)
+      console.warn(`[Workflow] Commande ${orderId} : aucun item analysable, fallback LOCAL`);
     } else if (hasImport && hasLocal) {
       orderType = "mixed";
     } else if (hasImport) {
       orderType = "import";
     }
+    // Sinon reste "local" (défaut sûr)
 
     const assessment = assessmentMap.get(orderId) ?? {};
     const assessmentId = (assessment.id as string) ?? null;
@@ -910,6 +933,62 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (!before) throw new Error("Évaluation non trouvée");
+
+    // ═══════════════════════════════════════════════════════════════
+    // VALIDATION SERVEUR DES TRANSITIONS (P1.4)
+    // ═══════════════════════════════════════════════════════════════
+    if (data.status && data.status !== before.status) {
+      // Lire le type de commande
+      const { data: orderRow } = await supabaseAdmin
+        .from("orders")
+        .select("order_type, is_commission, shipping_service_id, source_country_id")
+        .eq("id", before.order_id as string)
+        .maybeSingle();
+
+      // Détecter le type (même logique que le mapping)
+      const isComm = Boolean(orderRow?.is_commission);
+      const hasSvc = Boolean(orderRow?.shipping_service_id);
+      const hasSrc = Boolean(orderRow?.source_country_id);
+      const oType: OrderType =
+        isComm || hasSvc || hasSrc || String(orderRow?.order_type) === "import"
+          ? "import"
+          : String(orderRow?.order_type) === "mixed"
+            ? "mixed"
+            : "local";
+
+      const current = String(before.status ?? "");
+      const next = data.status;
+
+      // Transitions autorisées IMPORT
+      const IMPORT_ALLOWED: Record<string, string[]> = {
+        awaiting_weighing: ["fees_calculated"],
+        fees_calculated: ["awaiting_client_validation", "rejected"],
+        rejected: ["awaiting_weighing"],
+        awaiting_client_validation: ["validated", "rejected"],
+        validated: ["ready_to_ship"],
+        ready_to_ship: ["shipped"],
+        shipped: ["delivered"],
+        "": ["awaiting_weighing"], // statut vide → initialisation
+      };
+
+      // Transitions autorisées LOCAL
+      const LOCAL_ALLOWED: Record<string, string[]> = {
+        new: ["confirmed"],
+        confirmed: ["delivered"],
+        "": ["new"],
+      };
+
+      const allowed =
+        oType === "local" ? LOCAL_ALLOWED : IMPORT_ALLOWED;
+      const fromTransitions = allowed[current] ?? [];
+
+      if (!fromTransitions.includes(next)) {
+        throw new Error(
+          `Transition invalide : "${current}" → "${next}" non autorisee pour les commandes ${oType.toUpperCase()}. ` +
+          `Transitions autorisees depuis "${current}" : ${fromTransitions.join(", ") || "aucune"}.`
+        );
+      }
+    }
 
     const update: Record<string, unknown> = {
       real_weight_kg: data.real_weight_kg,

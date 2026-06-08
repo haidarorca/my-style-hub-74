@@ -195,7 +195,25 @@ export function getAvailableActions(row: WorkflowRow): {
 } {
   const ls = row.logistics_status;
   const ps = row.payment_status;
+  const ot = row.order_type;
 
+  // ═── WORKFLOW LOCAL (3 etapes) ───────────────────────────────
+  if (ot === "local") {
+    switch (ls) {
+      case "new":
+      case null:
+      case undefined:
+        return { primary: { label: "Confirmer", action: "confirm_local" } };
+      case "confirmed":
+        return { primary: { label: "Livrer", action: "deliver_local" } };
+      case "delivered":
+        return {}; // Termine
+      default:
+        return {};
+    }
+  }
+
+  // ═── WORKFLOW IMPORT / MIXTE (7 etapes) ──────────────────────
   switch (ls) {
     case "awaiting_weighing":
       return {
