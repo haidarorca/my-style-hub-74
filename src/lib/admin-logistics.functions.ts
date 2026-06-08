@@ -938,10 +938,10 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
     // VALIDATION SERVEUR DES TRANSITIONS (P1.4)
     // ═══════════════════════════════════════════════════════════════
     if (data.status && data.status !== before.status) {
-      // Lire le type de commande
+      // Lire le type de commande (select * pour eviter erreur si champ inexistant)
       const { data: orderRow } = await supabaseAdmin
         .from("orders")
-        .select("order_type, is_commission, shipping_service_id, source_country_id")
+        .select("*")
         .eq("id", before.order_id as string)
         .maybeSingle();
 
