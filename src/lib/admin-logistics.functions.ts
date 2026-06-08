@@ -363,8 +363,11 @@ async function fallbackLogisticsQuery(
     const hasShippingService = Boolean(order.shipping_service_id);
     // Signal 3 : source_country_id direct sur la commande → IMPORT
     const hasSourceCountry = Boolean(order.source_country_id);
+    // Signal 4 : assessment logistique existante → IMPORT (fort)
+    const assessment = assessmentMap.get(orderId) ?? {};
+    const hasAssessment = Boolean(assessment.id);
 
-    // Signal 4 : Analyse des items par boutique
+    // Signal 5 : Analyse des items par boutique
     let hasImport = false;
     let hasLocal = false;
     let itemsAnalyzed = 0;
@@ -390,6 +393,8 @@ async function fallbackLogisticsQuery(
       orderType = "import";
     } else if (hasSourceCountry) {
       orderType = "import";
+    } else if (hasAssessment) {
+      orderType = "import";
     } else if (itemsAnalyzed === 0) {
       // Aucun item analysable (produits supprimés ou tables inaccessibles)
       console.warn(`[Workflow] Commande ${orderId} : aucun item analysable, fallback LOCAL`);
@@ -400,7 +405,7 @@ async function fallbackLogisticsQuery(
     }
     // Sinon reste "local" (défaut sûr)
 
-    const assessment = assessmentMap.get(orderId) ?? {};
+    // assessment deja recuperee au signal 4
     const assessmentId = (assessment.id as string) ?? null;
     const payment = assessmentId ? (paymentMap.get(assessmentId) ?? {}) : {};
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
