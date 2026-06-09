@@ -247,122 +247,87 @@ async function fallbackLogisticsQuery(
 
   const orderIds = rawOrders.map((o: Record<string, unknown>) => String(o.id));
 
-  // ═════ ÉTAPE 1b : Pays de destination (résolution noms pour filtres Phase 1 ERP)
+  // ═════ ÉTAPE 2+4+1b PARALLÈLE : Requêtes indépendantes exécutées simultanément
   const countryIds = rawOrders
     .map((o: Record<string, unknown>) => o.destination_country_id as string)
     .filter(Boolean);
+
+  const [countriesResult, itemsResult, assessmentsResult] = await Promise.allSettled([
+    /* 1b */ countryIds.length > 0
+      ? supabase.from("countries").select("id, name").in("id", countryIds)
+      : Promise.resolve({ data: [] }),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity").in("order_id", orderIds),
+    /* 4 */ supabase.from("order_shipment_assessments").select(
+      `id, order_id, status, real_weight_kg, volumetric_weight_kg,
+      air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
+      warehouse_location, agent_name, shipping_service_id, client_response_note`
+    ).in("order_id", orderIds),
+  ]);
+
+  // ── Countries
   let countryNameMap = new Map<string, string>();
-  if (countryIds.length > 0) {
-    try {
-      const { data: countries } = await supabase
-        .from("countries")
-        .select("id, name")
-        .in("id", countryIds);
-      for (const c of countries ?? []) {
-        if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
-      }
-    } catch { /* ignorer — fallback null */ }
+  if (countriesResult.status === "fulfilled" && countriesResult.value.data) {
+    for (const c of countriesResult.value.data) {
+      if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+    }
   }
 
-  // ═════ ÉTAPE 2 : order_items (requête séparée)
+  // ── Order items
   let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number }>>();
-  try {
-    const { data: items } = await supabase
-      .from("order_items")
-      .select("order_id, product_id, quantity")
-      .in("order_id", orderIds);
-    for (const it of items ?? []) {
+  if (itemsResult.status === "fulfilled" && itemsResult.value.data) {
+    for (const it of itemsResult.value.data) {
       const arr = orderItemsMap.get(it.order_id) ?? [];
       arr.push({ product_id: it.product_id ?? "", quantity: it.quantity ?? 1 });
       orderItemsMap.set(it.order_id, arr);
     }
-  } catch { /* table inexistante = tout local */ }
+  }
 
-  // ═════ ÉTAPE 3 : Produits pour détecter source country
+  // ── Assessments
+  let assessmentMap = new Map<string, Record<string, unknown>>();
+  if (assessmentsResult.status === "fulfilled" && assessmentsResult.value.data) {
+    for (const a of assessmentsResult.value.data) {
+      assessmentMap.set(a.order_id as string, a as SafeRow);
+    }
+  }
+
+  // ═════ ÉTAPE 3 : Produits + Shops (dépend de l'étape 2)
   const allProductIds = Array.from(
-    new Set(
-      Array.from(orderItemsMap.values())
-        .flat()
-        .map((i) => i.product_id)
-        .filter(Boolean),
-    ),
+    new Set(Array.from(orderItemsMap.values()).flat().map((i) => i.product_id).filter(Boolean)),
   );
-
-  let productShopMap = new Map<string, string>(); // product_id -> shop_id
-  let shopSourceMap = new Map<string, string | null>(); // shop_id -> source_country_id
-
+  let productShopMap = new Map<string, string>();
+  let shopSourceMap = new Map<string, string | null>();
   if (allProductIds.length > 0) {
     try {
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, shop_id")
-        .in("id", allProductIds);
-      for (const p of products ?? []) {
-        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
-      }
-
+      const { data: products } = await supabase.from("products").select("id, shop_id").in("id", allProductIds);
+      for (const p of products ?? []) { if (p.shop_id) productShopMap.set(p.id, p.shop_id); }
       const shopIds = Array.from(new Set(productShopMap.values()));
       if (shopIds.length > 0) {
-        const { data: shops } = await supabase
-          .from("shops")
-          .select("id, source_country_id")
-          .in("id", shopIds);
-        for (const s of shops ?? []) {
-          shopSourceMap.set(s.id, s.source_country_id ?? null);
-        }
+        const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
+        for (const s of shops ?? []) { shopSourceMap.set(s.id, s.source_country_id ?? null); }
       }
     } catch { /* ignorer */ }
   }
 
-  // ═════ ÉTAPE 4 : Évaluations logistiques (requête séparée)
-  let assessmentMap = new Map<string, Record<string, unknown>>();
-  try {
-    const { data: assessments } = await supabase
-      .from("order_shipment_assessments")
-      .select(
-        `id, order_id, status, real_weight_kg, volumetric_weight_kg,
-        air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
-        warehouse_location, agent_name, shipping_service_id, client_response_note`,
-      )
-      .in("order_id", orderIds);
-    for (const a of assessments ?? []) {
-      assessmentMap.set(a.order_id as string, a as SafeRow);
-    }
-  } catch { /* table inexistante */ }
-
-  // ═════ ÉTAPE 5 : Paiements (requête séparée)
+  // ═════ ÉTAPE 5+6 PARALLÈLE : Paiements + Tracking (dépendent de l'étape 4)
   let paymentMap = new Map<string, Record<string, unknown>>();
-  try {
-    const assessmentIds = Array.from(assessmentMap.values()).map((a) => a.id as string).filter(Boolean);
-    if (assessmentIds.length > 0) {
-      const { data: payments } = await supabase
-        .from("shipment_payments")
-        .select(
-          "order_shipment_assessment_id, payment_status, amount_requested, amount_paid, payment_method, payment_reference, confirmed_at",
-        )
-        .in("order_shipment_assessment_id", assessmentIds);
-      for (const p of payments ?? []) {
-        paymentMap.set(p.order_shipment_assessment_id as string, p as SafeRow);
-      }
-    }
-  } catch { /* table inexistante */ }
-
-  // ═════ ÉTAPE 6 : Tracking (requête séparée)
   let trackingMap = new Map<string, Record<string, unknown>>();
-  try {
-    const assessmentIds = Array.from(assessmentMap.values()).map((a) => a.id as string).filter(Boolean);
-    if (assessmentIds.length > 0) {
-      const { data: tracks } = await supabase
-        .from("shipment_tracking")
-        .select(
-          "order_shipment_assessment_id, tracking_number, carrier_name, tracking_url, warehouse_received_at, weighed_at, shipped_at, estimated_arrival_at",
-        )
-        .in("order_shipment_assessment_id", assessmentIds);
-      for (const t of tracks ?? []) {
-        trackingMap.set(t.order_shipment_assessment_id as string, t as SafeRow);
-      }
+  const assessmentIds = Array.from(assessmentMap.values()).map((a) => a.id as string).filter(Boolean);
+  if (assessmentIds.length > 0) {
+    const [paymentsResult, trackingsResult] = await Promise.allSettled([
+      supabase.from("shipment_payments").select(
+        "order_shipment_assessment_id, payment_status, amount_requested, amount_paid, payment_method, payment_reference, confirmed_at"
+      ).in("order_shipment_assessment_id", assessmentIds),
+      supabase.from("shipment_tracking").select(
+        "order_shipment_assessment_id, tracking_number, carrier_name, tracking_url, warehouse_received_at, weighed_at, shipped_at, estimated_arrival_at"
+      ).in("order_shipment_assessment_id", assessmentIds),
+    ]);
+    if (paymentsResult.status === "fulfilled" && paymentsResult.value.data) {
+      for (const p of paymentsResult.value.data) { paymentMap.set(p.order_shipment_assessment_id as string, p as SafeRow); }
     }
-  } catch { /* table inexistante */ }
+    if (trackingsResult.status === "fulfilled" && trackingsResult.value.data) {
+      for (const t of trackingsResult.value.data) { trackingMap.set(t.order_shipment_assessment_id as string, t as SafeRow); }
+    }
+  }
 
   // ═════ ÉTAPE 7 : Assemblage
   const rows: LogisticsOrderRow[] = rawOrders.map((order: Record<string, unknown>) => {
@@ -927,8 +892,8 @@ export const saveCustomColumnValue = createServerFn({ method: "POST" })
 
 const UpdateAssessmentSchema = z.object({
   assessment_id: z.string().uuid(),
-  real_weight_kg: z.number().min(0),
-  volumetric_weight_kg: z.number().min(0),
+  real_weight_kg: z.number().min(0).optional(),
+  volumetric_weight_kg: z.number().min(0).optional(),
   length_cm: z.number().min(0).optional(),
   width_cm: z.number().min(0).optional(),
   height_cm: z.number().min(0).optional(),

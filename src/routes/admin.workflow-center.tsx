@@ -41,7 +41,7 @@ function WorkflowCenter() {
   const [selectedRow, setSelectedRow] = useState<WorkflowRow | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(["urgent", "payment", "to_weigh", "waiting_client", "to_ship"])
+    new Set(["urgent", "payment", "to_weigh", "waiting_client", "to_ship", "to_confirm"])
   );
 
   /* ── Filtre combiné ─────────────────────────────────── */
@@ -118,12 +118,13 @@ function WorkflowCenter() {
   /* ── Groupes par statut ─────────────────────────────── */
   const grouped = useMemo(() => {
     const groups: { key: string; label: string; color: string; rows: WorkflowRow[] }[] = [
-      { key: "urgent", label: "Urgences", color: "text-red-600 bg-red-50 border-red-200", rows: [] },
-      { key: "payment", label: "Paiements manquants", color: "text-amber-600 bg-amber-50 border-amber-200", rows: [] },
-      { key: "to_weigh", label: "À peser", color: "text-orange-600 bg-orange-50 border-orange-200", rows: [] },
-      { key: "waiting_client", label: "Attente client", color: "text-blue-600 bg-blue-50 border-blue-200", rows: [] },
-      { key: "to_ship", label: "Prêtes / À expédier", color: "text-emerald-600 bg-emerald-50 border-emerald-200", rows: [] },
-      { key: "other", label: "Autres", color: "text-gray-600 bg-gray-50 border-gray-200", rows: [] },
+      { key: "urgent", label: "🔴 Urgences", color: "text-red-600 bg-red-50 border-red-200", rows: [] },
+      { key: "payment", label: "💰 Paiements manquants", color: "text-amber-600 bg-amber-50 border-amber-200", rows: [] },
+      { key: "to_weigh", label: "⚖️ À peser", color: "text-orange-600 bg-orange-50 border-orange-200", rows: [] },
+      { key: "waiting_client", label: "👤 Attente client", color: "text-blue-600 bg-blue-50 border-blue-200", rows: [] },
+      { key: "to_ship", label: "🚚 Prêtes à expédier", color: "text-emerald-600 bg-emerald-50 border-emerald-200", rows: [] },
+      { key: "to_confirm", label: "✅ À confirmer", color: "text-purple-600 bg-purple-50 border-purple-200", rows: [] },
+      { key: "in_progress", label: "⏳ En cours", color: "text-gray-600 bg-gray-50 border-gray-200", rows: [] },
     ];
 
     for (const row of filteredRows) {
@@ -140,8 +141,10 @@ function WorkflowCenter() {
         groups[3].rows.push(row); /* waiting_client */
       } else if (ls === "validated" || ls === "ready_to_ship") {
         groups[4].rows.push(row); /* to_ship */
+      } else if (row.order_type === "local" && (ls === "new" || ls === null)) {
+        groups[5].rows.push(row); /* to_confirm — local non confirmée */
       } else {
-        groups[5].rows.push(row); /* other */
+        groups[6].rows.push(row); /* in_progress — confirmed local, fees_calculated, etc. */
       }
     }
 
@@ -164,8 +167,11 @@ function WorkflowCenter() {
     const ship = rows.filter((r) =>
       ["validated", "ready_to_ship"].includes(r.logistics_status ?? "")
     ).length;
+    const confirm = rows.filter(
+      (r) => r.order_type === "local" && (r.logistics_status === "new" || r.logistics_status === null)
+    ).length;
     const totalDebt = rows.reduce((s, r) => s + (r.amount_remaining ?? 0), 0);
-    return { urg, pay, weigh, ship, totalDebt };
+    return { urg, pay, weigh, ship, confirm, totalDebt };
   }, [rows]);
 
   const toggleGroup = (key: string) => {
@@ -218,7 +224,7 @@ function WorkflowCenter() {
 
       <div className="max-w-[1400px] mx-auto px-4 py-4 space-y-4">
         {/* ═══ KPI CARDS ═══ */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           <KpiCard
             icon={<AlertTriangle className="h-4 w-4 text-red-500" />}
             label="Urgences"
@@ -251,6 +257,20 @@ function WorkflowCenter() {
             active={activeFilter === "to_ship"}
             onClick={() => setActiveFilter("to_ship")}
           />
+          <KpiCard
+            icon={<CheckCircle2 className="h-4 w-4 text-purple-500" />}
+            label="À confirmer"
+            value={kpi.confirm}
+            color="border-purple-200 bg-purple-50"
+            active={activeFilter === "actions"}
+            onClick={() => setActiveFilter("actions")}
+          />
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 bg-gray-50">
+            <div className="shrink-0">
+              <span className="text-xs text-muted-foreground">Dette</span>
+              <div className="text-lg font-bold">{fmtF(kpi.totalDebt)}</div>
+            </div>
+          </div>
         </div>
 
         {/* ═══ BARRE FILTRES + RECHERCHE ═══ */}

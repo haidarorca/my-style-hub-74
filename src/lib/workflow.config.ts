@@ -41,7 +41,11 @@ export function getStepIndex(
   steps: WorkflowStep[],
   status: string | null
 ): number {
-  if (!status) return -1;
+  if (!status) {
+    // null = "new" pour les commandes locales (pas encore confirmées)
+    const newIdx = steps.findIndex((s) => s.key === "new");
+    return newIdx >= 0 ? newIdx : -1;
+  }
   return steps.findIndex((s) => s.key === status);
 }
 
