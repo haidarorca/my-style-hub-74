@@ -17,7 +17,7 @@ export const Route = createFileRoute("/admin/workflow-center")({
 
 function WorkflowCenter() {
   const { rows, counts, applySearch, isLoading, error } = useWorkflowOrders();
-  const [activeFilter, setActiveFilter] = useState<WorkflowFilterKey>("all");
+  const [activeFilter, setActiveFilter] = useState<WorkflowFilterKey>("actions");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRow, setSelectedRow] = useState<WorkflowRow | null>(null);
 

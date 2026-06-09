@@ -215,16 +215,16 @@ export function WorkflowDrawer({ row, onClose }: Props) {
               Dates
             </h3>
             <div className="text-xs space-y-1 text-muted-foreground">
-              {row.created_at && (
+              {row.order_created_at && (
                 <div className="flex justify-between">
                   <span>Création</span>
-                  <span>{new Date(row.created_at).toLocaleDateString("fr-FR")}</span>
+                  <span>{new Date(row.order_created_at).toLocaleDateString("fr-FR")}</span>
                 </div>
               )}
-              {row.received_at && (
+              {row.warehouse_received_at && (
                 <div className="flex justify-between">
                   <span>Réception</span>
-                  <span>{new Date(row.received_at).toLocaleDateString("fr-FR")}</span>
+                  <span>{new Date(row.warehouse_received_at).toLocaleDateString("fr-FR")}</span>
                 </div>
               )}
               {row.weighed_at && (

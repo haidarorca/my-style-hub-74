@@ -206,8 +206,10 @@ export function getOrderTypeLabel(type: string | null): {
       return { label: "LOCAL", icon: "L", color: "bg-emerald-500" };
     case "mixed":
       return { label: "MIXTE", icon: "M", color: "bg-amber-500" };
-    default:
+    case "import":
       return { label: "IMPORT", icon: "I", color: "bg-orange-500" };
+    default:
+      return { label: "LOCAL", icon: "L", color: "bg-emerald-500" };
   }
 }
 
