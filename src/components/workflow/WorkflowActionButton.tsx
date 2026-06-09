@@ -238,7 +238,7 @@ function WeighDialog({ open, onClose, onConfirm, loading }: { open: boolean; onC
           </div>
           {weight && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-xs text-orange-800">
-              <div className="flex justify-between"><span>Frais avion (estimé)</span><span className="font-bold">{fmtF(Math.round(Math.max(parseFloat(weight) || 0, (parseFloat(length || "0") * parseFloat(width || "0") * parseFloat(height || "0")) / 5000) * (services.find((s) => s.id === serviceId)?.price_per_kg ?? 7500))}</span></div>
+              <div className="flex justify-between"><span>Frais avion (estimé)</span><span className="font-bold">{fmtF(Math.round(Math.max(parseFloat(weight) || 0, (parseFloat(length || "0") * parseFloat(width || "0") * parseFloat(height || "0")) / 5000) * (services.find((s) => s.id === serviceId)?.price_per_kg ?? 7500)))}</span></div>
             </div>
           )}
         </div>
