@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ChevronRight, Phone, Eye } from "lucide-react";
 import { WorkflowStepBar } from "./WorkflowStepBar";
 import { WorkflowExpandedForm } from "./WorkflowExpandedForm";
 import { CustomerBadge } from "./CustomerBadge";
+import { WorkflowActionButton } from "./WorkflowActionButton";
 import { cn } from "@/lib/utils";
 import {
   fmtF,
@@ -281,17 +282,10 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
             )}
           </div>
 
-          {/* Bouton plein — impossible a manquer */}
-          <Button
-            size="sm"
-            className={cn("h-6 text-[10px] px-2", btnClass)}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpanded();
-            }}
-          >
-            {actionLabel}
-          </Button>
+          {/* Bouton d'action contextuel */}
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <WorkflowActionButton row={row} onAction={() => setExpanded(false)} />
+          </div>
         </div>
       </div>
 

@@ -6,3 +6,4 @@ export { WorkflowDrawer } from "./WorkflowDrawer";
 export { QuickFilterBar } from "./QuickFilterBar";
 export { CustomerBadge } from "./CustomerBadge";
 export { WorkflowFilterPanel } from "./WorkflowFilterPanel";
+export { WorkflowActionButton } from "./WorkflowActionButton";
