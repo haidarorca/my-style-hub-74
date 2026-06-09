@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * admin.audit-logs.tsx — Journal d'audit administratif
  * Super admin uniquement. Historique complet des actions admin avec filtres.

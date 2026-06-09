@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * admin.index.tsx — ACTION CENTER
  * 

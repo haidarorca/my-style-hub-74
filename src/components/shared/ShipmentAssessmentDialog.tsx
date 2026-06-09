@@ -377,7 +377,7 @@ export function ShipmentAssessmentDialog({
               </h3>
               {form.parcel_photo_url ? (
                 <div className="relative">
-                  <img src={form.parcel_photo_url} alt="Colis" className="h-32 w-32 rounded-lg border object-cover" />
+                  <img src={String(form.parcel_photo_url ?? "")} alt="Colis" className="h-32 w-32 rounded-lg border object-cover" />
                   <Button size="sm" variant="ghost" className="absolute top-0 right-0 h-6 w-6 p-0" onClick={() => setForm((f) => ({ ...f, parcel_photo_url: "" }))}>
                     ✕
                   </Button>

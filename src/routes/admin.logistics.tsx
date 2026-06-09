@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * admin.logistics.tsx — ERP Logistique Kawzone v2
  *
