@@ -4,9 +4,10 @@ import type { WorkflowRow as TWorkflowRow } from "@/types/workflow";
 interface Props {
   rows: TWorkflowRow[];
   onViewDetail: (row: TWorkflowRow) => void;
+  rowIndexMap?: Map<string, number>;
 }
 
-export function WorkflowTable({ rows, onViewDetail }: Props) {
+export function WorkflowTable({ rows, onViewDetail, rowIndexMap }: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -32,12 +33,12 @@ export function WorkflowTable({ rows, onViewDetail }: Props) {
         <div></div>
       </div>
 
-      {/* Rows avec numérotation positionnelle */}
-      {rows.map((row, index) => (
+      {/* Rows avec numérotation globale */}
+      {rows.map((row) => (
         <WorkflowRow
           key={row.order_id}
           row={row}
-          position={index + 1}
+          position={rowIndexMap?.get(row.order_id) ?? 0}
           onViewDetail={onViewDetail}
         />
       ))}

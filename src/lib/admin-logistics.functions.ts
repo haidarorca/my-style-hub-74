@@ -970,7 +970,7 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
       const LOCAL_ALLOWED: Record<string, string[]> = {
         new: ["confirmed"],
         confirmed: ["delivered"],
-        "": ["new"],
+        "": ["new", "confirmed"], // ""→"confirmed" : confirmation directe d'une commande LOCAL fraîche
       };
 
       const allowed =
