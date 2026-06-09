@@ -171,7 +171,7 @@ export const listLogisticsOrders = createServerFn({ method: "POST" })
  * Essaie de requêter via la vue logistique
  */
 async function tryLogisticsView(
-  supabase: typeof supabaseAdmin,
+  supabase: any,
   data: z.infer<typeof ListSchema>,
   from: number,
   to: number,
