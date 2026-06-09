@@ -135,6 +135,18 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
           {row.order_id?.slice(0, 10)}…
         </span>
 
+        {/* Montant restant — visible immédiatement */}
+        {rem > 0 && (
+          <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+            {fmtF(rem)}
+          </span>
+        )}
+        {rem === 0 && (
+          <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+            Payé
+          </span>
+        )}
+
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-1">
             <span className="text-xs font-medium truncate">
