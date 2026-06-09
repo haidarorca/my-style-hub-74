@@ -10,6 +10,7 @@ import { CustomerBadge } from "./CustomerBadge";
 import {
   fmtF, fmtFees, fmtRemaining, getOrderTypeLabel, getDaysBadgeColor, getPaymentBadgeVariant,
 } from "@/lib/workflow.config";
+import { recordShipmentPayment } from "@/lib/admin-logistics.functions";
 import type { WorkflowRow } from "@/types/workflow";
 import {
   Phone, MapPin, Calendar, Package, Receipt, Truck,
@@ -138,6 +139,36 @@ export function WorkflowDrawer({ row, onClose }: Props) {
             </div>
           </section>
 
+          {/* ── HISTORIQUE PAIEMENTS ── */}
+          {row.amount_paid && row.amount_paid > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                <History className="h-3 w-3" /> Paiements reçus
+              </h3>
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-emerald-700 font-medium">Total payé</span>
+                  <span className="text-sm font-bold text-emerald-700">{fmtF(row.amount_paid)}</span>
+                </div>
+                {row.payment_reference && (
+                  <div className="text-[10px] text-emerald-600 mt-1">
+                    Réf: {row.payment_reference}
+                  </div>
+                )}
+                {row.payment_method && (
+                  <div className="text-[10px] text-emerald-600">
+                    Méthode: {row.payment_method}
+                  </div>
+                )}
+                {row.confirmed_at && (
+                  <div className="text-[10px] text-emerald-600">
+                    Confirmé le: {new Date(row.confirmed_at).toLocaleDateString("fr-FR")}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* ── AJOUTER PAIEMENT ── */}
           <PaymentSection row={row} />
 
@@ -236,7 +267,6 @@ function PaymentSection({ row }: { row: WorkflowRow }) {
     if (!n || n <= 0) return;
     setLoading(true);
     try {
-      const { recordShipmentPayment } = await import("@/lib/admin-logistics.functions");
       await recordShipmentPayment({
         data: {
           order_id: row.order_id,

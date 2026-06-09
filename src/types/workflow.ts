@@ -15,8 +15,16 @@ export type CustomerSnapshot = {
   risk_score?: "low" | "medium" | "high";
 };
 
+export type PaymentEntry = {
+  amount: number;
+  method: string;
+  reference: string;
+  date: string;
+};
+
 export type WorkflowRow = LogisticsOrderRow & {
   customer?: CustomerSnapshot;
+  payment_history?: PaymentEntry[];
 };
 
 export type WorkflowFilterKey =
