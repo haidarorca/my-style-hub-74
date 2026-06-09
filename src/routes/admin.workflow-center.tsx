@@ -2,14 +2,16 @@ import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Zap, Search, X, AlertTriangle, DollarSign, Package,
-  Truck, CheckCircle2, ChevronDown, Eye, EyeOff, Phone,
-  TrendingUp, Users, Receipt, CreditCard, ShieldAlert,
-  ClipboardCheck, Ship, Ban, Clock
+  Truck, CheckCircle2, ChevronDown, Eye, EyeOff,
+  TrendingUp, Users, Receipt, ShieldAlert,
+  ClipboardCheck, Ship, Clock
 } from "lucide-react";
 import { useWorkflowOrders } from "@/hooks/use-workflow-orders";
-import { WorkflowTable, WorkflowDrawer } from "@/components/workflow";
+import { useWorkflowFilters } from "@/hooks/use-workflow-filters";
+import { WorkflowTable, WorkflowDrawer, WorkflowFilterPanel } from "@/components/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import type { WorkflowRow } from "@/types/workflow";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
@@ -20,87 +22,75 @@ export const Route = createFileRoute("/admin/workflow-center")({
 
 /* ═══════════════════════════════════════════════════════════════
    WORKFLOW CENTER — CENTRE DE PILOTAGE KAWZONE
-   Logistique + Paiements + Dettes + Validations Client
+   Filtres combinatoires Excel + Cockpit opérationnel
    ═══════════════════════════════════════════════════════════════ */
 
 function WorkflowCenter() {
-  const { rows, isLoading, error, applySearch } = useWorkflowOrders();
+  const { rows, isLoading, error } = useWorkflowOrders();
 
-  const [searchTerm, setSearchTerm] = useState("");
+  /* ── Système de filtres combinatoires ── */
+  const {
+    filters,
+    activeCount,
+    filteredRows,
+    options,
+    updateFilter,
+    resetFilters,
+    toggleArrayValue,
+  } = useWorkflowFilters(rows);
+
   const [selectedRow, setSelectedRow] = useState<WorkflowRow | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(["urgent", "payment", "to_weigh", "to_confirm", "waiting_client", "ready_to_ship"])
   );
 
-  /* ── Filtre principal : par défaut tout sauf terminées ── */
+  /* ── Filtre : masquer terminées + recherche ── */
   const activeRows = useMemo(() => {
-    let result = rows;
+    let result = filteredRows;
     if (!showArchived) {
       result = result.filter(r =>
         r.logistics_status !== "delivered" && r.logistics_status !== "shipped"
       );
     }
-    if (searchTerm.trim()) {
-      result = applySearch(result, searchTerm);
-    }
     return result;
-  }, [rows, showArchived, searchTerm, applySearch]);
+  }, [filteredRows, showArchived]);
 
-  /* ── Groupes métier (calculés sur les données réelles) ── */
+  /* ── Groupes métier ── */
   const groups = useMemo(() => {
     const g: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string; border: string; rows: WorkflowRow[] }> = {
-      urgent:       { label: "Urgences", icon: <ShieldAlert className="h-4 w-4" />, color: "text-red-700", bg: "bg-red-50", border: "border-red-200", rows: [] },
-      payment:      { label: "Paiements manquants", icon: <Receipt className="h-4 w-4" />, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", rows: [] },
-      to_weigh:     { label: "À peser", icon: <Package className="h-4 w-4" />, color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200", rows: [] },
-      to_confirm:   { label: "À confirmer", icon: <ClipboardCheck className="h-4 w-4" />, color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-200", rows: [] },
-      waiting_client: { label: "Attente validation client", icon: <Clock className="h-4 w-4" />, color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", rows: [] },
-      ready_to_ship:{ label: "Prêtes à expédier", icon: <Ship className="h-4 w-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", rows: [] },
-      in_progress:  { label: "En cours", icon: <TrendingUp className="h-4 w-4" />, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", rows: [] },
-      shipped:      { label: "Expédiées", icon: <Truck className="h-4 w-4" />, color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200", rows: [] },
-      delivered:    { label: "Livrées", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", rows: [] },
+      urgent:       { label: "🔴 Urgences", icon: <ShieldAlert className="h-4 w-4" />, color: "text-red-700", bg: "bg-red-50", border: "border-red-200", rows: [] },
+      payment:      { label: "💰 Paiements manquants", icon: <Receipt className="h-4 w-4" />, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", rows: [] },
+      to_weigh:     { label: "⚖️ À peser", icon: <Package className="h-4 w-4" />, color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200", rows: [] },
+      to_confirm:   { label: "✅ À confirmer", icon: <ClipboardCheck className="h-4 w-4" />, color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-200", rows: [] },
+      waiting_client: { label: "👤 Attente client", icon: <Clock className="h-4 w-4" />, color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", rows: [] },
+      ready_to_ship:{ label: "🚚 Prêtes à expédier", icon: <Ship className="h-4 w-4" />, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", rows: [] },
+      in_progress:  { label: "⏳ En cours", icon: <TrendingUp className="h-4 w-4" />, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", rows: [] },
+      shipped:      { label: "📦 Expédiées", icon: <Truck className="h-4 w-4" />, color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200", rows: [] },
+      delivered:    { label: "🎉 Livrées", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", rows: [] },
     };
 
     for (const row of activeRows) {
       const ls = row.logistics_status;
       const rem = row.amount_remaining ?? 0;
-      const paid = row.amount_paid ?? 0;
-      const total = row.order_total ?? 0;
 
-      // 1. URGENCES : awaiting_weighing > 7j OU rejected
       if ((ls === "awaiting_weighing" && row.days_pending > 7) || ls === "rejected") {
         g.urgent.rows.push(row);
-      }
-      // 2. PAIEMENTS MANQUANTS : reste > 0 ET (pending/partial/null)
-      else if (rem > 0 && (!row.payment_status || row.payment_status === "pending" || row.payment_status === "partial")) {
+      } else if (rem > 0 && (!row.payment_status || row.payment_status === "pending" || row.payment_status === "partial")) {
         g.payment.rows.push(row);
-      }
-      // 3. À PESER : awaiting_weighing ≤ 7j
-      else if (ls === "awaiting_weighing") {
+      } else if (ls === "awaiting_weighing") {
         g.to_weigh.rows.push(row);
-      }
-      // 4. À CONFIRMER : local new/null
-      else if (row.order_type === "local" && (ls === "new" || ls === null)) {
+      } else if (row.order_type === "local" && (ls === "new" || ls === null)) {
         g.to_confirm.rows.push(row);
-      }
-      // 5. ATTENTE CLIENT : awaiting_client_validation
-      else if (ls === "awaiting_client_validation") {
+      } else if (ls === "awaiting_client_validation") {
         g.waiting_client.rows.push(row);
-      }
-      // 6. PRÊTES : validated (avec ou sans reste) OU ready_to_ship
-      else if (ls === "validated" || ls === "ready_to_ship") {
+      } else if (ls === "validated" || ls === "ready_to_ship") {
         g.ready_to_ship.rows.push(row);
-      }
-      // 7. EXPÉDIÉES
-      else if (ls === "shipped") {
+      } else if (ls === "shipped") {
         g.shipped.rows.push(row);
-      }
-      // 8. LIVRÉES
-      else if (ls === "delivered") {
+      } else if (ls === "delivered") {
         g.delivered.rows.push(row);
-      }
-      // 9. EN COURS : fees_calculated, confirmed local, etc.
-      else {
+      } else {
         g.in_progress.rows.push(row);
       }
     }
@@ -127,6 +117,21 @@ function WorkflowCenter() {
     });
   };
 
+  /* ── Chips de filtres actifs ── */
+  const activeFilterChips = useMemo(() => {
+    const chips: { label: string; onRemove: () => void }[] = [];
+    if (filters.search) chips.push({ label: `Recherche: "${filters.search}"`, onRemove: () => updateFilter("search", "") });
+    filters.countries.forEach(c => chips.push({ label: `Pays: ${c}`, onRemove: () => toggleArrayValue("countries", c) }));
+    filters.orderTypes.forEach(t => chips.push({ label: `Type: ${t}`, onRemove: () => toggleArrayValue("orderTypes", t) }));
+    filters.logisticsStatuses.forEach(s => chips.push({ label: `Statut: ${s}`, onRemove: () => toggleArrayValue("logisticsStatuses", s) }));
+    filters.paymentStatuses.forEach(s => {
+      const labels: Record<string, string> = { paid: "Payé", partial: "Partiel", pending: "Non payé", cod: "À réception" };
+      chips.push({ label: `Paiement: ${labels[s] ?? s}`, onRemove: () => toggleArrayValue("paymentStatuses", s) });
+    });
+    if (filters.hasDebt !== null) chips.push({ label: filters.hasDebt ? "Avec dette" : "Soldé", onRemove: () => updateFilter("hasDebt", null) });
+    return chips;
+  }, [filters, updateFilter, toggleArrayValue]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster position="top-right" richColors />
@@ -141,12 +146,23 @@ function WorkflowCenter() {
             <div>
               <h1 className="text-lg font-bold leading-tight">Centre de pilotage</h1>
               <p className="text-[11px] text-muted-foreground">
-                {kpi.total} commandes · {kpi.clients} clients · {fmtF(kpi.debt)} dette totale
+                {kpi.total} commandes · {kpi.clients} clients · {fmtF(kpi.debt)} dette
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)} className="h-8 text-xs">
+            {/* Bouton filtres */}
+            <WorkflowFilterPanel
+              filters={filters}
+              activeCount={activeCount}
+              options={options}
+              filteredCount={filteredRows.length}
+              totalCount={rows.length}
+              onUpdate={updateFilter}
+              onToggleArray={toggleArrayValue}
+              onReset={resetFilters}
+            />
+            <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)} className="h-9 text-xs">
               {showArchived ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
               {showArchived ? "Masquer livrées" : "Voir livrées"}
             </Button>
@@ -165,28 +181,28 @@ function WorkflowCenter() {
           <KpiCard icon={<DollarSign className="h-5 w-5 text-emerald-500" />} label="Dette" value={fmtF(kpi.debt)} sub="Montant total" color="border-emerald-200 bg-white" />
         </div>
 
-        {/* ═══ RECHERCHE ═══ */}
-        <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Rechercher : nom, téléphone, ID commande, tracking, montant..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="pl-10 pr-9 h-10"
-          />
-          {searchTerm && (
-            <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchTerm("")}>
-              <X className="h-3 w-3" />
+        {/* ═══ CHIPS FILTRES ACTIFS ═══ */}
+        {activeFilterChips.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {activeFilterChips.map((chip, i) => (
+              <Badge key={i} variant="secondary" className="text-[11px] gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors" onClick={chip.onRemove}>
+                {chip.label}
+                <X className="h-3 w-3" />
+              </Badge>
+            ))}
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={resetFilters}>
+              Tout effacer
             </Button>
-          )}
-        </div>
-
-        {searchTerm && (
-          <p className="text-xs text-muted-foreground">
-            {activeRows.length} résultat{activeRows.length > 1 ? "s" : ""} pour « {searchTerm} »
-          </p>
+          </div>
         )}
+
+        {/* ═══ RÉSULTAT ═══ */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {activeRows.length} commande{activeRows.length > 1 ? "s" : ""}
+            {activeCount > 0 && ` (filtrées sur ${rows.length})`}
+          </p>
+        </div>
 
         {/* ═══ GROUPES ═══ */}
         {isLoading ? (
