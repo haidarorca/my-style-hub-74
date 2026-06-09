@@ -272,13 +272,18 @@ async function fallbackLogisticsQuery(
     }
   }
 
-  // ── Order items
-  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number }>>();
+  // ── Order items (avec unit_price pour calculer le total)
+  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number }>>();
+  let orderTotalFromItems = new Map<string, number>();
   if (itemsResult.status === "fulfilled" && itemsResult.value.data) {
     for (const it of itemsResult.value.data) {
       const arr = orderItemsMap.get(it.order_id) ?? [];
-      arr.push({ product_id: it.product_id ?? "", quantity: it.quantity ?? 1 });
+      const qty = it.quantity ?? 1;
+      const price = it.unit_price ?? 0;
+      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price });
       orderItemsMap.set(it.order_id, arr);
+      // Calculer le total depuis les items
+      orderTotalFromItems.set(it.order_id, (orderTotalFromItems.get(it.order_id) ?? 0) + (qty * price));
     }
   }
 
@@ -398,7 +403,9 @@ async function fallbackLogisticsQuery(
       Number(assessment.extra_fees ?? 0);
     const amountPaid = Number(payment.amount_paid ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
-    const amountRemaining = Math.max(0, amountRequested - amountPaid);
+    const orderTotal = Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0);
+    // amount_remaining = reste à payer sur la commande totale (produits + frais)
+    const amountRemaining = Math.max(0, orderTotal - amountPaid);
 
     return {
       order_id: orderId,
@@ -408,7 +415,7 @@ async function fallbackLogisticsQuery(
       customer_phone: (order.customer_phone as string) ?? null,
       customer_address: (order.customer_address as string) ?? null,
       customer_city: (order.customer_city as string) ?? null,
-      order_total: Number(order.total ?? 0),
+      order_total: Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0),
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
