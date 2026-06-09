@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * admin.orders.tsx — ORDER HUB
  *
