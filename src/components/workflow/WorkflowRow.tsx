@@ -18,16 +18,17 @@ import type { WorkflowRow as TWorkflowRow } from "@/types/workflow";
 
 interface Props {
   row: TWorkflowRow;
+  position?: number;
   onViewDetail: (row: TWorkflowRow) => void;
 }
 
 /* ═════════════════════════════════════════════════════════════════
-   WorkflowRow — V1.2 Mobile-First — Fonds colorés pour visibilite
+   WorkflowRow — V1.3 Cockpit — Numérotation #001 + ORD-XXXX
    Desktop (>=1024px) : grille horizontale 8 colonnes
    Mobile  (<1024px)  : Compact Action Card (fonds colores)
    ═════════════════════════════════════════════════════════════════ */
 
-export function WorkflowRow({ row, onViewDetail }: Props) {
+export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
   const [expanded, setExpanded] = useState(false);
   const typeLabel = getOrderTypeLabel(row.order_type);
   const remainingInfo = fmtRemaining(row.amount_remaining);
@@ -126,20 +127,12 @@ export function WorkflowRow({ row, onViewDetail }: Props) {
         style={{ gridTemplateColumns: "60px 80px 1fr 90px 90px 90px 80px 28px" }}
         onClick={toggleExpanded}
       >
-        <div className="flex items-center gap-1">
-          <span
-            className={cn(
-              "inline-flex items-center justify-center w-5 h-5 rounded text-[8px] font-bold text-white",
-              typeLabel.color
-            )}
-          >
-            {typeLabel.icon}
-          </span>
-          <span className="text-[10px] font-medium">{typeLabel.label}</span>
-        </div>
+        <span className="text-[11px] font-mono font-bold text-muted-foreground">
+          {position > 0 ? `#${String(position).padStart(3, "0")}` : "#---"}
+        </span>
 
-        <span className="text-[11px] font-mono text-muted-foreground truncate">
-          {row.order_id?.slice(0, 8)}...
+        <span className="text-[10px] font-mono text-muted-foreground truncate">
+          {row.order_id?.slice(0, 10)}…
         </span>
 
         <div className="flex flex-col min-w-0">
@@ -225,7 +218,7 @@ export function WorkflowRow({ row, onViewDetail }: Props) {
               {typeLabel.icon}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono truncate">
-              {row.order_id?.slice(0, 8)}...
+              {position > 0 ? `#${String(position).padStart(3, "0")}` : "#---"} · {row.order_id?.slice(0, 8)}…
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
