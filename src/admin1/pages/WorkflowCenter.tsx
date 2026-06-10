@@ -45,7 +45,7 @@ export default function Admin1WorkflowCenter() {
       <Toaster position="top-right" richColors />
 
       {/* ═══ EN-TETE ═══ */}
-      <div className="bg-white border-b sticky top-0 z-30">
+      <div className="bg-white border-b">
         <div className="max-w-[1440px] mx-auto px-4 py-3">
           {/* Titre */}
           <div className="flex items-center justify-between mb-3">

@@ -51,7 +51,7 @@ export function useAdmin1Orders() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin1-orders"],
     queryFn: async () => {
-      const result = await listLogisticsOrders({ data: { page: 1, pageSize: 500 } });
+      const result = await listLogisticsOrders({ data: { page: 1, pageSize: 100 } });
       return result;
     },
   });
