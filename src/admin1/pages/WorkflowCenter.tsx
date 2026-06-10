@@ -78,15 +78,15 @@ export default function Admin1WorkflowCenter() {
             />
           </div>
 
-          {/* 8 Onglets */}
+          {/* 8 Onglets — scroll horizontal sur mobile */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
+            <TabsList className="h-auto flex-nowrap overflow-x-auto gap-1 bg-transparent p-0 pb-1 scrollbar-hide">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
                   className={cn(
-                    "text-xs h-8 px-2.5 gap-1.5 data-[state=active]:ring-2 data-[state=active]:ring-offset-0",
+                    "text-xs h-8 px-2.5 gap-1.5 shrink-0 data-[state=active]:ring-2 data-[state=active]:ring-offset-0",
                     tab.count > 0 && tab.key !== "closed" && "data-[state=active]:ring-opacity-50"
                   )}
                   style={{
