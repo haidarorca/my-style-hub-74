@@ -1,22 +1,21 @@
 // @ts-nocheck
 /* ═══════════════════════════════════════════════════════════════
-   HOOK : useAdmin1Orders — Requete Supabase pour admin1
+   HOOK : useAdmin1Orders — Donnees mutables avec useState
    ═══════════════════════════════════════════════════════════════ */
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useCallback } from "react";
 import type { KawzoneOrder, KawzonePackage, PaymentLog, OrderWithDetails } from "@/admin1/types/admin1";
 
-/* ── Donnees factices pour demonstration (remplacer par Supabase) ── */
-const DEMO_ORDERS: KawzoneOrder[] = [
+/* ── Donnees de demo initiales ── */
+const INITIAL_ORDERS: KawzoneOrder[] = [
   { id: "o1", order_number: "#001", customer_name: "Amadou Diallo", customer_phone: "+221 77 123 4567", customer_address: "Dakar, Mermoz", status: "new", order_type: "local", total_product_amount: 150000, shipping_fees: 0, total_due: 150000, total_paid: 0, balance: 150000, created_at: "2026-06-09T10:00:00Z", updated_at: "2026-06-09T10:00:00Z" },
   { id: "o2", order_number: "#002", customer_name: "Fatou Ndiaye", customer_phone: "+221 76 234 5678", customer_address: "Dakar, Plateau", status: "new", order_type: "import", total_product_amount: 450000, shipping_fees: 0, total_due: 450000, total_paid: 0, balance: 450000, created_at: "2026-06-09T11:00:00Z", updated_at: "2026-06-09T11:00:00Z" },
   { id: "o3", order_number: "#003", customer_name: "Ousmane Sow", customer_phone: "+221 70 345 6789", customer_address: "Thies", status: "confirmed", order_type: "mixed", total_product_amount: 850000, shipping_fees: 0, total_due: 850000, total_paid: 0, balance: 850000, created_at: "2026-06-08T09:00:00Z", updated_at: "2026-06-09T14:00:00Z", confirmed_at: "2026-06-09T14:00:00Z" },
   { id: "o4", order_number: "#004", customer_name: "Mariama Ba", customer_phone: "+221 78 456 7890", customer_address: "Dakar, Almadies", status: "deposit_paid", order_type: "import", total_product_amount: 1200000, shipping_fees: 0, total_due: 1200000, total_paid: 300000, balance: 900000, created_at: "2026-06-07T08:00:00Z", updated_at: "2026-06-08T10:00:00Z", confirmed_at: "2026-06-07T10:00:00Z" },
   { id: "o5", order_number: "#005", customer_name: "Ibrahima Fall", customer_phone: "+221 77 567 8901", customer_address: "Dakar, Ouakam", status: "warehouse_arrived", order_type: "import", total_product_amount: 650000, shipping_fees: 0, total_due: 650000, total_paid: 200000, balance: 450000, created_at: "2026-06-05T07:00:00Z", updated_at: "2026-06-09T16:00:00Z", confirmed_at: "2026-06-05T09:00:00Z" },
   { id: "o6", order_number: "#006", customer_name: "Aminata Diop", customer_phone: "+221 76 678 9012", customer_address: "Dakar, Yoff", status: "fees_calculated", order_type: "import", total_product_amount: 320000, shipping_fees: 52500, total_due: 372500, total_paid: 100000, balance: 272500, created_at: "2026-06-04T06:00:00Z", updated_at: "2026-06-09T17:00:00Z", confirmed_at: "2026-06-04T08:00:00Z" },
-  { id: "o7", order_number: "#007", customer_name: "Cheikh Kane", customer_phone: "+221 70 789 0123", customer_address: "Dakar, Liberté", status: "ready_to_ship", order_type: "local", total_product_amount: 95000, shipping_fees: 5000, total_due: 100000, total_paid: 100000, balance: 0, created_at: "2026-06-03T05:00:00Z", updated_at: "2026-06-09T18:00:00Z", confirmed_at: "2026-06-03T07:00:00Z" },
-  { id: "o8", order_number: "#008", customer_name: "Sophie Martin", customer_phone: "+221 78 890 1234", customer_address: "Dakar, Point E", status: "shipped", order_type: "import", total_product_amount: 780000, shipping_fees: 112500, total_due: 892500, total_paid: 892500, balance: 0, created_at: "2026-06-02T04:00:00Z", updated_at: "2026-06-09T19:00:00Z", confirmed_at: "2026-06-02T06:00:00Z", delivered_at: null },
+  { id: "o7", order_number: "#007", customer_name: "Cheikh Kane", customer_phone: "+221 70 789 0123", customer_address: "Dakar, Liberte", status: "ready_to_ship", order_type: "local", total_product_amount: 95000, shipping_fees: 5000, total_due: 100000, total_paid: 100000, balance: 0, created_at: "2026-06-03T05:00:00Z", updated_at: "2026-06-09T18:00:00Z", confirmed_at: "2026-06-03T07:00:00Z" },
+  { id: "o8", order_number: "#008", customer_name: "Sophie Martin", customer_phone: "+221 78 890 1234", customer_address: "Dakar, Point E", status: "shipped", order_type: "import", total_product_amount: 780000, shipping_fees: 112500, total_due: 892500, total_paid: 892500, balance: 0, created_at: "2026-06-02T04:00:00Z", updated_at: "2026-06-09T19:00:00Z", confirmed_at: "2026-06-02T06:00:00Z" },
   { id: "o9", order_number: "#009", customer_name: "Babacar Ndiaye", customer_phone: "+221 77 901 2345", customer_address: "Dakar, Fann", status: "delivered", order_type: "local", total_product_amount: 220000, shipping_fees: 0, total_due: 220000, total_paid: 220000, balance: 0, created_at: "2026-06-01T03:00:00Z", updated_at: "2026-06-09T20:00:00Z", confirmed_at: "2026-06-01T05:00:00Z", delivered_at: "2026-06-09T20:00:00Z" },
   { id: "o10", order_number: "#010", customer_name: "Amadou Diallo", customer_phone: "+221 77 123 4567", customer_address: "Dakar, Mermoz", status: "new", order_type: "import", total_product_amount: 540000, shipping_fees: 0, total_due: 540000, total_paid: 0, balance: 540000, created_at: "2026-06-09T12:00:00Z", updated_at: "2026-06-09T12:00:00Z" },
   { id: "o11", order_number: "#011", customer_name: "Khadija Sy", customer_phone: "+221 76 111 2223", customer_address: "Dakar, Grand Yoff", status: "confirmed", order_type: "local", total_product_amount: 180000, shipping_fees: 0, total_due: 180000, total_paid: 0, balance: 180000, created_at: "2026-06-09T13:00:00Z", updated_at: "2026-06-09T13:00:00Z" },
@@ -26,7 +25,7 @@ const DEMO_ORDERS: KawzoneOrder[] = [
   { id: "o15", order_number: "#015", customer_name: "Ndeye Sall", customer_phone: "+221 76 555 6667", customer_address: "Dakar, HLM", status: "ready_to_ship", order_type: "local", total_product_amount: 145000, shipping_fees: 8000, total_due: 153000, total_paid: 153000, balance: 0, created_at: "2026-06-04T08:00:00Z", updated_at: "2026-06-09T18:30:00Z", confirmed_at: "2026-06-04T10:00:00Z" },
 ];
 
-const DEMO_PACKAGES: KawzonePackage[] = [
+const INITIAL_PACKAGES: KawzonePackage[] = [
   { id: "p1", order_id: "o5", package_type: "import", status: "warehouse_arrived", weight_kg: 5.2, volumetric_weight_kg: 6.1, freight_rate_per_kg: 7500, freight_cost: 45750, tracking_number: "TRK-001-ABC" },
   { id: "p2", order_id: "o6", package_type: "import", status: "fees_calculated", weight_kg: 3.5, volumetric_weight_kg: 4.2, freight_rate_per_kg: 7500, freight_cost: 52500, tracking_number: "TRK-002-DEF" },
   { id: "p3", order_id: "o8", package_type: "import", status: "shipped", weight_kg: 8.5, volumetric_weight_kg: 9.0, freight_rate_per_kg: 7500, freight_cost: 112500, tracking_number: "TRK-003-GHI", shipped_at: "2026-06-09T19:00:00Z" },
@@ -36,7 +35,7 @@ const DEMO_PACKAGES: KawzonePackage[] = [
   { id: "p7", order_id: "o14", package_type: "import", status: "processing", freight_rate_per_kg: 7500, freight_cost: 0, tracking_number: "TRK-006-PQR" },
 ];
 
-const DEMO_PAYMENTS: PaymentLog[] = [
+const INITIAL_PAYMENTS: PaymentLog[] = [
   { id: "pay1", order_id: "o4", amount: 300000, method: "wave", reference: "WV-2026-001", recorded_by: "Admin", recorded_at: "2026-06-08T10:00:00Z", notes: "Acompte 25%" },
   { id: "pay2", order_id: "o5", amount: 200000, method: "orange_money", reference: "OM-2026-002", recorded_by: "Admin", recorded_at: "2026-06-08T14:00:00Z" },
   { id: "pay3", order_id: "o6", amount: 100000, method: "cash", reference: "", recorded_by: "Admin", recorded_at: "2026-06-09T08:00:00Z" },
@@ -47,25 +46,37 @@ const DEMO_PAYMENTS: PaymentLog[] = [
 ];
 
 export function useAdmin1Orders() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin1-orders"],
-    queryFn: async () => {
-      /* TODO: Remplacer par appel Supabase reel
-      const { data: orders } = await supabase.from("orders").select("*");
-      const { data: packages } = await supabase.from("packages").select("*");
-      const { data: payments } = await supabase.from("payment_logs").select("*");
-      */
-      return {
-        orders: DEMO_ORDERS,
-        packages: DEMO_PACKAGES,
-        payments: DEMO_PAYMENTS,
-      };
-    },
-  });
+  const [orders, setOrders] = useState<KawzoneOrder[]>(INITIAL_ORDERS);
+  const [packages] = useState<KawzonePackage[]>(INITIAL_PACKAGES);
+  const [payments, setPayments] = useState<PaymentLog[]>(INITIAL_PAYMENTS);
+  const [isLoading] = useState(false);
 
-  const orders: KawzoneOrder[] = data?.orders ?? [];
-  const packages: KawzonePackage[] = data?.packages ?? [];
-  const payments: PaymentLog[] = data?.payments ?? [];
+  /* ── Mettre a jour une commande ── */
+  const updateOrder = useCallback((orderId: string, patch: Partial<KawzoneOrder>) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...patch, updated_at: new Date().toISOString() } : o))
+    );
+  }, []);
+
+  /* ── Ajouter un paiement ── */
+  const addPayment = useCallback((payment: Omit<PaymentLog, "id" | "recorded_at">) => {
+    const newPayment: PaymentLog = {
+      ...payment,
+      id: `pay_${Date.now()}`,
+      recorded_at: new Date().toISOString(),
+    };
+    setPayments((prev) => [...prev, newPayment]);
+    // Mettre a jour le total_paid et balance de la commande
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id === payment.order_id) {
+          const newPaid = o.total_paid + payment.amount;
+          return { ...o, total_paid: newPaid, balance: Math.max(0, o.total_due - newPaid) };
+        }
+        return o;
+      })
+    );
+  }, []);
 
   /* ── Assemblage : orders + packages + payments ── */
   const ordersWithDetails: OrderWithDetails[] = useMemo(() => {
@@ -95,7 +106,7 @@ export function useAdmin1Orders() {
   }, [orders]);
 
   /* ── Recherche clientside ── */
-  const searchOrders = (term: string): OrderWithDetails[] => {
+  const searchOrders = useCallback((term: string): OrderWithDetails[] => {
     if (!term.trim()) return ordersWithDetails;
     const q = term.toLowerCase().trim();
     return ordersWithDetails.filter((o) =>
@@ -104,20 +115,23 @@ export function useAdmin1Orders() {
       o.customer_phone.toLowerCase().includes(q) ||
       String(o.total_due).includes(q)
     );
-  };
+  }, [ordersWithDetails]);
 
   /* ── Filtrer par statuts ── */
-  const filterByStatuses = (statuses: string[]): OrderWithDetails[] => {
+  const filterByStatuses = useCallback((statuses: string[]): OrderWithDetails[] => {
     return ordersWithDetails.filter((o) => statuses.includes(o.status));
-  };
+  }, [ordersWithDetails]);
 
   return {
     orders: ordersWithDetails,
+    rawOrders: orders,
+    rawPayments: payments,
     counts,
     isLoading,
-    error,
+    error: null,
     searchOrders,
     filterByStatuses,
-    refetch: () => {},
+    updateOrder,
+    addPayment,
   };
 }

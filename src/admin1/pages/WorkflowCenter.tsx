@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
 import type { OrderWithDetails } from "@/admin1/types/admin1";
 import { useAdmin1Orders } from "@/admin1/hooks/useAdmin1Orders";
+import { useAdmin1Actions } from "@/admin1/hooks/useAdmin1Actions";
 import { useAdmin1Kpi } from "@/admin1/hooks/useAdmin1Kpi";
 import { buildTabs } from "@/admin1/lib/admin1.config";
 import { KpiDashboard } from "@/admin1/components/KpiDashboard";
@@ -15,7 +16,8 @@ import { OrderDrawer } from "@/admin1/components/OrderDrawer";
 import { cn } from "@/lib/utils";
 
 export default function Admin1WorkflowCenter() {
-  const { orders, counts, isLoading, error, searchOrders, filterByStatuses } = useAdmin1Orders();
+  const { orders, counts, isLoading, error, searchOrders, filterByStatuses, updateOrder, addPayment } = useAdmin1Orders();
+  const actions = useAdmin1Actions(updateOrder, addPayment);
   const kpi = useAdmin1Kpi(
     orders.map((o) => ({ ...o, packages: [], payments: [], status_history: [] })),
     orders.flatMap((o) => o.payments)
@@ -144,7 +146,7 @@ export default function Admin1WorkflowCenter() {
       </div>
 
       {/* Drawer */}
-      <OrderDrawer order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+      <OrderDrawer order={selectedOrder} actions={actions} onClose={() => setSelectedOrder(null)} />
     </div>
   );
 }

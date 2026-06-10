@@ -1,116 +1,133 @@
 // @ts-nocheck
 /* ═══════════════════════════════════════════════════════════════
-   HOOK : useAdmin1Actions — Mutations metiers
+   HOOK : useAdmin1Actions — Mutations metiers avec vrai state
    ═══════════════════════════════════════════════════════════════ */
 
 import { useState, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { KawzoneOrder, KawzonePackage, PaymentLog, OrderStatus } from "@/admin1/types/admin1";
+import type { KawzoneOrder, KawzonePackage, OrderStatus } from "@/admin1/types/admin1";
 import { FREIGHT_RATE_PER_KG } from "@/admin1/lib/admin1.config";
 
-export function useAdmin1Actions() {
-  const qc = useQueryClient();
+interface ActionsAPI {
+  confirmOrder: (order: KawzoneOrder) => void;
+  cancelOrder: (order: KawzoneOrder) => void;
+  recordWeight: (order: KawzoneOrder, pkg: KawzonePackage, realWeight: number, volWeight: number) => number;
+  recordPayment: (orderId: string, amount: number, method: string, reference?: string) => void;
+  shipOrder: (order: KawzoneOrder, tracking: string) => void;
+  deliverOrder: (order: KawzoneOrder) => void;
+  isPending: boolean;
+}
+
+export function useAdmin1Actions(
+  updateOrder: (orderId: string, patch: Partial<KawzoneOrder>) => void,
+  addPayment: (payment: { order_id: string; amount: number; method: string; reference?: string; recorded_by: string; notes?: string }) => void
+): ActionsAPI {
   const [isPending, setIsPending] = useState(false);
 
-  const invalidate = useCallback(() => {
-    qc.invalidateQueries({ queryKey: ["admin1-orders"] });
-  }, [qc]);
-
-  /* ── Confirmer commande ── */
-  const confirmOrder = useCallback(async (order: KawzoneOrder) => {
+  /* ── Confirmer commande (LOCAL ou IMPORT) ── */
+  const confirmOrder = useCallback((order: KawzoneOrder) => {
     setIsPending(true);
     try {
-      /* TODO: Supabase update */
-      await new Promise((r) => setTimeout(r, 300));
+      updateOrder(order.id, {
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+      });
       toast.success("Commande confirmee", { description: `${order.order_number} · ${order.customer_name}` });
-      invalidate();
     } catch (e) {
       toast.error("Erreur", { description: e instanceof Error ? e.message : "" });
     } finally {
       setIsPending(false);
     }
-  }, [invalidate]);
+  }, [updateOrder]);
 
   /* ── Annuler commande ── */
-  const cancelOrder = useCallback(async (order: KawzoneOrder) => {
+  const cancelOrder = useCallback((order: KawzoneOrder) => {
     setIsPending(true);
     try {
-      await new Promise((r) => setTimeout(r, 300));
+      updateOrder(order.id, { status: "cancelled", cancelled_at: new Date().toISOString() });
       toast.success("Commande annulee", { description: `${order.order_number}` });
-      invalidate();
     } finally {
       setIsPending(false);
     }
-  }, [invalidate]);
+  }, [updateOrder]);
 
   /* ── Enregistrer pesee ── */
-  const recordWeight = useCallback(async (
+  const recordWeight = useCallback((
     order: KawzoneOrder,
     pkg: KawzonePackage,
     realWeight: number,
     volWeight: number
-  ) => {
-    setIsPending(true);
-    try {
-      const chargeable = Math.max(realWeight, volWeight);
-      const freight = Math.round(chargeable * (pkg.freight_rate_per_kg || FREIGHT_RATE_PER_KG));
-      await new Promise((r) => setTimeout(r, 300));
-      toast.success("Pesee enregistree", {
-        description: `${order.order_number} · ${chargeable.toFixed(2)} kg · ${freight.toLocaleString("fr-FR")} FCFA`,
-      });
-      invalidate();
-      return freight;
-    } finally {
-      setIsPending(false);
-    }
-  }, [invalidate]);
+  ): number => {
+    const chargeable = Math.max(realWeight, volWeight);
+    const freight = Math.round(chargeable * (pkg.freight_rate_per_kg || FREIGHT_RATE_PER_KG));
+
+    updateOrder(order.id, {
+      status: "fees_calculated",
+      shipping_fees: order.shipping_fees + freight,
+      total_due: order.total_product_amount + order.shipping_fees + freight,
+      balance: order.total_product_amount + order.shipping_fees + freight - order.total_paid,
+    });
+
+    toast.success("Pesee enregistree", {
+      description: `${order.order_number} · ${chargeable.toFixed(2)} kg · ${freight.toLocaleString("fr-FR")} FCFA`,
+    });
+    return freight;
+  }, [updateOrder]);
 
   /* ── Enregistrer paiement ── */
-  const recordPayment = useCallback(async (
-    order: KawzoneOrder,
+  const recordPayment = useCallback((
+    orderId: string,
     amount: number,
     method: string,
     reference?: string
   ) => {
     setIsPending(true);
     try {
-      if (amount <= 0) throw new Error("Montant invalide");
-      await new Promise((r) => setTimeout(r, 300));
+      if (amount <= 0) {
+        toast.error("Erreur", { description: "Le montant doit etre superieur a 0" });
+        return;
+      }
+
+      addPayment({
+        order_id: orderId,
+        amount,
+        method,
+        reference,
+        recorded_by: "Admin",
+        notes: `Paiement ${method}${reference ? " " + reference : ""}`,
+      });
+
       toast.success("Paiement enregistre", {
         description: `${amount.toLocaleString("fr-FR")} FCFA · ${method}${reference ? " · " + reference : ""}`,
       });
-      invalidate();
     } catch (e) {
       toast.error("Erreur", { description: e instanceof Error ? e.message : "" });
     } finally {
       setIsPending(false);
     }
-  }, [invalidate]);
+  }, [addPayment]);
 
   /* ── Expedier ── */
-  const shipOrder = useCallback(async (order: KawzoneOrder, tracking: string) => {
+  const shipOrder = useCallback((order: KawzoneOrder, tracking: string) => {
     setIsPending(true);
     try {
-      await new Promise((r) => setTimeout(r, 300));
+      updateOrder(order.id, { status: "shipped" });
       toast.success("Commande expediee", { description: `${order.order_number} · Tracking: ${tracking}` });
-      invalidate();
     } finally {
       setIsPending(false);
     }
-  }, [invalidate]);
+  }, [updateOrder]);
 
   /* ── Marquer livree ── */
-  const deliverOrder = useCallback(async (order: KawzoneOrder) => {
+  const deliverOrder = useCallback((order: KawzoneOrder) => {
     setIsPending(true);
     try {
-      await new Promise((r) => setTimeout(r, 300));
+      updateOrder(order.id, { status: "delivered", delivered_at: new Date().toISOString() });
       toast.success("Commande livree", { description: `${order.order_number} · ${order.customer_name}` });
-      invalidate();
     } finally {
       setIsPending(false);
     }
-  }, [invalidate]);
+  }, [updateOrder]);
 
   return {
     confirmOrder,

@@ -7,26 +7,25 @@ import { Phone, MapPin, Package, CreditCard, Calendar, MessageCircle, Truck, Che
 import type { OrderWithDetails } from "@/admin1/types/admin1";
 import { fmtF, STATUS_COLORS, STATUS_LABELS, whatsappLink } from "@/admin1/lib/admin1.config";
 import { PaymentForm } from "./PaymentForm";
-import { useAdmin1Actions } from "@/admin1/hooks/useAdmin1Actions";
 
 interface Props {
   order: OrderWithDetails | null;
+  actions: ReturnType<typeof import("@/admin1/hooks/useAdmin1Actions").useAdmin1Actions>;
   onClose: () => void;
 }
 
-export function OrderDrawer({ order, onClose }: Props) {
+export function OrderDrawer({ order, actions, onClose }: Props) {
   if (!order) return null;
   return (
     <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <DrawerContent order={order} onClose={onClose} />
+        <DrawerContent order={order} actions={actions} onClose={onClose} />
       </SheetContent>
     </Sheet>
   );
 }
 
-function DrawerContent({ order, onClose }: { order: OrderWithDetails; onClose: () => void }) {
-  const actions = useAdmin1Actions();
+function DrawerContent({ order, actions, onClose }: { order: OrderWithDetails; actions: Props["actions"]; onClose: () => void }) {
 
   const waLink = whatsappLink(order.customer_phone,
     `Bonjour ${order.customer_name}, concernant votre commande ${order.order_number} (${fmtF(order.total_due)}). Status: ${STATUS_LABELS[order.status]}. `
@@ -132,7 +131,7 @@ function DrawerContent({ order, onClose }: { order: OrderWithDetails; onClose: (
 
       {/* Paiement */}
       {order.balance > 0 && order.status !== "cancelled" && (
-        <PaymentForm order={order} />
+        <PaymentForm order={order} recordPayment={actions.recordPayment} isPending={actions.isPending} />
       )}
 
       <Separator />

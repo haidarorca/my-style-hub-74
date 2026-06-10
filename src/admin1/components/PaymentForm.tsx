@@ -7,10 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { KawzoneOrder } from "@/admin1/types/admin1";
 import { fmtF, PAYMENT_METHOD_LABELS } from "@/admin1/lib/admin1.config";
-import { useAdmin1Actions } from "@/admin1/hooks/useAdmin1Actions";
 
-export function PaymentForm({ order }: { order: KawzoneOrder }) {
-  const { recordPayment, isPending } = useAdmin1Actions();
+interface Props {
+  order: KawzoneOrder;
+  recordPayment: (orderId: string, amount: number, method: string, reference?: string) => void;
+  isPending: boolean;
+}
+
+export function PaymentForm({ order, recordPayment, isPending }: Props) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("wave");
   const [reference, setReference] = useState("");
@@ -18,7 +22,7 @@ export function PaymentForm({ order }: { order: KawzoneOrder }) {
   const handleSubmit = async () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
-    await recordPayment(order, amt, method, reference || undefined);
+    recordPayment(order.id, amt, method, reference || undefined);
     setAmount("");
     setReference("");
   };
