@@ -252,31 +252,7 @@ export function useRealOrders() {
     addAudit(orderId, `Paiement de ${fmtF(amount)} via ${method}`, adminName, reference);
   }, [paymentMutation]);
 
-  /* ── Modifier un paiement ── */
-  const editPayment = useCallback((paymentId: string, updates: Partial<Pick<PaymentRecord, "amount" | "method" | "reference">>) => {
-    setLocalPayments(prev => {
-      const old = prev.find(p => p.id === paymentId);
-      if (!old) return prev;
-      const updated = { ...old, ...updates };
-      const newPayments = prev.map(p => p.id === paymentId ? updated : p);
-      // Audit
-      addAudit(old.orderId, "Paiement modifie", old.adminName, `${fmtF(old.amount)} → ${fmtF(updated.amount)} (${updated.method})`);
-      return newPayments;
-    });
-  }, [addAudit]);
-
-  /* ── Supprimer un paiement ── */
-  const deletePayment = useCallback((paymentId: string) => {
-    setLocalPayments(prev => {
-      const payment = prev.find(p => p.id === paymentId);
-      if (!payment) return prev;
-      // Audit
-      addAudit(payment.orderId, "Paiement supprime", payment.adminName, `${fmtF(payment.amount)} via ${payment.method}`);
-      return prev.filter(p => p.id !== paymentId);
-    });
-  }, [addAudit]);
-
-  /* ── Ajouter audit ── */
+  /* ── Ajouter audit (declare AVANT editPayment et deletePayment) ── */
   const addAudit = useCallback((orderId: string, action: string, adminName: string = "Admin", details?: string) => {
     const entry: AuditEntry = {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -293,6 +269,28 @@ export function useRealOrders() {
   const getAudit = useCallback((orderId: string): AuditEntry[] => {
     return allAudit.filter(a => a.orderId === orderId);
   }, [allAudit]);
+
+  /* ── Modifier un paiement (declare APRES addAudit) ── */
+  const editPayment = useCallback((paymentId: string, updates: Partial<Pick<PaymentRecord, "amount" | "method" | "reference">>) => {
+    setLocalPayments(prev => {
+      const old = prev.find(p => p.id === paymentId);
+      if (!old) return prev;
+      const updated = { ...old, ...updates };
+      const newPayments = prev.map(p => p.id === paymentId ? updated : p);
+      addAudit(old.orderId, "Paiement modifie", old.adminName, `${fmtF(old.amount)} → ${fmtF(updated.amount)} (${updated.method})`);
+      return newPayments;
+    });
+  }, [addAudit]);
+
+  /* ── Supprimer un paiement (declare APRES addAudit) ── */
+  const deletePayment = useCallback((paymentId: string) => {
+    setLocalPayments(prev => {
+      const payment = prev.find(p => p.id === paymentId);
+      if (!payment) return prev;
+      addAudit(payment.orderId, "Paiement supprime", payment.adminName, `${fmtF(payment.amount)} via ${payment.method}`);
+      return prev.filter(p => p.id !== paymentId);
+    });
+  }, [addAudit]);
 
   /* ── Changer statut ── */
   const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string = "Admin") => {
