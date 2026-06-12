@@ -12,6 +12,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
 import { createOrderPayment, listAllOrderPayments, listPaymentAudit } from "@/lib/cockpit-payments.functions";
+import { preloadOrderNumbers } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { OrderPayment, PaymentAudit } from "@/lib/cockpit-payments.functions";
 
@@ -101,6 +102,13 @@ export function useRealOrders() {
   });
 
   const orders: LogisticsOrderRow[] = ordersData ?? [];
+
+  /* ── Precharger les numeros KZ pour toutes les commandes ── */
+  useEffect(() => {
+    if (orders.length > 0) {
+      preloadOrderNumbers(orders.map(o => o.order_id ?? "").filter(Boolean));
+    }
+  }, [orders]);
 
   /* ── Requete : paiements Supabase ── */
   const { data: supabasePayments } = useQuery({
@@ -244,6 +252,30 @@ export function useRealOrders() {
     addAudit(orderId, `Paiement de ${fmtF(amount)} via ${method}`, adminName, reference);
   }, [paymentMutation]);
 
+  /* ── Modifier un paiement ── */
+  const editPayment = useCallback((paymentId: string, updates: Partial<Pick<PaymentRecord, "amount" | "method" | "reference">>) => {
+    setLocalPayments(prev => {
+      const old = prev.find(p => p.id === paymentId);
+      if (!old) return prev;
+      const updated = { ...old, ...updates };
+      const newPayments = prev.map(p => p.id === paymentId ? updated : p);
+      // Audit
+      addAudit(old.orderId, "Paiement modifie", old.adminName, `${fmtF(old.amount)} → ${fmtF(updated.amount)} (${updated.method})`);
+      return newPayments;
+    });
+  }, [addAudit]);
+
+  /* ── Supprimer un paiement ── */
+  const deletePayment = useCallback((paymentId: string) => {
+    setLocalPayments(prev => {
+      const payment = prev.find(p => p.id === paymentId);
+      if (!payment) return prev;
+      // Audit
+      addAudit(payment.orderId, "Paiement supprime", payment.adminName, `${fmtF(payment.amount)} via ${payment.method}`);
+      return prev.filter(p => p.id !== paymentId);
+    });
+  }, [addAudit]);
+
   /* ── Ajouter audit ── */
   const addAudit = useCallback((orderId: string, action: string, adminName: string = "Admin", details?: string) => {
     const entry: AuditEntry = {
@@ -282,6 +314,8 @@ export function useRealOrders() {
     getPayments,
     getTotalPaid,
     addPayment,
+    editPayment,
+    deletePayment,
     // Audit
     auditLog: allAudit,
     getAudit,

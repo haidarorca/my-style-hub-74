@@ -6,10 +6,10 @@
    sinon fait un fallback raisonnable sur order_total.
    ═══════════════════════════════════════════════════════════════ */
 
-import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Phone, MapPin, Package } from "lucide-react";
 import { STATUS_LABELS, STATUS_COLORS, fmtF, mapStatus, getImportStepIndex, IMPORT_WORKFLOW_STEPS } from "@/cockpit/lib/workflow";
+import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
 interface Props {
@@ -24,6 +24,7 @@ export function OrderCard({ order, index, onClick, totalPaid }: Props) {
   const status = mapStatus(order);
   const isLocal = !order.shipping_service_id && order.order_type !== "import";
   const isImport = !isLocal;
+  const kzNumber = getOrderNumber(order.order_id ?? "");
 
   // Calcul du reste : utilise totalPaid si disponible, sinon fallback
   const orderTotal = order.order_total ?? 0;
@@ -43,10 +44,10 @@ export function OrderCard({ order, index, onClick, totalPaid }: Props) {
       onClick={onClick}
       className="w-full flex items-start gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 text-left transition-colors"
     >
-      {/* Numero */}
-      <div className="shrink-0 w-12">
-        <div className="font-mono text-sm font-bold text-gray-800">#{index + 1}</div>
-        <div className="text-[9px] text-gray-400 truncate">{order.order_id?.slice(-6)}</div>
+      {/* Numero KZ fixe */}
+      <div className="shrink-0 w-14">
+        <div className="font-mono text-[11px] font-bold text-gray-800">{kzNumber}</div>
+        <div className="text-[9px] text-gray-400 truncate">{order.order_id?.slice(-4)}</div>
       </div>
 
       {/* Info */}

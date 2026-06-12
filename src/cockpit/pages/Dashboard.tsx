@@ -29,7 +29,7 @@ export default function CockpitDashboard() {
 
   const {
     orders, searchTerm, setSearchTerm, isLoading,
-    addPayment, updateStatus, getPayments, getAudit, getTotalPaid,
+    addPayment, editPayment, deletePayment, updateStatus, getPayments, getAudit, getTotalPaid,
   } = useRealOrders();
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [activeTab, setActiveTab] = useState("actions");
@@ -267,6 +267,8 @@ export default function CockpitDashboard() {
           audit={getAudit(selectedOrder.order_id ?? "")}
           onClose={() => setSelectedOrder(null)}
           onPayment={handlePayment}
+          onEditPayment={editPayment}
+          onDeletePayment={deletePayment}
           onWeightRecorded={handleWeight}
           onStatusChange={handleStatus}
         />
