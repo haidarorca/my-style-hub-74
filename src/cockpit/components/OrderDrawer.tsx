@@ -123,7 +123,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, onClose, onPay
             ) : grandTotal > 0 ? (
               <div className="bg-emerald-50 rounded-lg p-3 text-center">
                 <div className="text-sm font-bold text-emerald-700">✓ Paye en totalite</div>
-                <div className="text-xs text-emerald-600">{fmtF(totalPay)} / {fmtF(grandTotal)}</div>
+                <div className="text-xs text-emerald-600">{fmtF(totalPaid)} / {fmtF(grandTotal)}</div>
               </div>
             ) : null}
           </div>

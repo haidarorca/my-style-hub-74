@@ -8,6 +8,26 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+/* ── Schemas Zod ── */
+
+const CreatePaymentSchema = z.object({
+  order_id: z.string().min(1),
+  amount: z.number().positive(),
+  method: z.string().min(1),
+  reference: z.string().optional(),
+  admin_name: z.string().optional(),
+});
+
+const OrderIdSchema = z.object({ order_id: z.string().min(1) });
+
+const AuditSchema = z.object({
+  order_id: z.string().min(1),
+  action: z.string().min(1),
+  admin_name: z.string().optional(),
+  admin_id: z.string().nullable().optional(),
+  details: z.string().nullable().optional(),
+});
+
 /* ── Types ── */
 
 export interface OrderPayment {
@@ -34,19 +54,12 @@ export interface PaymentAudit {
 /* ── 1. Enregistrer un paiement ── */
 
 export const createOrderPayment = createServerFn({ method: "POST" })
-  .validator(z.object({
-    order_id: z.string().min(1),
-    amount: z.number().positive(),
-    method: z.string().min(1),
-    reference: z.string().optional(),
-    admin_name: z.string().optional(),
-  }))
+  .inputValidator((input) => CreatePaymentSchema.parse(input))
   .handler(async ({ data }) => {
     const auth = await requireSupabaseAuth();
     const adminId = auth.user?.id ?? null;
     const adminName = data.admin_name || auth.user?.email || "Admin";
 
-    // Inserer dans order_payments
     const { data: payment, error } = await supabaseAdmin
       .from("order_payments")
       .insert({
@@ -62,14 +75,14 @@ export const createOrderPayment = createServerFn({ method: "POST" })
 
     if (error) {
       console.error("[createOrderPayment] Erreur:", error.message);
-      throw new Error(`Impossible d'enregistrer le paiement: ${error.message}`);
+      throw new Error("Impossible d'enregistrer le paiement: " + error.message);
     }
 
-    // Mettre a jour order_payment_summary
+    // Recalculer le total
     await recalcOrderPayment(data.order_id);
 
-    // Audit
-    await createPaymentAudit({
+    // Audit direct (pas d'appel a une autre serverFn)
+    await supabaseAdmin.from("payment_audit").insert({
       order_id: data.order_id,
       action: "Paiement enregistre",
       admin_name: adminName,
@@ -82,8 +95,8 @@ export const createOrderPayment = createServerFn({ method: "POST" })
 
 /* ── 2. Lister les paiements d'une commande ── */
 
-export const listOrderPayments = createServerFn({ method: "GET" })
-  .validator(z.object({ order_id: z.string().min(1) }))
+export const listOrderPayments = createServerFn({ method: "POST" })
+  .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
     await requireSupabaseAuth();
 
@@ -103,7 +116,7 @@ export const listOrderPayments = createServerFn({ method: "GET" })
 
 /* ── 3. Lister les paiements de toutes les commandes ── */
 
-export const listAllOrderPayments = createServerFn({ method: "GET" })
+export const listAllOrderPayments = createServerFn({ method: "POST" })
   .handler(async () => {
     await requireSupabaseAuth();
 
@@ -123,13 +136,7 @@ export const listAllOrderPayments = createServerFn({ method: "GET" })
 /* ── 4. Audit — journal des actions ── */
 
 export const createPaymentAudit = createServerFn({ method: "POST" })
-  .validator(z.object({
-    order_id: z.string().min(1),
-    action: z.string().min(1),
-    admin_name: z.string().optional(),
-    admin_id: z.string().nullable().optional(),
-    details: z.string().nullable().optional(),
-  }))
+  .inputValidator((input) => AuditSchema.parse(input))
   .handler(async ({ data }) => {
     const auth = await requireSupabaseAuth();
     const adminId = data.admin_id ?? auth.user?.id ?? null;
@@ -154,8 +161,8 @@ export const createPaymentAudit = createServerFn({ method: "POST" })
 
 /* ── 5. Lister l'audit d'une commande ── */
 
-export const listPaymentAudit = createServerFn({ method: "GET" })
-  .validator(z.object({ order_id: z.string().min(1) }))
+export const listPaymentAudit = createServerFn({ method: "POST" })
+  .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
     await requireSupabaseAuth();
 
@@ -177,7 +184,6 @@ export const listPaymentAudit = createServerFn({ method: "GET" })
 
 async function recalcOrderPayment(orderId: string) {
   try {
-    // Recuperer tous les paiements
     const { data: payments } = await supabaseAdmin
       .from("order_payments")
       .select("amount")
@@ -185,7 +191,6 @@ async function recalcOrderPayment(orderId: string) {
 
     const totalPaid = (payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
 
-    // Upsert dans order_payment_summary
     await supabaseAdmin
       .from("order_payment_summary")
       .upsert({
@@ -200,8 +205,8 @@ async function recalcOrderPayment(orderId: string) {
 
 /* ── 7. Recuperer le resume de paiement d'une commande ── */
 
-export const getOrderPaymentSummary = createServerFn({ method: "GET" })
-  .validator(z.object({ order_id: z.string().min(1) }))
+export const getOrderPaymentSummary = createServerFn({ method: "POST" })
+  .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
     await requireSupabaseAuth();
 
