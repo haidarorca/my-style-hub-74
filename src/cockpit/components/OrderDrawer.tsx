@@ -3,27 +3,33 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, Calendar, MessageCircle, Package, Truck, CheckCircle, Ban, User } from "lucide-react";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History } from "lucide-react";
 import { fmtF, waLink, STATUS_LABELS, STATUS_COLORS, mapStatus } from "@/cockpit/lib/workflow";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
+import { PaymentHistory } from "./PaymentHistory";
+import { Timeline } from "./Timeline";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+import type { PaymentRecord, AuditEntry } from "@/cockpit/hooks/useRealOrders";
 
 interface Props {
   order: LogisticsOrderRow | null;
+  orderIndex: number;
+  payments: PaymentRecord[];
+  audit: AuditEntry[];
   onClose: () => void;
-  onPayment: (orderId: string, amount: number, method: string, reference?: string) => void;
+  onPayment: (orderId: string, amount: number, method: string, reference: string) => void;
   onWeightRecorded: (orderId: string, freight: number) => void;
   onStatusChange: (orderId: string, status: string) => void;
 }
 
-export function OrderDrawer({ order, onClose, onPayment, onWeightRecorded, onStatusChange }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, onClose, onPayment, onWeightRecorded, onStatusChange }: Props) {
   if (!order) return null;
 
   const status = mapStatus(order);
   const remaining = order.amount_remaining ?? 0;
   const isLocal = !order.shipping_service_id && order.order_type !== "import";
-  const waMessage = `Bonjour ${order.customer_name ?? ""}, concernant votre commande (${order.order_id ?? ""})`;
+  const waMessage = `Bonjour ${order.customer_name ?? ""}, concernant votre commande #${orderIndex + 1}`;
 
   return (
     <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
@@ -31,15 +37,18 @@ export function OrderDrawer({ order, onClose, onPayment, onWeightRecorded, onSta
         <div className="p-4 space-y-4">
           {/* Header */}
           <SheetHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <SheetTitle className="text-base">Commande {order.order_id}</SheetTitle>
-              <Badge variant="outline" className={`text-[10px] ${isLocal ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700"}`}>
-                {isLocal ? "LOCAL" : "IMPORT"}
-              </Badge>
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Commande #{orderIndex + 1}</div>
+              <SheetTitle className="text-lg">{order.order_id}</SheetTitle>
+              <div className="flex gap-2">
+                <Badge variant="outline" className={`text-[10px] ${isLocal ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700"}`}>
+                  {isLocal ? "LOCAL" : "IMPORT"}
+                </Badge>
+                <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[status]}`}>
+                  {STATUS_LABELS[status]}
+                </Badge>
+              </div>
             </div>
-            <Badge variant="outline" className={`text-[10px] w-fit ${STATUS_COLORS[status]}`}>
-              {STATUS_LABELS[status]}
-            </Badge>
           </SheetHeader>
 
           {/* Client */}
@@ -95,7 +104,19 @@ export function OrderDrawer({ order, onClose, onPayment, onWeightRecorded, onSta
             )}
           </div>
 
-          {/* Logistique */}
+          {/* Historique des paiements */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" /> Historique des paiements ({payments.length})</h3>
+            <PaymentHistory payments={payments} />
+          </div>
+
+          {/* Timeline */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" /> Timeline</h3>
+            <Timeline order={order} payments={payments} audit={audit} />
+          </div>
+
+          {/* Logistique IMPORT */}
           {!isLocal && (
             <div className="bg-gray-50 rounded-lg p-3 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Package className="h-4 w-4" /> Logistique</h3>
@@ -115,23 +136,17 @@ export function OrderDrawer({ order, onClose, onPayment, onWeightRecorded, onSta
             </div>
           )}
 
-          {/* Action: Peser (pour IMPORT en attente de pesee) */}
+          {/* Peser */}
           {status === "to_weigh" && (
             <WeightForm orderId={order.order_id ?? ""} currentFreight={order.total_shipping_fees ?? 0} onWeightRecorded={onWeightRecorded} />
           )}
 
-          {/* Action: Paiement */}
+          {/* Ajouter paiement */}
           {remaining > 0 && status !== "cancelled" && (
             <PaymentForm balance={remaining} orderId={order.order_id ?? ""} onPayment={onPayment} />
           )}
 
           <Separator />
-
-          {/* Dates */}
-          <div className="text-xs text-gray-500 space-y-1">
-            {order.order_created_at && <div className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Creee: {new Date(order.order_created_at).toLocaleString("fr-FR")}</div>}
-            {order.shipped_at && <div className="flex items-center gap-1"><Truck className="h-3 w-3 text-emerald-500" /> Expediee: {new Date(order.shipped_at).toLocaleString("fr-FR")}</div>}
-          </div>
 
           {/* Actions rapides */}
           <div className="flex gap-2 pt-2">

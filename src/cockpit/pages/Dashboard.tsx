@@ -14,7 +14,10 @@ import { mapStatus, groupByAction, calculateKpi, fmtF } from "@/cockpit/lib/work
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
 export default function CockpitDashboard() {
-  const { orders, localOrders, importOrders, searchTerm, setSearchTerm, isLoading } = useRealOrders();
+  const {
+    orders, localOrders, importOrders, searchTerm, setSearchTerm, isLoading,
+    addPayment, updateStatus, getPayments, getAudit,
+  } = useRealOrders();
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [activeTab, setActiveTab] = useState("actions");
 
@@ -23,6 +26,12 @@ export default function CockpitDashboard() {
 
   // Groupes d'actions
   const actionGroups = useMemo(() => groupByAction(orders), [orders]);
+
+  // Index de la commande selectionnee
+  const selectedIndex = useMemo(() => {
+    if (!selectedOrder) return 0;
+    return orders.findIndex(o => o.order_id === selectedOrder.order_id);
+  }, [selectedOrder, orders]);
 
   // Commandes a afficher
   const displayOrders = useMemo(() => {
@@ -51,8 +60,7 @@ export default function CockpitDashboard() {
 
   // Handlers
   const handlePayment = (orderId: string, amount: number, method: string, reference?: string) => {
-    console.log("Payment:", { orderId, amount, method, reference });
-    // TODO: Supabase mutation
+    addPayment(orderId, amount, method, reference || "", "Admin");
     alert(`Paiement de ${fmtF(amount)} enregistre (${method})`);
   };
 
@@ -62,7 +70,7 @@ export default function CockpitDashboard() {
   };
 
   const handleStatus = (orderId: string, status: string) => {
-    console.log("Status change:", { orderId, status });
+    updateStatus(orderId, status, "Admin");
     alert(`Statut change en: ${status}`);
   };
 
@@ -170,13 +178,18 @@ export default function CockpitDashboard() {
       </div>
 
       {/* Drawer */}
-      <OrderDrawer
-        order={selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-        onPayment={handlePayment}
-        onWeightRecorded={handleWeight}
-        onStatusChange={handleStatus}
-      />
+      {selectedOrder && (
+        <OrderDrawer
+          order={selectedOrder}
+          orderIndex={selectedIndex}
+          payments={getPayments(selectedOrder.order_id ?? "")}
+          audit={getAudit(selectedOrder.order_id ?? "")}
+          onClose={() => setSelectedOrder(null)}
+          onPayment={handlePayment}
+          onWeightRecorded={handleWeight}
+          onStatusChange={handleStatus}
+        />
+      )}
     </div>
   );
 }
