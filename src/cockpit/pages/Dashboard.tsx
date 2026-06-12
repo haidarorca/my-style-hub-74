@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { Search, ClipboardList, Home, Package, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
+import { useAuth } from "@/hooks/use-auth";
 import { KpiCards } from "@/cockpit/components/KpiCards";
 import { OrderCard } from "@/cockpit/components/OrderCard";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
@@ -14,6 +15,9 @@ import { mapStatus, groupByAction, calculateKpi, fmtF } from "@/cockpit/lib/work
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
 export default function CockpitDashboard() {
+  const { profile } = useAuth();
+  const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+
   const {
     orders, localOrders, importOrders, searchTerm, setSearchTerm, isLoading,
     addPayment, updateStatus, getPayments, getAudit,
@@ -59,9 +63,9 @@ export default function CockpitDashboard() {
   }, [orders, searchTerm, activeTab]);
 
   // Handlers
-  const handlePayment = (orderId: string, amount: number, method: string, reference?: string) => {
-    addPayment(orderId, amount, method, reference || "", "Admin");
-    alert(`Paiement de ${fmtF(amount)} enregistre (${method})`);
+  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _adminName: string) => {
+    addPayment(orderId, amount, method, reference, _adminName || adminName);
+    alert(`Paiement de ${fmtF(amount)} enregistre (${method}) par ${_adminName || adminName}`);
   };
 
   const handleWeight = (orderId: string, freight: number) => {
@@ -69,9 +73,9 @@ export default function CockpitDashboard() {
     alert(`Fret de ${fmtF(freight)} enregistre`);
   };
 
-  const handleStatus = (orderId: string, status: string) => {
-    updateStatus(orderId, status, "Admin");
-    alert(`Statut change en: ${status}`);
+  const handleStatus = (orderId: string, status: string, _adminName: string) => {
+    updateStatus(orderId, status, _adminName || adminName);
+    alert(`Statut change en: ${status} par ${_adminName || adminName}`);
   };
 
   if (isLoading) {

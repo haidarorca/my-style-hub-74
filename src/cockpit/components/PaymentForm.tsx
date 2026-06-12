@@ -9,10 +9,11 @@ import { fmtF } from "@/cockpit/lib/workflow";
 interface Props {
   balance: number;
   orderId: string;
-  onPayment: (orderId: string, amount: number, method: string, reference?: string) => void;
+  adminName: string;
+  onPayment: (orderId: string, amount: number, method: string, reference: string, adminName: string) => void;
 }
 
-export function PaymentForm({ balance, orderId, onPayment }: Props) {
+export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("wave");
   const [reference, setReference] = useState("");
@@ -24,7 +25,7 @@ export function PaymentForm({ balance, orderId, onPayment }: Props) {
       alert(`Le montant ne peut pas depasser le solde (${fmtF(balance)})`);
       return;
     }
-    onPayment(orderId, amt, method, reference || undefined);
+    onPayment(orderId, amt, method, reference || "", adminName);
     setAmount("");
     setReference("");
   };

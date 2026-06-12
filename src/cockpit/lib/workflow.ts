@@ -78,9 +78,11 @@ export function calculateFreight(realWeight: number, volWeight: number, ratePerK
 }
 
 /* ── Format FCFA ── */
-export function fmtF(n: number | null): string {
-  if (n === null || n === undefined || n === 0) return "0 F";
-  return n.toLocaleString("fr-FR") + " F";
+export function fmtF(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "0 FCFA";
+  const val = Number(n);
+  if (isNaN(val) || val === 0) return "0 FCFA";
+  return val.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " FCFA";
 }
 
 /* ── WhatsApp link ── */
