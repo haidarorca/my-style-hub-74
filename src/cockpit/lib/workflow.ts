@@ -142,25 +142,47 @@ export function isImport(order: { shipping_service_id?: string | null; order_typ
   return !!order.shipping_service_id || order.order_type === "import";
 }
 
-/* ─── MAPPING STATUS → KPI FILTER ─── */
-export function statusToKpiFilter(status: string): KpiFilter {
-  switch (status) {
-    case "new": return "new";
-    case "awaiting_payment":
-    case "payment_fees": return "payment_pending";
-    case "awaiting_weighing": return "to_weigh";
-    case "confirmed":
-    case "ordered_supplier":
-    case "received_warehouse":
-    case "in_transit":
-    case "arrived_senegal":
-    case "preparing":
-    case "ready":
-    case "ready_delivery":
-    case "fees_calculated": return "ready";
-    case "shipped": return "shipped";
-    default: return null;
-  }
+/* ─── MAPPING STATUS → KPI FILTER ───
+   
+   IMPORTANT: Les statuts Supabase peuvent etre "", null, ou "new".
+   Tous ces cas doivent etre traites comme "new" (A confirmer).
+   
+   Regles exactes:
+   - new / "" / null → "new" (A confirmer)
+   - awaiting_payment / payment_fees → "payment_pending"
+   - awaiting_weighing → "to_weigh"
+   - confirmed / ordered_supplier / received_warehouse / in_transit /
+     arrived_senegal / preparing / ready / ready_delivery / fees_calculated → "ready"
+   - shipped → "shipped"
+   - delivered / cancelled → null (hors KPI, vont dans Archive)
+   - Tout autre statut inconnu → "ready" (ne pas perdre de commande)
+*/
+export function statusToKpiFilter(status: string | null | undefined): KpiFilter {
+  const s = (status ?? "").trim();
+  
+  // Cas nouveau (inclut "" et null)
+  if (s === "" || s === "new") return "new";
+  
+  // Paiement en attente
+  if (s === "awaiting_payment" || s === "payment_fees") return "payment_pending";
+  
+  // A peser
+  if (s === "awaiting_weighing") return "to_weigh";
+  
+  // Pret (tous les statuts intermediaires)
+  if (["confirmed", "ordered_supplier", "received_warehouse", "in_transit", 
+       "arrived_senegal", "preparing", "ready", "ready_delivery", 
+       "fees_calculated", "validated"].includes(s)) return "ready";
+  
+  // Expedie
+  if (s === "shipped") return "shipped";
+  
+  // Archive (pas de KPI)
+  if (s === "delivered" || s === "cancelled") return null;
+  
+  // Par defaut: ne pas perdre de commande, la mettre dans "ready"
+  console.warn(`[statusToKpiFilter] Statut inconnu: "${s}" — traite comme "ready"`);
+  return "ready";
 }
 
 /* ─── INDEX ÉTAPE IMPORT ─── */

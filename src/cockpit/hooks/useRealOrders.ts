@@ -15,6 +15,7 @@ const LS_PAYMENTS = "kz_payments_v2";
 const LS_AUDIT = "kz_audit_v2";
 const LS_CANCEL = "kz_cancel_v2";
 const LS_WEIGHT = "kz_weight_v2";
+const LS_STATUS = "kz_status_v2"; // Overrides de statut (annulations, etc)
 
 function load<T>(key: string, fallback: T): T {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
@@ -56,6 +57,21 @@ export function useRealOrders() {
   /* ── Pesées ── */
   const [weighings, setWeighings] = useState<WeighingRecord[]>(() => load(LS_WEIGHT, []));
   useEffect(() => save(LS_WEIGHT, weighings), [weighings]);
+
+  /* ── Overrides de statut (annulations, etc) ── 
+     Clé: orderId, Valeur: statut forcé
+     Permet de refléter les changements locaux sans attendre Supabase */
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>(() => load(LS_STATUS, {}));
+  useEffect(() => save(LS_STATUS, statusOverrides), [statusOverrides]);
+
+  /* ── Commandes avec statuts overridés ── */
+  const ordersWithStatus = useMemo<LogisticsOrderRow[]>(() => {
+    return orders.map(o => {
+      const override = statusOverrides[o.order_id ?? ""];
+      if (override) return { ...o, logistics_status: override };
+      return o;
+    });
+  }, [orders, statusOverrides]);
 
   /* ── Paiements Supabase ── */
   const { data: sbPayments } = useQuery({
@@ -112,8 +128,12 @@ export function useRealOrders() {
   /* ── Annulation ── */
   const cancelOrder = useCallback((orderId: string, reason: string, refundType: RefundType, adminName: string) => {
     const paid = getTotalPaid(orderId);
+    // 1. Enregistrer l'annulation
     setCancellations(prev => [{ orderId, reason, refundType, paidAmount: paid, cancelledBy: adminName, cancelledAt: new Date().toISOString() }, ...prev]);
-    addAuditEntry(orderId, `Annulation — ${reason} (${refundType})`, adminName);
+    // 2. FORCER le statut à "cancelled" (sort des listes actives, va dans Archive)
+    setStatusOverrides(prev => ({ ...prev, [orderId]: "cancelled" }));
+    // 3. Audit
+    addAuditEntry(orderId, `Annulation — ${reason} — remboursement: ${refundType} — ${fmtF(paid)}`, adminName);
   }, [getTotalPaid]);
 
   /* ── Pesée ── */
@@ -133,7 +153,10 @@ export function useRealOrders() {
   }, [addAuditEntry]);
 
   return {
-    orders, isLoading, searchTerm, setSearchTerm, refetch,
+    // Commandes avec statuts overridés (annulations, etc.)
+    orders: ordersWithStatus,
+    rawOrders: orders,
+    isLoading, searchTerm, setSearchTerm, refetch,
     allPayments, getPayments, getTotalPaid,
     addPayment, editPayment, deletePayment,
     getAudit, addAuditEntry, updateStatus,
