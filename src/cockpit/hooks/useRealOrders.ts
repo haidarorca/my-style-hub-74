@@ -1,327 +1,145 @@
-// @ts-nocheck
-/* ═══════════════════════════════════════════════════════════════
-   HOOK : useRealOrders — Donnees Supabase + paiements + audit
-   
-   Strategie hybride :
-   - Les paiements sont D'ABORD persistes dans Supabase
-   - localStorage sert de cache offline / fallback
-   - Les deux sources sont fusionnees pour l'affichage
-   ═══════════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════════════════════════════
+// useRealOrders — State management complet du Cockpit
+// Supabase prioritaire + localStorage fallback
+// ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
-import { createOrderPayment, listAllOrderPayments, listPaymentAudit } from "@/lib/cockpit-payments.functions";
+import { createOrderPayment, listAllOrderPayments } from "@/lib/cockpit-payments.functions";
 import { preloadOrderNumbers } from "@/cockpit/lib/orderNumbers";
+import type { PaymentRecord, AuditEntry, CancellationRecord, WeighingRecord, PaymentMethod, RefundType } from "@/cockpit/types";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
-import type { OrderPayment, PaymentAudit } from "@/lib/cockpit-payments.functions";
 
-/* ── Types ── */
+const LS_PAYMENTS = "kz_payments_v2";
+const LS_AUDIT = "kz_audit_v2";
+const LS_CANCEL = "kz_cancel_v2";
+const LS_WEIGHT = "kz_weight_v2";
 
-export interface PaymentRecord {
-  id: string;
-  orderId: string;
-  amount: number;
-  method: string;
-  reference: string;
-  adminName: string;
-  timestamp: string;
+function load<T>(key: string, fallback: T): T {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
 }
-
-export interface AuditEntry {
-  id: string;
-  orderId: string;
-  action: string;
-  adminName: string;
-  timestamp: string;
-  details?: string;
-}
-
-/* ── localStorage keys (fallback / cache offline) ── */
-const STORAGE_KEY_PAYMENTS = "kawzone_payments_v1";
-const STORAGE_KEY_AUDIT = "kawzone_audit_v1";
-
-function loadFromStorage<T>(key: string, fallback: T): T {
-  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
-  catch { return fallback; }
-}
-function saveToStorage(key: string, data: unknown) {
+function save(key: string, data: unknown) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
-/* ── Convertisseurs Supabase → local ── */
-
-function supabaseToLocalPayment(p: OrderPayment): PaymentRecord {
-  return {
-    id: p.id,
-    orderId: p.order_id,
-    amount: Number(p.amount),
-    method: p.method,
-    reference: p.reference ?? "",
-    adminName: p.admin_name,
-    timestamp: p.created_at,
-  };
-}
-
-function supabaseToLocalAudit(a: PaymentAudit): AuditEntry {
-  return {
-    id: a.id,
-    orderId: a.order_id,
-    action: a.action,
-    adminName: a.admin_name,
-    timestamp: a.created_at,
-    details: a.details ?? undefined,
-  };
-}
-
-/* ═══════════════════════════════════════════════════════════════ */
-
 export function useRealOrders() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
-  /* ── Cache localStorage (fallback offline) ── */
-  const [localPayments, setLocalPayments] = useState<PaymentRecord[]>(() =>
-    loadFromStorage(STORAGE_KEY_PAYMENTS, [])
-  );
-  const [localAudit, setLocalAudit] = useState<AuditEntry[]>(() =>
-    loadFromStorage(STORAGE_KEY_AUDIT, [])
-  );
-
-  useEffect(() => { saveToStorage(STORAGE_KEY_PAYMENTS, localPayments); }, [localPayments]);
-  useEffect(() => { saveToStorage(STORAGE_KEY_AUDIT, localAudit); }, [localAudit]);
-
-  /* ── Requete : commandes ── */
-  const { data: ordersData, isLoading, error, refetch: refetchOrders } = useQuery({
+  /* ── Commandes Supabase ── */
+  const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ["cockpit-orders"],
-    queryFn: async () => {
-      const result = await listLogisticsOrders({ data: { page: 1, pageSize: 100 } });
-      return result.rows ?? [];
-    },
+    queryFn: async () => { const r = await listLogisticsOrders({ data: { page: 1, pageSize: 100 } }); return r.rows ?? []; },
     refetchInterval: 30000,
   });
 
   const orders: LogisticsOrderRow[] = ordersData ?? [];
 
-  /* ── Precharger les numeros KZ pour toutes les commandes ── */
+  /* ── Preload KZ numbers ── */
   useEffect(() => {
-    if (orders.length > 0) {
-      preloadOrderNumbers(orders.map(o => o.order_id ?? "").filter(Boolean));
-    }
+    if (orders.length > 0) preloadOrderNumbers(orders.map(o => o.order_id ?? "").filter(Boolean));
   }, [orders]);
 
-  /* ── Requete : paiements Supabase ── */
-  const { data: supabasePayments } = useQuery({
+  /* ── Paiements locaux ── */
+  const [localPayments, setLocalPayments] = useState<PaymentRecord[]>(() => load(LS_PAYMENTS, []));
+  useEffect(() => save(LS_PAYMENTS, localPayments), [localPayments]);
+
+  /* ── Audit local ── */
+  const [localAudit, setLocalAudit] = useState<AuditEntry[]>(() => load(LS_AUDIT, []));
+  useEffect(() => save(LS_AUDIT, localAudit), [localAudit]);
+
+  /* ── Annulations ── */
+  const [cancellations, setCancellations] = useState<CancellationRecord[]>(() => load(LS_CANCEL, []));
+  useEffect(() => save(LS_CANCEL, cancellations), [cancellations]);
+
+  /* ── Pesées ── */
+  const [weighings, setWeighings] = useState<WeighingRecord[]>(() => load(LS_WEIGHT, []));
+  useEffect(() => save(LS_WEIGHT, weighings), [weighings]);
+
+  /* ── Paiements Supabase ── */
+  const { data: sbPayments } = useQuery({
     queryKey: ["cockpit-payments"],
-    queryFn: async () => {
-      try {
-        const result = await listAllOrderPayments({ data: undefined });
-        return (result ?? []).map(supabaseToLocalPayment);
-      } catch (e) {
-        console.warn("[useRealOrders] Fallback localStorage pour les paiements");
-        return [] as PaymentRecord[];
-      }
-    },
-    refetchInterval: 15000,
+    queryFn: async () => { try { return await listAllOrderPayments({ data: undefined }); } catch { return []; } },
+    refetchInterval: 20000,
     retry: 2,
   });
 
-  /* ── Requete : audit Supabase ── */
-  const { data: supabaseAudit } = useQuery({
-    queryKey: ["cockpit-audit"],
-    queryFn: async () => {
-      try {
-        // Recuperer l'audit pour toutes les commandes chargees
-        const allAudit: AuditEntry[] = [];
-        for (const o of orders.slice(0, 20)) {
-          if (!o.order_id) continue;
-          try {
-            const audit = await listPaymentAudit({ data: { order_id: o.order_id } });
-            allAudit.push(...(audit ?? []).map(supabaseToLocalAudit));
-          } catch { /* ignorer par commande */ }
-        }
-        return allAudit;
-      } catch (e) {
-        console.warn("[useRealOrders] Fallback localStorage pour l'audit");
-        return [] as AuditEntry[];
-      }
-    },
-    enabled: orders.length > 0,
-    refetchInterval: 30000,
-    retry: 1,
-  });
-
-  /* ── Fusion : Supabase + localStorage ── */
+  /* ── Fusion Supabase + local ── */
   const allPayments = useMemo(() => {
-    const fromSupabase = supabasePayments ?? [];
-    const merged = [...fromSupabase];
-    // Ajouter les paiements locaux qui ne sont pas encore dans Supabase
-    for (const lp of localPayments) {
-      if (!merged.some(p => p.id === lp.id)) {
-        merged.push(lp);
-      }
-    }
+    const sb = (sbPayments ?? []) as PaymentRecord[];
+    const merged = [...sb];
+    for (const lp of localPayments) if (!merged.some(m => m.id === lp.id)) merged.push(lp);
     return merged;
-  }, [supabasePayments, localPayments]);
+  }, [sbPayments, localPayments]);
 
-  const allAudit = useMemo(() => {
-    const fromSupabase = supabaseAudit ?? [];
-    const merged = [...fromSupabase];
-    for (const la of localAudit) {
-      if (!merged.some(a => a.id === la.id)) {
-        merged.push(la);
-      }
-    }
-    return merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [supabaseAudit, localAudit]);
+  /* ── Helpers ── */
+  const getPayments = useCallback((orderId: string) => allPayments.filter(p => p.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [allPayments]);
+  const getTotalPaid = useCallback((orderId: string) => allPayments.filter(p => p.orderId === orderId).reduce((s, p) => s + p.amount, 0), [allPayments]);
+  const getAudit = useCallback((orderId: string) => localAudit.filter(a => a.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [localAudit]);
+  const getCancellation = useCallback((orderId: string) => cancellations.find(c => c.orderId === orderId) ?? null, [cancellations]);
+  const getWeighings = useCallback((orderId: string) => weighings.filter(w => w.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [weighings]);
 
-  /* ── LOCAL vs IMPORT ── */
-  const localOrders = useMemo(() => orders.filter(o => !o.shipping_service_id && o.order_type !== "import"), [orders]);
-  const importOrders = useMemo(() => orders.filter(o => o.shipping_service_id || o.order_type === "import"), [orders]);
-
-  /* ── Recherche ── */
-  const filteredOrders = useMemo(() => {
-    if (!searchTerm.trim()) return orders;
-    const q = searchTerm.toLowerCase().trim();
-    return orders.filter(o =>
-      (o.order_id ?? "").toLowerCase().includes(q) ||
-      (o.customer_name ?? "").toLowerCase().includes(q) ||
-      (o.customer_phone ?? "").toLowerCase().includes(q) ||
-      (o.tracking_number ?? "").toLowerCase().includes(q)
-    );
-  }, [orders, searchTerm]);
-
-  /* ── Paiements d'une commande ── */
-  const getPayments = useCallback((orderId: string): PaymentRecord[] => {
-    return allPayments
-      .filter(p => p.orderId === orderId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [allPayments]);
-
-  /* ── Total paye pour une commande ── */
-  const getTotalPaid = useCallback((orderId: string): number => {
-    return allPayments
-      .filter(p => p.orderId === orderId)
-      .reduce((sum, p) => sum + p.amount, 0);
-  }, [allPayments]);
-
-  /* ── Mutation : ajouter un paiement ── */
-  const paymentMutation = useMutation({
-    mutationFn: async (params: { orderId: string; amount: number; method: string; reference: string; adminName: string }) => {
-      try {
-        // Essayer d'abord Supabase
-        await createOrderPayment({
-          data: {
-            order_id: params.orderId,
-            amount: params.amount,
-            method: params.method,
-            reference: params.reference,
-            admin_name: params.adminName,
-          }
-        });
-        return { success: true, source: "supabase" };
-      } catch (e) {
-        console.warn("[addPayment] Fallback localStorage:", e);
-        return { success: true, source: "local" };
-      }
+  /* ── MUTATION : Ajouter paiement ── */
+  const payMut = useMutation({
+    mutationFn: async (p: { orderId: string; amount: number; method: PaymentMethod; reference: string; adminName: string }) => {
+      try { await createOrderPayment({ data: { order_id: p.orderId, amount: p.amount, method: p.method, reference: p.reference, admin_name: p.adminName } }); } catch { /* fallback local */ }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cockpit-payments"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cockpit-payments"] }),
   });
 
-  /* ── Ajouter un paiement ── */
-  const addPayment = useCallback((orderId: string, amount: number, method: string, reference: string, adminName: string = "Admin") => {
-    const payment: PaymentRecord = {
-      id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      orderId,
-      amount,
-      method,
-      reference,
-      adminName,
-      timestamp: new Date().toISOString(),
-    };
+  const addPayment = useCallback((orderId: string, amount: number, method: string, reference: string, adminName: string) => {
+    const p: PaymentRecord = { id: `pay_${Date.now()}`, orderId, amount, method: method as PaymentMethod, reference, adminName, timestamp: new Date().toISOString(), editHistory: [] };
+    setLocalPayments(prev => [p, ...prev]);
+    payMut.mutate({ orderId, amount, method: method as PaymentMethod, reference, adminName });
+    addAuditEntry(orderId, `Paiement ${fmtF(amount)} via ${method}`, adminName, reference);
+  }, [payMut]);
 
-    // 1. Toujours ajouter en local (reactif instantane)
-    setLocalPayments(prev => [payment, ...prev]);
-
-    // 2. Essayer Supabase en arriere-plan
-    paymentMutation.mutate({ orderId, amount, method, reference, adminName });
-
-    // 3. Audit local
-    addAudit(orderId, `Paiement de ${fmtF(amount)} via ${method}`, adminName, reference);
-  }, [paymentMutation]);
-
-  /* ── Ajouter audit (declare AVANT editPayment et deletePayment) ── */
-  const addAudit = useCallback((orderId: string, action: string, adminName: string = "Admin", details?: string) => {
-    const entry: AuditEntry = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      orderId,
-      action,
-      adminName,
-      timestamp: new Date().toISOString(),
-      details,
-    };
-    setLocalAudit(prev => [entry, ...prev]);
+  const editPayment = useCallback((paymentId: string, updates: { amount?: number; method?: string; reference?: string }) => {
+    setLocalPayments(prev => prev.map(p => {
+      if (p.id !== paymentId) return p;
+      const edit = { oldAmount: p.amount, newAmount: updates.amount ?? p.amount, oldMethod: p.method, newMethod: updates.method ?? p.method, editedBy: p.adminName, editedAt: new Date().toISOString() };
+      return { ...p, ...updates, editHistory: [...(p.editHistory ?? []), edit] };
+    }));
   }, []);
 
-  /* ── Audit d'une commande ── */
-  const getAudit = useCallback((orderId: string): AuditEntry[] => {
-    return allAudit.filter(a => a.orderId === orderId);
-  }, [allAudit]);
-
-  /* ── Modifier un paiement (declare APRES addAudit) ── */
-  const editPayment = useCallback((paymentId: string, updates: Partial<Pick<PaymentRecord, "amount" | "method" | "reference">>) => {
-    setLocalPayments(prev => {
-      const old = prev.find(p => p.id === paymentId);
-      if (!old) return prev;
-      const updated = { ...old, ...updates };
-      const newPayments = prev.map(p => p.id === paymentId ? updated : p);
-      addAudit(old.orderId, "Paiement modifie", old.adminName, `${fmtF(old.amount)} → ${fmtF(updated.amount)} (${updated.method})`);
-      return newPayments;
-    });
-  }, [addAudit]);
-
-  /* ── Supprimer un paiement (declare APRES addAudit) ── */
   const deletePayment = useCallback((paymentId: string) => {
-    setLocalPayments(prev => {
-      const payment = prev.find(p => p.id === paymentId);
-      if (!payment) return prev;
-      addAudit(payment.orderId, "Paiement supprime", payment.adminName, `${fmtF(payment.amount)} via ${payment.method}`);
-      return prev.filter(p => p.id !== paymentId);
-    });
-  }, [addAudit]);
+    const p = allPayments.find(x => x.id === paymentId);
+    if (p) addAuditEntry(p.orderId, `Suppression paiement ${fmtF(p.amount)}`, p.adminName);
+    setLocalPayments(prev => prev.filter(p => p.id !== paymentId));
+  }, [allPayments]);
 
-  /* ── Changer statut ── */
-  const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string = "Admin") => {
-    addAudit(orderId, `Statut: ${newStatus}`, adminName);
-  }, [addAudit]);
+  /* ── Annulation ── */
+  const cancelOrder = useCallback((orderId: string, reason: string, refundType: RefundType, adminName: string) => {
+    const paid = getTotalPaid(orderId);
+    setCancellations(prev => [{ orderId, reason, refundType, paidAmount: paid, cancelledBy: adminName, cancelledAt: new Date().toISOString() }, ...prev]);
+    addAuditEntry(orderId, `Annulation — ${reason} (${refundType})`, adminName);
+  }, [getTotalPaid]);
+
+  /* ── Pesée ── */
+  const addWeighing = useCallback((w: Omit<WeighingRecord, "id" | "timestamp">) => {
+    const record: WeighingRecord = { ...w, id: `wgh_${Date.now()}`, timestamp: new Date().toISOString() };
+    setWeighings(prev => [record, ...prev]);
+    addAuditEntry(w.orderId, `Pesée — ${w.realWeightKg}kg réel, ${w.volumetricWeightKg.toFixed(2)}kg vol, Fret ${fmtF(w.finalFreight)}`, w.weighedBy);
+  }, []);
+
+  /* ── Audit helper ── */
+  const addAuditEntry = useCallback((orderId: string, action: string, adminName: string, details?: string) => {
+    setLocalAudit(prev => [{ id: `audit_${Date.now()}`, orderId, action, adminName, timestamp: new Date().toISOString(), details }, ...prev]);
+  }, []);
+
+  const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string) => {
+    addAuditEntry(orderId, `Statut → ${newStatus}`, adminName);
+  }, [addAuditEntry]);
 
   return {
-    orders,
-    localOrders,
-    importOrders,
-    filteredOrders,
-    searchTerm,
-    setSearchTerm,
-    isLoading,
-    error,
-    refetch: refetchOrders,
-    // Paiements
-    payments: allPayments,
-    getPayments,
-    getTotalPaid,
-    addPayment,
-    editPayment,
-    deletePayment,
-    // Audit
-    auditLog: allAudit,
-    getAudit,
-    addAudit,
-    updateStatus,
+    orders, isLoading, searchTerm, setSearchTerm, refetch,
+    allPayments, getPayments, getTotalPaid,
+    addPayment, editPayment, deletePayment,
+    getAudit, addAuditEntry, updateStatus,
+    cancelOrder, getCancellation, cancellations,
+    getWeighings, addWeighing,
   };
 }
 
-function fmtF(n: number): string {
-  return n.toLocaleString("fr-FR") + " FCFA";
-}
+function fmtF(n: number): string { return n.toLocaleString("fr-FR") + " FCFA"; }

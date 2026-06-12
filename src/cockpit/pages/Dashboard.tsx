@@ -1,13 +1,10 @@
-// @ts-nocheck
-/* ═══════════════════════════════════════════════════════════════
-   DASHBOARD — Centre de pilotage Kawzone
-   
-   Les dialogs (annulation, fermeture securisee) sont rendus
-   en DEHORS du Sheet pour eviter les conflits de z-index.
-   ═══════════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD — Centre de pilotage complet Kawzone
+// KPI cliquables + Archive pro + Filtres + Dialogs externes
+// ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback } from "react";
-import { Search, ClipboardList, Home, Package, Archive, ChevronRight, Eye, AlertTriangle, X } from "lucide-react";
+import { Search, ClipboardList, Home, Package, Archive, ChevronRight, Eye, X, RotateCcw, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
@@ -15,91 +12,116 @@ import { useAuth } from "@/hooks/use-auth";
 import { KpiCards } from "@/cockpit/components/KpiCards";
 import { OrderCard } from "@/cockpit/components/OrderCard";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
-import { mapStatus, groupByAction, calculateKpi, fmtF, checkCanCancel, REFUND_LABELS } from "@/cockpit/lib/workflow";
+import { CancelDialog } from "@/cockpit/components/CancelDialog";
+import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
+import { fmtF, isImport, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
-
-  const {
-    orders, searchTerm, setSearchTerm, isLoading,
-    addPayment, editPayment, deletePayment, updateStatus, getPayments, getAudit, getTotalPaid,
-  } = useRealOrders();
+  const { orders, isLoading, searchTerm, setSearchTerm, getPayments, getTotalPaid, getAudit, addPayment, editPayment, deletePayment, getWeighings, addWeighing, updateStatus, cancelOrder, getCancellation, cancellations } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [activeTab, setActiveTab] = useState("actions");
+  const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "archive">("actions");
+  const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
 
   // Dialogs
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
-  // Annulation
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelRefundType, setCancelRefundType] = useState("no_refund");
+  const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
+  const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
+  const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
+  const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
+  const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
 
-  // KPI
-  const totalPaidByOrder = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const o of orders) { map[o.order_id ?? ""] = getTotalPaid(o.order_id ?? ""); }
-    return map;
+  // KPI data
+  const totalPaidMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const o of orders) m[o.order_id ?? ""] = getTotalPaid(o.order_id ?? "");
+    return m;
   }, [orders, getTotalPaid]);
 
-  const kpi = useMemo(() => calculateKpi({ orders, totalPaidByOrder }), [orders, totalPaidByOrder]);
-  const actionGroups = useMemo(() => groupByAction(orders), [orders]);
+  const kpi = useMemo(() => {
+    const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
+    let debt = 0;
+    for (const o of orders) {
+      const st = o.logistics_status ?? "new";
+      if (st === "delivered" || st === "cancelled") continue;
+      const f = statusToKpiFilter(st);
+      if (f && f !== "debt") s[f as keyof typeof s] = (s[f as keyof typeof s] ?? 0) + 1;
+      const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
+      const paid = totalPaidMap[o.order_id ?? ""] ?? 0;
+      if (gt - paid > 0) debt += gt - paid;
+    }
+    return { ...s, debt };
+  }, [orders, totalPaidMap]);
 
-  const selectedIndex = useMemo(() => {
-    if (!selectedOrder) return 0;
-    return orders.findIndex(o => o.order_id === selectedOrder.order_id);
-  }, [selectedOrder, orders]);
-
-  const selectedPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
-  const selectedAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
-  const selectedTotalPaid = selectedOrder ? (totalPaidByOrder[selectedOrder.order_id ?? ""] ?? 0) : 0;
-  const cancelCheck = selectedOrder ? checkCanCancel(selectedOrder, selectedTotalPaid) : null;
-
+  // Filtered orders
   const displayOrders = useMemo(() => {
-    let filtered = orders;
+    let list = orders;
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
-      filtered = orders.filter(o => (o.order_id ?? "").toLowerCase().includes(q) || (o.customer_name ?? "").toLowerCase().includes(q) || (o.customer_phone ?? "").toLowerCase().includes(q));
+      list = orders.filter(o => (o.order_id ?? "").toLowerCase().includes(q) || (o.customer_name ?? "").toLowerCase().includes(q) || (o.customer_phone ?? "").toLowerCase().includes(q) || getOrderNumber(o.order_id ?? "").toLowerCase().includes(q));
     }
     switch (activeTab) {
-      case "local": return filtered.filter(o => !o.shipping_service_id && o.order_type !== "import");
-      case "import": return filtered.filter(o => o.shipping_service_id || o.order_type === "import");
-      case "archive": return filtered.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
-      default: return filtered.filter(o => { const s = mapStatus(o); return s !== "delivered" && s !== "cancelled"; });
+      case "local": return list.filter(o => !isImport(o));
+      case "import": return list.filter(o => isImport(o));
+      case "archive": return list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
+      default: {
+        // Actions tab with KPI filter
+        let filtered = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
+        if (kpiFilter) {
+          if (kpiFilter === "debt") {
+            filtered = filtered.filter(o => {
+              const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
+              return gt - (totalPaidMap[o.order_id ?? ""] ?? 0) > 0;
+            });
+          } else {
+            filtered = filtered.filter(o => statusToKpiFilter(o.logistics_status ?? "") === kpiFilter);
+          }
+        }
+        return filtered;
+      }
     }
-  }, [orders, searchTerm, activeTab]);
+  }, [orders, searchTerm, activeTab, kpiFilter, totalPaidMap]);
 
-  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _adminName: string) => {
-    addPayment(orderId, amount, method, reference, _adminName || adminName);
-  };
+  // Groups for Actions tab
+  const groups = useMemo(() => {
+    if (activeTab !== "actions" || kpiFilter) return null;
+    const g: Record<string, LogisticsOrderRow[]> = { new: [], payment_pending: [], to_weigh: [], ready: [], shipped: [] };
+    for (const o of displayOrders) {
+      const f = statusToKpiFilter(o.logistics_status ?? "new");
+      if (f && f !== "debt") (g[f] ?? g.ready).push(o);
+    }
+    return g;
+  }, [displayOrders, activeTab, kpiFilter]);
 
-  const handleWeight = (orderId: string, freight: number) => {
-    console.log("Weight:", { orderId, freight });
-  };
+  // Handlers
+  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => { addPayment(orderId, amount, method, reference, _admin || adminName); };
+  const handleStatus = (orderId: string, status: string, _admin: string) => { updateStatus(orderId, status, _admin || adminName); };
+  const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
 
-  const handleStatus = (orderId: string, status: string, _adminName: string) => {
-    updateStatus(orderId, status, _adminName || adminName);
-  };
+  const openCancel = useCallback(() => { setHasChanges(false); setShowCancel(true); }, []);
+  const doCancel = useCallback((reason: string, refundType: string) => {
+    if (!selectedOrder) return;
+    cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
+    setShowCancel(false);
+    setSelectedOrder(null);
+  }, [selectedOrder, cancelOrder, adminName]);
 
-  // Annulation
-  const openCancelDialog = useCallback(() => setShowCancelDialog(true), []);
+  const handleCloseDrawer = useCallback(() => {
+    if (hasChanges) { setShowCloseConfirm(true); } else { setSelectedOrder(null); }
+  }, [hasChanges]);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); }, []);
 
-  const doCancel = useCallback(() => {
-    if (!selectedOrder || !cancelReason.trim()) return;
-    updateStatus(selectedOrder.order_id ?? "", "cancelled", adminName);
-    setShowCancelDialog(false);
-    setCancelReason("");
-    setCancelRefundType("no_refund");
-  }, [selectedOrder, cancelReason, adminName, updateStatus]);
-
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -107,52 +129,66 @@ export default function CockpitDashboard() {
       <div className="bg-white border-b px-4 py-2">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-sm font-bold">Kawzone Cockpit</h1>
-          <span className="text-[10px] text-gray-500">{orders.length} commandes chargees</span>
+          <span className="text-[10px] text-gray-500">{orders.length} commandes</span>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-          <Input placeholder="Rechercher (nom, telephone, ID)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <Input placeholder="Rechercher (nom, téléphone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
       </div>
 
-      {/* KPI */}
+      {/* KPI (Actions tab only) */}
       {activeTab === "actions" && (
         <div className="px-4 pt-2 pb-1">
-          <KpiCards newCount={kpi.newCount} pendingPayment={kpi.pendingPayment} toWeigh={kpi.toWeigh} ready={kpi.ready} shipped={kpi.shipped} totalDebt={kpi.totalDebt} />
+          <KpiCards {...kpi} activeFilter={kpiFilter} onFilter={setKpiFilter} />
+          {kpiFilter && (
+            <button onClick={() => setKpiFilter(null)} className="mt-1 text-[10px] text-orange-600 flex items-center gap-1">
+              <X className="h-3 w-3" />Effacer le filtre
+            </button>
+          )}
         </div>
       )}
 
-      {/* Compteur */}
+      {/* Archive filters */}
+      {activeTab === "archive" && (
+        <div className="px-4 pt-2 pb-1 flex gap-2 flex-wrap">
+          {(["all", "delivered", "cancelled"] as ArchiveFilter[]).map(f => (
+            <button key={f} onClick={() => setArchiveFilter(f)} className={`text-[10px] px-3 py-1.5 rounded-full border transition-colors ${archiveFilter === f ? "bg-orange-100 border-orange-300 text-orange-800 font-semibold" : "bg-white border-gray-200 text-gray-600"}`}>
+              {f === "all" ? "Toutes" : f === "delivered" ? "Livrées" : "Annulées"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Counter */}
       <div className="px-4 py-1 text-[10px] text-gray-400">
-        <span>{displayOrders.length} commandes{displayOrders.length === 1 ? "" : "s"}{activeTab === "actions" ? " necessitent une action" : ""}</span>
+        <span>{displayOrders.length} commande{displayOrders.length > 1 ? "s" : ""}{kpiFilter ? " (filtré)" : activeTab === "actions" ? " nécessitent une action" : ""}</span>
       </div>
 
-      {/* Contenu */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
-        {activeTab === "actions" ? (
+        {activeTab === "actions" && !kpiFilter && groups ? (
           <div className="p-3 space-y-3">
-            {actionGroups.new.length > 0 && <ActionGroup title="A confirmer" count={actionGroups.new.length} color="border-l-purple-500 bg-purple-50" orders={actionGroups.new} onSelect={setSelectedOrder} expanded={expandedGroup === "new"} onToggle={() => setExpandedGroup(expandedGroup === "new" ? null : "new")} totalPaidByOrder={totalPaidByOrder} />}
-            {actionGroups.payment_pending.length > 0 && <ActionGroup title="Paiement en attente" count={actionGroups.payment_pending.length} color="border-l-amber-500 bg-amber-50" orders={actionGroups.payment_pending} onSelect={setSelectedOrder} expanded={expandedGroup === "payment_pending"} onToggle={() => setExpandedGroup(expandedGroup === "payment_pending" ? null : "payment_pending")} totalPaidByOrder={totalPaidByOrder} />}
-            {actionGroups.to_weigh.length > 0 && <ActionGroup title="A peser" count={actionGroups.to_weigh.length} color="border-l-orange-500 bg-orange-50" orders={actionGroups.to_weigh} onSelect={setSelectedOrder} expanded={expandedGroup === "to_weigh"} onToggle={() => setExpandedGroup(expandedGroup === "to_weigh" ? null : "to_weigh")} totalPaidByOrder={totalPaidByOrder} />}
-            {actionGroups.ready.length > 0 && <ActionGroup title="Pret a expedier" count={actionGroups.ready.length} color="border-l-emerald-500 bg-emerald-50" orders={actionGroups.ready} onSelect={setSelectedOrder} expanded={expandedGroup === "ready"} onToggle={() => setExpandedGroup(expandedGroup === "ready" ? null : "ready")} totalPaidByOrder={totalPaidByOrder} />}
-            {actionGroups.shipped.length > 0 && <ActionGroup title="En livraison" count={actionGroups.shipped.length} color="border-l-indigo-500 bg-indigo-50" orders={actionGroups.shipped} onSelect={setSelectedOrder} expanded={expandedGroup === "shipped"} onToggle={() => setExpandedGroup(expandedGroup === "shipped" ? null : "shipped")} totalPaidByOrder={totalPaidByOrder} />}
-            {Object.values(actionGroups).every(g => g.length === 0) && (
-              <div className="text-center py-12 text-gray-500"><ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p className="font-medium">Tout est a jour !</p><p className="text-sm">Aucune action requise.</p></div>
-            )}
+            {Object.entries(groups).map(([key, grp]) => grp.length > 0 ? (
+              <ActionGroup key={key} title={GROUP_TITLES[key]} count={grp.length} color={GROUP_COLORS[key]} orders={grp} onSelect={setSelectedOrder} totalPaidMap={totalPaidMap} expanded={expandedGroup === key} onToggle={() => setExpandedGroup(expandedGroup === key ? null : key)} />
+            ) : null)}
+            {Object.values(groups).every(g => g.length === 0) && <div className="text-center py-12 text-gray-500"><ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p className="font-medium">Tout est à jour !</p></div>}
           </div>
+        ) : activeTab === "archive" ? (
+          <ArchiveList orders={displayOrders} archiveFilter={archiveFilter} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
           <div className="divide-y divide-gray-100">
-            {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((order, i) => <OrderCard key={order.order_id} order={order} index={i} onClick={() => setSelectedOrder(order)} totalPaid={totalPaidByOrder[order.order_id ?? ""]} />)}
+            {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={totalPaidMap[o.order_id ?? ""]} />)}
           </div>
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
         <div className="flex justify-around items-center h-14">
-          {[{ key: "actions", label: "Actions", icon: ClipboardList }, { key: "local", label: "Local", icon: Home }, { key: "import", label: "Import", icon: Package }, { key: "archive", label: "Archive", icon: Archive }].map(tab => (
-            <button key={tab.key} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === tab.key ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(tab.key); setExpandedGroup(null); }}>
-              <tab.icon className="h-5 w-5" /><span className="text-[10px] font-medium">{tab.label}</span>
+          {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
+            <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); setExpandedGroup(null); }}>
+              <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
             </button>
           ))}
         </div>
@@ -160,139 +196,79 @@ export default function CockpitDashboard() {
 
       {/* Drawer */}
       {selectedOrder && (
-        <OrderDrawer
-          order={selectedOrder}
-          orderIndex={selectedIndex}
-          payments={selectedPayments}
-          audit={selectedAudit}
-          onClose={() => setSelectedOrder(null)}
-          onPayment={handlePayment}
-          onEditPayment={editPayment}
-          onDeletePayment={deletePayment}
-          onWeightRecorded={handleWeight}
-          onStatusChange={handleStatus}
-          onRequestCancel={openCancelDialog}
-        />
+        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings}
+          onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
+          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={openCancel} onFormInteraction={() => setHasChanges(true)} />
       )}
 
-      {/* ════════════════════════════════════════════
-          DIALOG ANNULATION — EN DEHORS du Sheet
-          ════════════════════════════════════════════ */}
-      {showCancelDialog && selectedOrder && cancelCheck && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ isolation: "isolate" }}>
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelDialog(false)} />
-          {/* Content */}
-          <div className="relative bg-white rounded-xl shadow-2xl mx-4 w-full max-w-sm overflow-hidden">
-            {/* Header */}
-            <div className="px-5 pt-5 pb-3 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-              <h3 className="text-lg font-bold">Annuler {getOrderNumber(selectedOrder.order_id ?? "")}</h3>
-              <button onClick={() => setShowCancelDialog(false)} className="ml-auto p-1 rounded-full hover:bg-gray-100">
-                <X className="h-4 w-4 text-gray-400" />
-              </button>
-            </div>
+      {/* Cancel Dialog */}
+      {selectedOrder && <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />}
 
-            {/* Body */}
-            <div className="px-5 pb-5 space-y-3">
-              {!cancelCheck.canCancel ? (
-                <div className="bg-red-50 rounded-lg p-3 text-sm text-red-700">{cancelCheck.reason}</div>
-              ) : (
-                <>
-                  {cancelCheck.warnings.length > 0 && cancelCheck.warnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 rounded p-2">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{w}
-                    </div>
-                  ))}
-
-                  {cancelCheck.paidAmount > 0 && (
-                    <div className="text-sm"><span className="text-gray-500">Montant paye : </span><span className="font-bold">{fmtF(cancelCheck.paidAmount)}</span></div>
-                  )}
-
-                  {/* Raison */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Raison de l annulation *</label>
-                    <Input
-                      placeholder="Ex: Client a annule, produit indisponible..."
-                      value={cancelReason}
-                      onChange={e => setCancelReason(e.target.value)}
-                      className="h-10 text-sm"
-                      autoFocus
-                    />
-                  </div>
-
-                  {/* Type de remboursement */}
-                  {cancelCheck.refundOptions.length > 0 && (
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Type de remboursement</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {cancelCheck.refundOptions.map(opt => (
-                          <button
-                            key={opt}
-                            onClick={() => setCancelRefundType(opt)}
-                            className={`text-xs py-2 px-2 rounded-lg border text-center transition-colors ${cancelRefundType === opt ? "bg-orange-100 border-orange-300 text-orange-800 font-semibold" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"}`}
-                          >
-                            {REFUND_LABELS[opt]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 bg-gray-50 border-t flex gap-3">
-              <Button variant="outline" className="flex-1 h-11 text-sm" onClick={() => setShowCancelDialog(false)}>Retour</Button>
-              {cancelCheck.canCancel && (
-                <Button variant="destructive" className="flex-1 h-11 text-sm" disabled={!cancelReason.trim()} onClick={doCancel}>
-                  Confirmer l annulation
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Close Confirm Dialog */}
+      <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
     </div>
   );
 }
 
-/* ════════════════════════════════════════════
-   ActionGroup
-   ════════════════════════════════════════════ */
+// ════════════════════════════════════════════
+// Action Group
+// ════════════════════════════════════════════
 
 const PAGE_SIZE = 10;
+const GROUP_TITLES: Record<string, string> = { new: "À confirmer", payment_pending: "Paiement en attente", to_weigh: "À peser", ready: "Prêt à expédier", shipped: "En livraison" };
+const GROUP_COLORS: Record<string, string> = { new: "border-l-purple-500 bg-purple-50", payment_pending: "border-l-amber-500 bg-amber-50", to_weigh: "border-l-orange-500 bg-orange-50", ready: "border-l-emerald-500 bg-emerald-50", shipped: "border-l-indigo-500 bg-indigo-50" };
 
-function ActionGroup({ title, count, color, orders, onSelect, expanded, onToggle, totalPaidByOrder }: {
-  title: string; count: number; color: string;
-  orders: LogisticsOrderRow[]; onSelect: (o: LogisticsOrderRow) => void;
-  expanded: boolean; onToggle: () => void;
-  totalPaidByOrder: Record<string, number>;
+function ActionGroup({ title, count, color, orders, onSelect, totalPaidMap, expanded, onToggle }: {
+  title: string; count: number; color: string; orders: LogisticsOrderRow[]; onSelect: (o: LogisticsOrderRow) => void;
+  totalPaidMap: Record<string, number>; expanded: boolean; onToggle: () => void;
 }) {
-  const displayedCount = expanded ? orders.length : Math.min(PAGE_SIZE, orders.length);
-  const hasMore = orders.length > PAGE_SIZE;
-
+  const shown = expanded ? orders.length : Math.min(PAGE_SIZE, orders.length);
+  const more = orders.length > PAGE_SIZE;
   return (
     <div className={`rounded-lg border border-l-4 ${color} overflow-hidden`}>
       <div className={`px-3 py-2 flex items-center justify-between ${color}`}>
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="text-xs bg-white rounded-full px-2 py-0.5 font-bold">{count}</span>
-        </div>
-        {hasMore && (
-          <button onClick={onToggle} className="text-xs flex items-center gap-1 text-gray-600 hover:text-gray-900 bg-white/60 px-2 py-1 rounded-full transition-colors">
-            {expanded ? <>Moins <ChevronRight className="h-3 w-3 rotate-90" /></> : <><Eye className="h-3 w-3" /> Voir tout</>}
-          </button>
-        )}
+        <div className="flex items-center gap-2"><span className="font-semibold text-sm">{title}</span><span className="text-xs bg-white rounded-full px-2 py-0.5 font-bold">{count}</span></div>
+        {more && <button onClick={onToggle} className="text-xs flex items-center gap-1 text-gray-600 hover:text-gray-900 bg-white/60 px-2 py-1 rounded-full">{expanded ? <>Moins</> : <><Eye className="h-3 w-3" />Voir tout</>}</button>}
       </div>
       <div className="bg-white divide-y divide-gray-100">
-        {orders.slice(0, displayedCount).map((order, i) => (
-          <OrderCard key={order.order_id} order={order} index={i} onClick={() => onSelect(order)} totalPaid={totalPaidByOrder[order.order_id ?? ""]} />
-        ))}
+        {orders.slice(0, shown).map((o, i) => <OrderCard key={o.order_id} order={o} index={i} onClick={() => onSelect(o)} totalPaid={totalPaidMap[o.order_id ?? ""]} />)}
       </div>
-      {hasMore && !expanded && <div className="px-4 py-2 text-center bg-gray-50 border-t text-xs text-gray-500">Affichage : {displayedCount} / {orders.length} commandes</div>}
-      {expanded && hasMore && <div className="px-4 py-2 text-center bg-gray-50 border-t"><Button variant="ghost" size="sm" className="text-xs h-7" onClick={onToggle}>Afficher moins</Button></div>}
+      {more && !expanded && <div className="px-4 py-2 text-center bg-gray-50 border-t text-xs text-gray-500">Affichage : {shown} / {orders.length}</div>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
+// Archive List
+// ════════════════════════════════════════════
+
+function ArchiveList({ orders, archiveFilter, totalPaidMap, onSelect, cancellations }: {
+  orders: LogisticsOrderRow[]; archiveFilter: ArchiveFilter; totalPaidMap: Record<string, number>;
+  onSelect: (o: LogisticsOrderRow) => void; cancellations: any[];
+}) {
+  const filtered = orders.filter(o => archiveFilter === "all" || o.logistics_status === archiveFilter);
+  return (
+    <div className="divide-y divide-gray-100">
+      {filtered.length === 0 ? <div className="text-center py-12 text-gray-500">Archive vide</div> : filtered.map(o => {
+        const cancel = cancellations.find((c: any) => c.orderId === o.order_id);
+        return (
+          <button key={o.order_id} onClick={() => onSelect(o)} className="w-full flex items-start gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 text-left">
+            <div className="shrink-0 w-16">
+              <div className="font-mono text-[11px] font-bold text-gray-800">{getOrderNumber(o.order_id ?? "")}</div>
+              <div className="text-[9px] text-gray-400">{o.order_id?.slice(-4)}</div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{o.customer_name ?? "—"}</div>
+              {cancel && <div className="text-[10px] text-red-500 mt-0.5">Annulée: {cancel.reason}</div>}
+              {cancel && <div className="text-[10px] text-gray-400">Remb: {cancel.refundType} — {new Date(cancel.cancelledAt).toLocaleDateString("fr-FR")}</div>}
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-bold">{fmtF(o.order_total ?? 0)}</div>
+              <div className={`text-[10px] ${o.logistics_status === "delivered" ? "text-emerald-500" : "text-red-500"}`}>{o.logistics_status === "delivered" ? "Livrée" : "Annulée"}</div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
