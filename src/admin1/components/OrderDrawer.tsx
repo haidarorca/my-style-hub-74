@@ -4,28 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, Package, CreditCard, Calendar, MessageCircle, Truck, CheckCircle, Ban } from "lucide-react";
-import type { OrderWithDetails } from "@/admin1/types/admin1";
 import { fmtF, STATUS_COLORS, STATUS_LABELS, whatsappLink } from "@/admin1/lib/admin1.config";
 import { PaymentForm } from "./PaymentForm";
 
 interface Props {
-  order: OrderWithDetails | null;
-  actions: ReturnType<typeof import("@/admin1/hooks/useAdmin1Actions").useAdmin1Actions>;
+  order: any;
   onClose: () => void;
 }
 
-export function OrderDrawer({ order, actions, onClose }: Props) {
+export function OrderDrawer({ order, onClose }: Props) {
   if (!order) return null;
   return (
     <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <DrawerContent order={order} actions={actions} onClose={onClose} />
+        <DrawerContent order={order} onClose={onClose} />
       </SheetContent>
     </Sheet>
   );
 }
 
-function DrawerContent({ order, actions, onClose }: { order: OrderWithDetails; actions: Props["actions"]; onClose: () => void }) {
+function DrawerContent({ order, onClose }: { order: any; onClose: () => void }) {
 
   const waLink = whatsappLink(order.customer_phone,
     `Bonjour ${order.customer_name}, concernant votre commande ${order.order_number} (${fmtF(order.total_due)}). Status: ${STATUS_LABELS[order.status]}. `
@@ -131,7 +129,7 @@ function DrawerContent({ order, actions, onClose }: { order: OrderWithDetails; a
 
       {/* Paiement */}
       {order.balance > 0 && order.status !== "cancelled" && (
-        <PaymentForm order={order} recordPayment={actions.recordPayment} isPending={actions.isPending} />
+        <PaymentForm order={order} onPayment={() => {}} />
       )}
 
       <Separator />
@@ -147,16 +145,16 @@ function DrawerContent({ order, actions, onClose }: { order: OrderWithDetails; a
       <div className="flex gap-2 pt-2">
         {order.status === "new" && (
           <>
-            <Button size="sm" className="flex-1" onClick={() => actions.confirmOrder(order)}>
+            <Button size="sm" className="flex-1" onClick={() => console.log("confirmer", order.id)}>
               <CheckCircle className="h-4 w-4 mr-1" /> Confirmer
             </Button>
-            <Button size="sm" variant="destructive" className="flex-1" onClick={() => actions.cancelOrder(order)}>
+            <Button size="sm" variant="destructive" className="flex-1" onClick={() => console.log("annuler", order.id)}>
               <Ban className="h-4 w-4 mr-1" /> Annuler
             </Button>
           </>
         )}
         {order.status === "ready_to_ship" && (
-          <Button size="sm" className="flex-1" onClick={() => actions.deliverOrder(order)}>
+          <Button size="sm" className="flex-1" onClick={() => console.log("livrer", order.id)}>
             <Truck className="h-4 w-4 mr-1" /> Marquer livree
           </Button>
         )}
