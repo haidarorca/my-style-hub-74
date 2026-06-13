@@ -149,6 +149,9 @@ export function useRealOrders() {
   }, []);
 
   const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string) => {
+    // 1. Forcer le statut (comme cancelOrder)
+    setStatusOverrides(prev => ({ ...prev, [orderId]: newStatus }));
+    // 2. Audit
     addAuditEntry(orderId, `Statut → ${newStatus}`, adminName);
   }, [addAuditEntry]);
 
