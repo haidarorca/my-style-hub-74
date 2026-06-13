@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert } from "lucide-react";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight } from "lucide-react";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
@@ -42,10 +42,11 @@ interface Props {
   onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp">) => void;
   onStatusChange: (orderId: string, status: string, adminName: string) => void;
   onRequestCancel?: () => void;
+  onViewItems?: () => void;
   onFormInteraction?: () => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onFormInteraction }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -119,6 +120,20 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             )}
             {order.destination_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.destination_address}</div>}
           </div>
+
+          {/* Bouton Voir les articles */}
+          {onViewItems && (
+            <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
+              <div className="flex items-center gap-2">
+                <ListOrdered className="h-5 w-5 text-orange-600" />
+                <div className="text-left">
+                  <div className="text-sm font-semibold text-orange-800">Voir les articles</div>
+                  <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission</div>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-orange-400" />
+            </button>
+          )}
 
           {/* Finances */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">

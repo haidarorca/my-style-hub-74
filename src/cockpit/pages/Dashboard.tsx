@@ -15,6 +15,7 @@ import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
 import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
+import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import type { DateRange } from "react-day-picker";
 import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
@@ -73,6 +74,7 @@ export default function CockpitDashboard() {
   // Dialogs
   const [showCancel, setShowCancel] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showItemsPanel, setShowItemsPanel] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   // ─── Filtres avancés ───
@@ -655,12 +657,17 @@ export default function CockpitDashboard() {
         </div>
       )}
 
+      {/* Panel Articles */}
+      {showItemsPanel && selectedOrder && (
+        <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
+      )}
+
       {/* Drawer avec dialogs internes (dans SheetContent pour eviter inert Radix) */}
       {selectedOrder && (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
-          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onFormInteraction={() => setHasChanges(true)}
+          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
           dialogs={
             <>
               <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />

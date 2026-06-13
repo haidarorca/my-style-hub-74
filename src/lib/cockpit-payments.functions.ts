@@ -203,7 +203,126 @@ async function recalcOrderPayment(orderId: string) {
   }
 }
 
-/* ── 7. Recuperer le resume de paiement d'une commande ── */
+/* ── 7. Recuperer les articles d'une commande (avec produits et vendeur) ── */
+
+export interface OrderItemDetail {
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  shop_name: string | null;
+  is_admin_shop: boolean;
+  commission_rate: number | null;
+}
+
+export interface OrderItemsResult {
+  items: OrderItemDetail[];
+  order_total: number;
+  vendor_summary: { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }[];
+}
+
+export const getOrderItems = createServerFn({ method: "POST" })
+  .inputValidator((input) => OrderIdSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireSupabaseAuth();
+
+    // 1. Charger les order_items
+    const { data: items, error: itemsErr } = await supabaseAdmin
+      .from("order_items")
+      .select("product_id, quantity, unit_price")
+      .eq("order_id", data.order_id);
+
+    if (itemsErr || !items || items.length === 0) {
+      return { items: [], order_total: 0, vendor_summary: [] } as OrderItemsResult;
+    }
+
+    // 2. Charger les produits
+    const productIds = items.map(i => i.product_id).filter(Boolean);
+    const { data: products, error: prodErr } = await supabaseAdmin
+      .from("products")
+      .select("id, name, vendor_id, price, commission_rate")
+      .in("id", productIds);
+
+    if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
+
+    // 3. Charger les images des produits (première image par produit)
+    const { data: productImages } = await supabaseAdmin
+      .from("product_images")
+      .select("product_id, url")
+      .in("product_id", productIds)
+      .order("position", { ascending: true });
+
+    const imageMap = new Map<string, string>();
+    for (const img of productImages ?? []) {
+      if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+    }
+
+    // 4. Charger les vendeurs (profiles)
+    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean)));
+    const { data: vendors } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, shop_name, is_admin_shop")
+      .in("id", vendorIds);
+
+    const vendorMap = new Map<string, { full_name: string; shop_name: string; is_admin_shop: boolean }>();
+    for (const v of vendors ?? []) {
+      vendorMap.set(v.id, { full_name: v.full_name, shop_name: v.shop_name, is_admin_shop: v.is_admin_shop });
+    }
+
+    // 5. Assembler
+    const vendorGroups = new Map<string, { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }>();
+
+    const detailedItems: OrderItemDetail[] = items.map(it => {
+      const prod = (products ?? []).find(p => p.id === it.product_id);
+      const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
+      const qty = it.quantity ?? 1;
+      const price = it.unit_price ?? prod?.price ?? 0;
+      const lineTotal = qty * price;
+
+      // Grouper par vendeur
+      const vId = prod?.vendor_id ?? "unknown";
+      const existing = vendorGroups.get(vId);
+      if (existing) {
+        existing.item_count += qty;
+        existing.total += lineTotal;
+      } else {
+        vendorGroups.set(vId, {
+          vendor_id: vId,
+          vendor_name: vendor?.full_name ?? "Inconnu",
+          shop_name: vendor?.shop_name ?? "—",
+          item_count: qty,
+          total: lineTotal,
+          is_admin: vendor?.is_admin_shop ?? false,
+        });
+      }
+
+      return {
+        product_id: it.product_id ?? "",
+        product_name: prod?.name ?? "Produit inconnu",
+        product_image: imageMap.get(it.product_id ?? "") ?? null,
+        quantity: qty,
+        unit_price: price,
+        line_total: lineTotal,
+        vendor_id: prod?.vendor_id ?? null,
+        vendor_name: vendor?.full_name ?? null,
+        shop_name: vendor?.shop_name ?? null,
+        is_admin_shop: vendor?.is_admin_shop ?? false,
+        commission_rate: prod?.commission_rate ?? null,
+      };
+    });
+
+    return {
+      items: detailedItems,
+      order_total: detailedItems.reduce((s, i) => s + i.line_total, 0),
+      vendor_summary: Array.from(vendorGroups.values()),
+    } as OrderItemsResult;
+  });
+
+/* ── 8. Recuperer le resume de paiement d'une commande ── */
 
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
