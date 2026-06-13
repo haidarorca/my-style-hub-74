@@ -227,10 +227,9 @@ export interface OrderItemsResult {
 }
 
 export const getOrderItems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    await requireSupabaseAuth();
-
     console.log("[getOrderItems] order_id:", data.order_id);
 
     // 1. Charger les order_items
