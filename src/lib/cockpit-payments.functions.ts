@@ -232,7 +232,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    console.log("[getOrderItems] order_id:", data.order_id);
+    console.log("[getOrderItems] START order_id:", data.order_id);
 
     // 1. Charger les order_items
     const { data: items, error: itemsErr } = await supabaseAdmin
@@ -242,27 +242,49 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     if (itemsErr) {
       console.error("[getOrderItems] order_items error:", itemsErr.message);
-      return { items: [], order_total: 0, vendor_summary: [], error: itemsErr.message } as any;
+      return { items: [], order_total: 0, vendor_summary: [], error: "order_items: " + itemsErr.message } as any;
     }
 
-    console.log("[getOrderItems] items count:", items?.length ?? 0);
     if (!items || items.length === 0) {
       return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
     }
 
-    // 2. Charger les produits (avec description et vendor_id fallback)
     const productIds = items.map(i => i.product_id).filter(Boolean);
     console.log("[getOrderItems] productIds:", productIds);
 
+    // 2. Charger les produits — COLONNES SÛRES d'abord
     const { data: products, error: prodErr } = await supabaseAdmin
       .from("products")
-      .select("id, name, description, shop_id, vendor_id, price, commission_rate")
+      .select("id, name, price, shop_id")
       .in("id", productIds);
 
-    if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
-    console.log("[getOrderItems] products found:", products?.length ?? 0);
+    if (prodErr) {
+      console.error("[getOrderItems] products ERROR:", prodErr.message);
+      // Fallback: essayer sans name/price
+      const { data: productsMinimal } = await supabaseAdmin
+        .from("products")
+        .select("id, shop_id")
+        .in("id", productIds);
+      console.log("[getOrderItems] products minimal fallback:", productsMinimal?.length ?? 0);
+    }
 
-    // 3. Charger les images
+    console.log("[getOrderItems] products found:", products?.length ?? 0);
+    if (products && products.length > 0) {
+      console.log("[getOrderItems] first product:", JSON.stringify(products[0]));
+    }
+
+    // 3. Charger description et commission séparément (colonnes optionnelles)
+    const { data: productsExtra } = await supabaseAdmin
+      .from("products")
+      .select("id, description, commission_rate")
+      .in("id", productIds);
+
+    const extraMap = new Map<string, { description: string | null; commission_rate: number | null }>();
+    for (const pe of productsExtra ?? []) {
+      extraMap.set(pe.id, { description: pe.description ?? null, commission_rate: pe.commission_rate ?? null });
+    }
+
+    // 4. Charger les images
     const { data: productImages } = await supabaseAdmin
       .from("product_images")
       .select("product_id, url")
@@ -276,19 +298,20 @@ export const getOrderItems = createServerFn({ method: "POST" })
       if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
       allImagesMap.get(img.product_id)!.push(img.url);
     }
-
-    // 4. Récupérer les shop_ids (shop_id prioritaire, sinon vendor_id)
-    const shopIds = Array.from(new Set(
-      (products ?? []).map(p => p.shop_id ?? p.vendor_id).filter(Boolean)
-    ));
-    console.log("[getOrderItems] shop/vendor ids:", shopIds);
+    console.log("[getOrderItems] images found:", productImages?.length ?? 0);
 
     // 5. Charger les shops
-    const { data: shops } = await supabaseAdmin
+    const shopIds = Array.from(new Set(
+      (products ?? []).map(p => p.shop_id).filter(Boolean)
+    ));
+    console.log("[getOrderItems] shopIds:", shopIds);
+
+    const { data: shops, error: shopsErr } = await supabaseAdmin
       .from("shops")
       .select("id, name, owner_id")
       .in("id", shopIds);
 
+    if (shopsErr) console.error("[getOrderItems] shops error:", shopsErr.message);
     console.log("[getOrderItems] shops found:", shops?.length ?? 0);
 
     // 6. Charger les owners
@@ -303,7 +326,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
       ownerMap.set(o.id, { full_name: o.full_name, is_admin_shop: o.is_admin_shop });
     }
 
-    // Construire shopMap
+    // 7. Assembler
     const shopMap = new Map<string, { name: string; owner_name: string; is_admin: boolean }>();
     for (const s of shops ?? []) {
       const owner = s.owner_id ? ownerMap.get(s.owner_id) : null;
@@ -314,22 +337,19 @@ export const getOrderItems = createServerFn({ method: "POST" })
       });
     }
 
-    // 7. Assembler les items
     const shopGroups = new Map<string, { shop_id: string; shop_name: string; owner_name: string; item_count: number; total: number; is_admin: boolean }>();
 
-    const detailedItems: OrderItemDetail[] = items.map((it, idx) => {
+    const detailedItems = items.map((it, idx) => {
       const prod = (products ?? []).find(p => p.id === it.product_id);
-      const lookupId = prod?.shop_id ?? prod?.vendor_id;
+      const extra = prod ? extraMap.get(prod.id) : null;
+      const lookupId = prod?.shop_id;
       const shop = lookupId ? shopMap.get(lookupId) : null;
       const qty = it.quantity ?? 1;
       const price = prod?.price ?? 0;
       const lineTotal = qty * price;
 
-      // Logging pour debug
-      if (!prod) console.log(`[getOrderItems] item ${idx}: product ${it.product_id} NOT FOUND in products table`);
-      else console.log(`[getOrderItems] item ${idx}: product=${prod.name}, shop_id=${prod.shop_id}, vendor_id=${prod.vendor_id}, price=${price}`);
+      console.log(`[getOrderItems] item ${idx}: name="${prod?.name ?? "NOT FOUND"}", price=${price}, shop=${shop?.name ?? "—"}`);
 
-      // Grouper par shop
       const sId = lookupId ?? "unknown";
       const existing = shopGroups.get(sId);
       if (existing) {
@@ -349,9 +369,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
       return {
         product_id: it.product_id ?? "",
         product_name: prod?.name ?? "Produit inconnu",
-        product_description: prod?.description ?? null,
-        product_image: imageMap.get(it.product_id ?? "") ?? null,
+        product_description: extra?.description ?? null,
         all_images: allImagesMap.get(it.product_id ?? "") ?? [],
+        product_image: imageMap.get(it.product_id ?? "") ?? null,
         quantity: qty,
         unit_price: price,
         line_total: lineTotal,
@@ -359,7 +379,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
         shop_name: shop?.name ?? null,
         owner_name: shop?.owner_name ?? null,
         is_admin_shop: shop?.is_admin ?? false,
-        commission_rate: prod?.commission_rate ?? null,
+        commission_rate: extra?.commission_rate ?? null,
       };
     });
 
