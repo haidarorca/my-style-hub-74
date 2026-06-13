@@ -209,12 +209,13 @@ export interface OrderItemDetail {
   product_id: string;
   product_name: string;
   product_image: string | null;
+  all_images: string[]; // toutes les images pour le détail
   quantity: number;
   unit_price: number;
   line_total: number;
-  vendor_id: string | null;
-  vendor_name: string | null;
+  shop_id: string | null;
   shop_name: string | null;
+  owner_name: string | null;
   is_admin_shop: boolean;
   commission_rate: number | null;
 }
@@ -232,10 +233,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     console.log("[getOrderItems] order_id:", data.order_id);
 
-    // 1. Charger les order_items
+    // 1. Charger les order_items (structure: order_id, product_id, quantity)
     const { data: items, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("product_id, quantity, unit_price")
+      .select("product_id, quantity")
       .eq("order_id", data.order_id);
 
     if (itemsErr) {
@@ -249,63 +250,87 @@ export const getOrderItems = createServerFn({ method: "POST" })
       return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
     }
 
-    // 2. Charger les produits
+    // 2. Charger les produits (avec shop_id pour jointure vers shops)
     const productIds = items.map(i => i.product_id).filter(Boolean);
     const { data: products, error: prodErr } = await supabaseAdmin
       .from("products")
-      .select("id, name, vendor_id, price, commission_rate")
+      .select("id, name, shop_id, price, commission_rate")
       .in("id", productIds);
 
     if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
 
-    // 3. Charger les images des produits (première image par produit)
+    // 3. Charger TOUTES les images des produits
     const { data: productImages } = await supabaseAdmin
       .from("product_images")
       .select("product_id, url")
       .in("product_id", productIds)
       .order("position", { ascending: true });
 
-    const imageMap = new Map<string, string>();
+    const imageMap = new Map<string, string>(); // première image
+    const allImagesMap = new Map<string, string[]>(); // toutes les images
     for (const img of productImages ?? []) {
       if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+      if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
+      allImagesMap.get(img.product_id)!.push(img.url);
     }
 
-    // 4. Charger les vendeurs (profiles)
-    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean)));
-    const { data: vendors } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, shop_name, is_admin_shop")
-      .in("id", vendorIds);
+    // 4. Charger les shops (boutiques/vendeurs)
+    const shopIds = Array.from(new Set((products ?? []).map(p => p.shop_id).filter(Boolean)));
+    console.log("[getOrderItems] shopIds:", shopIds);
 
-    const vendorMap = new Map<string, { full_name: string; shop_name: string; is_admin_shop: boolean }>();
-    for (const v of vendors ?? []) {
-      vendorMap.set(v.id, { full_name: v.full_name, shop_name: v.shop_name, is_admin_shop: v.is_admin_shop });
+    // 4a. D'abord essayer via table shops
+    const { data: shops } = await supabaseAdmin
+      .from("shops")
+      .select("id, name, owner_id")
+      .in("id", shopIds);
+
+    // 4b. Charger les owners (profiles) des shops
+    const ownerIds = Array.from(new Set((shops ?? []).map(s => s.owner_id).filter(Boolean)));
+    const { data: owners } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, is_admin_shop")
+      .in("id", ownerIds);
+
+    const ownerMap = new Map<string, { full_name: string; is_admin_shop: boolean }>();
+    for (const o of owners ?? []) {
+      ownerMap.set(o.id, { full_name: o.full_name, is_admin_shop: o.is_admin_shop });
+    }
+
+    // Construire le shopMap avec toutes les infos
+    const shopMap = new Map<string, { name: string; owner_name: string; is_admin: boolean }>();
+    for (const s of shops ?? []) {
+      const owner = s.owner_id ? ownerMap.get(s.owner_id) : null;
+      shopMap.set(s.id, {
+        name: s.name ?? "Boutique",
+        owner_name: owner?.full_name ?? "—",
+        is_admin: owner?.is_admin_shop ?? false,
+      });
     }
 
     // 5. Assembler
-    const vendorGroups = new Map<string, { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }>();
+    const shopGroups = new Map<string, { shop_id: string; shop_name: string; owner_name: string; item_count: number; total: number; is_admin: boolean }>();
 
     const detailedItems: OrderItemDetail[] = items.map(it => {
       const prod = (products ?? []).find(p => p.id === it.product_id);
-      const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
+      const shop = prod?.shop_id ? shopMap.get(prod.shop_id) : null;
       const qty = it.quantity ?? 1;
-      const price = it.unit_price ?? prod?.price ?? 0;
+      const price = prod?.price ?? 0;
       const lineTotal = qty * price;
 
-      // Grouper par vendeur
-      const vId = prod?.vendor_id ?? "unknown";
-      const existing = vendorGroups.get(vId);
+      // Grouper par shop
+      const sId = prod?.shop_id ?? "unknown";
+      const existing = shopGroups.get(sId);
       if (existing) {
         existing.item_count += qty;
         existing.total += lineTotal;
       } else {
-        vendorGroups.set(vId, {
-          vendor_id: vId,
-          vendor_name: vendor?.full_name ?? "Inconnu",
-          shop_name: vendor?.shop_name ?? "—",
+        shopGroups.set(sId, {
+          shop_id: sId,
+          shop_name: shop?.name ?? "Source inconnue",
+          owner_name: shop?.owner_name ?? "—",
           item_count: qty,
           total: lineTotal,
-          is_admin: vendor?.is_admin_shop ?? false,
+          is_admin: shop?.is_admin ?? false,
         });
       }
 
@@ -313,13 +338,14 @@ export const getOrderItems = createServerFn({ method: "POST" })
         product_id: it.product_id ?? "",
         product_name: prod?.name ?? "Produit inconnu",
         product_image: imageMap.get(it.product_id ?? "") ?? null,
+        all_images: allImagesMap.get(it.product_id ?? "") ?? [],
         quantity: qty,
         unit_price: price,
         line_total: lineTotal,
-        vendor_id: prod?.vendor_id ?? null,
-        vendor_name: vendor?.full_name ?? null,
-        shop_name: vendor?.shop_name ?? null,
-        is_admin_shop: vendor?.is_admin_shop ?? false,
+        shop_id: prod?.shop_id ?? null,
+        shop_name: shop?.name ?? null,
+        owner_name: shop?.owner_name ?? null,
+        is_admin_shop: shop?.is_admin ?? false,
         commission_rate: prod?.commission_rate ?? null,
       };
     });
@@ -327,8 +353,16 @@ export const getOrderItems = createServerFn({ method: "POST" })
     return {
       items: detailedItems,
       order_total: detailedItems.reduce((s, i) => s + i.line_total, 0),
-      vendor_summary: Array.from(vendorGroups.values()),
-    } as OrderItemsResult;
+      vendor_summary: Array.from(shopGroups.values()).map(g => ({
+        vendor_id: g.shop_id,
+        vendor_name: g.owner_name,
+        shop_name: g.shop_name,
+        item_count: g.item_count,
+        total: g.total,
+        is_admin: g.is_admin,
+      })),
+      error: null,
+    } as any;
   });
 
 /* ── 8. Recuperer le resume de paiement d'une commande ── */
