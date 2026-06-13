@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert } from "lucide-react";
-import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
+import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
@@ -58,6 +58,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onC
   const lastP = sortedP[sortedP.length - 1];
 
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
+
+  // Prochaine étape dans le circuit métier
+  const nextStep = getNextStep(status, imp);
 
   // Handler qui ferme le drawer après changement de statut
   const handleStatusAndClose = (orderId: string, newStatus: string, admin: string) => {
@@ -171,22 +174,24 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onC
 
           <Separator />
 
-          {/* Actions */}
-          <div className="space-y-2 pt-2 pb-4">
-            {status === "new" && (
-              <>
-                <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "confirmed", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Confirmer</Button>
-                {onRequestCancel && <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={onRequestCancel}><Ban className="h-4 w-4 mr-1.5" />Annuler</Button>}
-              </>
-            )}
-            {imp && status === "confirmed" && <Button size="sm" className="w-full h-11 bg-cyan-600 hover:bg-cyan-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "ordered_supplier", adminName)}><Package className="h-4 w-4 mr-1.5" />Commander fournisseur</Button>}
-            {imp && status === "ordered_supplier" && <Button size="sm" className="w-full h-11 bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "received_warehouse", adminName)}><Package className="h-4 w-4 mr-1.5" />Reçue entrepôt</Button>}
-            {imp && status === "received_warehouse" && <Button size="sm" className="w-full h-11 bg-violet-600 hover:bg-violet-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "in_transit", adminName)}><Truck className="h-4 w-4 mr-1.5" />En transit</Button>}
-            {imp && status === "in_transit" && <Button size="sm" className="w-full h-11 bg-fuchsia-600 hover:bg-fuchsia-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "arrived_senegal", adminName)}><Truck className="h-4 w-4 mr-1.5" />Arrivée Sénégal</Button>}
-            {imp && status === "arrived_senegal" && <Button size="sm" className="w-full h-11 bg-orange-600 hover:bg-orange-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "awaiting_weighing", adminName)}><ShieldAlert className="h-4 w-4 mr-1.5" />À peser</Button>}
-            {(status === "ready" || status === "ready_delivery" || status === "fees_calculated") && <Button size="sm" className="w-full h-11 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "shipped", adminName)}><Truck className="h-4 w-4 mr-1.5" />Expédier</Button>}
-            {status === "shipped" && <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "delivered", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Marquer livrée</Button>}
-          </div>
+          {/* Action suivante (circuit métier) */}
+          {nextStep && (
+            <div className="pt-2 pb-2">
+              <div className="text-[10px] text-gray-500 mb-1.5 text-center">Étape suivante : {nextStep.label}</div>
+              <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
+                <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
+              </Button>
+            </div>
+          )}
+
+          {/* Annuler (toujours disponible sauf si livrée/annulée) */}
+          {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
+            <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50 mt-2" onClick={onRequestCancel}>
+              <Ban className="h-4 w-4 mr-1.5" />Annuler la commande
+            </Button>
+          )}
+
+          <div className="pb-4" />
         </div>
       </SheetContent>
     </Sheet>

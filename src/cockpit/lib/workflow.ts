@@ -52,7 +52,11 @@ export const STATUS_COLORS: Record<string, string> = {
   arrived_senegal: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
   awaiting_weighing: "bg-orange-100 text-orange-800 border-orange-300",
   fees_calculated: "bg-pink-100 text-pink-800 border-pink-300",
+  awaiting_client_validation: "bg-rose-100 text-rose-800 border-rose-300",
   payment_fees: "bg-amber-100 text-amber-800 border-amber-300",
+  ready_delivery: "bg-cyan-100 text-cyan-800 border-cyan-300",
+  contacted: "bg-blue-100 text-blue-800 border-blue-300",
+  preparing: "bg-orange-100 text-orange-800 border-orange-300",
 };
 
 /* ─── LIBELLÉS DES STATUTS ─── */
@@ -73,7 +77,11 @@ export const STATUS_LABELS: Record<string, string> = {
   arrived_senegal: "Arrivée Sénégal",
   awaiting_weighing: "À peser",
   fees_calculated: "Fret calculé",
+  awaiting_client_validation: "Validation client",
   payment_fees: "Paiement fret",
+  ready_delivery: "Prête expédition",
+  contacted: "Contactée",
+  preparing: "Préparation",
 };
 
 /* ─── LIBELLÉS KPI ─── */
@@ -183,6 +191,56 @@ export function statusToKpiFilter(status: string | null | undefined): KpiFilter 
   // Par defaut: ne pas perdre de commande, la mettre dans "ready"
   console.warn(`[statusToKpiFilter] Statut inconnu: "${s}" — traite comme "ready"`);
   return "ready";
+}
+
+/* ─── CIRCUIT MÉTIER : étape suivante ─── */
+
+export interface NextStep {
+  status: string;
+  label: string;
+  actionLabel: string;
+  color: string;
+}
+
+/** Circuit LOCAL : nouvelle → contactée → paiement → confirmée → préparation → prête → expédiée → livrée */
+const LOCAL_FLOW: Record<string, NextStep> = {
+  "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
+  new: { status: "contacted", label: "Contactée", actionLabel: "Marquer contactée", color: "bg-blue-600" },
+  contacted: { status: "awaiting_payment", label: "Paiement attendu", actionLabel: "Attente paiement", color: "bg-amber-600" },
+  awaiting_payment: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  confirmed: { status: "preparing", label: "Préparation", actionLabel: "Lancer préparation", color: "bg-orange-600" },
+  preparing: { status: "ready", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  ready: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
+  shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
+};
+
+/** Circuit IMPORT : nouvelle → confirmée → fournisseur → entrepôt → transit → Sénégal → pesée → fret → validation → paiement fret → prête → expédiée → livrée */
+const IMPORT_FLOW: Record<string, NextStep> = {
+  "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
+  new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
+  ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
+  received_warehouse: { status: "in_transit", label: "En transit", actionLabel: "En transit", color: "bg-violet-600" },
+  in_transit: { status: "arrived_senegal", label: "Arrivée Sénégal", actionLabel: "Arrivée Sénégal", color: "bg-fuchsia-600" },
+  arrived_senegal: { status: "awaiting_weighing", label: "À peser", actionLabel: "À peser", color: "bg-orange-600" },
+  awaiting_weighing: { status: "fees_calculated", label: "Fret calculé", actionLabel: "Fret calculé", color: "bg-pink-600" },
+  fees_calculated: { status: "awaiting_client_validation", label: "Validation client", actionLabel: "Envoyer au client", color: "bg-rose-600" },
+  awaiting_client_validation: { status: "payment_fees", label: "Paiement fret", actionLabel: "Paiement reçu", color: "bg-amber-600" },
+  payment_fees: { status: "ready_delivery", label: "Prête expédition", actionLabel: "Prête à expédier", color: "bg-cyan-600" },
+  ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
+  shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
+};
+
+/** Retourne l'étape suivante d'une commande */
+export function getNextStep(currentStatus: string, importOrder: boolean): NextStep | null {
+  const flow = importOrder ? IMPORT_FLOW : LOCAL_FLOW;
+  const s = (currentStatus ?? "").trim();
+  return flow[s] ?? null;
+}
+
+/** Retourne le label d'un statut pour affichage */
+export function getStatusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
 }
 
 /* ─── INDEX ÉTAPE IMPORT ─── */
