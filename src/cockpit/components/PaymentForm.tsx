@@ -26,7 +26,7 @@ export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
   };
 
   return (
-    <div className="bg-white border rounded-lg p-3 space-y-2">
+    <div className="bg-white border rounded-lg p-3 space-y-2" onClick={e => e.stopPropagation()}>
       <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4 text-emerald-600" />Encaisser</h3>
       <div className="grid grid-cols-2 gap-2">
         <Input type="number" placeholder={`Max ${fmtF(balance)}`} value={amount} onChange={e => setAmount(e.target.value)} className="h-9 text-sm" />

@@ -46,7 +46,7 @@ export function WeightForm({ orderId, onWeigh }: Props) {
   };
 
   return (
-    <div className="bg-white border rounded-lg p-3 space-y-3">
+    <div className="bg-white border rounded-lg p-3 space-y-3" onClick={e => e.stopPropagation()}>
       <h3 className="text-sm font-semibold flex items-center gap-1.5"><Scale className="h-4 w-4 text-orange-600" />Pesée</h3>
       <div className="grid grid-cols-2 gap-2">
         <div><label className="text-[10px] text-gray-500">Poids réel (kg)</label><Input type="number" value={realWeight} onChange={e => setRealWeight(e.target.value)} className="h-9 text-sm" placeholder="Ex: 2.5" /></div>

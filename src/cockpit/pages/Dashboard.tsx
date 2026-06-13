@@ -39,7 +39,7 @@ export default function CockpitDashboard() {
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
     updateStatus, cancelOrder, getCancellation, cancellations,
-    freightMap,
+    freightMap, getOrderFinancials,
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
@@ -64,25 +64,14 @@ export default function CockpitDashboard() {
   const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
   const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
   const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
+  const selFinancials = selectedOrder ? getOrderFinancials(selectedOrder) : { productTotal: 0, freight: 0, grandTotal: 0, paid: 0, remaining: 0 };
 
-  // ─── Helpers montants ───
-  // Retourne les montants clés d'une commande: produit, fret, total, payé, reste
-  const getAmounts = useCallback((o: LogisticsOrderRow) => {
-    const oid = o.order_id ?? "";
-    const productTotal = o.order_total ?? 0;
-    const freight = freightMap[oid] ?? o.total_shipping_fees ?? 0;
-    const grandTotal = productTotal + freight;
-    const paid = getTotalPaid(oid);
-    const remaining = Math.max(0, grandTotal - paid);
-    return { productTotal, freight, grandTotal, paid, remaining };
-  }, [freightMap, getTotalPaid]);
-
-  // totalPaidMap pour PipelineView (backward compat)
+  // totalPaidMap pour PipelineView
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const o of orders) m[o.order_id ?? ""] = getAmounts(o).paid;
+    for (const o of orders) m[o.order_id ?? ""] = getOrderFinancials(o).paid;
     return m;
-  }, [orders, getAmounts]);
+  }, [orders, getOrderFinancials]);
 
   // ─── KPI data ───
   const kpi = useMemo(() => {
@@ -98,15 +87,12 @@ export default function CockpitDashboard() {
       else if (st === "shipped") s.shipped++;
       else if (st === "ready" || st === "ready_delivery") s.ready++;
 
-      // Paiements: toutes commandes avec solde > 0 OU déjà un paiement
-      const { paid, remaining } = getAmounts(o);
-      if (paid > 0 || remaining > 0) s.payment_pending++;
-
-      // Dettes: solde restant
+      // Dettes: solde restant (toutes commandes actives)
+      const { remaining } = getOrderFinancials(o);
       if (remaining > 0) debt += remaining;
     }
     return { ...s, debt };
-  }, [orders, getAmounts]);
+  }, [orders, getOrderFinancials]);
 
   // ─── Filtered orders ───
   const displayOrders = useMemo(() => {
@@ -127,17 +113,18 @@ export default function CockpitDashboard() {
       default: {
         let filtered = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
         if (kpiFilter === "debt") {
-          filtered = filtered.filter(o => getAmounts(o).remaining > 0);
+          filtered = filtered.filter(o => getOrderFinancials(o).remaining > 0);
         } else if (kpiFilter === "payment_pending") {
+          // KPI Paiements : toutes commandes avec solde > 0 (peu importe le statut)
           filtered = filtered.filter(o => {
-            const { paid, remaining } = getAmounts(o);
-            return paid > 0 || remaining > 0;
+            const { remaining } = getOrderFinancials(o);
+            return remaining > 0;
           });
         } else if (kpiFilter === "ready") {
           // Prête : SEULEMENT ready / ready_delivery AVEC solde = 0
           filtered = filtered.filter(o => {
             const st = o.logistics_status ?? "";
-            const { remaining } = getAmounts(o);
+            const { remaining } = getOrderFinancials(o);
             return (st === "ready" || st === "ready_delivery") && remaining === 0;
           });
         } else if (kpiFilter === "new") {
@@ -155,7 +142,7 @@ export default function CockpitDashboard() {
         return filtered;
       }
     }
-  }, [orders, searchTerm, activeTab, kpiFilter, getAmounts]);
+  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials]);
 
   // ─── Handlers ───
   const handleStatus = (orderId: string, status: string, _admin: string) => {
@@ -240,7 +227,7 @@ export default function CockpitDashboard() {
                 <div className="text-center py-12 text-gray-500"><p className="font-medium">Aucune commande</p><p className="text-sm">Tout est a jour !</p></div>
               ) : displayOrders.map(o => {
                 const oid = o.order_id ?? "";
-                const { productTotal, freight, grandTotal, paid, remaining } = getAmounts(o);
+                const { productTotal, freight, grandTotal, paid, remaining } = getOrderFinancials(o);
                 const payments = getPayments(oid);
 
                 // ═══════════════════════════════════════════
@@ -454,7 +441,7 @@ export default function CockpitDashboard() {
         ) : (
           <div className="divide-y divide-gray-100">
             {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => {
-              const a = getAmounts(o);
+              const a = getOrderFinancials(o);
               return <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={a.paid} freight={a.freight} grandTotal={a.grandTotal} />;
             })}
           </div>
@@ -476,7 +463,7 @@ export default function CockpitDashboard() {
 
       {/* Drawer */}
       {selectedOrder && (
-        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} freightMap={freightMap}
+        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
           onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onFormInteraction={() => setHasChanges(true)} />
       )}

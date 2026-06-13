@@ -103,6 +103,19 @@ export function useRealOrders() {
   const getCancellation = useCallback((orderId: string) => cancellations.find(c => c.orderId === orderId) ?? null, [cancellations]);
   const getWeighings = useCallback((orderId: string) => weighings.filter(w => w.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [weighings]);
 
+  // ─── SEULE SOURCE DE VÉRITÉ pour les finances d'une commande ───
+  // Tous les composants doivent utiliser cette fonction.
+  const getOrderFinancials = useCallback((order: LogisticsOrderRow) => {
+    const oid = order.order_id ?? "";
+    const productTotal = order.order_total ?? 0;
+    // Priorité : freightMap (fret calculé par pesée) > total_shipping_fees (Supabase)
+    const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
+    const grandTotal = productTotal + freight;
+    const paid = getTotalPaid(oid);
+    const remaining = Math.max(0, grandTotal - paid);
+    return { productTotal, freight, grandTotal, paid, remaining };
+  }, [freightMap, getTotalPaid]);
+
   /* ── MUTATION : Ajouter paiement ── */
   const payMut = useMutation({
     mutationFn: async (p: { orderId: string; amount: number; method: PaymentMethod; reference: string; adminName: string }) => {
@@ -187,7 +200,7 @@ export function useRealOrders() {
     getAudit, addAuditEntry, updateStatus,
     cancelOrder, getCancellation, cancellations,
     getWeighings, addWeighing,
-    freightMap, setFreight,
+    freightMap, setFreight, getOrderFinancials,
   };
 }
 
