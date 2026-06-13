@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD — Centre de pilotage Kawzone
-// Vue Pipeline (Kanban) par défaut + Toggle Liste/Pipeline
+// Vue Pipeline par defaut + Postes de travail quand KPI clique
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback } from "react";
-import { Search, ClipboardList, Home, Package, Archive, X } from "lucide-react";
+import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +18,13 @@ import { fmtF, isImport, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
+
+// Config postes de travail avec actions directes
+const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionColor: string; nextStatus: string }> = {
+  new: { title: "POSTE — À confirmer", actionLabel: "Confirmer", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "confirmed" },
+  ready: { title: "POSTE — Prêt à expédier", actionLabel: "Expédier", actionColor: "bg-indigo-600 hover:bg-indigo-700 text-white", nextStatus: "shipped" },
+  shipped: { title: "POSTE — En livraison", actionLabel: "Marquer livrée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "delivered" },
+};
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
@@ -41,7 +48,7 @@ export default function CockpitDashboard() {
   const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
   const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
 
-  // KPI
+  // KPI data
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const o of orders) m[o.order_id ?? ""] = getTotalPaid(o.order_id ?? "");
@@ -52,7 +59,7 @@ export default function CockpitDashboard() {
     const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
     let debt = 0;
     for (const o of orders) {
-      const st = o.logistics_status ?? "new";
+      const st = o.logistics_status ?? "";
       if (st === "delivered" || st === "cancelled") continue;
       const f = statusToKpiFilter(st);
       if (f && f !== "debt") s[f as keyof typeof s]++;
@@ -100,30 +107,35 @@ export default function CockpitDashboard() {
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
+  // Mode poste de travail (KPI cliqué avec action directe)
+  const ws = kpiFilter ? WORKSTATIONS[kpiFilter] : null;
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b px-4 py-2">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-sm font-bold">Kawzone Cockpit</h1>
+          <h1 className="text-sm font-bold">{ws ? ws.title : "Kawzone Cockpit"}</h1>
           <span className="text-[10px] text-gray-500">{orders.length} commandes</span>
         </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-          <Input placeholder="Rechercher (nom, téléphone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        </div>
+        {!ws && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
+            <Input placeholder="Rechercher (nom, telephone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+        )}
       </div>
 
-      {/* KPI */}
-      {activeTab === "actions" && (
+      {/* KPI (seulement hors poste de travail) */}
+      {!ws && activeTab === "actions" && (
         <div className="px-4 pt-2 pb-1">
           <KpiCards {...kpi} activeFilter={kpiFilter} onFilter={setKpiFilter} />
           {kpiFilter && <button onClick={() => setKpiFilter(null)} className="mt-1 text-[10px] text-orange-600 flex items-center gap-1"><X className="h-3 w-3" />Effacer le filtre</button>}
         </div>
       )}
 
-      {/* Toggle + Counter */}
-      {activeTab === "actions" && !kpiFilter && (
+      {/* Toggle Liste/Pipeline (seulement hors poste + Actions) */}
+      {!ws && activeTab === "actions" && (
         <div className="px-4 pt-1 pb-1 flex items-center justify-between">
           <span className="text-[10px] text-gray-400">{displayOrders.length} commande{displayOrders.length > 1 ? "s" : ""}</span>
           <div className="flex bg-gray-100 rounded-lg p-0.5">
@@ -135,12 +147,38 @@ export default function CockpitDashboard() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
-        {activeTab === "actions" && viewMode === "pipeline" && !kpiFilter ? (
-          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} />
-        ) : activeTab === "actions" && kpiFilter ? (
-          <div className="p-3">
-            {displayOrders.length > 0 ? displayOrders.map((o, i) => <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={totalPaidMap[o.order_id ?? ""]} />) : <div className="text-center py-12 text-gray-500">Aucune commande</div>}
+        {/* POSTE DE TRAVAIL */}
+        {ws ? (
+          <div>
+            {/* Bouton retour */}
+            <div className="px-4 py-2 border-b bg-gray-50">
+              <button onClick={() => setKpiFilter(null)} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900">
+                <ArrowLeft className="h-3.5 w-3.5" /> Retour au Cockpit
+              </button>
+            </div>
+            {/* Commandes avec action directe */}
+            {displayOrders.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p className="font-medium">Aucune commande à traiter</p>
+                <p className="text-sm">Tout est à jour !</p>
+              </div>
+            ) : displayOrders.map((o, i) => (
+              <OrderCard
+                key={o.order_id}
+                order={o}
+                index={i}
+                onClick={() => setSelectedOrder(o)}
+                totalPaid={totalPaidMap[o.order_id ?? ""]}
+                quickAction={{
+                  label: ws.actionLabel,
+                  color: ws.actionColor,
+                  onClick: (e) => { e.stopPropagation(); handleStatus(o.order_id ?? "", ws.nextStatus, adminName); },
+                }}
+              />
+            ))}
           </div>
+        ) : activeTab === "actions" && viewMode === "pipeline" ? (
+          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} />
         ) : activeTab === "archive" ? (
           <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
@@ -150,16 +188,18 @@ export default function CockpitDashboard() {
         )}
       </div>
 
-      {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
-        <div className="flex justify-around items-center h-14">
-          {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
-            <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); }}>
-              <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
-            </button>
-          ))}
+      {/* Bottom nav (seulement hors poste de travail) */}
+      {!ws && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
+          <div className="flex justify-around items-center h-14">
+            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
+              <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); }}>
+                <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Drawer */}
       {selectedOrder && (

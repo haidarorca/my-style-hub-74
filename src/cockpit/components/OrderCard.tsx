@@ -1,17 +1,25 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Phone, MapPin, Package } from "lucide-react";
 import { STATUS_LABELS, STATUS_COLORS, fmtF, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+
+interface QuickAction {
+  label: string;
+  color: string;
+  onClick: (e: React.MouseEvent) => void;
+}
 
 interface Props {
   order: LogisticsOrderRow;
   index: number;
   onClick: () => void;
   totalPaid?: number;
+  quickAction?: QuickAction;
 }
 
-export function OrderCard({ order, index, onClick, totalPaid }: Props) {
+export function OrderCard({ order, index, onClick, totalPaid, quickAction }: Props) {
   const imp = isImport(order);
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
@@ -47,6 +55,11 @@ export function OrderCard({ order, index, onClick, totalPaid }: Props) {
         <div className="text-sm font-bold">{fmtF(order.order_total ?? 0)}</div>
         {remaining > 0 ? <div className="text-xs text-red-500 font-medium">Reste {fmtF(remaining)}</div> : grandTotal > 0 ? <div className="text-xs text-emerald-500">Payé</div> : null}
         <Badge variant="outline" className={`text-[8px] h-4 px-1 mt-1 ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
+        {quickAction && (
+          <Button size="sm" className={`mt-1.5 h-7 text-[10px] px-2 ${quickAction.color}`} onClick={quickAction.onClick}>
+            {quickAction.label}
+          </Button>
+        )}
       </div>
     </button>
   );
