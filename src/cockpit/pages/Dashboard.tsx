@@ -14,7 +14,9 @@ import { OrderCard } from "@/cockpit/components/OrderCard";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
+import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { PipelineView } from "@/cockpit/components/PipelineView";
+import type { DateRange } from "react-day-picker";
 import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
@@ -79,6 +81,7 @@ export default function CockpitDashboard() {
   const [typeFilter, setTypeFilter] = useState<string>(""); // "", "local", "import"
   const [balanceFilter, setBalanceFilter] = useState<string>(""); // "", "unpaid", "partial", "paid"
   const [minDays, setMinDays] = useState<string>("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   // ─── Tri ───
   const [sortField, setSortField] = useState<SortField>("date");
@@ -200,6 +203,15 @@ export default function CockpitDashboard() {
         list = list.filter(o => getOrderAge(o) >= days);
       }
     }
+    // 5b. Filtre par période (date de création)
+    if (dateRange?.from) {
+      const fromTime = dateRange.from.getTime();
+      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() >= fromTime);
+    }
+    if (dateRange?.to) {
+      const toTime = dateRange.to.getTime() + 24 * 60 * 60 * 1000; // inclusif
+      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() <= toTime);
+    }
 
     // 5. Tri
     list = [...list].sort((a, b) => {
@@ -218,7 +230,7 @@ export default function CockpitDashboard() {
 
   // ─── Compteurs de résultats ───
   const resultCount = displayOrders.length;
-  const activeFilterCount = [statusFilter, typeFilter, balanceFilter, minDays].filter(Boolean).length;
+  const activeFilterCount = [statusFilter, typeFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
 
   // ─── Handlers ───
   const handleStatus = (orderId: string, status: string, _admin: string) => {
@@ -330,7 +342,7 @@ export default function CockpitDashboard() {
                 <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
                 {activeFilterCount > 0 && (
                   <button
-                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); }}
+                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
                     className="text-[10px] text-red-500 hover:text-red-700"
                   >
                     Tout effacer
@@ -369,6 +381,10 @@ export default function CockpitDashboard() {
                 <div>
                   <label className="text-[10px] text-gray-500 block mb-0.5">Anciennete min (jours)</label>
                   <input type="number" placeholder="Ex: 7" value={minDays} onChange={e => setMinDays(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2" />
+                </div>
+                {/* Période */}
+                <div className="col-span-2">
+                  <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
                 </div>
               </div>
             </div>
