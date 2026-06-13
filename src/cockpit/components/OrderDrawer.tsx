@@ -63,7 +63,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const rem = financials.remaining;
   const paidFull = rem <= 0 && gt > 0;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
-  const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${kz}`;
+  const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
   const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
