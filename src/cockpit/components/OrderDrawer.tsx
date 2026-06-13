@@ -2,6 +2,7 @@
 // OrderDrawer — Fiche commande (pas de dialogs internes)
 // ═══════════════════════════════════════════════════════════════
 
+import { useMemo } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,16 +46,24 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onC
   const ot = order.order_total ?? 0;
   const sf = order.total_shipping_fees ?? 0;
   const gt = ot + sf;
-  const tp = payments.reduce((s, p) => s + p.amount, 0);
-  const rem = Math.max(0, gt - tp);
+  
+  // Memoize pour forcer le recalcul quand payments change
+  const tp = useMemo(() => payments.reduce((s, p) => s + p.amount, 0), [payments]);
+  const rem = useMemo(() => Math.max(0, gt - tp), [gt, tp]);
   const paidFull = rem <= 0 && gt > 0;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${kz}`;
-  const sortedP = [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
+
+  // Handler qui ferme le drawer après changement de statut
+  const handleStatusAndClose = (orderId: string, newStatus: string, admin: string) => {
+    onStatusChange(orderId, newStatus, admin);
+    onClose();
+  };
 
   return (
     <Sheet open={!!order} onOpenChange={o => { if (!o) onClose(); }}>
@@ -166,17 +175,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onC
           <div className="space-y-2 pt-2 pb-4">
             {status === "new" && (
               <>
-                <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => onStatusChange(order.order_id ?? "", "confirmed", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Confirmer</Button>
+                <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "confirmed", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Confirmer</Button>
                 {onRequestCancel && <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={onRequestCancel}><Ban className="h-4 w-4 mr-1.5" />Annuler</Button>}
               </>
             )}
-            {imp && status === "confirmed" && <Button size="sm" className="w-full h-11 bg-cyan-600 hover:bg-cyan-700" onClick={() => onStatusChange(order.order_id ?? "", "ordered_supplier", adminName)}><Package className="h-4 w-4 mr-1.5" />Commander fournisseur</Button>}
-            {imp && status === "ordered_supplier" && <Button size="sm" className="w-full h-11 bg-teal-600 hover:bg-teal-700" onClick={() => onStatusChange(order.order_id ?? "", "received_warehouse", adminName)}><Package className="h-4 w-4 mr-1.5" />Reçue entrepôt</Button>}
-            {imp && status === "received_warehouse" && <Button size="sm" className="w-full h-11 bg-violet-600 hover:bg-violet-700" onClick={() => onStatusChange(order.order_id ?? "", "in_transit", adminName)}><Truck className="h-4 w-4 mr-1.5" />En transit</Button>}
-            {imp && status === "in_transit" && <Button size="sm" className="w-full h-11 bg-fuchsia-600 hover:bg-fuchsia-700" onClick={() => onStatusChange(order.order_id ?? "", "arrived_senegal", adminName)}><Truck className="h-4 w-4 mr-1.5" />Arrivée Sénégal</Button>}
-            {imp && status === "arrived_senegal" && <Button size="sm" className="w-full h-11 bg-orange-600 hover:bg-orange-700" onClick={() => onStatusChange(order.order_id ?? "", "awaiting_weighing", adminName)}><ShieldAlert className="h-4 w-4 mr-1.5" />À peser</Button>}
-            {(status === "ready" || status === "ready_delivery" || status === "fees_calculated") && <Button size="sm" className="w-full h-11 bg-indigo-600 hover:bg-indigo-700" onClick={() => onStatusChange(order.order_id ?? "", "shipped", adminName)}><Truck className="h-4 w-4 mr-1.5" />Expédier</Button>}
-            {status === "shipped" && <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => onStatusChange(order.order_id ?? "", "delivered", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Marquer livrée</Button>}
+            {imp && status === "confirmed" && <Button size="sm" className="w-full h-11 bg-cyan-600 hover:bg-cyan-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "ordered_supplier", adminName)}><Package className="h-4 w-4 mr-1.5" />Commander fournisseur</Button>}
+            {imp && status === "ordered_supplier" && <Button size="sm" className="w-full h-11 bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "received_warehouse", adminName)}><Package className="h-4 w-4 mr-1.5" />Reçue entrepôt</Button>}
+            {imp && status === "received_warehouse" && <Button size="sm" className="w-full h-11 bg-violet-600 hover:bg-violet-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "in_transit", adminName)}><Truck className="h-4 w-4 mr-1.5" />En transit</Button>}
+            {imp && status === "in_transit" && <Button size="sm" className="w-full h-11 bg-fuchsia-600 hover:bg-fuchsia-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "arrived_senegal", adminName)}><Truck className="h-4 w-4 mr-1.5" />Arrivée Sénégal</Button>}
+            {imp && status === "arrived_senegal" && <Button size="sm" className="w-full h-11 bg-orange-600 hover:bg-orange-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "awaiting_weighing", adminName)}><ShieldAlert className="h-4 w-4 mr-1.5" />À peser</Button>}
+            {(status === "ready" || status === "ready_delivery" || status === "fees_calculated") && <Button size="sm" className="w-full h-11 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "shipped", adminName)}><Truck className="h-4 w-4 mr-1.5" />Expédier</Button>}
+            {status === "shipped" && <Button size="sm" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAndClose(order.order_id ?? "", "delivered", adminName)}><CheckCircle className="h-4 w-4 mr-1.5" />Marquer livrée</Button>}
           </div>
         </div>
       </SheetContent>
