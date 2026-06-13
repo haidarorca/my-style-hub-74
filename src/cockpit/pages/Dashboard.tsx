@@ -461,18 +461,20 @@ export default function CockpitDashboard() {
         </div>
       )}
 
-      {/* Drawer */}
+      {/* Drawer avec dialogs internes (dans SheetContent pour eviter inert Radix) */}
       {selectedOrder && (
-        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
+        <OrderDrawer
+          order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
-          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onFormInteraction={() => setHasChanges(true)} />
+          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onFormInteraction={() => setHasChanges(true)}
+          dialogs={
+            <>
+              <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />
+              <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
+            </>
+          }
+        />
       )}
-
-      {/* Cancel Dialog */}
-      {selectedOrder && <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />}
-
-      {/* Close Confirm Dialog */}
-      <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
     </div>
   );
 }

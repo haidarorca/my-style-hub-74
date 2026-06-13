@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ interface Props {
   audit: AuditEntry[];
   weighings: WeighingRecord[];
   financials: OrderFinancials;
+  dialogs?: React.ReactNode;
   onClose: () => void;
   onPayment: (orderId: string, amount: number, method: string, reference: string, adminName: string) => void;
   onEditPayment?: (id: string, u: { amount?: number; method?: string; reference?: string }) => void;
@@ -43,7 +45,7 @@ interface Props {
   onFormInteraction?: () => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onFormInteraction }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onFormInteraction }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -201,6 +203,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           <div className="pb-4" />
         </div>
+        {/* Dialogs a l'interieur du SheetContent pour eviter inert de Radix */}
+        {dialogs}
       </SheetContent>
     </Sheet>
   );

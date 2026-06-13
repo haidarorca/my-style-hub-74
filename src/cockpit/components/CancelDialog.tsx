@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,10 +29,10 @@ export function CancelDialog({ open, onClose, onConfirm, paidAmount, status, kzN
   if (!open) return null;
   const check = checkCanCancel(status, paidAmount);
 
-  const content = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl mx-4 w-full max-w-sm overflow-hidden pointer-events-auto">
+      <div className="relative bg-white rounded-xl shadow-2xl mx-4 w-full max-w-sm overflow-hidden">
         <div className="px-5 pt-5 pb-3 flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
           <h3 className="text-lg font-bold">Annuler {kzNumber}</h3>
@@ -86,6 +85,4 @@ export function CancelDialog({ open, onClose, onConfirm, paidAmount, status, kzN
       </div>
     </div>
   );
-
-  return createPortal(content, document.body);
 }
