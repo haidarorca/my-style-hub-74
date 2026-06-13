@@ -210,7 +210,8 @@ export interface OrderItemDetail {
   product_name: string;
   product_image: string | null;
   product_description: string | null;
-  all_images: string[]; // toutes les images pour le détail
+  all_images: string[];
+  variant_info: string | null; // toutes les images pour le détail
   quantity: number;
   unit_price: number;
   line_total: number;
