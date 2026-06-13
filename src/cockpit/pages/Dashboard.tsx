@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback } from "react";
-import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,10 +15,30 @@ import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
 import { PipelineView } from "@/cockpit/components/PipelineView";
-import { fmtF, isImport, statusToKpiFilter } from "@/cockpit/lib/workflow";
+import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
+
+// ─── Config tri ───
+type SortField = "date" | "amount" | "name" | "status";
+type SortDir = "asc" | "desc";
+
+// ─── Tous les statuts pour le filtre ───
+const ALL_STATUSES = [
+  { key: "new", label: "A confirmer" },
+  { key: "confirmed", label: "Confirmee" },
+  { key: "ordered_supplier", label: "Commandee fournisseur" },
+  { key: "received_warehouse", label: "Recue entrepot" },
+  { key: "awaiting_weighing", label: "A peser" },
+  { key: "fees_calculated", label: "Calcul frais" },
+  { key: "payment_fees", label: "Paiement client" },
+  { key: "ready", label: "Prete (local)" },
+  { key: "ready_delivery", label: "Prete (import)" },
+  { key: "shipped", label: "Expediee" },
+  { key: "delivered", label: "Livree" },
+  { key: "cancelled", label: "Annulee" },
+];
 
 // ─── Config postes de travail ───
 // Chaque poste définit: titre, label du bouton, couleur, prochain statut
@@ -52,6 +72,21 @@ export default function CockpitDashboard() {
   const [showCancel, setShowCancel] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // ─── Filtres avancés ───
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string>(""); // "", "local", "import"
+  const [balanceFilter, setBalanceFilter] = useState<string>(""); // "", "unpaid", "partial", "paid"
+  const [minDays, setMinDays] = useState<string>("");
+
+  // ─── Tri ───
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // ─── Sélection multiple ───
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   // États locaux pour formulaires inline
   const [payForms, setPayForms] = useState<Record<string, { amount: string; method: string; reference: string }>>({});
@@ -94,55 +129,96 @@ export default function CockpitDashboard() {
     return { ...s, debt };
   }, [orders, getOrderFinancials]);
 
-  // ─── Filtered orders ───
+  // ─── Calcul d'alerte (âge de la commande) ───
+  const getOrderAge = useCallback((o: LogisticsOrderRow) => {
+    const created = new Date(o.order_created_at ?? Date.now());
+    const now = new Date();
+    return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  }, []);
+
+  // ─── Filtered & Sorted orders ───
   const displayOrders = useMemo(() => {
     let list = orders;
+
+    // 1. Recherche texte
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
-      list = orders.filter(o =>
+      list = list.filter(o =>
         (o.order_id ?? "").toLowerCase().includes(q) ||
         (o.customer_name ?? "").toLowerCase().includes(q) ||
         (o.customer_phone ?? "").toLowerCase().includes(q) ||
         getOrderNumber(o.order_id ?? "").toLowerCase().includes(q)
       );
     }
+
+    // 2. Tab filter (local/import/archive)
     switch (activeTab) {
-      case "local": return list.filter(o => !isImport(o));
-      case "import": return list.filter(o => isImport(o));
-      case "archive": return list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
-      default: {
-        let filtered = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
-        if (kpiFilter === "debt") {
-          filtered = filtered.filter(o => getOrderFinancials(o).remaining > 0);
-        } else if (kpiFilter === "payment_pending") {
-          // KPI Paiements : toutes commandes avec solde > 0 (peu importe le statut)
-          filtered = filtered.filter(o => {
-            const { remaining } = getOrderFinancials(o);
-            return remaining > 0;
-          });
-        } else if (kpiFilter === "ready") {
-          // Prête : SEULEMENT ready / ready_delivery AVEC solde = 0
-          filtered = filtered.filter(o => {
-            const st = o.logistics_status ?? "";
-            const { remaining } = getOrderFinancials(o);
-            return (st === "ready" || st === "ready_delivery") && remaining === 0;
-          });
-        } else if (kpiFilter === "new") {
-          filtered = filtered.filter(o => {
-            const st = o.logistics_status ?? "";
-            return st === "" || st === "new";
-          });
-        } else if (kpiFilter === "to_weigh") {
-          filtered = filtered.filter(o => o.logistics_status === "awaiting_weighing");
-        } else if (kpiFilter === "shipped") {
-          filtered = filtered.filter(o => o.logistics_status === "shipped");
-        } else if (kpiFilter) {
-          filtered = filtered.filter(o => statusToKpiFilter(o.logistics_status ?? "") === kpiFilter);
-        }
-        return filtered;
+      case "local": list = list.filter(o => !isImport(o)); break;
+      case "import": list = list.filter(o => isImport(o)); break;
+      case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
+      default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
+    }
+
+    // 3. KPI filter (quand on clique sur un KPI card)
+    if (kpiFilter === "debt") {
+      list = list.filter(o => getOrderFinancials(o).remaining > 0);
+    } else if (kpiFilter === "payment_pending") {
+      list = list.filter(o => getOrderFinancials(o).remaining > 0);
+    } else if (kpiFilter === "ready") {
+      list = list.filter(o => {
+        const st = o.logistics_status ?? "";
+        return (st === "ready" || st === "ready_delivery") && getOrderFinancials(o).remaining === 0;
+      });
+    } else if (kpiFilter === "new") {
+      list = list.filter(o => { const st = o.logistics_status ?? ""; return st === "" || st === "new"; });
+    } else if (kpiFilter === "to_weigh") {
+      list = list.filter(o => o.logistics_status === "awaiting_weighing");
+    } else if (kpiFilter === "shipped") {
+      list = list.filter(o => o.logistics_status === "shipped");
+    }
+
+    // 4. Filtres avancés combinables
+    if (statusFilter) {
+      list = list.filter(o => (o.logistics_status ?? "") === statusFilter);
+    }
+    if (typeFilter) {
+      list = list.filter(o => typeFilter === "import" ? isImport(o) : !isImport(o));
+    }
+    if (balanceFilter) {
+      list = list.filter(o => {
+        const { paid, remaining } = getOrderFinancials(o);
+        const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
+        if (balanceFilter === "unpaid") return paid === 0 && remaining > 0;
+        if (balanceFilter === "partial") return paid > 0 && remaining > 0;
+        if (balanceFilter === "paid") return remaining === 0 && gt > 0;
+        return true;
+      });
+    }
+    if (minDays) {
+      const days = parseInt(minDays);
+      if (!isNaN(days)) {
+        list = list.filter(o => getOrderAge(o) >= days);
       }
     }
-  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials]);
+
+    // 5. Tri
+    list = [...list].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortField) {
+        case "date": return dir * (new Date(b.order_created_at ?? 0).getTime() - new Date(a.order_created_at ?? 0).getTime());
+        case "amount": return dir * ((b.order_total ?? 0) - (a.order_total ?? 0));
+        case "name": return dir * ((a.customer_name ?? "").localeCompare(b.customer_name ?? ""));
+        case "status": return dir * ((a.logistics_status ?? "").localeCompare(b.logistics_status ?? ""));
+        default: return 0;
+      }
+    });
+
+    return list;
+  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, typeFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge]);
+
+  // ─── Compteurs de résultats ───
+  const resultCount = displayOrders.length;
+  const activeFilterCount = [statusFilter, typeFilter, balanceFilter, minDays].filter(Boolean).length;
 
   // ─── Handlers ───
   const handleStatus = (orderId: string, status: string, _admin: string) => {
@@ -193,13 +269,115 @@ export default function CockpitDashboard() {
         </div>
       )}
 
-      {/* Toggle Liste/Pipeline */}
-      {!ws && activeTab === "actions" && (
-        <div className="px-4 pt-1 pb-1 flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">{displayOrders.length} commande{displayOrders.length > 1 ? "s" : ""}</span>
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setViewMode("list")} className={`text-[10px] px-3 py-1 rounded-md ${viewMode === "list" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Liste</button>
-            <button onClick={() => setViewMode("pipeline")} className={`text-[10px] px-3 py-1 rounded-md ${viewMode === "pipeline" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Pipeline</button>
+      {/* Barre outils : Filtres + Tri + Vue + Export */}
+      {!ws && (
+        <div className="px-4 pt-2 pb-1 space-y-2">
+          {/* Ligne 1: Toggle vue + Tri + Filtres + Export */}
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+              <button onClick={() => setViewMode("list")} className={`text-[10px] px-3 py-1.5 rounded-md ${viewMode === "list" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Liste</button>
+              <button onClick={() => setViewMode("pipeline")} className={`text-[10px] px-3 py-1.5 rounded-md ${viewMode === "pipeline" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Pipeline</button>
+            </div>
+
+            {/* Tri */}
+            <div className="relative shrink-0">
+              <select
+                value={`${sortField}_${sortDir}`}
+                onChange={e => { const [f, d] = e.target.value.split("_"); setSortField(f as SortField); setSortDir(d as SortDir); }}
+                className="appearance-none bg-gray-100 text-[10px] text-gray-600 rounded-lg pl-7 pr-3 py-1.5 cursor-pointer"
+              >
+                <option value="date_desc">Date ↓</option>
+                <option value="date_asc">Date ↑</option>
+                <option value="amount_desc">Montant ↓</option>
+                <option value="amount_asc">Montant ↑</option>
+                <option value="name_asc">Nom A-Z</option>
+                <option value="status_asc">Statut</option>
+              </select>
+              <ArrowUpDown className="absolute left-2 top-1.5 h-3 w-3 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Bouton filtres */}
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ${showFilters || activeFilterCount > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}
+            >
+              <Filter className="h-3 w-3" />
+              Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </button>
+
+            {/* Export CSV */}
+            <button
+              onClick={() => {
+                const rows = displayOrders.map(o => {
+                  const { productTotal, freight, grandTotal, paid, remaining } = getOrderFinancials(o);
+                  return [getOrderNumber(o.order_id ?? ""), o.customer_name ?? "", o.logistics_status ?? "new", productTotal, freight, grandTotal, paid, remaining].join(",");
+                });
+                const csv = "KZ,Client,Statut,Produit,Fret,Total,Paye,Reste\n" + rows.join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 ml-auto"
+            >
+              <Download className="h-3 w-3" />CSV
+            </button>
+          </div>
+
+          {/* Ligne 2: Panneau filtres avancés */}
+          {showFilters && (
+            <div className="bg-white border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); }}
+                    className="text-[10px] text-red-500 hover:text-red-700"
+                  >
+                    Tout effacer
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Statut */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Statut</label>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    {ALL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                {/* Type */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Type</label>
+                  <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    <option value="local">Local</option>
+                    <option value="import">Import</option>
+                  </select>
+                </div>
+                {/* Solde */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Solde</label>
+                  <select value={balanceFilter} onChange={e => setBalanceFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    <option value="unpaid">Non paye</option>
+                    <option value="partial">Partiel</option>
+                    <option value="paid">Paye total</option>
+                  </select>
+                </div>
+                {/* Ancienneté */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Anciennete min (jours)</label>
+                  <input type="number" placeholder="Ex: 7" value={minDays} onChange={e => setMinDays(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compteur résultats */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-gray-400">{resultCount} commande{resultCount > 1 ? "s" : ""} affichee{resultCount > 1 ? "s" : ""}</span>
+            {resultCount !== orders.length && <span className="text-[10px] text-orange-500">sur {orders.length} total</span>}
           </div>
         </div>
       )}

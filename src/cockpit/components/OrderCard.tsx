@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MapPin, Package } from "lucide-react";
+import { Phone, MapPin, Package, Clock, AlertTriangle } from "lucide-react";
 import { STATUS_LABELS, STATUS_COLORS, fmtF, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
@@ -33,6 +33,12 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = STATUS_LABELS[status] ?? status;
 
+  // Age de la commande en jours
+  const ageDays = Math.floor((Date.now() - new Date(order.order_created_at ?? Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+  // Alertes: > 7 jours = warning, > 14 jours = danger (sauf si livree/annulee)
+  const isBlocked = ageDays > 7 && status !== "delivered" && status !== "cancelled";
+  const isUrgent = ageDays > 14 && status !== "delivered" && status !== "cancelled";
+
   return (
     <button onClick={onClick} className="w-full flex items-start gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 text-left transition-colors">
       <div className="shrink-0 w-16">
@@ -58,7 +64,12 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
       <div className="shrink-0 text-right">
         <div className="text-sm font-bold">{fmtF(grandTotal)}</div>
         {remaining > 0 ? <div className="text-xs text-red-500 font-medium">Reste {fmtF(remaining)}</div> : grandTotal > 0 ? <div className="text-xs text-emerald-500">Payé</div> : null}
-        <Badge variant="outline" className={`text-[8px] h-4 px-1 mt-1 ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
+        <div className="flex items-center justify-end gap-1 mt-1">
+          <Badge variant="outline" className={`text-[8px] h-4 px-1 ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
+          {isUrgent && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
+          {isBlocked && !isUrgent && <Clock className="h-3.5 w-3.5 text-amber-500" />}
+        </div>
+        <div className="text-[9px] text-gray-400 mt-0.5">{ageDays}j</div>
         {quickAction && (
           <Button size="sm" className={`mt-1.5 h-7 text-[10px] px-2 ${quickAction.color}`} onClick={quickAction.onClick}>
             {quickAction.label}
