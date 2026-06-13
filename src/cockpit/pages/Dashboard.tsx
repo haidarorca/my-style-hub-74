@@ -721,4 +721,5 @@ function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
       </div>
     </div>
   );
-}
+}// sync: Sun Jun 14 06:08:17 CST 2026
+// lovable-sync: 1781388653
