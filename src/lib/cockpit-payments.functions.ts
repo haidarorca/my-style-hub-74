@@ -223,6 +223,7 @@ export interface OrderItemsResult {
   items: OrderItemDetail[];
   order_total: number;
   vendor_summary: { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }[];
+  error?: string | null;
 }
 
 export const getOrderItems = createServerFn({ method: "POST" })
@@ -230,14 +231,23 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireSupabaseAuth();
 
+    console.log("[getOrderItems] order_id:", data.order_id);
+
     // 1. Charger les order_items
     const { data: items, error: itemsErr } = await supabaseAdmin
       .from("order_items")
       .select("product_id, quantity, unit_price")
       .eq("order_id", data.order_id);
 
-    if (itemsErr || !items || items.length === 0) {
-      return { items: [], order_total: 0, vendor_summary: [] } as OrderItemsResult;
+    if (itemsErr) {
+      console.error("[getOrderItems] order_items error:", itemsErr.message);
+      return { items: [], order_total: 0, vendor_summary: [], error: itemsErr.message } as any;
+    }
+
+    console.log("[getOrderItems] items found:", items?.length ?? 0);
+
+    if (!items || items.length === 0) {
+      return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
     }
 
     // 2. Charger les produits

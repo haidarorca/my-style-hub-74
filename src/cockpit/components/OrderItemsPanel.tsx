@@ -13,14 +13,34 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
   const [data, setData] = useState<OrderItemsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [emptyMsg, setEmptyMsg] = useState("");
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!orderId) {
+      setError("Aucune commande sélectionnée.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
+    setEmptyMsg("");
     getOrderItems({ data: { order_id: orderId } })
-      .then(setData)
-      .catch(() => setError("Impossible de charger les articles"))
+      .then((result: any) => {
+        console.log("[OrderItemsPanel] result:", result);
+        if (result?.error) {
+          setError("Erreur base de données : " + result.error);
+        } else if (!result || !result.items || result.items.length === 0) {
+          setEmptyMsg("Cette commande ne contient aucun article enregistré.");
+          setData({ items: [], order_total: 0, vendor_summary: [] });
+        } else {
+          setData(result as OrderItemsResult);
+        }
+      })
+      .catch((err) => {
+        console.error("[OrderItemsPanel] Erreur:", err);
+        setError("Impossible de charger les articles : " + (err?.message || "erreur inconnue"));
+      })
       .finally(() => setLoading(false));
   }, [orderId]);
 
@@ -50,6 +70,12 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
+            </div>
+          )}
+          {emptyMsg && (
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg p-3 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {emptyMsg}
             </div>
           )}
 
