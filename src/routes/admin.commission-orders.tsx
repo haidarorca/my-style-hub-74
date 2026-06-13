@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { buildVendorForwardMessage, type WhatsAppLine } from "@/lib/whatsapp";
+import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { setOrderArchived, setOrdersArchivedBulk } from "@/lib/admin-archive.functions";
 import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { cn } from "@/lib/utils";
@@ -265,7 +266,7 @@ function CommissionOrders() {
       quantity: it.quantity,
       unitPrice: Number(it.unit_price),
     }));
-    const msg = buildVendorForwardMessage(orderId.slice(0, 8), lines);
+    const msg = buildVendorForwardMessage(getOrderNumber(orderId), lines);
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
 
     await supabase.from("orders").update({ forwarded_to_vendor_at: new Date().toISOString() }).eq("id", orderId);
@@ -314,9 +315,10 @@ function CommissionOrders() {
         }));
         const sub = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
         grand += sub;
-        msg += `━━━━━━━━━━━━━━\n*N° ${e.orderId.slice(0, 8)}*\n`;
+        msg += `━━━━━━━━━━━━━━\n*📋 ${getOrderNumber(e.orderId)}*\n`;
         for (const l of lines) {
-          msg += `\n• Code : ${l.code}\n  Article : ${l.name}\n`;
+          msg += `\n• 📦 ${l.name}\n`;
+          if (l.code && l.code !== l.name) msg += `  Réf. article : ${l.code}\n`;
           if (l.size) msg += `  Taille : ${l.size}\n`;
           if (l.color) msg += `  Couleur : ${l.color}\n`;
           if (l.customization) msg += `  Personnalisation : ${l.customization}\n`;

@@ -32,7 +32,7 @@ export function buildWhatsAppMessage(lines: WhatsAppLine[], customer?: WhatsAppC
   const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
 
   let msg = "🛒 *Nouvelle commande*\n";
-  if (customer?.orderId) msg += `N° ${customer.orderId.slice(0, 8)}\n`;
+  if (customer?.orderId) msg += `📋 *Référence : ${customer.orderId}*\n`;
   msg += "\n";
 
   if (customer) {
@@ -52,8 +52,7 @@ export function buildWhatsAppMessage(lines: WhatsAppLine[], customer?: WhatsAppC
     for (const it of items) {
       const lineTotal = it.unitPrice * it.quantity;
       shopTotal += lineTotal;
-      msg += `\n• Code : ${it.code}\n`;
-      msg += `  Article : ${it.name}\n`;
+      msg += `\n• 📦 ${it.name}\n`;
       if (it.size) msg += `  Taille : ${it.size}\n`;
       if (it.color) msg += `  Couleur : ${it.color}\n`;
       if (it.customization) msg += `  Personnalisation : ${it.customization}\n`;
@@ -102,14 +101,14 @@ export function buildVendorForwardMessage(
 ): string {
   const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
   let msg = "📦 *Commande à préparer*\n";
-  msg += `N° ${orderShortId}\n`;
+  msg += `📋 *Référence : ${orderShortId}*\n`;
   msg += "_(commande plateforme — infos client gérées par l'admin)_\n\n";
   let total = 0;
   for (const it of lines) {
     const lineTotal = it.unitPrice * it.quantity;
     total += lineTotal;
-    msg += `• Code : ${it.code}\n`;
-    msg += `  Article : ${it.name}\n`;
+    msg += `• 📦 ${it.name}\n`;
+    if (it.code && it.code !== it.name) msg += `  Réf. article : ${it.code}\n`;
     if (it.size) msg += `  Taille : ${it.size}\n`;
     if (it.color) msg += `  Couleur : ${it.color}\n`;
     if (it.customization) msg += `  Personnalisation : ${it.customization}\n`;
