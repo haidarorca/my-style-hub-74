@@ -163,11 +163,19 @@ export function useRealOrders() {
   }, []);
 
   const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string) => {
-    // 1. Forcer le statut (comme cancelOrder)
+    // 1. Forcer le statut via override (appliqué immédiatement dans ordersWithStatus)
     setStatusOverrides(prev => ({ ...prev, [orderId]: newStatus }));
-    // 2. Audit
+    // 2. Si le statut est une étape intermédiaire import sans fret défini,
+    //    propager le shipping_fees existant dans freightMap pour cohérence
+    if (["ordered_supplier", "received_warehouse", "fees_calculated", "payment_fees", "ready_delivery", "shipped"].includes(newStatus)) {
+      const order = orders.find(o => o.order_id === orderId);
+      if (order && (order.total_shipping_fees ?? 0) > 0 && !freightMap[orderId]) {
+        setFreightMap(prev => ({ ...prev, [orderId]: order.total_shipping_fees! }));
+      }
+    }
+    // 3. Audit
     addAuditEntry(orderId, `Statut → ${newStatus}`, adminName);
-  }, [addAuditEntry]);
+  }, [addAuditEntry, orders, freightMap]);
 
   return {
     // Commandes avec statuts overridés (annulations, etc.)

@@ -24,6 +24,7 @@ interface Props {
   payments: PaymentRecord[];
   audit: AuditEntry[];
   weighings: WeighingRecord[];
+  freightMap: Record<string, number>;
   onClose: () => void;
   onPayment: (orderId: string, amount: number, method: string, reference: string, adminName: string) => void;
   onEditPayment?: (id: string, u: { amount?: number; method?: string; reference?: string }) => void;
@@ -34,7 +35,7 @@ interface Props {
   onFormInteraction?: () => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onFormInteraction }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, freightMap, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onFormInteraction }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -44,7 +45,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, onC
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
   const ot = order.order_total ?? 0;
-  const sf = order.total_shipping_fees ?? 0;
+  // BUG 1 FIX : Utiliser freightMap (fret calculé par pesée) en priorité, sinon total_shipping_fees de Supabase
+  const sf = freightMap[order.order_id ?? ""] ?? order.total_shipping_fees ?? 0;
   const gt = ot + sf;
   
   // Memoize pour forcer le recalcul quand payments change

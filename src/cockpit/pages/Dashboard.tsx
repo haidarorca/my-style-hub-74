@@ -158,8 +158,14 @@ export default function CockpitDashboard() {
   }, [orders, searchTerm, activeTab, kpiFilter, getAmounts]);
 
   // ─── Handlers ───
-  const handleStatus = (orderId: string, status: string, _admin: string) => updateStatus(orderId, status, _admin || adminName);
-  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => addPayment(orderId, amount, method, reference, _admin || adminName);
+  const handleStatus = (orderId: string, status: string, _admin: string) => {
+    updateStatus(orderId, status, _admin || adminName);
+    setHasChanges(false); // BUG 2 FIX : remettre le flag à false après action réussie
+  };
+  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
+    addPayment(orderId, amount, method, reference, _admin || adminName);
+    setHasChanges(false); // BUG 2 FIX : remettre le flag à false après paiement enregistré
+  };
   const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
 
   const doCancel = useCallback((reason: string, refundType: string) => {
@@ -470,7 +476,7 @@ export default function CockpitDashboard() {
 
       {/* Drawer */}
       {selectedOrder && (
-        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings}
+        <OrderDrawer order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} freightMap={freightMap}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
           onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onFormInteraction={() => setHasChanges(true)} />
       )}
