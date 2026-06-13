@@ -520,4 +520,4 @@ function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
       </div>
     </div>
   );
-}
+}// sync-force: Sun Jun 14 03:22:20 CST 2026
