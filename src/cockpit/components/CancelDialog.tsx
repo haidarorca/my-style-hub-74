@@ -66,7 +66,21 @@ export function CancelDialog({ open, onClose, onConfirm, paidAmount, status, kzN
         </div>
         <div className="px-5 py-4 bg-gray-50 border-t flex gap-3">
           <Button variant="outline" className="flex-1 h-11 text-sm" onClick={onClose}>Retour</Button>
-          {check.canCancel && <Button variant="destructive" className="flex-1 h-11 text-sm" disabled={!reason.trim()} onClick={() => onConfirm(reason, refundType)}>Confirmer</Button>}
+          {check.canCancel && (
+            <Button
+              variant="destructive"
+              className="flex-1 h-11 text-sm"
+              onClick={() => {
+                if (!reason.trim()) {
+                  alert("Veuillez saisir un motif d'annulation.");
+                  return;
+                }
+                onConfirm(reason, refundType);
+              }}
+            >
+              Confirmer
+            </Button>
+          )}
         </div>
       </div>
     </div>
