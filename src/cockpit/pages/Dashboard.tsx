@@ -22,6 +22,8 @@ import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
 // Config postes de travail avec actions directes
 const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionColor: string; nextStatus: string }> = {
   new: { title: "POSTE — À confirmer", actionLabel: "Confirmer", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "confirmed" },
+  payment_pending: { title: "POSTE — Paiements", actionLabel: "Marquer payée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "ready" },
+  to_weigh: { title: "POSTE — À peser", actionLabel: "Pesée enregistrée", actionColor: "bg-orange-600 hover:bg-orange-700 text-white", nextStatus: "payment_fees" },
   ready: { title: "POSTE — Prêt à expédier", actionLabel: "Expédier", actionColor: "bg-indigo-600 hover:bg-indigo-700 text-white", nextStatus: "shipped" },
   shipped: { title: "POSTE — En livraison", actionLabel: "Marquer livrée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "delivered" },
 };
@@ -88,6 +90,13 @@ export default function CockpitDashboard() {
       default: {
         let filtered = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
         if (kpiFilter === "debt") filtered = filtered.filter(o => (o.order_total ?? 0) + (o.total_shipping_fees ?? 0) - (totalPaidMap[o.order_id ?? ""] ?? 0) > 0);
+        else if (kpiFilter === "payment_pending") {
+          filtered = filtered.filter(o => {
+            const grandTotal = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
+            const paid = totalPaidMap[o.order_id ?? ""] ?? 0;
+            return paid > 0 || grandTotal - paid > 0;
+          });
+        }
         else if (kpiFilter) filtered = filtered.filter(o => statusToKpiFilter(o.logistics_status ?? "") === kpiFilter);
         return filtered;
       }
@@ -205,7 +214,7 @@ export default function CockpitDashboard() {
                             <option value="bank_transfer">Virement</option>
                           </select>
                           <input type="text" placeholder="Ref" className="w-16 h-8 text-xs border rounded px-2" value={pf.reference} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, reference: e.target.value } }))} />
-                          <button className="h-8 px-3 bg-emerald-600 text-white text-xs rounded font-medium" onClick={() => { const amt = parseFloat(pf.amount); if (amt > 0) { handlePayment(oid, amt > remaining ? remaining : amt, pf.method, pf.reference, adminName); setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } })); } }}>
+                          <button className="h-8 px-3 bg-emerald-600 text-white text-xs rounded font-medium" onClick={() => { const amt = parseFloat(pf.amount); if (amt > 0) { const actualAmt = amt > remaining ? remaining : amt; handlePayment(oid, actualAmt, pf.method, pf.reference, adminName); setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } })); if (actualAmt >= remaining) handleStatus(oid, "ready", adminName); } }}>
                             Encaisser
                           </button>
                         </div>
@@ -244,7 +253,7 @@ export default function CockpitDashboard() {
                           <div className="font-bold text-orange-700">Fret: {fmtF(freight)}</div>
                         </div>
                       )}
-                      <button className="h-8 px-4 bg-orange-600 text-white text-xs rounded font-medium w-full" disabled={!rw} onClick={() => { if (rw) { handleWeigh({ orderId: oid, realWeightKg: rw, lengthCm: l, widthCm: w, heightCm: h, volumetricWeightKg: volWeight, chargeableWeightKg: chargeable, freightRatePerKg: 7500, estimatedFreight: freight, finalFreight: freight, weighedBy: adminName }); setWeighForms(prev => ({ ...prev, [oid]: { realWeight: "", length: "", width: "", height: "" } })); } }}>
+                      <button className="h-8 px-4 bg-orange-600 text-white text-xs rounded font-medium w-full" disabled={!rw} onClick={() => { if (rw) { handleWeigh({ orderId: oid, realWeightKg: rw, lengthCm: l, widthCm: w, heightCm: h, volumetricWeightKg: volWeight, chargeableWeightKg: chargeable, freightRatePerKg: 7500, estimatedFreight: freight, finalFreight: freight, weighedBy: adminName }); setWeighForms(prev => ({ ...prev, [oid]: { realWeight: "", length: "", width: "", height: "" } })); handleStatus(oid, "payment_fees", adminName); } }}>
                         Enregistrer la pesee
                       </button>
                     </div>

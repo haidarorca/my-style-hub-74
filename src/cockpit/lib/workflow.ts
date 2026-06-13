@@ -7,18 +7,17 @@ import type { LocalStatus, ImportStatus, OrderStatus, KpiFilter, RefundType } fr
 /* ─── TARIF FRET ─── */
 export const FREIGHT_RATE_PER_KG = 7500;
 
-/* ─── WORKFLOW IMPORT (11 étapes) ─── */
+/* ─── WORKFLOW IMPORT (10 étapes exactes) ─── */
 export const IMPORT_STEPS: { key: ImportStatus; label: string; description: string }[] = [
   { key: "new", label: "Nouvelle", description: "Commande reçue" },
   { key: "confirmed", label: "Confirmée", description: "Commande validée" },
   { key: "ordered_supplier", label: "Commandée fournisseur", description: "Commande passée chez le fournisseur" },
   { key: "received_warehouse", label: "Reçue entrepôt", description: "Produits reçus à l'entrepôt Chine/Turquie" },
-  { key: "in_transit", label: "En transit", description: "Colis en route vers le Sénégal" },
-  { key: "arrived_senegal", label: "Arrivée Sénégal", description: "Colis arrivé au Sénégal" },
   { key: "awaiting_weighing", label: "À peser", description: "En attente de pesée" },
-  { key: "fees_calculated", label: "Fret calculé", description: "Fret calculé, attente paiement" },
-  { key: "payment_fees", label: "Paiement fret", description: "Paiement du fret en cours" },
-  { key: "ready_delivery", label: "Prête livraison", description: "Prête à être livrée" },
+  { key: "fees_calculated", label: "Calcul frais", description: "Fret calculé, attente paiement" },
+  { key: "payment_fees", label: "Paiement client", description: "Paiement du fret en cours" },
+  { key: "ready_delivery", label: "Prête", description: "Prête à être expédiée" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
   { key: "delivered", label: "Livrée", description: "Commande livrée au client" },
 ];
 
@@ -48,15 +47,9 @@ export const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800 border-red-300",
   ordered_supplier: "bg-teal-100 text-teal-800 border-teal-300",
   received_warehouse: "bg-sky-100 text-sky-800 border-sky-300",
-  in_transit: "bg-violet-100 text-violet-800 border-violet-300",
-  arrived_senegal: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
   awaiting_weighing: "bg-orange-100 text-orange-800 border-orange-300",
   fees_calculated: "bg-pink-100 text-pink-800 border-pink-300",
-  awaiting_client_validation: "bg-rose-100 text-rose-800 border-rose-300",
   payment_fees: "bg-amber-100 text-amber-800 border-amber-300",
-  ready_delivery: "bg-cyan-100 text-cyan-800 border-cyan-300",
-  contacted: "bg-blue-100 text-blue-800 border-blue-300",
-  preparing: "bg-orange-100 text-orange-800 border-orange-300",
 };
 
 /* ─── LIBELLÉS DES STATUTS ─── */
@@ -67,21 +60,15 @@ export const STATUS_LABELS: Record<string, string> = {
   confirmed: "Confirmée",
   preparing: "Préparation",
   ready: "Prête",
-  ready_delivery: "Prête livraison",
+  ready_delivery: "Prête",
   shipped: "Expédiée",
   delivered: "Livrée",
   cancelled: "Annulée",
   ordered_supplier: "Commandée fournisseur",
   received_warehouse: "Reçue entrepôt",
-  in_transit: "En transit",
-  arrived_senegal: "Arrivée Sénégal",
   awaiting_weighing: "À peser",
-  fees_calculated: "Fret calculé",
-  awaiting_client_validation: "Validation client",
-  payment_fees: "Paiement fret",
-  ready_delivery: "Prête expédition",
-  contacted: "Contactée",
-  preparing: "Préparation",
+  fees_calculated: "Calcul frais",
+  payment_fees: "Paiement client",
 };
 
 /* ─── LIBELLÉS KPI ─── */
@@ -178,9 +165,9 @@ export function statusToKpiFilter(status: string | null | undefined): KpiFilter 
   if (s === "awaiting_weighing") return "to_weigh";
   
   // Pret (tous les statuts intermediaires)
-  if (["confirmed", "ordered_supplier", "received_warehouse", "in_transit", 
-       "arrived_senegal", "preparing", "ready", "ready_delivery", 
-       "fees_calculated", "validated"].includes(s)) return "ready";
+  if (["confirmed", "ordered_supplier", "received_warehouse",
+       "preparing", "ready", "ready_delivery",
+       "fees_calculated"].includes(s)) return "ready";
   
   // Expedie
   if (s === "shipped") return "shipped";
@@ -214,19 +201,16 @@ const LOCAL_FLOW: Record<string, NextStep> = {
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
 };
 
-/** Circuit IMPORT : nouvelle → confirmée → fournisseur → entrepôt → transit → Sénégal → pesée → fret → validation → paiement fret → prête → expédiée → livrée */
+/** Circuit IMPORT : nouvelle → confirmée → fournisseur → entrepôt → pesée → calcul frais → paiement client → prête → expédiée → livrée */
 const IMPORT_FLOW: Record<string, NextStep> = {
   "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
   new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
   confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
   ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
-  received_warehouse: { status: "in_transit", label: "En transit", actionLabel: "En transit", color: "bg-violet-600" },
-  in_transit: { status: "arrived_senegal", label: "Arrivée Sénégal", actionLabel: "Arrivée Sénégal", color: "bg-fuchsia-600" },
-  arrived_senegal: { status: "awaiting_weighing", label: "À peser", actionLabel: "À peser", color: "bg-orange-600" },
-  awaiting_weighing: { status: "fees_calculated", label: "Fret calculé", actionLabel: "Fret calculé", color: "bg-pink-600" },
-  fees_calculated: { status: "awaiting_client_validation", label: "Validation client", actionLabel: "Envoyer au client", color: "bg-rose-600" },
-  awaiting_client_validation: { status: "payment_fees", label: "Paiement fret", actionLabel: "Paiement reçu", color: "bg-amber-600" },
-  payment_fees: { status: "ready_delivery", label: "Prête expédition", actionLabel: "Prête à expédier", color: "bg-cyan-600" },
+  received_warehouse: { status: "awaiting_weighing", label: "À peser", actionLabel: "Marquer à peser", color: "bg-orange-600" },
+  awaiting_weighing: { status: "fees_calculated", label: "Calcul frais", actionLabel: "Calculer frais", color: "bg-pink-600" },
+  fees_calculated: { status: "payment_fees", label: "Paiement client", actionLabel: "Attente paiement", color: "bg-amber-600" },
+  payment_fees: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
   ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
 };
@@ -269,7 +253,7 @@ export function checkCanCancel(status: string, paidAmount: number): CancelCheck 
     warnings.push("La commande est en cours de livraison");
   }
 
-  if (["ordered_supplier", "received_warehouse", "in_transit"].includes(status)) {
+  if (["ordered_supplier", "received_warehouse"].includes(status)) {
     warnings.push("Le fournisseur a déjà été commandé");
   }
 
