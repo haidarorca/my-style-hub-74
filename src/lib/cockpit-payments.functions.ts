@@ -233,7 +233,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     console.log("[getOrderItems] order_id:", data.order_id);
 
-    // 1. Charger les order_items (structure: order_id, product_id, quantity)
+    // 1. Charger les order_items
     const { data: items, error: itemsErr } = await supabaseAdmin
       .from("order_items")
       .select("product_id, quantity")
@@ -244,47 +244,53 @@ export const getOrderItems = createServerFn({ method: "POST" })
       return { items: [], order_total: 0, vendor_summary: [], error: itemsErr.message } as any;
     }
 
-    console.log("[getOrderItems] items found:", items?.length ?? 0);
-
+    console.log("[getOrderItems] items count:", items?.length ?? 0);
     if (!items || items.length === 0) {
       return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
     }
 
-    // 2. Charger les produits (avec shop_id pour jointure vers shops)
+    // 2. Charger les produits (avec description et vendor_id fallback)
     const productIds = items.map(i => i.product_id).filter(Boolean);
+    console.log("[getOrderItems] productIds:", productIds);
+
     const { data: products, error: prodErr } = await supabaseAdmin
       .from("products")
-      .select("id, name, shop_id, price, commission_rate")
+      .select("id, name, description, shop_id, vendor_id, price, commission_rate")
       .in("id", productIds);
 
     if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
+    console.log("[getOrderItems] products found:", products?.length ?? 0);
 
-    // 3. Charger TOUTES les images des produits
+    // 3. Charger les images
     const { data: productImages } = await supabaseAdmin
       .from("product_images")
       .select("product_id, url")
       .in("product_id", productIds)
       .order("position", { ascending: true });
 
-    const imageMap = new Map<string, string>(); // première image
-    const allImagesMap = new Map<string, string[]>(); // toutes les images
+    const imageMap = new Map<string, string>();
+    const allImagesMap = new Map<string, string[]>();
     for (const img of productImages ?? []) {
       if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
       if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
       allImagesMap.get(img.product_id)!.push(img.url);
     }
 
-    // 4. Charger les shops (boutiques/vendeurs)
-    const shopIds = Array.from(new Set((products ?? []).map(p => p.shop_id).filter(Boolean)));
-    console.log("[getOrderItems] shopIds:", shopIds);
+    // 4. Récupérer les shop_ids (shop_id prioritaire, sinon vendor_id)
+    const shopIds = Array.from(new Set(
+      (products ?? []).map(p => p.shop_id ?? p.vendor_id).filter(Boolean)
+    ));
+    console.log("[getOrderItems] shop/vendor ids:", shopIds);
 
-    // 4a. D'abord essayer via table shops
+    // 5. Charger les shops
     const { data: shops } = await supabaseAdmin
       .from("shops")
       .select("id, name, owner_id")
       .in("id", shopIds);
 
-    // 4b. Charger les owners (profiles) des shops
+    console.log("[getOrderItems] shops found:", shops?.length ?? 0);
+
+    // 6. Charger les owners
     const ownerIds = Array.from(new Set((shops ?? []).map(s => s.owner_id).filter(Boolean)));
     const { data: owners } = await supabaseAdmin
       .from("profiles")
@@ -296,7 +302,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
       ownerMap.set(o.id, { full_name: o.full_name, is_admin_shop: o.is_admin_shop });
     }
 
-    // Construire le shopMap avec toutes les infos
+    // Construire shopMap
     const shopMap = new Map<string, { name: string; owner_name: string; is_admin: boolean }>();
     for (const s of shops ?? []) {
       const owner = s.owner_id ? ownerMap.get(s.owner_id) : null;
@@ -307,18 +313,23 @@ export const getOrderItems = createServerFn({ method: "POST" })
       });
     }
 
-    // 5. Assembler
+    // 7. Assembler les items
     const shopGroups = new Map<string, { shop_id: string; shop_name: string; owner_name: string; item_count: number; total: number; is_admin: boolean }>();
 
-    const detailedItems: OrderItemDetail[] = items.map(it => {
+    const detailedItems: OrderItemDetail[] = items.map((it, idx) => {
       const prod = (products ?? []).find(p => p.id === it.product_id);
-      const shop = prod?.shop_id ? shopMap.get(prod.shop_id) : null;
+      const lookupId = prod?.shop_id ?? prod?.vendor_id;
+      const shop = lookupId ? shopMap.get(lookupId) : null;
       const qty = it.quantity ?? 1;
       const price = prod?.price ?? 0;
       const lineTotal = qty * price;
 
+      // Logging pour debug
+      if (!prod) console.log(`[getOrderItems] item ${idx}: product ${it.product_id} NOT FOUND in products table`);
+      else console.log(`[getOrderItems] item ${idx}: product=${prod.name}, shop_id=${prod.shop_id}, vendor_id=${prod.vendor_id}, price=${price}`);
+
       // Grouper par shop
-      const sId = prod?.shop_id ?? "unknown";
+      const sId = lookupId ?? "unknown";
       const existing = shopGroups.get(sId);
       if (existing) {
         existing.item_count += qty;
@@ -326,7 +337,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
       } else {
         shopGroups.set(sId, {
           shop_id: sId,
-          shop_name: shop?.name ?? "Source inconnue",
+          shop_name: shop?.name ?? (sId === "unknown" ? "Source inconnue" : "Boutique"),
           owner_name: shop?.owner_name ?? "—",
           item_count: qty,
           total: lineTotal,
@@ -337,12 +348,13 @@ export const getOrderItems = createServerFn({ method: "POST" })
       return {
         product_id: it.product_id ?? "",
         product_name: prod?.name ?? "Produit inconnu",
+        product_description: prod?.description ?? null,
         product_image: imageMap.get(it.product_id ?? "") ?? null,
         all_images: allImagesMap.get(it.product_id ?? "") ?? [],
         quantity: qty,
         unit_price: price,
         line_total: lineTotal,
-        shop_id: prod?.shop_id ?? null,
+        shop_id: lookupId ?? null,
         shop_name: shop?.name ?? null,
         owner_name: shop?.owner_name ?? null,
         is_admin_shop: shop?.is_admin ?? false,
@@ -364,9 +376,6 @@ export const getOrderItems = createServerFn({ method: "POST" })
       error: null,
     } as any;
   });
-
-/* ── 8. Recuperer le resume de paiement d'une commande ── */
-
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
