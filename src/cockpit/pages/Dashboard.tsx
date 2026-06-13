@@ -167,13 +167,39 @@ export default function CockpitDashboard() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
-        {activeTab === "actions" && !kpiFilter && groups ? (
-          <div className="p-3 space-y-3">
-            {Object.entries(groups).map(([key, grp]) => grp.length > 0 ? (
-              <ActionGroup key={key} title={GROUP_TITLES[key]} count={grp.length} color={GROUP_COLORS[key]} orders={grp} onSelect={setSelectedOrder} totalPaidMap={totalPaidMap} expanded={expandedGroup === key} onToggle={() => setExpandedGroup(expandedGroup === key ? null : key)} />
-            ) : null)}
-            {Object.values(groups).every(g => g.length === 0) && <div className="text-center py-12 text-gray-500"><ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p className="font-medium">Tout est à jour !</p></div>}
-          </div>
+        {activeTab === "actions" ? (
+          // Actions tab — groupes ou filtre KPI
+          kpiFilter ? (
+            // Mode filtre KPI actif : afficher UN SEUL groupe avec les commandes filtrées
+            <div className="p-3">
+              {displayOrders.length > 0 ? (
+                <ActionGroup
+                  title={KPI_FILTER_TITLES[kpiFilter] ?? kpiFilter}
+                  count={displayOrders.length}
+                  color={KPI_FILTER_COLORS[kpiFilter] ?? "border-l-gray-500 bg-gray-50"}
+                  orders={displayOrders}
+                  onSelect={setSelectedOrder}
+                  totalPaidMap={totalPaidMap}
+                  expanded={true}
+                  onToggle={() => {}}
+                />
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">Aucune commande dans {KPI_FILTER_TITLES[kpiFilter] ?? kpiFilter}</p>
+                  <button onClick={() => setKpiFilter(null)} className="mt-2 text-xs text-orange-600">Effacer le filtre</button>
+                </div>
+              )}
+            </div>
+          ) : groups ? (
+            // Mode sans filtre : tous les groupes
+            <div className="p-3 space-y-3">
+              {Object.entries(groups).map(([key, grp]) => grp.length > 0 ? (
+                <ActionGroup key={key} title={GROUP_TITLES[key]} count={grp.length} color={GROUP_COLORS[key]} orders={grp} onSelect={setSelectedOrder} totalPaidMap={totalPaidMap} expanded={expandedGroup === key} onToggle={() => setExpandedGroup(expandedGroup === key ? null : key)} />
+              ) : null)}
+              {Object.values(groups).every(g => g.length === 0) && <div className="text-center py-12 text-gray-500"><ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p className="font-medium">Tout est à jour !</p></div>}
+            </div>
+          ) : null
         ) : activeTab === "archive" ? (
           <ArchiveList orders={displayOrders} archiveFilter={archiveFilter} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
@@ -217,6 +243,8 @@ export default function CockpitDashboard() {
 const PAGE_SIZE = 10;
 const GROUP_TITLES: Record<string, string> = { new: "À confirmer", payment_pending: "Paiement en attente", to_weigh: "À peser", ready: "Prêt à expédier", shipped: "En livraison" };
 const GROUP_COLORS: Record<string, string> = { new: "border-l-purple-500 bg-purple-50", payment_pending: "border-l-amber-500 bg-amber-50", to_weigh: "border-l-orange-500 bg-orange-50", ready: "border-l-emerald-500 bg-emerald-50", shipped: "border-l-indigo-500 bg-indigo-50" };
+const KPI_FILTER_TITLES: Record<string, string> = { new: "À confirmer", payment_pending: "Paiements en attente", to_weigh: "À peser", ready: "Prêt à expédier", shipped: "Expédiées", debt: "Dettes clients" };
+const KPI_FILTER_COLORS: Record<string, string> = { new: "border-l-purple-500 bg-purple-50", payment_pending: "border-l-amber-500 bg-amber-50", to_weigh: "border-l-orange-500 bg-orange-50", ready: "border-l-emerald-500 bg-emerald-50", shipped: "border-l-indigo-500 bg-indigo-50", debt: "border-l-red-500 bg-red-50" };
 
 function ActionGroup({ title, count, color, orders, onSelect, totalPaidMap, expanded, onToggle }: {
   title: string; count: number; color: string; orders: LogisticsOrderRow[]; onSelect: (o: LogisticsOrderRow) => void;
