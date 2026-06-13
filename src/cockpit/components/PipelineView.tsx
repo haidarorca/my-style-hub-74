@@ -5,6 +5,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 interface Props {
   orders: LogisticsOrderRow[];
   totalPaidMap: Record<string, number>;
+  freightMap: Record<string, number>;
   onSelect: (o: LogisticsOrderRow) => void;
 }
 
@@ -19,16 +20,15 @@ interface Column {
 const COLUMNS: Column[] = [
   { key: "new", title: "À confirmer", color: "border-t-purple-500", bgColor: "bg-purple-50", statuses: ["", "new"] },
   { key: "contacted", title: "Contactée", color: "border-t-blue-500", bgColor: "bg-blue-50", statuses: ["contacted"] },
-  { key: "awaiting_payment", title: "Paiement attendu", color: "border-t-amber-500", bgColor: "bg-amber-50", statuses: ["awaiting_payment"] },
-  { key: "in_progress", title: "En cours", color: "border-t-cyan-500", bgColor: "bg-cyan-50", statuses: ["confirmed", "preparing", "ordered_supplier", "received_warehouse", "in_transit", "arrived_senegal"] },
+  { key: "awaiting_payment", title: "Paiement", color: "border-t-amber-500", bgColor: "bg-amber-50", statuses: ["awaiting_payment", "payment_fees"] },
+  { key: "in_progress", title: "En cours", color: "border-t-cyan-500", bgColor: "bg-cyan-50", statuses: ["confirmed", "preparing", "ordered_supplier", "received_warehouse"] },
   { key: "to_weigh", title: "À peser", color: "border-t-orange-500", bgColor: "bg-orange-50", statuses: ["awaiting_weighing"] },
-  { key: "fees_validation", title: "Fret / Validation", color: "border-t-pink-500", bgColor: "bg-pink-50", statuses: ["fees_calculated", "awaiting_client_validation", "payment_fees"] },
+  { key: "fees_calculated", title: "Calcul frais", color: "border-t-pink-500", bgColor: "bg-pink-50", statuses: ["fees_calculated"] },
   { key: "ready", title: "Prête", color: "border-t-emerald-500", bgColor: "bg-emerald-50", statuses: ["ready", "ready_delivery"] },
   { key: "shipped", title: "Expédiée", color: "border-t-indigo-500", bgColor: "bg-indigo-50", statuses: ["shipped"] },
 ];
 
-export function PipelineView({ orders, totalPaidMap, onSelect }: Props) {
-  // Distribuer les commandes dans les colonnes
+export function PipelineView({ orders, totalPaidMap, freightMap, onSelect }: Props) {
   const columnsWithOrders = COLUMNS.map(col => ({
     ...col,
     orders: orders.filter(o => col.statuses.includes((o.logistics_status ?? "").trim())),
@@ -50,8 +50,11 @@ export function PipelineView({ orders, totalPaidMap, onSelect }: Props) {
             ) : col.orders.map(order => {
               const kz = getOrderNumber(order.order_id ?? "");
               const imp = isImport(order);
-              const grandTotal = (order.order_total ?? 0) + (order.total_shipping_fees ?? 0);
-              const paid = totalPaidMap[order.order_id ?? ""] ?? 0;
+              const oid = order.order_id ?? "";
+              const productTotal = order.order_total ?? 0;
+              const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
+              const grandTotal = productTotal + freight;
+              const paid = totalPaidMap[oid] ?? 0;
               const remaining = Math.max(0, grandTotal - paid);
               return (
                 <button key={order.order_id} onClick={() => onSelect(order)} className="w-full bg-white rounded-md p-2.5 text-left shadow-sm hover:shadow-md transition-shadow border border-gray-200">
@@ -60,9 +63,30 @@ export function PipelineView({ orders, totalPaidMap, onSelect }: Props) {
                     <span className={`text-[8px] px-1 py-0.5 rounded ${imp ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"}`}>{imp ? "IMP" : "LOC"}</span>
                   </div>
                   <div className="text-xs font-medium truncate">{order.customer_name ?? "—"}</div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] font-bold">{fmtF(order.order_total ?? 0)}</span>
-                    {remaining > 0 && <span className="text-[9px] text-red-500">{fmtF(remaining)}</span>}
+                  {/* Décomposition des montants */}
+                  <div className="mt-1 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] text-gray-500">Produit</span>
+                      <span className="text-[10px] font-medium">{fmtF(productTotal)}</span>
+                    </div>
+                    {freight > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-orange-500">Fret</span>
+                        <span className="text-[10px] font-medium text-orange-600">{fmtF(freight)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between border-t pt-0.5">
+                      <span className="text-[9px] font-bold">Total</span>
+                      <span className="text-[10px] font-bold">{fmtF(grandTotal)}</span>
+                    </div>
+                    {remaining > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-gray-400">Reste</span>
+                        <span className="text-[9px] text-red-500 font-medium">{fmtF(remaining)}</span>
+                      </div>
+                    ) : paid > 0 ? (
+                      <div className="text-[9px] text-emerald-600 font-medium">Payé en totalité</div>
+                    ) : null}
                   </div>
                 </button>
               );

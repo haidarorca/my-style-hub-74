@@ -16,14 +16,18 @@ interface Props {
   index: number;
   onClick: () => void;
   totalPaid?: number;
+  freight?: number;
+  grandTotal?: number;
   quickAction?: QuickAction;
 }
 
-export function OrderCard({ order, index, onClick, totalPaid, quickAction }: Props) {
+export function OrderCard({ order, index, onClick, totalPaid, freight, grandTotal: gtProp, quickAction }: Props) {
   const imp = isImport(order);
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
-  const grandTotal = (order.order_total ?? 0) + (order.total_shipping_fees ?? 0);
+  const productTotal = order.order_total ?? 0;
+  const actualFreight = freight ?? order.total_shipping_fees ?? 0;
+  const grandTotal = gtProp ?? productTotal + actualFreight;
   const paid = totalPaid ?? 0;
   const remaining = Math.max(0, grandTotal - paid);
   const stepIdx = imp ? getImportStepIndex(status) : -1;

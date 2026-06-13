@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
-// DASHBOARD — Centre de pilotage Kawzone
-// Vue Pipeline par defaut + Postes de travail quand KPI clique
+// DASHBOARD — Centre de pilotage ERP Kawzone
+// Chaque bouton modifie réellement les données et fait avancer
+// la commande dans son cycle de vie.
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback } from "react";
-import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft } from "lucide-react";
+import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,19 +20,27 @@ import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
 
-// Config postes de travail avec actions directes
+// ─── Config postes de travail ───
+// Chaque poste définit: titre, label du bouton, couleur, prochain statut
 const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionColor: string; nextStatus: string }> = {
   new: { title: "POSTE — À confirmer", actionLabel: "Confirmer", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "confirmed" },
   payment_pending: { title: "POSTE — Paiements", actionLabel: "Marquer payée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "ready" },
-  to_weigh: { title: "POSTE — À peser", actionLabel: "Pesée enregistrée", actionColor: "bg-orange-600 hover:bg-orange-700 text-white", nextStatus: "payment_fees" },
-  ready: { title: "POSTE — Prêt à expédier", actionLabel: "Expédier", actionColor: "bg-indigo-600 hover:bg-indigo-700 text-white", nextStatus: "shipped" },
+  to_weigh: { title: "POSTE — À peser", actionLabel: "Pesée enregistrée", actionColor: "bg-orange-600 hover:bg-orange-700 text-white", nextStatus: "fees_calculated" },
+  ready: { title: "POSTE — Prête à expédier", actionLabel: "Expédier", actionColor: "bg-indigo-600 hover:bg-indigo-700 text-white", nextStatus: "shipped" },
   shipped: { title: "POSTE — En livraison", actionLabel: "Marquer livrée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "delivered" },
 };
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
-  const { orders, isLoading, searchTerm, setSearchTerm, getPayments, getTotalPaid, getAudit, addPayment, editPayment, deletePayment, getWeighings, addWeighing, updateStatus, cancelOrder, getCancellation, cancellations } = useRealOrders();
+  const {
+    orders, isLoading, searchTerm, setSearchTerm,
+    getPayments, getTotalPaid, getAudit,
+    addPayment, editPayment, deletePayment,
+    getWeighings, addWeighing,
+    updateStatus, cancelOrder, getCancellation, cancellations,
+    freightMap,
+  } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "archive">("actions");
@@ -44,9 +53,11 @@ export default function CockpitDashboard() {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // États locaux pour formulaires inline des postes de travail
+  // États locaux pour formulaires inline
   const [payForms, setPayForms] = useState<Record<string, { amount: string; method: string; reference: string }>>({});
   const [weighForms, setWeighForms] = useState<Record<string, { realWeight: string; length: string; width: string; height: string }>>({});
+  const [editingPay, setEditingPay] = useState<string | null>(null);
+  const [editPayForm, setEditPayForm] = useState<{ amount: string; method: string; reference: string }>({ amount: "", method: "wave", reference: "" });
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
@@ -54,34 +65,60 @@ export default function CockpitDashboard() {
   const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
   const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
 
-  // KPI data
+  // ─── Helpers montants ───
+  // Retourne les montants clés d'une commande: produit, fret, total, payé, reste
+  const getAmounts = useCallback((o: LogisticsOrderRow) => {
+    const oid = o.order_id ?? "";
+    const productTotal = o.order_total ?? 0;
+    const freight = freightMap[oid] ?? o.total_shipping_fees ?? 0;
+    const grandTotal = productTotal + freight;
+    const paid = getTotalPaid(oid);
+    const remaining = Math.max(0, grandTotal - paid);
+    return { productTotal, freight, grandTotal, paid, remaining };
+  }, [freightMap, getTotalPaid]);
+
+  // totalPaidMap pour PipelineView (backward compat)
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const o of orders) m[o.order_id ?? ""] = getTotalPaid(o.order_id ?? "");
+    for (const o of orders) m[o.order_id ?? ""] = getAmounts(o).paid;
     return m;
-  }, [orders, getTotalPaid]);
+  }, [orders, getAmounts]);
 
+  // ─── KPI data ───
   const kpi = useMemo(() => {
     const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
     let debt = 0;
     for (const o of orders) {
       const st = o.logistics_status ?? "";
       if (st === "delivered" || st === "cancelled") continue;
-      const f = statusToKpiFilter(st);
-      if (f && f !== "debt") s[f as keyof typeof s]++;
-      const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
-      const paid = totalPaidMap[o.order_id ?? ""] ?? 0;
-      if (gt - paid > 0) debt += gt - paid;
+
+      // Compter par statut exact pour les KPI
+      if (st === "" || st === "new") s.new++;
+      else if (st === "awaiting_weighing") s.to_weigh++;
+      else if (st === "shipped") s.shipped++;
+      else if (st === "ready" || st === "ready_delivery") s.ready++;
+
+      // Paiements: toutes commandes avec solde > 0 OU déjà un paiement
+      const { paid, remaining } = getAmounts(o);
+      if (paid > 0 || remaining > 0) s.payment_pending++;
+
+      // Dettes: solde restant
+      if (remaining > 0) debt += remaining;
     }
     return { ...s, debt };
-  }, [orders, totalPaidMap]);
+  }, [orders, getAmounts]);
 
-  // Filtered orders
+  // ─── Filtered orders ───
   const displayOrders = useMemo(() => {
     let list = orders;
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
-      list = orders.filter(o => (o.order_id ?? "").toLowerCase().includes(q) || (o.customer_name ?? "").toLowerCase().includes(q) || (o.customer_phone ?? "").toLowerCase().includes(q) || getOrderNumber(o.order_id ?? "").toLowerCase().includes(q));
+      list = orders.filter(o =>
+        (o.order_id ?? "").toLowerCase().includes(q) ||
+        (o.customer_name ?? "").toLowerCase().includes(q) ||
+        (o.customer_phone ?? "").toLowerCase().includes(q) ||
+        getOrderNumber(o.order_id ?? "").toLowerCase().includes(q)
+      );
     }
     switch (activeTab) {
       case "local": return list.filter(o => !isImport(o));
@@ -89,21 +126,38 @@ export default function CockpitDashboard() {
       case "archive": return list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
       default: {
         let filtered = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
-        if (kpiFilter === "debt") filtered = filtered.filter(o => (o.order_total ?? 0) + (o.total_shipping_fees ?? 0) - (totalPaidMap[o.order_id ?? ""] ?? 0) > 0);
-        else if (kpiFilter === "payment_pending") {
+        if (kpiFilter === "debt") {
+          filtered = filtered.filter(o => getAmounts(o).remaining > 0);
+        } else if (kpiFilter === "payment_pending") {
           filtered = filtered.filter(o => {
-            const grandTotal = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
-            const paid = totalPaidMap[o.order_id ?? ""] ?? 0;
-            return paid > 0 || grandTotal - paid > 0;
+            const { paid, remaining } = getAmounts(o);
+            return paid > 0 || remaining > 0;
           });
+        } else if (kpiFilter === "ready") {
+          // Prête : SEULEMENT ready / ready_delivery AVEC solde = 0
+          filtered = filtered.filter(o => {
+            const st = o.logistics_status ?? "";
+            const { remaining } = getAmounts(o);
+            return (st === "ready" || st === "ready_delivery") && remaining === 0;
+          });
+        } else if (kpiFilter === "new") {
+          filtered = filtered.filter(o => {
+            const st = o.logistics_status ?? "";
+            return st === "" || st === "new";
+          });
+        } else if (kpiFilter === "to_weigh") {
+          filtered = filtered.filter(o => o.logistics_status === "awaiting_weighing");
+        } else if (kpiFilter === "shipped") {
+          filtered = filtered.filter(o => o.logistics_status === "shipped");
+        } else if (kpiFilter) {
+          filtered = filtered.filter(o => statusToKpiFilter(o.logistics_status ?? "") === kpiFilter);
         }
-        else if (kpiFilter) filtered = filtered.filter(o => statusToKpiFilter(o.logistics_status ?? "") === kpiFilter);
         return filtered;
       }
     }
-  }, [orders, searchTerm, activeTab, kpiFilter, totalPaidMap]);
+  }, [orders, searchTerm, activeTab, kpiFilter, getAmounts]);
 
-  // Handlers
+  // ─── Handlers ───
   const handleStatus = (orderId: string, status: string, _admin: string) => updateStatus(orderId, status, _admin || adminName);
   const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => addPayment(orderId, amount, method, reference, _admin || adminName);
   const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
@@ -120,7 +174,6 @@ export default function CockpitDashboard() {
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
-  // Mode poste de travail (KPI cliqué avec action directe)
   const ws = kpiFilter ? WORKSTATIONS[kpiFilter] : null;
 
   return (
@@ -147,7 +200,7 @@ export default function CockpitDashboard() {
         </div>
       )}
 
-      {/* Toggle Liste/Pipeline (seulement hors poste + Actions) */}
+      {/* Toggle Liste/Pipeline */}
       {!ws && activeTab === "actions" && (
         <div className="px-4 pt-1 pb-1 flex items-center justify-between">
           <span className="text-[10px] text-gray-400">{displayOrders.length} commande{displayOrders.length > 1 ? "s" : ""}</span>
@@ -158,17 +211,14 @@ export default function CockpitDashboard() {
         </div>
       )}
 
-
-
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
-        {/* POSTE DE TRAVAIL avec formulaire inline */}
         {kpiFilter ? (() => {
           const f = kpiFilter;
           const ws = WORKSTATIONS[f];
           const isPaymentStation = f === "payment_pending";
           const isWeighStation = f === "to_weigh";
-          const isSimpleStation = !!ws;
+          const isSimpleStation = !!ws && !isPaymentStation && !isWeighStation;
           return (
             <div>
               <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between">
@@ -184,26 +234,77 @@ export default function CockpitDashboard() {
                 <div className="text-center py-12 text-gray-500"><p className="font-medium">Aucune commande</p><p className="text-sm">Tout est a jour !</p></div>
               ) : displayOrders.map(o => {
                 const oid = o.order_id ?? "";
-                const paid = totalPaidMap[oid] ?? 0;
-                const grandTotal = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
-                const remaining = Math.max(0, grandTotal - paid);
+                const { productTotal, freight, grandTotal, paid, remaining } = getAmounts(o);
+                const payments = getPayments(oid);
 
-                // Poste PAIEMENTS — formulaire inline
+                // ═══════════════════════════════════════════
+                // POSTE PAIEMENTS — Formulaire inline complet
+                // ═══════════════════════════════════════════
                 if (isPaymentStation) {
                   const pf = payForms[oid] ?? { amount: "", method: "wave", reference: "" };
                   return (
                     <div key={oid} className="px-4 py-3 border-b border-gray-100 bg-white">
+                      {/* Infos commande */}
                       <div onClick={() => setSelectedOrder(o)} className="cursor-pointer">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-mono text-[11px] font-bold">{getOrderNumber(oid)}</span>
                           <span className="text-xs font-medium">{o.customer_name}</span>
                         </div>
-                        <div className="flex gap-3 text-[10px] text-gray-500 mb-2">
-                          <span>Total: <b>{fmtF(grandTotal)}</b></span>
+                        {/* Décomposition complète des montants */}
+                        <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
+                          <div className="bg-gray-50 rounded p-1.5">
+                            <div className="text-gray-400">Produit</div>
+                            <div className="font-semibold">{fmtF(productTotal)}</div>
+                          </div>
+                          <div className="bg-orange-50 rounded p-1.5">
+                            <div className="text-orange-400">Fret</div>
+                            <div className="font-semibold text-orange-700">{fmtF(freight)}</div>
+                          </div>
+                          <div className="bg-emerald-50 rounded p-1.5">
+                            <div className="text-emerald-400">Total</div>
+                            <div className="font-semibold text-emerald-700">{fmtF(grandTotal)}</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[10px] mb-2">
                           <span>Paye: <b className="text-emerald-600">{fmtF(paid)}</b></span>
-                          <span>Reste: <b className="text-red-600">{fmtF(remaining)}</b></span>
+                          <span>Reste: <b className={remaining > 0 ? "text-red-600" : "text-emerald-600"}>{fmtF(remaining)}</b></span>
+                          <span>{payments.length} paiement{payments.length > 1 ? "s" : ""}</span>
                         </div>
                       </div>
+
+                      {/* Historique des paiements (modifiable) */}
+                      {payments.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          {payments.map(p => (
+                            <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1 text-[10px]">
+                              {editingPay === p.id ? (
+                                <div className="flex gap-1 flex-1 items-center">
+                                  <input type="number" className="w-16 h-6 text-[10px] border rounded px-1" value={editPayForm.amount} onChange={e => setEditPayForm(prev => ({ ...prev, amount: e.target.value }))} />
+                                  <select className="h-6 text-[10px] border rounded" value={editPayForm.method} onChange={e => setEditPayForm(prev => ({ ...prev, method: e.target.value }))}>
+                                    <option value="wave">Wave</option>
+                                    <option value="orange_money">OM</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="bank_transfer">Virement</option>
+                                  </select>
+                                  <input type="text" className="w-14 h-6 text-[10px] border rounded px-1" value={editPayForm.reference} onChange={e => setEditPayForm(prev => ({ ...prev, reference: e.target.value }))} />
+                                  <button className="h-6 px-2 bg-emerald-600 text-white text-[10px] rounded" onClick={() => { editPayment(p.id, { amount: parseFloat(editPayForm.amount) || p.amount, method: editPayForm.method, reference: editPayForm.reference }); setEditingPay(null); }}>OK</button>
+                                  <button className="h-6 px-2 bg-gray-400 text-white text-[10px] rounded" onClick={() => setEditingPay(null)}>X</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span>{fmtF(p.amount)} — {p.method} — {p.reference}</span>
+                                  <div className="flex gap-1">
+                                    <button onClick={() => { setEditingPay(p.id); setEditPayForm({ amount: String(p.amount), method: p.method, reference: p.reference }); }} className="p-0.5 text-gray-400 hover:text-blue-600"><Pencil className="h-3 w-3" /></button>
+                                    <button onClick={() => { if (confirm("Supprimer ce paiement ?")) deletePayment(p.id); }} className="p-0.5 text-gray-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Formulaire d'ajout de paiement */}
                       {remaining > 0 ? (
                         <div className="flex gap-2 mt-1">
                           <input type="number" placeholder="Montant" className="w-20 h-8 text-xs border rounded px-2" value={pf.amount} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, amount: e.target.value } }))} />
@@ -214,16 +315,35 @@ export default function CockpitDashboard() {
                             <option value="bank_transfer">Virement</option>
                           </select>
                           <input type="text" placeholder="Ref" className="w-16 h-8 text-xs border rounded px-2" value={pf.reference} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, reference: e.target.value } }))} />
-                          <button className="h-8 px-3 bg-emerald-600 text-white text-xs rounded font-medium" onClick={() => { const amt = parseFloat(pf.amount); if (amt > 0) { const actualAmt = amt > remaining ? remaining : amt; handlePayment(oid, actualAmt, pf.method, pf.reference, adminName); setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } })); if (actualAmt >= remaining) handleStatus(oid, "ready", adminName); } }}>
+                          <button
+                            className="h-8 px-3 bg-emerald-600 text-white text-xs rounded font-medium"
+                            onClick={() => {
+                              const amt = parseFloat(pf.amount);
+                              if (amt > 0) {
+                                const actualAmt = amt > remaining ? remaining : amt;
+                                handlePayment(oid, actualAmt, pf.method, pf.reference, adminName);
+                                setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } }));
+                                // Auto-avancement si solde atteint
+                                if (actualAmt >= remaining) {
+                                  const nextSt = isImport(o) ? "ready_delivery" : "ready";
+                                  handleStatus(oid, nextSt, adminName);
+                                }
+                              }
+                            }}
+                          >
                             Encaisser
                           </button>
                         </div>
-                      ) : <div className="text-[10px] text-emerald-600 font-medium">Paye en totalite</div>}
+                      ) : (
+                        <div className="text-[10px] text-emerald-600 font-medium bg-emerald-50 rounded px-2 py-1">Paye en totalite — {fmtF(paid)} / {fmtF(grandTotal)}</div>
+                      )}
                     </div>
                   );
                 }
 
-                // Poste A PESER — formulaire inline
+                // ═══════════════════════════════════════════
+                // POSTE À PESER — Formulaire inline
+                // ═══════════════════════════════════════════
                 if (isWeighStation) {
                   const wf = weighForms[oid] ?? { realWeight: "", length: "", width: "", height: "" };
                   const rw = parseFloat(wf.realWeight) || 0;
@@ -240,6 +360,7 @@ export default function CockpitDashboard() {
                           <span className="font-mono text-[11px] font-bold">{getOrderNumber(oid)}</span>
                           <span className="text-xs">{o.customer_name}</span>
                         </div>
+                        <div className="text-[10px] text-gray-500">Produit: {fmtF(productTotal)}</div>
                       </div>
                       <div className="grid grid-cols-4 gap-2 mb-2">
                         <input type="number" placeholder="Poids (kg)" className="h-8 text-xs border rounded px-2" value={wf.realWeight} onChange={e => setWeighForms(prev => ({ ...prev, [oid]: { ...wf, realWeight: e.target.value } }))} />
@@ -251,16 +372,61 @@ export default function CockpitDashboard() {
                         <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
                           <div>Vol: {volWeight.toFixed(2)}kg | Facture: {chargeable.toFixed(2)}kg</div>
                           <div className="font-bold text-orange-700">Fret: {fmtF(freight)}</div>
+                          <div className="font-semibold">Total client: {fmtF(productTotal + freight)}</div>
                         </div>
                       )}
-                      <button className="h-8 px-4 bg-orange-600 text-white text-xs rounded font-medium w-full" disabled={!rw} onClick={() => { if (rw) { handleWeigh({ orderId: oid, realWeightKg: rw, lengthCm: l, widthCm: w, heightCm: h, volumetricWeightKg: volWeight, chargeableWeightKg: chargeable, freightRatePerKg: 7500, estimatedFreight: freight, finalFreight: freight, weighedBy: adminName }); setWeighForms(prev => ({ ...prev, [oid]: { realWeight: "", length: "", width: "", height: "" } })); handleStatus(oid, "payment_fees", adminName); } }}>
-                        Enregistrer la pesee
+                      <button
+                        className="h-8 px-4 bg-orange-600 text-white text-xs rounded font-medium w-full disabled:opacity-50"
+                        disabled={!rw}
+                        onClick={() => {
+                          if (rw) {
+                            // 1. Enregistrer la pesée
+                            handleWeigh({
+                              orderId: oid, realWeightKg: rw, lengthCm: l, widthCm: w, heightCm: h,
+                              volumetricWeightKg: volWeight, chargeableWeightKg: chargeable,
+                              freightRatePerKg: 7500, estimatedFreight: freight, finalFreight: freight,
+                              weighedBy: adminName,
+                            });
+                            // 2. Reset formulaire
+                            setWeighForms(prev => ({ ...prev, [oid]: { realWeight: "", length: "", width: "", height: "" } }));
+                            // 3. Auto-avancer vers "fees_calculated" (fret calculé, attente paiement)
+                            handleStatus(oid, "fees_calculated", adminName);
+                          }
+                        }}
+                      >
+                        Enregistrer la pesee → Calcul frais
                       </button>
                     </div>
                   );
                 }
 
-                // Poste simple (Confirmer, Expedier, Marquer livree)
+                // ═══════════════════════════════════════════
+                // POSTE SIMPLE (Confirmer, Expédier, Marquer livrée)
+                // ═══════════════════════════════════════════
+                if (isSimpleStation && ws) {
+                  return (
+                    <div key={oid} className="px-4 py-3 border-b border-gray-100 bg-white">
+                      <OrderCard
+                        order={o}
+                        index={0}
+                        onClick={() => setSelectedOrder(o)}
+                        totalPaid={paid}
+                        freight={freight}
+                        grandTotal={grandTotal}
+                        quickAction={{
+                          label: ws.actionLabel,
+                          color: ws.actionColor,
+                          onClick: (e) => {
+                            e.stopPropagation();
+                            handleStatus(oid, ws.nextStatus, adminName);
+                          },
+                        }}
+                      />
+                    </div>
+                  );
+                }
+
+                // Fallback: afficher la carte sans action
                 return (
                   <OrderCard
                     key={oid}
@@ -268,24 +434,28 @@ export default function CockpitDashboard() {
                     index={0}
                     onClick={() => setSelectedOrder(o)}
                     totalPaid={paid}
-                    quickAction={ws ? { label: ws.actionLabel, color: ws.actionColor, onClick: (e) => { e.stopPropagation(); handleStatus(oid, ws.nextStatus, adminName); } } : undefined}
+                    freight={freight}
+                    grandTotal={grandTotal}
                   />
                 );
               })}
             </div>
           );
         })() : activeTab === "actions" && viewMode === "pipeline" ? (
-          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} />
+          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} />
         ) : activeTab === "archive" ? (
-          <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} totalPaidMap={totalPaidMap} onSelect={setSelectedOrder} cancellations={cancellations} />
+          <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
           <div className="divide-y divide-gray-100">
-            {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={totalPaidMap[o.order_id ?? ""]} />)}
+            {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => {
+              const a = getAmounts(o);
+              return <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={a.paid} freight={a.freight} grandTotal={a.grandTotal} />;
+            })}
           </div>
         )}
       </div>
 
-      {/* Bottom nav (seulement hors poste de travail) */}
+      {/* Bottom nav */}
       {!ws && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
           <div className="flex justify-around items-center h-14">
@@ -318,16 +488,17 @@ export default function CockpitDashboard() {
 // Archive View
 // ════════════════════════════════════════════
 
-function ArchiveView({ orders, archiveFilter, totalPaidMap, onSelect, cancellations }: {
-  orders: LogisticsOrderRow[]; archiveFilter: ArchiveFilter; totalPaidMap: Record<string, number>;
+function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
+  orders: LogisticsOrderRow[]; archiveFilter: ArchiveFilter;
   onSelect: (o: LogisticsOrderRow) => void; cancellations: any[];
 }) {
-  const filtered = orders.filter(o => archiveFilter === "all" || o.logistics_status === archiveFilter);
+  const [filter, setFilter] = useState<ArchiveFilter>(archiveFilter);
+  const filtered = orders.filter(o => filter === "all" || o.logistics_status === filter);
   return (
     <div>
       <div className="px-4 pt-2 pb-1 flex gap-2">
         {(["all", "delivered", "cancelled"] as ArchiveFilter[]).map(f => (
-          <button key={f} onClick={() => {}} className={`text-[10px] px-3 py-1.5 rounded-full border ${archiveFilter === f ? "bg-orange-100 border-orange-300 text-orange-800 font-semibold" : "bg-white border-gray-200 text-gray-600"}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`text-[10px] px-3 py-1.5 rounded-full border ${filter === f ? "bg-orange-100 border-orange-300 text-orange-800 font-semibold" : "bg-white border-gray-200 text-gray-600"}`}>
             {f === "all" ? "Toutes" : f === "delivered" ? "Livrées" : "Annulées"}
           </button>
         ))}

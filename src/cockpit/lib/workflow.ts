@@ -139,18 +139,21 @@ export function isImport(order: { shipping_service_id?: string | null; order_typ
 
 /* ─── MAPPING STATUS → KPI FILTER ───
    
-   IMPORTANT: Les statuts Supabase peuvent etre "", null, ou "new".
-   Tous ces cas doivent etre traites comme "new" (A confirmer).
+   IMPORTANT: Chaque statut mappe vers UN seul KPI ou null (Archive).
    
    Regles exactes:
    - new / "" / null → "new" (A confirmer)
-   - awaiting_payment / payment_fees → "payment_pending"
+   - awaiting_payment / payment_fees → "payment_pending" (solde a payer)
    - awaiting_weighing → "to_weigh"
-   - confirmed / ordered_supplier / received_warehouse / in_transit /
-     arrived_senegal / preparing / ready / ready_delivery / fees_calculated → "ready"
+   - ready / ready_delivery → "ready" (COMMANDES REELLEMENT PRETE A EXPEDIER)
    - shipped → "shipped"
-   - delivered / cancelled → null (hors KPI, vont dans Archive)
-   - Tout autre statut inconnu → "ready" (ne pas perdre de commande)
+   - delivered / cancelled → null (Archive)
+   
+   Les statuts intermediaires du workflow Import n'apparaissent dans AUCUN KPI:
+   - confirmed, ordered_supplier, received_warehouse, fees_calculated, preparing
+   Ils sont visibles dans la vue Pipeline / Liste generale.
+   
+   - Tout autre statut inconnu → null (pas de KPI, visible dans la liste)
 */
 export function statusToKpiFilter(status: string | null | undefined): KpiFilter {
   const s = (status ?? "").trim();
@@ -164,20 +167,19 @@ export function statusToKpiFilter(status: string | null | undefined): KpiFilter 
   // A peser
   if (s === "awaiting_weighing") return "to_weigh";
   
-  // Pret (tous les statuts intermediaires)
-  if (["confirmed", "ordered_supplier", "received_warehouse",
-       "preparing", "ready", "ready_delivery",
-       "fees_calculated"].includes(s)) return "ready";
+  // Pret : SEULEMENT les commandes reellement pretes a expedier
+  if (s === "ready" || s === "ready_delivery") return "ready";
   
-  // Expedie
+  // Expediee
   if (s === "shipped") return "shipped";
   
   // Archive (pas de KPI)
   if (s === "delivered" || s === "cancelled") return null;
   
-  // Par defaut: ne pas perdre de commande, la mettre dans "ready"
-  console.warn(`[statusToKpiFilter] Statut inconnu: "${s}" — traite comme "ready"`);
-  return "ready";
+  // Statuts intermediaires (confirmed, ordered_supplier, received_warehouse,
+  // fees_calculated, preparing, contacted, etc.) : AUCUN KPI
+  // Ils restent visibles dans la vue Pipeline / Liste generale
+  return null;
 }
 
 /* ─── CIRCUIT MÉTIER : étape suivante ─── */

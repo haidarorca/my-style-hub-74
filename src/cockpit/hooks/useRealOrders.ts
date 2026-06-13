@@ -16,6 +16,7 @@ const LS_AUDIT = "kz_audit_v2";
 const LS_CANCEL = "kz_cancel_v2";
 const LS_WEIGHT = "kz_weight_v2";
 const LS_STATUS = "kz_status_v2"; // Overrides de statut (annulations, etc)
+const LS_FREIGHT = "kz_freight_v2"; // Fret calculé par commande (persiste le montant du transport)
 
 function load<T>(key: string, fallback: T): T {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
@@ -57,6 +58,12 @@ export function useRealOrders() {
   /* ── Pesées ── */
   const [weighings, setWeighings] = useState<WeighingRecord[]>(() => load(LS_WEIGHT, []));
   useEffect(() => save(LS_WEIGHT, weighings), [weighings]);
+
+  /* ── Fret calculé par commande (persisté après pesée) ── 
+     Clé: orderId, Valeur: montant du fret en FCFA
+     Permet d'afficher Prix produit + Fret = Total dans les KPI */
+  const [freightMap, setFreightMap] = useState<Record<string, number>>(() => load(LS_FREIGHT, {}));
+  useEffect(() => save(LS_FREIGHT, freightMap), [freightMap]);
 
   /* ── Overrides de statut (annulations, etc) ── 
      Clé: orderId, Valeur: statut forcé
@@ -140,7 +147,14 @@ export function useRealOrders() {
   const addWeighing = useCallback((w: Omit<WeighingRecord, "id" | "timestamp">) => {
     const record: WeighingRecord = { ...w, id: `wgh_${Date.now()}`, timestamp: new Date().toISOString() };
     setWeighings(prev => [record, ...prev]);
+    // Stocker le fret calculé dans freightMap pour l'affichage dans les KPI
+    setFreightMap(prev => ({ ...prev, [w.orderId]: w.finalFreight }));
     addAuditEntry(w.orderId, `Pesée — ${w.realWeightKg}kg réel, ${w.volumetricWeightKg.toFixed(2)}kg vol, Fret ${fmtF(w.finalFreight)}`, w.weighedBy);
+  }, []);
+
+  /* ── Définir le fret manuellement (pour corrections) ── */
+  const setFreight = useCallback((orderId: string, amount: number) => {
+    setFreightMap(prev => ({ ...prev, [orderId]: amount }));
   }, []);
 
   /* ── Audit helper ── */
@@ -165,6 +179,7 @@ export function useRealOrders() {
     getAudit, addAuditEntry, updateStatus,
     cancelOrder, getCancellation, cancellations,
     getWeighings, addWeighing,
+    freightMap, setFreight,
   };
 }
 
