@@ -56,7 +56,7 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
         )}
       </div>
       <div className="shrink-0 text-right">
-        <div className="text-sm font-bold">{fmtF(order.order_total ?? 0)}</div>
+        <div className="text-sm font-bold">{fmtF(grandTotal)}</div>
         {remaining > 0 ? <div className="text-xs text-red-500 font-medium">Reste {fmtF(remaining)}</div> : grandTotal > 0 ? <div className="text-xs text-emerald-500">Payé</div> : null}
         <Badge variant="outline" className={`text-[8px] h-4 px-1 mt-1 ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
         {quickAction && (

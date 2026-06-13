@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,14 @@ interface Props {
 export function CancelDialog({ open, onClose, onConfirm, paidAmount, status, kzNumber }: Props) {
   const [reason, setReason] = useState("");
   const [refundType, setRefundType] = useState<RefundType>("no_refund");
+
+  // Réinitialiser les champs quand le dialog s'ouvre
+  useEffect(() => {
+    if (open) {
+      setReason("");
+      setRefundType("no_refund");
+    }
+  }, [open]);
 
   if (!open) return null;
   const check = checkCanCancel(status, paidAmount);
