@@ -209,9 +209,7 @@ export interface OrderItemDetail {
   product_id: string;
   product_name: string;
   product_image: string | null;
-  product_description: string | null;
-  all_images: string[];
-  variant_info: string | null; // toutes les images pour le détail
+  all_images: string[]; // toutes les images pour le détail
   quantity: number;
   unit_price: number;
   line_total: number;
@@ -235,118 +233,210 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     console.log("[getOrderItems] order_id:", data.order_id);
 
-    // 1. Récupérer le total de la commande (fallback)
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 0 : Récupérer la commande pour fallback
+    // ═══════════════════════════════════════════════════════════════
     const { data: orderRow } = await supabaseAdmin
-      .from("logistics_orders")
-      .select("order_total")
-      .eq("order_id", data.order_id)
-      .single();
-    const orderTotal = orderRow?.order_total ?? 0;
+      .from("orders")
+      .select("id, total, product_id, product_name, designation, description, vendor_id, quantity, unit_price, commission_rate, status")
+      .eq("id", data.order_id)
+      .maybeSingle();
 
-    // 2. Charger les order_items
-    const { data: items, error: itemsErr } = await supabaseAdmin
+    console.log("[getOrderItems] orderRow:", orderRow ? "found" : "not found", "total:", orderRow?.total);
+
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 1 : Charger les order_items
+    // ═══════════════════════════════════════════════════════════════
+    let items: Array<{ product_id: string | null; quantity: number | null; unit_price?: number | null }> = [];
+
+    const { data: orderItems, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("product_id, quantity")
+      .select("product_id, quantity, unit_price")
       .eq("order_id", data.order_id);
 
-    if (itemsErr || !items || items.length === 0) {
-      return { items: [], order_total: orderTotal, vendor_summary: [], error: null } as any;
+    if (itemsErr) {
+      console.error("[getOrderItems] order_items error:", itemsErr.message);
+    } else if (orderItems && orderItems.length > 0) {
+      items = orderItems;
+      console.log("[getOrderItems] order_items found:", items.length);
     }
 
-    const productIds = items.map(i => i.product_id).filter(Boolean);
-    const totalQty = items.reduce((s, i) => s + (i.quantity ?? 1), 0);
+    // ═══════════════════════════════════════════════════════════════
+    // FALLBACK 1 : Si order_items vide mais product_id sur orders
+    // ═══════════════════════════════════════════════════════════════
+    if (items.length === 0 && orderRow?.product_id) {
+      console.log("[getOrderItems] Fallback: using product_id from orders table");
+      items = [{
+        product_id: orderRow.product_id as string,
+        quantity: (orderRow.quantity as number) ?? 1,
+        unit_price: (orderRow.unit_price as number) ?? null,
+      }];
+    }
 
-    // 3. Charger les produits — CORRECT: vendor_id (pas shop_id!)
+    // ═══════════════════════════════════════════════════════════════
+    // FALLBACK 2 : Aucun article du tout → créer un item synthétique
+    // ═══════════════════════════════════════════════════════════════
+    if (items.length === 0 && orderRow) {
+      console.log("[getOrderItems] Fallback: creating synthetic item from order total");
+      const syntheticName = (orderRow.product_name as string)
+        || (orderRow.designation as string)
+        || "Commande " + data.order_id;
+      return {
+        items: [{
+          product_id: orderRow.id as string,
+          product_name: syntheticName,
+          product_image: null,
+          all_images: [],
+          quantity: (orderRow.quantity as number) ?? 1,
+          unit_price: (orderRow.unit_price as number) ?? (orderRow.total as number) ?? 0,
+          line_total: (orderRow.total as number) ?? 0,
+          shop_id: (orderRow.vendor_id as string) ?? null,
+          shop_name: null,
+          owner_name: null,
+          is_admin_shop: false,
+          commission_rate: (orderRow.commission_rate as number) ?? null,
+        }],
+        order_total: (orderRow.total as number) ?? 0,
+        vendor_summary: [],
+        error: null,
+      } as any;
+    }
+
+    if (items.length === 0) {
+      return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 2 : Charger les produits (avec vendor_id pour jointure)
+    // ═══════════════════════════════════════════════════════════════
+    const productIds = items.map(i => i.product_id).filter(Boolean) as string[];
     const { data: products, error: prodErr } = await supabaseAdmin
       .from("products")
-      .select("id, name, designation, description, price, vendor_id, commission_rate")
+      .select("id, name, designation, description, vendor_id, price, commission_rate")
       .in("id", productIds);
 
     if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
-    console.log("[getOrderItems] products:", products?.length ?? 0);
+    console.log("[getOrderItems] products found:", products?.length ?? 0);
 
-    // 4. Images
-    const imageMap = new Map<string, string>();
-    const allImagesMap = new Map<string, string[]>();
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 3 : Charger les images des produits
+    // ═══════════════════════════════════════════════════════════════
+    let imageMap = new Map<string, string>();
+    let allImagesMap = new Map<string, string[]>();
     try {
-      const { data: imgs } = await supabaseAdmin
+      const { data: productImages } = await supabaseAdmin
         .from("product_images")
         .select("product_id, url")
         .in("product_id", productIds)
         .order("position", { ascending: true });
-      for (const img of imgs ?? []) {
+
+      for (const img of productImages ?? []) {
         if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
         if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
         allImagesMap.get(img.product_id)!.push(img.url);
       }
-    } catch (e) { /* ignore */ }
+    } catch { /* ignorer */ }
 
-    // 5. VENDEURS — via profiles.vendor_id (pas shops!)
-    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean)));
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 4 : Charger les vendors (profiles) directement
+    // ═══════════════════════════════════════════════════════════════
+    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean))) as string[];
     console.log("[getOrderItems] vendorIds:", vendorIds);
 
-    const vendorMap = new Map<string, { full_name: string; shop_name: string; is_admin_shop: boolean }>();
+    let vendorMap = new Map<string, { name: string; full_name: string; is_admin: boolean }>();
     if (vendorIds.length > 0) {
-      const { data: vendors } = await supabaseAdmin
-        .from("profiles")
-        .select("id, full_name, shop_name, is_admin_shop")
-        .in("id", vendorIds);
-      console.log("[getOrderItems] vendors:", vendors?.length ?? 0);
-      for (const v of vendors ?? []) {
-        vendorMap.set(v.id, { full_name: v.full_name ?? "—", shop_name: v.shop_name ?? null, is_admin_shop: v.is_admin_shop ?? false });
+      try {
+        const { data: vendors } = await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, is_admin_shop, shop_name")
+          .in("id", vendorIds);
+
+        for (const v of vendors ?? []) {
+          vendorMap.set(v.id, {
+            name: v.shop_name ?? v.full_name ?? "Vendeur",
+            full_name: v.full_name ?? "—",
+            is_admin: v.is_admin_shop ?? false,
+          });
+        }
+        console.log("[getOrderItems] vendors found:", vendors?.length ?? 0);
+      } catch (e) {
+        console.error("[getOrderItems] vendors error:", (e as Error).message);
       }
     }
 
-    // 6. Assembler
-    const vendorGroups = new Map<string, any>();
-    const detailedItems = items.map((it, idx) => {
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 5 : Assembler le résultat
+    // ═══════════════════════════════════════════════════════════════
+    const vendorGroups = new Map<string, { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }>();
+
+    const detailedItems: OrderItemDetail[] = items.map((it, idx) => {
       const prod = (products ?? []).find(p => p.id === it.product_id);
       const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
       const qty = it.quantity ?? 1;
-      const price = prod?.price ?? 0;
+      // Prix : unit_price sur order_items > price sur products > 0
+      const price = it.unit_price ?? prod?.price ?? 0;
       const lineTotal = qty * price;
 
-      console.log(`[getOrderItems] item ${idx}: name="${prod?.name ?? "NOT FOUND"}", price=${price}, vendor="${vendor?.full_name ?? "—"}"`);
+      // Nom produit : name > designation > description > "Produit inconnu"
+      const prodName = prod?.name
+        || (prod as any)?.designation
+        || (prod as any)?.description
+        || (orderRow?.product_name as string)
+        || (orderRow?.designation as string)
+        || "Produit " + (idx + 1);
 
+      // Grouper par vendor
       const vId = prod?.vendor_id ?? "unknown";
       const existing = vendorGroups.get(vId);
-      if (existing) { existing.item_count += qty; existing.total += lineTotal; }
-      else {
+      if (existing) {
+        existing.item_count += qty;
+        existing.total += lineTotal;
+      } else {
         vendorGroups.set(vId, {
-          vendor_id: vId, vendor_name: vendor?.full_name ?? "—",
-          shop_name: vendor?.shop_name ?? "Non identifié", item_count: qty, total: lineTotal, is_admin: vendor?.is_admin_shop ?? false,
+          vendor_id: vId,
+          vendor_name: vendor?.full_name ?? "—",
+          shop_name: vendor?.name ?? "Source inconnue",
+          item_count: qty,
+          total: lineTotal,
+          is_admin: vendor?.is_admin ?? false,
         });
       }
 
       return {
         product_id: it.product_id ?? "",
-        product_name: prod?.name ?? `Article ${idx + 1}`,
-        product_designation: prod?.designation ?? null,
-        product_description: prod?.description ?? null,
+        product_name: prodName,
         product_image: imageMap.get(it.product_id ?? "") ?? null,
         all_images: allImagesMap.get(it.product_id ?? "") ?? [],
         quantity: qty,
         unit_price: price,
         line_total: lineTotal,
         shop_id: prod?.vendor_id ?? null,
-        shop_name: vendor?.shop_name ?? vendor?.full_name ?? null,
+        shop_name: vendor?.name ?? null,
         owner_name: vendor?.full_name ?? null,
-        is_admin_shop: vendor?.is_admin_shop ?? false,
-        commission_rate: prod?.commission_rate ?? null,
-        variant_info: null,
+        is_admin_shop: vendor?.is_admin ?? false,
+        commission_rate: (prod as any)?.commission_rate ?? null,
       };
     });
 
     const total = detailedItems.reduce((s, i) => s + i.line_total, 0);
-    console.log("[getOrderItems] DONE total:", total);
 
     return {
       items: detailedItems,
-      order_total: total > 0 ? total : orderTotal,
-      vendor_summary: Array.from(vendorGroups.values()),
+      order_total: total > 0 ? total : (orderRow?.total as number) ?? 0,
+      vendor_summary: Array.from(vendorGroups.values()).map(g => ({
+        vendor_id: g.vendor_id,
+        vendor_name: g.vendor_name,
+        shop_name: g.shop_name,
+        item_count: g.item_count,
+        total: g.total,
+        is_admin: g.is_admin,
+      })),
       error: null,
     } as any;
   });
+
+/* ── 8. Recuperer le resume de paiement d'une commande ── */
+
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
