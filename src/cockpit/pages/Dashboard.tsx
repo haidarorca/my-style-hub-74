@@ -55,7 +55,7 @@ const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionC
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
-  const adminName = profile?.full_name ?? profile?.email ?? "Admin"; // v2-sync
+  const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const {
     orders, isLoading, searchTerm, setSearchTerm,
     getPayments, getTotalPaid, getAudit,
@@ -657,6 +657,11 @@ export default function CockpitDashboard() {
         </div>
       )}
 
+      {/* Panel Articles */}
+      {showItemsPanel && selectedOrder && (
+        <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
+      )}
+
       {/* Drawer avec dialogs internes (dans SheetContent pour eviter inert Radix) */}
       {selectedOrder && (
         <OrderDrawer
@@ -665,7 +670,6 @@ export default function CockpitDashboard() {
           onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
           dialogs={
             <>
-              {showItemsPanel && <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />}
               <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />
               <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
             </>
