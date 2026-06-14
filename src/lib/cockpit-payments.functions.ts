@@ -388,7 +388,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const detailedItems: OrderItemDetail[] = orderItemsRaw.map((it, idx) => {
       const prod = it.product_id ? productMap.get(it.product_id) : null;
       const variant = it.variant_id ? variantMap.get(it.variant_id) : null;
-      const vendor = it.vendor_id ? vendorMap.get(it.vendor_id) : null;
+      // Fallback: vendor_id sur order_items > vendor_id sur products
+      const vid = it.vendor_id ?? prod?.vendor_id ?? null;
+      const vendor = vid ? vendorMap.get(vid) : null;
       const qty = it.quantity ?? 1;
       const price = it.unit_price ?? prod?.price ?? 0;
       const lineTotal = qty * price;
