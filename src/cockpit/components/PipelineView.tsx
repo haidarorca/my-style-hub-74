@@ -1,6 +1,8 @@
 import { useRef, useCallback } from "react";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { fmtF, fmtDateTime, STATUS_COLORS, isImport } from "@/cockpit/lib/workflow";
+import { getOrderMixType } from "@/cockpit/lib/article-states";
+import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
 interface Props {
@@ -8,6 +10,7 @@ interface Props {
   totalPaidMap: Record<string, number>;
   freightMap: Record<string, number>;
   onSelect: (o: LogisticsOrderRow) => void;
+  articlesMap?: Record<string, OrderArticle[]>;
 }
 
 interface Column {
@@ -32,7 +35,7 @@ const COLUMNS: Column[] = [
   { key: "shipped", title: "Expédiée", short: "Expéd.", color: "border-t-indigo-500", bgColor: "bg-indigo-50", chipBg: "bg-indigo-100", chipText: "text-indigo-700", statuses: ["shipped"] },
 ];
 
-export function PipelineView({ orders, totalPaidMap, freightMap, onSelect }: Props) {
+export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, articlesMap }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const colRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -86,7 +89,9 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect }: Pro
                 <div className="text-[10px] text-gray-400 text-center py-4 italic">Vide</div>
               ) : col.orders.map(order => {
                 const kz = getOrderNumber(order.order_id ?? "");
-                const imp = isImport(order);
+                const art = articlesMap?.[order.order_id ?? ""];
+                const mixte = art ? getOrderMixType(art) === "mixte" : false;
+                const imp = !mixte && isImport(order);
                 const oid = order.order_id ?? "";
                 const productTotal = order.order_total ?? 0;
                 const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
@@ -97,7 +102,11 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect }: Pro
                   <button key={order.order_id} onClick={() => onSelect(order)} className="w-full bg-white rounded-md p-2.5 text-left shadow-sm hover:shadow-md transition-shadow border border-gray-200">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-mono text-[10px] font-bold text-gray-800">{kz}</span>
+                      {mixte ? (
+                      <span className="text-[8px] px-1 py-0.5 rounded bg-gradient-to-r from-indigo-100 to-emerald-100 text-indigo-700 font-bold">MIX</span>
+                    ) : (
                       <span className={`text-[8px] px-1 py-0.5 rounded ${imp ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"}`}>{imp ? "IMP" : "LOC"}</span>
+                    )}
                     </div>
                     <div className="text-xs font-medium truncate">{order.customer_name ?? "—"}</div>
                     <div className="text-[10px] text-gray-400 mt-0.5">
