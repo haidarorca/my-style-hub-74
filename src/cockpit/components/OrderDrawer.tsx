@@ -146,7 +146,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                 <a href={waLink(order.customer_phone, waMsg)} target="_blank" rel="noopener noreferrer" className="ml-2 text-emerald-600 text-xs flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full"><MessageCircle className="h-3 w-3" />WhatsApp</a>
               </div>
             )}
-            {order.destination_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.destination_address}</div>}
+            {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
           </div>
 
           {/* ─── Bouton : Voir les articles (détail produit/vendeur) ─── */}
