@@ -262,12 +262,12 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const { data: orderRow } = await supabaseAdmin
       .from("orders")
-      .select("id, total, status, shipping_service_id, destination_country_name")
+      .select("id, total, status, shipping_service_id, destination_country_id")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    const orderCountry = orderRow?.destination_country_name ?? null;
-    console.log("[getOrderItems] order total:", orderRow?.total, "country:", orderCountry);
+    const orderCountry: string | null = null;
+    console.log("[getOrderItems] order total:", orderRow?.total, "destination_country_id:", orderRow?.destination_country_id);
 
     let orderItemsRaw: any[] = [];
 
