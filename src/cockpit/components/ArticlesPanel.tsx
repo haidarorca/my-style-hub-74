@@ -21,9 +21,10 @@ interface Props {
   onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
   onStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
+  onToggleType?: (productId: string) => void;
 }
 
-export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver }: Props) {
+export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver, onToggleType }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
@@ -106,12 +107,16 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${ARTICLE_STATUS_COLORS[art.status]}`}>
                     {ARTICLE_STATUS_LABELS[art.status]}
                   </span>
-                  {/* Badge type */}
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                    art.is_import ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
-                  }`}>
-                    {art.is_import ? "IMP" : "LOC"}
-                  </span>
+                  {/* Badge type — cliquable pour toggle MIXTE */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleType?.(art.product_id); }}
+                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${
+                      art.is_import ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                    }`}
+                    title="Cliquer pour changer le type (test MIXTE)"
+                  >
+                    {art.is_import ? "IMP" : "LOC"} ↻
+                  </button>
                   {/* Qty */}
                   <span className="text-[10px] text-gray-500">
                     x{art.quantity}
