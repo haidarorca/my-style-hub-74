@@ -6,7 +6,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
-import { createOrderPayment, listAllOrderPayments } from "@/lib/cockpit-payments.functions";
+import { createOrderPayment, listAllOrderPayments, getOrderTypesBatch } from "@/lib/cockpit-payments.functions";
 import { preloadOrderNumbers } from "@/cockpit/lib/orderNumbers";
 import type { PaymentRecord, AuditEntry, CancellationRecord, WeighingRecord, PaymentMethod, RefundType } from "@/cockpit/types";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
@@ -42,6 +42,17 @@ export function useRealOrders() {
   useEffect(() => {
     if (orders.length > 0) preloadOrderNumbers(orders.map(o => o.order_id ?? "").filter(Boolean));
   }, [orders]);
+
+  /* ── Types mixte par commande (batch) ── */
+  const [orderTypeMap, setOrderTypeMap] = useState<Record<string, "local" | "import" | "mixte">>({});
+  useEffect(() => {
+    if (orders.length === 0) return;
+    const ids = orders.map(o => o.order_id ?? "").filter(Boolean);
+    if (ids.length === 0) return;
+    getOrderTypesBatch({ data: { order_ids: ids } })
+      .then(map => setOrderTypeMap(map as Record<string, "local" | "import" | "mixte">))
+      .catch(() => {}); // Silencieux: fallback sur isImport()
+  }, [ordersData]);
 
   /* ── Paiements locaux ── */
   const [localPayments, setLocalPayments] = useState<PaymentRecord[]>(() => load(LS_PAYMENTS, []));
@@ -201,6 +212,7 @@ export function useRealOrders() {
     cancelOrder, getCancellation, cancellations,
     getWeighings, addWeighing,
     freightMap, setFreight, getOrderFinancials,
+    orderTypeMap,
   };
 }
 
