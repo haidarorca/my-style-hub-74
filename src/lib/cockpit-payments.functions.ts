@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* ═══════════════════════════════════════════════════════════════
    Cockpit Payments — Persistance Supabase des paiements
    ═══════════════════════════════════════════════════════════════ */
@@ -54,13 +53,13 @@ export interface PaymentAudit {
 /* ── 1. Enregistrer un paiement ── */
 
 export const createOrderPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreatePaymentSchema.parse(input))
-  .handler(async ({ data }) => {
-    const auth = await requireSupabaseAuth();
-    const adminId = auth.user?.id ?? null;
-    const adminName = data.admin_name || auth.user?.email || "Admin";
+  .handler(async ({ data, context }) => {
+    const adminId = context.user?.id ?? null;
+    const adminName = data.admin_name || context.user?.email || "Admin";
 
-    const { data: payment, error } = await supabaseAdmin
+    const { data: payment, error } = await context.supabase
       .from("order_payments")
       .insert({
         order_id: data.order_id,
@@ -81,8 +80,8 @@ export const createOrderPayment = createServerFn({ method: "POST" })
     // Recalculer le total
     await recalcOrderPayment(data.order_id);
 
-    // Audit direct (pas d'appel a une autre serverFn)
-    await supabaseAdmin.from("payment_audit").insert({
+    // Audit direct
+    await context.supabase.from("payment_audit").insert({
       order_id: data.order_id,
       action: "Paiement enregistre",
       admin_name: adminName,
@@ -98,8 +97,6 @@ export const createOrderPayment = createServerFn({ method: "POST" })
 export const listOrderPayments = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    await requireSupabaseAuth();
-
     const { data: payments, error } = await supabaseAdmin
       .from("order_payments")
       .select("*")
@@ -118,8 +115,6 @@ export const listOrderPayments = createServerFn({ method: "POST" })
 
 export const listAllOrderPayments = createServerFn({ method: "POST" })
   .handler(async () => {
-    await requireSupabaseAuth();
-
     const { data: payments, error } = await supabaseAdmin
       .from("order_payments")
       .select("*")
@@ -138,17 +133,13 @@ export const listAllOrderPayments = createServerFn({ method: "POST" })
 export const createPaymentAudit = createServerFn({ method: "POST" })
   .inputValidator((input) => AuditSchema.parse(input))
   .handler(async ({ data }) => {
-    const auth = await requireSupabaseAuth();
-    const adminId = data.admin_id ?? auth.user?.id ?? null;
-    const adminName = data.admin_name || auth.user?.email || "Admin";
-
     const { error } = await supabaseAdmin
       .from("payment_audit")
       .insert({
         order_id: data.order_id,
         action: data.action,
-        admin_name: adminName,
-        admin_id: adminId,
+        admin_name: data.admin_name || "Admin",
+        admin_id: data.admin_id || null,
         details: data.details || null,
       });
 
@@ -164,8 +155,6 @@ export const createPaymentAudit = createServerFn({ method: "POST" })
 export const listPaymentAudit = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    await requireSupabaseAuth();
-
     const { data: audit, error } = await supabaseAdmin
       .from("payment_audit")
       .select("*")
@@ -203,15 +192,14 @@ async function recalcOrderPayment(orderId: string) {
   }
 }
 
-/* ── 7. Recuperer les articles d'une commande (avec produits et vendeur) ── */
+/* ── 7. Recuperer les articles d'une commande ── */
 
-// ─── Infos complètes du vendeur (pour la fiche cliquable) ───
 export interface VendorFullInfo {
   vendor_id: string;
   shop_name: string | null;
   owner_name: string | null;
   is_admin_shop: boolean;
-  shop_type_label: string;           // "Boutique Officielle" | "Boutique Vendeur"
+  shop_type_label: string;
   phone: string | null;
   email: string | null;
   address: string | null;
@@ -234,13 +222,11 @@ export interface OrderItemDetail {
   quantity: number;
   unit_price: number;
   line_total: number;
-  // ─── Variante choisie ───
   variant_id: string | null;
   variant_label: string | null;
   size: string | null;
   color: string | null;
   color_hex: string | null;
-  // ─── Source / Boutique ───
   shop_id: string | null;
   shop_name: string | null;
   owner_name: string | null;
@@ -248,9 +234,7 @@ export interface OrderItemDetail {
   shop_type_label: string | null;
   commission_rate: number | null;
   commission_amount: number | null;
-  // ─── Infos vendeur complètes ───
   vendor: VendorFullInfo | null;
-  // ─── Pays d'origine (pour les imports) ───
   origin_country: string | null;
   origin_country_flag: string | null;
 }
@@ -276,25 +260,16 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     console.log("[getOrderItems] order_id:", data.order_id);
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 0 : Récupérer la commande (pour le total et fallback)
-    // ═══════════════════════════════════════════════════════════════
     const { data: orderRow } = await supabaseAdmin
       .from("orders")
       .select("id, total, status, shipping_service_id, destination_country_name")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    const isImportOrder = !!orderRow?.shipping_service_id;  // commande IMPORT si shipping_service_id est défini
-    const orderCountry = orderRow?.destination_country_name ?? null;  // pays de destination pour les imports
+    const isImportOrder = !!orderRow?.shipping_service_id;
+    const orderCountry = orderRow?.destination_country_name ?? null;
     console.log("[getOrderItems] order:", isImportOrder ? "IMPORT" : "LOCAL", "total:", orderRow?.total, "country:", orderCountry);
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 1 : Charger les order_items (SOURCE DE VÉRITÉ)
-    //  Structure: product_id, product_name, product_code, product_image_url,
-    //              variant_id, size, color, unit_price, quantity,
-    //              vendor_id, commission_rate, commission_amount, customization
-    // ═══════════════════════════════════════════════════════════════
     let orderItemsRaw: any[] = [];
 
     const { data: itemsFromDb, error: itemsErr } = await supabaseAdmin
@@ -309,40 +284,25 @@ export const getOrderItems = createServerFn({ method: "POST" })
       console.log("[getOrderItems] order_items found:", orderItemsRaw.length);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 2 : Collecter les IDs pour les requêtes annexes
-    // ═══════════════════════════════════════════════════════════════
     const productIds = orderItemsRaw.map(i => i.product_id).filter(Boolean) as string[];
     const variantIds = orderItemsRaw.map(i => i.variant_id).filter(Boolean) as string[];
     const vendorIds = orderItemsRaw.map(i => i.vendor_id).filter(Boolean) as string[];
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 3 : Charger produits + variantes + vendors + images (PARALLÈLE)
-    // ═══════════════════════════════════════════════════════════════
     const [productsResult, variantsResult, vendorsResult, imagesResult, importProductsResult] = await Promise.allSettled([
-      // 3a. Produits (designation, description)
       productIds.length > 0
         ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate").in("id", productIds)
         : Promise.resolve({ data: [] }),
-
-      // 3b. Variantes (image de la variante choisie)
       variantIds.length > 0
         ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
         : Promise.resolve({ data: [] }),
-
-      // 3c. Vendors (profiles)
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
             "id, full_name, is_admin_shop, shop_name, phone, email, address, shop_description, shop_hours, shop_logo_url, is_verified, vendor_mode"
           ).in("id", vendorIds)
         : Promise.resolve({ data: [] }),
-
-      // 3d. Images des produits
       productIds.length > 0
         ? supabaseAdmin.from("product_images").select("product_id, url").in("product_id", productIds).order("position", { ascending: true })
         : Promise.resolve({ data: [] }),
-
-      // 3e. Import products (pays d'origine)
       productIds.length > 0
         ? supabaseAdmin.from("import_products").select("product_id, source_country_id, countries(name, flag_emoji)").in("product_id", productIds)
         : Promise.resolve({ data: [] }),
@@ -354,7 +314,6 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
     const importProducts = (importProductsResult.status === "fulfilled" ? importProductsResult.value.data : []) ?? [];
 
-    // Map: product_id → pays d'origine
     const countryMap = new Map<string, { name: string; flag: string }>();
     for (const ip of importProducts) {
       const c = (ip as any).countries;
@@ -363,12 +322,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
       }
     }
 
-    // Maps pour lookup rapide
     const productMap = new Map(products.map(p => [p.id, p]));
     const variantMap = new Map(variants.map(v => [v.id, v]));
     const vendorMap = new Map(vendors.map(v => [v.id, v]));
 
-    // Images par produit
     const imageMap = new Map<string, string>();
     const allImagesMap = new Map<string, string[]>();
     for (const img of productImages) {
@@ -379,9 +336,6 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     console.log("[getOrderItems] products:", products.length, "variants:", variants.length, "vendors:", vendors.length);
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 4 : Assembler les items détaillés
-    // ═══════════════════════════════════════════════════════════════
     const vendorGroups = new Map<string, {
       vendor_id: string; vendor_name: string; shop_name: string;
       shop_type_label: string | null; item_count: number; total: number; is_admin: boolean;
@@ -390,47 +344,32 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const detailedItems: OrderItemDetail[] = orderItemsRaw.map((it, idx) => {
       const prod = it.product_id ? productMap.get(it.product_id) : null;
       const variant = it.variant_id ? variantMap.get(it.variant_id) : null;
-      // Fallback: vendor_id sur order_items > vendor_id sur products
       const vid = it.vendor_id ?? prod?.vendor_id ?? null;
       const vendor = vid ? vendorMap.get(vid) : null;
       const qty = it.quantity ?? 1;
       const price = it.unit_price ?? prod?.price ?? 0;
       const lineTotal = qty * price;
 
-      // ─── Nom produit : order_items > products > fallback ───
-      const prodName = it.product_name
-        ?? prod?.name
-        ?? (prod as any)?.designation
-        ?? it.product_code
-        ?? "Produit " + (idx + 1);
+      const prodName = it.product_name ?? prod?.name ?? (prod as any)?.designation ?? it.product_code ?? "Produit " + (idx + 1);
 
-      // ─── Image : variante choisie > image produit > null ───
       const variantImage = variant?.image_url ?? null;
-      const productImage = it.product_image_url
-        ?? imageMap.get(it.product_id ?? "")
-        ?? null;
+      const productImage = it.product_image_url ?? imageMap.get(it.product_id ?? "") ?? null;
       const mainImage = variantImage ?? productImage;
 
-      // ─── Toutes les images : variante en premier, puis produit ───
       const allImgs: string[] = [];
       if (variantImage) allImgs.push(variantImage);
       const prodImgs = allImagesMap.get(it.product_id ?? "") ?? [];
       for (const img of prodImgs) if (!allImgs.includes(img)) allImgs.push(img);
 
-      // ─── Label variante : ex: "Rouge - M" ───
       const size = it.size ?? variant?.size ?? null;
       const color = it.color ?? variant?.color ?? null;
       const colorHex = variant?.color_hex ?? null;
-      const variantLabel = size && color
-        ? `${color} - ${size}`
-        : color ?? size ?? null;
+      const variantLabel = size && color ? `${color} - ${size}` : color ?? size ?? null;
 
-      // ─── Type de boutique ───
       const isAdmin = vendor?.is_admin_shop ?? false;
       const shopTypeLabel = isAdmin ? "Boutique Officielle" : "Boutique Vendeur";
       const shopName = vendor?.shop_name ?? vendor?.full_name ?? "Source inconnue";
 
-      // ─── Grouper par vendor ───
       const vId = it.vendor_id ?? "unknown";
       const existing = vendorGroups.get(vId);
       if (existing) {
@@ -448,58 +387,51 @@ export const getOrderItems = createServerFn({ method: "POST" })
         });
       }
 
-      // Type du produit : déterminé par le type de la commande
-      // IMPORT = commande avec shipping_service_id (produits importés)
-      // LOCAL = commande sans shipping_service_id (produits locaux)
-      // Le pays d'origine vient de destination_country_name sur la commande
       const productOriginCountry = countryMap.get(it.product_id ?? "");
-      const isImportProduct = isImportOrder;  // type de la commande
-      const isLocalProduct = !isImportOrder;  // inverse du type import
 
       return {
-          product_id: it.product_id ?? "",
-          product_name: prodName,
-          designation: (prod as any)?.designation ?? null,
-          description: (prod as any)?.description ?? null,
-          product_image: mainImage,
-          variant_image: variantImage,
-          all_images: allImgs,
-          quantity: qty,
-          unit_price: price,
-          line_total: lineTotal,
-          variant_id: it.variant_id ?? null,
-          variant_label: variantLabel,
-          size,
-          color,
-          color_hex: colorHex,
-          shop_id: it.vendor_id ?? null,
-          shop_name: shopName,
-          owner_name: vendor?.full_name ?? null,
-          is_admin_shop: isAdmin,
-          shop_type_label: shopTypeLabel,
-          commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
-          commission_amount: it.commission_amount ?? null,
-          is_import: isImportProduct,
-          is_local: isLocalProduct,
-          // Pays d'origine : import_products > destination_country_name de la commande > null
-          origin_country: productOriginCountry?.name ?? (isImportOrder ? orderCountry : null),
-          origin_country_flag: productOriginCountry?.flag ?? null,
-          vendor: it.vendor_id && vendor ? {
-            vendor_id: it.vendor_id,
-            shop_name: vendor.shop_name ?? null,
-            owner_name: vendor.full_name ?? null,
-            is_admin_shop: vendor.is_admin_shop ?? false,
-            shop_type_label: (vendor.is_admin_shop ?? false) ? "Boutique Officielle" : "Boutique Vendeur",
-            email: vendor.email ?? null,
-            address: vendor.address ?? null,
-            whatsapp: vendor.phone ?? null,
-            shop_description: (vendor as any)?.shop_description ?? null,
-            shop_hours: (vendor as any)?.shop_hours ?? null,
-            shop_logo_url: (vendor as any)?.shop_logo_url ?? null,
-            is_verified: (vendor as any)?.is_verified ?? false,
-            vendor_mode: (vendor as any)?.vendor_mode ?? null,
-          } : null,
-        } as any;
+        product_id: it.product_id ?? "",
+        product_name: prodName,
+        designation: (prod as any)?.designation ?? null,
+        description: (prod as any)?.description ?? null,
+        product_image: mainImage,
+        variant_image: variantImage,
+        all_images: allImgs,
+        quantity: qty,
+        unit_price: price,
+        line_total: lineTotal,
+        variant_id: it.variant_id ?? null,
+        variant_label: variantLabel,
+        size,
+        color,
+        color_hex: colorHex,
+        shop_id: it.vendor_id ?? null,
+        shop_name: shopName,
+        owner_name: vendor?.full_name ?? null,
+        is_admin_shop: isAdmin,
+        shop_type_label: shopTypeLabel,
+        commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
+        commission_amount: it.commission_amount ?? null,
+        is_import: isImportOrder,
+        is_local: !isImportOrder,
+        origin_country: productOriginCountry?.name ?? (isImportOrder ? orderCountry : null),
+        origin_country_flag: productOriginCountry?.flag ?? null,
+        vendor: it.vendor_id && vendor ? {
+          vendor_id: it.vendor_id,
+          shop_name: vendor.shop_name ?? null,
+          owner_name: vendor.full_name ?? null,
+          is_admin_shop: vendor.is_admin_shop ?? false,
+          shop_type_label: (vendor.is_admin_shop ?? false) ? "Boutique Officielle" : "Boutique Vendeur",
+          email: vendor.email ?? null,
+          address: vendor.address ?? null,
+          whatsapp: vendor.phone ?? null,
+          shop_description: (vendor as any)?.shop_description ?? null,
+          shop_hours: (vendor as any)?.shop_hours ?? null,
+          shop_logo_url: (vendor as any)?.shop_logo_url ?? null,
+          is_verified: (vendor as any)?.is_verified ?? false,
+          vendor_mode: (vendor as any)?.vendor_mode ?? null,
+        } : null,
+      } as any;
     });
 
     const itemsTotal = detailedItems.reduce((s, i) => s + i.line_total, 0);
@@ -517,8 +449,6 @@ export const getOrderItems = createServerFn({ method: "POST" })
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    await requireSupabaseAuth();
-
     const { data: summary, error } = await supabaseAdmin
       .from("order_payment_summary")
       .select("*")
@@ -546,9 +476,6 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
-    // LOGIQUE SIMPLE ET CORRECTE :
-    // shipping_service_id = défini → IMPORT (produit importé d'un autre pays)
-    // shipping_service_id = null    → LOCAL (produit disponible localement)
     const { data: orders } = await supabaseAdmin
       .from("orders")
       .select("id, shipping_service_id, destination_country_name")
