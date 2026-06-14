@@ -513,15 +513,14 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
-    // Charger order_items avec produits et vendors
-    const { data: items, error } = await supabaseAdmin
+    // Étape 1: Charger order_items
+    const { data: items, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("order_id, product_id, quantity, products!inner(vendor_id, profiles!inner(is_admin_shop))")
+      .select("order_id, product_id")
       .in("order_id", data.order_ids);
 
-    if (error) {
-      console.error("[getOrderTypesBatch] error:", error.message);
-      // Fallback: utiliser shipping_service_id des orders
+    if (itemsErr || !items || items.length === 0) {
+      // Fallback: utiliser shipping_service_id
       const { data: orders } = await supabaseAdmin
         .from("orders")
         .select("id, shipping_service_id")
@@ -533,14 +532,37 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
       return result as any;
     }
 
+    // Étape 2: Charger les produits correspondants
+    const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean)));
+    const { data: products } = await supabaseAdmin
+      .from("products")
+      .select("id, vendor_id")
+      .in("id", productIds);
+
+    // Étape 3: Charger les vendors (profiles)
+    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean)));
+    const { data: vendors } = await supabaseAdmin
+      .from("profiles")
+      .select("id, is_admin_shop")
+      .in("id", vendorIds);
+
+    const vendorMap = new Map<string, boolean>();
+    for (const v of vendors ?? []) {
+      vendorMap.set(v.id, v.is_admin_shop ?? false);
+    }
+    const productMap = new Map<string, string | null>();
+    for (const p of products ?? []) {
+      productMap.set(p.id, p.vendor_id);
+    }
+
     // Grouper par order_id et déterminer le type
     const orderItems = new Map<string, { is_admin: boolean }[]>();
-    for (const it of items ?? []) {
+    for (const it of items) {
       const orderId = it.order_id;
+      const vid = productMap.get(it.product_id ?? "");
+      if (!vid) continue;
       if (!orderItems.has(orderId)) orderItems.set(orderId, []);
-      const prod = (it as any).products;
-      const profile = prod?.profiles;
-      orderItems.get(orderId)!.push({ is_admin: profile?.is_admin_shop ?? false });
+      orderItems.get(orderId)!.push({ is_admin: vendorMap.get(vid) ?? false });
     }
 
     const result: Record<string, "local" | "import" | "mixte"> = {};
