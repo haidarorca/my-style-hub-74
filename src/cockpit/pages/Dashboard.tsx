@@ -83,7 +83,7 @@ export default function CockpitDashboard() {
   // ─── Filtres avancés ───
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [typeFilter, setTypeFilter] = useState<string>(""); // "", "local", "import"
+  const [typeFilter, setTypeFilter] = useState<string>(""); // "", "local", "import", "mixte"
   const [balanceFilter, setBalanceFilter] = useState<string>(""); // "", "unpaid", "partial", "paid"
   const [minDays, setMinDays] = useState<string>("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -264,7 +264,7 @@ export default function CockpitDashboard() {
     switch (activeTab) {
       case "local": list = list.filter(o => !isImport(o)); break;
       case "import": list = list.filter(o => isImport(o)); break;
-      case "mixte": list = list.filter(o => isImport(o)); break; // TODO: vrai filtre mixte quand données articles dispo
+      case "mixte": list = list.filter(o => orderTypeMap[o.order_id ?? ""] === "mixte"); break;
       case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
       default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
     }
@@ -298,7 +298,10 @@ export default function CockpitDashboard() {
       list = list.filter(statusMatch);
     }
     if (typeFilter) {
-      list = list.filter(o => typeFilter === "import" ? isImport(o) : !isImport(o));
+      list = list.filter(o => {
+        if (typeFilter === "mixte") return orderTypeMap[o.order_id ?? ""] === "mixte";
+        return typeFilter === "import" ? isImport(o) : !isImport(o);
+      });
     }
     if (balanceFilter) {
       list = list.filter(o => {
@@ -339,7 +342,7 @@ export default function CockpitDashboard() {
     });
 
     return list;
-  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, typeFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge]);
+  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, typeFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, orderTypeMap]);
 
   // ─── Compteurs de résultats ───
   const resultCount = displayOrders.length;
@@ -482,6 +485,7 @@ export default function CockpitDashboard() {
                     <option value="">Tous</option>
                     <option value="local">Local</option>
                     <option value="import">Import</option>
+                    <option value="mixte">Mixte</option>
                   </select>
                 </div>
                 {/* Solde */}
@@ -842,4 +846,4 @@ function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
     </div>
   );
 }// sync: Sun Jun 14 06:08:17 CST 2026
-// lovable-sync: 1781388653
+// lovable-sync: 17
