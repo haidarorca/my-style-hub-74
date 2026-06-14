@@ -152,6 +152,8 @@ export default function CockpitDashboard() {
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
+            origin_country: it.origin_country ?? null,
+            origin_country_flag: it.origin_country_flag ?? null,
           }));
           setSelectedArticles(arts);
         } else {
