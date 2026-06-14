@@ -53,9 +53,10 @@ interface Props {
   onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
   onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
+  onToggleType?: (productId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onToggleType }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -149,25 +150,29 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             {order.destination_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.destination_address}</div>}
           </div>
 
-          {/* ─── Articles : gestion article par article ─── */}
-          {articles && articles.length > 0 ? (
-            <ArticlesPanel
-              articles={articles}
-              onStockBreak={onStockBreak}
-              onStatusChange={onArticleStatusChange}
-              onPartialDeliver={onPartialDeliver}
-            />
-          ) : onViewItems && (
+          {/* ─── Bouton : Voir les articles (détail produit/vendeur) ─── */}
+          {onViewItems && (
             <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-2">
                 <ListOrdered className="h-5 w-5 text-orange-600" />
                 <div className="text-left">
                   <div className="text-sm font-semibold text-orange-800">Voir les articles</div>
-                  <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission</div>
+                  <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission, variantes</div>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-orange-400" />
             </button>
+          )}
+
+          {/* ─── Gestion article par article ─── */}
+          {articles && articles.length > 0 && (
+            <ArticlesPanel
+              articles={articles}
+              onStockBreak={onStockBreak}
+              onStatusChange={onArticleStatusChange}
+              onPartialDeliver={onPartialDeliver}
+              onToggleType={onToggleType}
+            />
           )}
 
           {/* Finances */}
