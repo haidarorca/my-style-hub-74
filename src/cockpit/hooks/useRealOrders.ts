@@ -101,7 +101,7 @@ export function useRealOrders() {
 
   /* ── Fusion Supabase + local ── */
   const allPayments = useMemo(() => {
-    const sb = (sbPayments ?? []) as PaymentRecord[];
+    const sb = (sbPayments ?? []) as unknown as PaymentRecord[];
     const merged = [...sb];
     for (const lp of localPayments) if (!merged.some(m => m.id === lp.id)) merged.push(lp);
     return merged;
