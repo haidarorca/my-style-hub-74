@@ -115,26 +115,9 @@ export default function CockpitDashboard() {
       .then((result: any) => {
         if (result?.items && result.items.length > 0) {
           // Convertir les items du serveur en OrderArticle
-          const orderIsImport = isImport(selectedOrder);
+          // Le backend DÉTERMINE is_import/is_local — on utilise SES valeurs sans fallback
           const rawItems = result.items ?? [];
-          // Si aucun item en base, créer un article synthétique depuis la commande
-          const itemsToConvert = rawItems.length > 0 ? rawItems : [{
-            product_id: selectedOrder.order_id ?? "synth",
-            product_name: "Commande " + getOrderNumber(selectedOrder.order_id ?? ""),
-            product_image: null,
-            variant_id: null,
-            variant_label: null,
-            size: null,
-            color: null,
-            quantity: 1,
-            unit_price: selectedOrder.order_total ?? 0,
-            line_total: selectedOrder.order_total ?? 0,
-            shop_id: null,
-            owner_name: null,
-            shop_name: null,
-            shop_type_label: null,
-          }];
-          const arts: OrderArticle[] = itemsToConvert.map((it: any, idx: number) => ({
+          const arts: OrderArticle[] = rawItems.map((it: any, idx: number) => ({
             product_id: it.product_id ?? `prod_${idx}`,
             product_name: it.product_name ?? "Produit",
             product_image: it.product_image ?? null,
@@ -146,9 +129,10 @@ export default function CockpitDashboard() {
             unit_price: it.unit_price ?? 0,
             line_total: it.line_total ?? 0,
             status: "pending" as ArticleStatus,
-            // Le backend détermine is_import/is_local — on utilise directement
-            is_import: it.is_import ?? orderIsImport,
-            is_local: it.is_local ?? !orderIsImport,
+            // PAS DE FALLBACK : si le backend ne renvoie pas is_import/is_local,
+            // c'est false par défaut. Le backend est la seule source de vérité.
+            is_import: it.is_import ?? false,
+            is_local: it.is_local ?? false,
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
@@ -157,26 +141,8 @@ export default function CockpitDashboard() {
           }));
           setSelectedArticles(arts);
         } else {
-          // Fallback : article synthétique depuis la commande
-          const orderIsImport = isImport(selectedOrder);
-          setSelectedArticles([{
-            product_id: selectedOrder.order_id ?? "synth",
-            product_name: "Commande " + getOrderNumber(selectedOrder.order_id ?? ""),
-            product_image: null,
-            variant_id: null,
-            variant_label: null,
-            size: null,
-            color: null,
-            quantity: 1,
-            unit_price: selectedOrder.order_total ?? 0,
-            line_total: selectedOrder.order_total ?? 0,
-            status: "pending" as ArticleStatus,
-            is_import: orderIsImport,  // Fallback: type de la commande entière
-            is_local: !orderIsImport,
-            vendor_id: null,
-            vendor_name: null,
-            shop_type_label: null,
-          }]);
+          // Aucun article en base : tableau vide (pas de synthétique biaisé)
+          setSelectedArticles([]);
         }
       })
       .catch(() => setSelectedArticles([]));
@@ -264,8 +230,8 @@ export default function CockpitDashboard() {
 
     // 2. Tab filter (local/import/mixte/archive)
     switch (activeTab) {
-      case "local": list = list.filter(o => !isImport(o)); break;
-      case "import": list = list.filter(o => isImport(o)); break;
+      case "local": list = list.filter(o => (orderTypeMap[o.order_id ?? ""] ?? "local") === "local"); break;
+      case "import": list = list.filter(o => (orderTypeMap[o.order_id ?? ""] ?? "local") === "import"); break;
       case "mixte": list = list.filter(o => orderTypeMap[o.order_id ?? ""] === "mixte"); break;
       case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
       default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
@@ -302,7 +268,9 @@ export default function CockpitDashboard() {
     if (typeFilter) {
       list = list.filter(o => {
         if (typeFilter === "mixte") return orderTypeMap[o.order_id ?? ""] === "mixte";
-        return typeFilter === "import" ? isImport(o) : !isImport(o);
+        return typeFilter === "import"
+          ? (orderTypeMap[o.order_id ?? ""] ?? "local") === "import"
+          : (orderTypeMap[o.order_id ?? ""] ?? "local") === "local";
       });
     }
     if (balanceFilter) {

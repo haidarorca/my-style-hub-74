@@ -497,11 +497,8 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
         .from("orders")
         .select("id, shipping_service_id")
         .in("id", data.order_ids);
-      const result: Record<string, "local" | "import" | "mixte"> = {};
-      for (const o of orders ?? []) {
-        result[o.id] = o.shipping_service_id ? "import" : "local";
-      }
-      return result as any;
+      // Pas de chemin rapide — on doit TOUJOURS vérifier import_products
+      // pour déterminer le type réel de chaque commande
     }
 
     // Étape 2: Charger les produits dans import_products
@@ -531,15 +528,30 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
       else result[orderId] = "local";
     }
 
-    // Fallback pour commandes sans items
+    // Fallback pour commandes sans items : vérifier si les produits
+    // de cette commande sont dans import_products (même logique que le batch)
     for (const oid of data.order_ids) {
       if (!result[oid]) {
-        const { data: orderRow } = await supabaseAdmin
-          .from("orders")
-          .select("shipping_service_id")
-          .eq("id", oid)
-          .maybeSingle();
-        result[oid] = orderRow?.shipping_service_id ? "import" : "local";
+        // Récupérer les product_ids de cette commande
+        const { data: orderItems } = await supabaseAdmin
+          .from("order_items")
+          .select("product_id")
+          .eq("order_id", oid);
+        const pids = Array.from(new Set((orderItems ?? []).map(it => it.product_id).filter(Boolean)));
+        if (pids.length > 0) {
+          const { data: ipRows } = await supabaseAdmin
+            .from("import_products")
+            .select("product_id")
+            .in("product_id", pids);
+          const hasImport = (ipRows ?? []).length > 0;
+          const hasLocal = (ipRows ?? []).length < pids.length;
+          if (hasImport && hasLocal) result[oid] = "mixte";
+          else if (hasImport) result[oid] = "import";
+          else result[oid] = "local";
+        } else {
+          // Sans produits identifiables : marquer "local" par défaut (le plus sûr)
+          result[oid] = "local";
+        }
       }
     }
 

@@ -26,8 +26,10 @@ interface Props {
 }
 
 export function OrderCard({ order, index, onClick, totalPaid, freight, grandTotal: gtProp, quickAction, articles, orderType }: Props) {
-  const isMixte = orderType === "mixte" || (articles ? getOrderMixType(articles) === "mixte" : false);
-  const imp = !isMixte && isImport(order);
+  // Type déterminé UNIQUEMENT par orderType (passé par le parent depuis orderTypeMap)
+  // JAMAIS par isImport(order) qui utilise shipping_service_id
+  const isMixte = orderType === "mixte";
+  const imp = orderType === "import";
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const productTotal = order.order_total ?? 0;
