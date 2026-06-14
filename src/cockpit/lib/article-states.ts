@@ -90,6 +90,9 @@ export interface OrderArticle {
   delivered_qty?: number;
   // Historique des états
   status_history?: { status: ArticleStatus; at: string; by: string }[];
+  // Pays d'origine (pour les imports)
+  origin_country?: string | null;
+  origin_country_flag?: string | null;
 }
 
 /** Type de commande : local, import, ou mixte */
