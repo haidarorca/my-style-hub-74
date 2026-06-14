@@ -52,8 +52,7 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
             {imp ? "IMPORT" : "LOCAL"}
           </Badge>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-1">
-          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="text-[10px] text-gray-400 mb-1">
           {fmtDateTime(order.order_created_at)}
         </div>
         {order.customer_phone && <div className="flex items-center gap-1 text-[11px] text-gray-500"><Phone className="h-3 w-3" />{order.customer_phone}</div>}
