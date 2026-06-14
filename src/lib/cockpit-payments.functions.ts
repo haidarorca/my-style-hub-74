@@ -468,7 +468,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    const { data: summary, error } = await supabaseAdmin
+    const { data: summary, error } = await (supabaseAdmin as any)
       .from("order_payment_summary")
       .select("*")
       .eq("order_id", data.order_id)
