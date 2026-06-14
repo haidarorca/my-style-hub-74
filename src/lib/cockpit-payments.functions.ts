@@ -205,20 +205,38 @@ async function recalcOrderPayment(orderId: string) {
 
 /* ── 7. Recuperer les articles d'une commande (avec produits et vendeur) ── */
 
+// ─── Infos complètes du vendeur (pour la fiche cliquable) ───
+export interface VendorFullInfo {
+  vendor_id: string;
+  shop_name: string | null;
+  owner_name: string | null;
+  is_admin_shop: boolean;
+  shop_type_label: string;           // "Boutique Officielle" | "Boutique Vendeur"
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  whatsapp: string | null;
+  shop_description: string | null;
+  shop_hours: string | null;
+  shop_logo_url: string | null;
+  is_verified: boolean;
+  vendor_mode: string | null;
+}
+
 export interface OrderItemDetail {
   product_id: string;
   product_name: string;
-  designation: string | null;        // ex: "T-shirt coton premium"
-  description: string | null;        // ex: "100% coton, lavable machine"
-  product_image: string | null;      // image principale (variante prioritaire)
-  variant_image: string | null;      // image de la variante choisie
-  all_images: string[];              // toutes les images pour le détail
+  designation: string | null;
+  description: string | null;
+  product_image: string | null;
+  variant_image: string | null;
+  all_images: string[];
   quantity: number;
   unit_price: number;
   line_total: number;
   // ─── Variante choisie ───
   variant_id: string | null;
-  variant_label: string | null;      // ex: "Rouge - M"
+  variant_label: string | null;
   size: string | null;
   color: string | null;
   color_hex: string | null;
@@ -227,9 +245,11 @@ export interface OrderItemDetail {
   shop_name: string | null;
   owner_name: string | null;
   is_admin_shop: boolean;
-  shop_type_label: string | null;    // "Boutique Officielle" ou "Boutique Vendeur"
+  shop_type_label: string | null;
   commission_rate: number | null;
   commission_amount: number | null;
+  // ─── Infos vendeur complètes ───
+  vendor: VendorFullInfo | null;
 }
 
 export interface OrderItemsResult {
@@ -307,7 +327,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
       // 3c. Vendors (profiles)
       vendorIds.length > 0
-        ? supabaseAdmin.from("profiles").select("id, full_name, is_admin_shop, shop_name").in("id", vendorIds)
+        ? supabaseAdmin.from("profiles").select(
+            "id, full_name, is_admin_shop, shop_name, phone, email, address, shop_description, shop_hours, shop_logo_url, is_verified, vendor_mode"
+          ).in("id", vendorIds)
         : Promise.resolve({ data: [] }),
 
       // 3d. Images des produits
@@ -427,6 +449,23 @@ export const getOrderItems = createServerFn({ method: "POST" })
         shop_type_label: shopTypeLabel,
         commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
         commission_amount: it.commission_amount ?? null,
+        // ─── Infos vendeur complètes pour la fiche ───
+        vendor: it.vendor_id && vendor ? {
+          vendor_id: it.vendor_id,
+          shop_name: vendor.shop_name ?? null,
+          owner_name: vendor.full_name ?? null,
+          is_admin_shop: vendor.is_admin_shop ?? false,
+          shop_type_label: (vendor.is_admin_shop ?? false) ? "Boutique Officielle" : "Boutique Vendeur",
+          phone: vendor.phone ?? null,
+          email: vendor.email ?? null,
+          address: vendor.address ?? null,
+          whatsapp: vendor.phone ?? null, // phone = whatsapp par défaut
+          shop_description: (vendor as any)?.shop_description ?? null,
+          shop_hours: (vendor as any)?.shop_hours ?? null,
+          shop_logo_url: (vendor as any)?.shop_logo_url ?? null,
+          is_verified: (vendor as any)?.is_verified ?? false,
+          vendor_mode: (vendor as any)?.vendor_mode ?? null,
+        } : null,
       };
     });
 
