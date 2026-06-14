@@ -116,7 +116,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       } as any);
       if (orderError) throw new Error(`Création commande: ${orderError.message}`);
 
-      const { error: itemsError } = await supabaseAdmin
+      // Utiliser le client authentifié (context.supabase) pour order_items
+      // car supabaseAdmin n'a pas d'auth.uid() -> trigger RLS qui verifie
+      // l'utilisateur bloque avec "Not allowed to update this order"
+      const { error: itemsError } = await context.supabase
         .from("order_items")
         .insert(orderRows.map((row) => ({ ...row, order_id: orderId })) as any);
       if (itemsError) {
