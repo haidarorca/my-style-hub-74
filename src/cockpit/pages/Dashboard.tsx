@@ -146,9 +146,10 @@ export default function CockpitDashboard() {
             unit_price: it.unit_price ?? 0,
             line_total: it.line_total ?? 0,
             status: "pending" as ArticleStatus,
-            // Si plusieurs articles : alterner les types pour tester MIXTE
-            is_import: itemsToConvert.length > 1 ? idx % 2 === 0 : orderIsImport,
-            is_local: itemsToConvert.length > 1 ? idx % 2 !== 0 : !orderIsImport,
+            // is_admin_shop = true → LOCAL (boutique Kawzone)
+            // is_admin_shop = false → IMPORT (vendeur externe)
+            is_import: !(it.is_admin_shop ?? false),
+            is_local: it.is_admin_shop ?? false,
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
