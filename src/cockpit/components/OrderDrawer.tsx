@@ -20,6 +20,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
 import { ArticlesPanel } from "./ArticlesPanel";
+import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getNextActionForOrder } from "@/cockpit/lib/article-states";
 import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 
@@ -127,52 +128,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Workflow LOCAL (commandes 100% locales) ─── */}
-          {isLocalOrder && (
-            <div className="bg-emerald-50 rounded-lg p-3 space-y-2 border border-emerald-200">
-              <h3 className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5"><Home className="h-3.5 w-3.5" />Circuit LOCAL</h3>
-              <div className="text-[10px] text-emerald-600 space-y-1">
-                <p>Workflow simplifié : pas de circuit international.</p>
-                <p>Confirmation → Préparation → Livraison directe</p>
-              </div>
-            </div>
-          )}
-
-          {/* ─── Workflow IMPORT (commandes 100% import) ─── */}
-          {(isImportOrder || isImportFallback) && stepIdx >= 0 && (
-            <div className="bg-indigo-50 rounded-lg p-3 space-y-2 border border-indigo-200">
-              <h3 className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" />Circuit IMPORT</h3>
-              <div className="w-full bg-indigo-200 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full transition-all" style={{ width: `${Math.max(5, ((stepIdx + 1) / IMPORT_STEPS.length) * 100)}%` }} /></div>
-              <div className="flex gap-1 flex-wrap">
-                {IMPORT_STEPS.map((s, i) => <div key={s.key} className={`text-[9px] px-1.5 py-0.5 rounded-full ${i <= stepIdx ? (i === stepIdx ? "bg-indigo-600 text-white font-bold" : "bg-indigo-200 text-indigo-800") : "bg-gray-200 text-gray-400"}`}>{i + 1}</div>)}
-              </div>
-              <div className="text-[10px] text-indigo-600 font-medium">{IMPORT_STEPS[stepIdx]?.description}</div>
-            </div>
-          )}
-
-          {/* ─── Workflow MIXTE (les deux circuits en parallèle) ─── */}
-          {isMixte && (
-            <div className="space-y-2">
-              <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 rounded-lg p-3 border border-orange-200">
-                <h3 className="text-xs font-semibold text-orange-800 flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" />Commande MIXTE — Deux circuits en parallèle</h3>
-                <p className="text-[10px] text-gray-600 mt-1">Cette commande contient des articles locaux ET des articles imports. Chaque circuit doit être géré séparément.</p>
-              </div>
-              {/* Articles locaux */}
-              {articles && articles.filter(a => a.is_local).length > 0 && (
-                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                  <h4 className="text-[10px] font-semibold text-emerald-700">Articles locaux ({articles.filter(a => a.is_local).length})</h4>
-                  <p className="text-[9px] text-emerald-600">Circuit : Confirmation → Préparation → Livraison</p>
-                </div>
-              )}
-              {/* Articles imports */}
-              {articles && articles.filter(a => a.is_import).length > 0 && (
-                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
-                  <h4 className="text-[10px] font-semibold text-indigo-700">Articles imports ({articles.filter(a => a.is_import).length})</h4>
-                  <p className="text-[9px] text-indigo-600">Circuit : Fournisseur → Réception → Pesée → Frais → Expédition</p>
-                </div>
-              )}
-            </div>
-          )}
+          {/* ─── Centre de contrôle du workflow ─── */}
+          <WorkflowControlPanel
+            status={status}
+            isImport={!!(isImportOrder || isImportFallback)}
+            isLocal={!!isLocalOrder}
+            isMixte={isMixte}
+            articles={articles}
+            onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
+          />
 
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
