@@ -4,7 +4,7 @@
 // la commande dans son cycle de vie.
 // ═══════════════════════════════════════════════════════════════
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
@@ -22,6 +22,8 @@ import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
+import { getOrderItems } from "@/lib/cockpit-payments.functions";
+import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 
 // ─── Config tri ───
 type SortField = "date" | "amount" | "name" | "status";
@@ -66,6 +68,7 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
+  const [selectedArticles, setSelectedArticles] = useState<OrderArticle[] | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "archive">("actions");
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
@@ -98,6 +101,68 @@ export default function CockpitDashboard() {
   const [weighForms, setWeighForms] = useState<Record<string, { realWeight: string; length: string; width: string; height: string }>>({});
   const [editingPay, setEditingPay] = useState<string | null>(null);
   const [editPayForm, setEditPayForm] = useState<{ amount: string; method: string; reference: string }>({ amount: "", method: "wave", reference: "" });
+
+  // ─── Charger les articles quand une commande est sélectionnée ───
+  useEffect(() => {
+    if (!selectedOrder) {
+      setSelectedArticles(undefined);
+      return;
+    }
+    const orderId = selectedOrder.order_id ?? "";
+    if (!orderId) return;
+
+    getOrderItems({ data: { order_id: orderId } })
+      .then((result: any) => {
+        if (result?.items && result.items.length > 0) {
+          // Convertir les items du serveur en OrderArticle
+          const arts: OrderArticle[] = result.items.map((it: any, idx: number) => ({
+            product_id: it.product_id ?? `prod_${idx}`,
+            product_name: it.product_name ?? "Produit",
+            product_image: it.product_image ?? null,
+            variant_id: it.variant_id ?? null,
+            variant_label: it.variant_label ?? null,
+            size: it.size ?? null,
+            color: it.color ?? null,
+            quantity: it.quantity ?? 1,
+            unit_price: it.unit_price ?? 0,
+            line_total: it.line_total ?? 0,
+            status: "pending" as ArticleStatus,
+            is_import: result.items.length > 1 ? idx % 2 === 0 : isImport(selectedOrder),
+            is_local: result.items.length > 1 ? idx % 2 !== 0 : !isImport(selectedOrder),
+            vendor_id: it.shop_id ?? null,
+            vendor_name: it.owner_name ?? it.shop_name ?? null,
+            shop_type_label: it.shop_type_label ?? null,
+          }));
+          setSelectedArticles(arts);
+        } else {
+          setSelectedArticles([]);
+        }
+      })
+      .catch(() => setSelectedArticles([]));
+  }, [selectedOrder]);
+
+  // ─── Handlers gestion article par article ───
+  const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId
+        ? { ...a, status: "no_stock" as ArticleStatus, stock_break: { reason: data.reason, action: data.action, action_label: data.action, resolved: false, created_at: new Date().toISOString() } }
+        : a
+    ));
+  }, []);
+
+  const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId ? { ...a, status } : a
+    ));
+  }, []);
+
+  const handlePartialDeliver = useCallback((productId: string, qty: number) => {
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId
+        ? { ...a, delivered_qty: (a.delivered_qty ?? 0) + qty, status: ((a.delivered_qty ?? 0) + qty) >= a.quantity ? "delivered" as ArticleStatus : a.status }
+        : a
+    ));
+  }, []);
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
@@ -673,6 +738,10 @@ export default function CockpitDashboard() {
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
           onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
+          articles={selectedArticles}
+          onStockBreak={handleStockBreak}
+          onArticleStatusChange={handleArticleStatusChange}
+          onPartialDeliver={handlePartialDeliver}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
