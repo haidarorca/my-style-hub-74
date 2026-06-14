@@ -28,99 +28,6 @@ function shopBadge(isAdmin: boolean) {
   return { label: "Boutique Vendeur", sub: "Partenaire", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", Icon: Users };
 }
 
-async function fetchOrderItems(orderId: string): Promise<{ items: ItemData[]; order_total: number; vendor_summary: any[] } | null> {
-  try {
-    // 1. Order items
-    const itemsRes = await fetch(`${SUPABASE_URL}/rest/v1/order_items?select=product_id,quantity&order_id=eq.${orderId}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
-    const items = await itemsRes.json();
-    if (!items || items.length === 0) return { items: [], order_total: 0, vendor_summary: [] };
-
-    const productIds = items.map((i: any) => i.product_id).filter(Boolean);
-
-    // 2. Products
-    const prodsRes = await fetch(`${SUPABASE_URL}/rest/v1/products?select=id,name,designation,description,price,vendor_id,commission_rate&id=in.(${productIds.join(",")})`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
-    const products = await prodsRes.json();
-    console.log("[fetchOrderItems] products:", products?.length, products?.[0]);
-
-    // 3. Images
-    const imgsRes = await fetch(`${SUPABASE_URL}/rest/v1/product_images?select=product_id,url&product_id=in.(${productIds.join(",")})&order=position.asc`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
-    const images = await imgsRes.json();
-    const imageMap = new Map<string, string>();
-    const allImagesMap = new Map<string, string[]>();
-    for (const img of images ?? []) {
-      if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
-      if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
-      allImagesMap.get(img.product_id)!.push(img.url);
-    }
-
-    // 4. Vendors (profiles)
-    const vendorIds = Array.from(new Set((products ?? []).map((p: any) => p.vendor_id).filter(Boolean)));
-    let vendorMap = new Map<string, { full_name: string; shop_name: string; is_admin_shop: boolean }>();
-    if (vendorIds.length > 0) {
-      const vendRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id,full_name,shop_name,is_admin_shop&id=in.(${vendorIds.join(",")})`, {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-      });
-      const vendors = await vendRes.json();
-      console.log("[fetchOrderItems] vendors:", vendors?.length);
-      for (const v of vendors ?? []) {
-        vendorMap.set(v.id, { full_name: v.full_name ?? "—", shop_name: v.shop_name ?? null, is_admin_shop: v.is_admin_shop ?? false });
-      }
-    }
-
-    // 5. Assemble
-    const vendorGroups = new Map<string, any>();
-    const detailedItems: ItemData[] = items.map((it: any, idx: number) => {
-      const prod = (products ?? []).find((p: any) => p.id === it.product_id);
-      const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
-      const qty = it.quantity ?? 1;
-      const price = prod?.price ?? 0;
-      const lineTotal = qty * price;
-
-      const vId = prod?.vendor_id ?? "unknown";
-      const existing = vendorGroups.get(vId);
-      if (existing) { existing.item_count += qty; existing.total += lineTotal; }
-      else {
-        vendorGroups.set(vId, {
-          vendor_id: vId, vendor_name: vendor?.full_name ?? "—",
-          shop_name: vendor?.shop_name ?? "Non identifié", item_count: qty, total: lineTotal, is_admin: vendor?.is_admin_shop ?? false,
-        });
-      }
-
-      return {
-        product_id: it.product_id ?? "",
-        product_name: prod?.name ?? `Article ${idx + 1}`,
-        product_designation: prod?.designation ?? null,
-        product_description: prod?.description ?? null,
-        product_image: imageMap.get(it.product_id ?? "") ?? null,
-        all_images: allImagesMap.get(it.product_id ?? "") ?? [],
-        quantity: qty,
-        unit_price: price,
-        line_total: lineTotal,
-        shop_name: vendor?.shop_name ?? vendor?.full_name ?? null,
-        owner_name: vendor?.full_name ?? null,
-        is_admin_shop: vendor?.is_admin_shop ?? false,
-        commission_rate: prod?.commission_rate ?? null,
-      };
-    });
-
-    const total = detailedItems.reduce((s, i) => s + i.line_total, 0);
-    return {
-      items: detailedItems,
-      order_total: total,
-      vendor_summary: Array.from(vendorGroups.values()),
-    };
-  } catch (e) {
-    console.error("[fetchOrderItems] ERROR:", e);
-    return null;
-  }
-}
-
 export function OrderItemsPanel({ orderId, onClose }: Props) {
   const [items, setItems] = useState<ItemData[]>([]);
   const [orderTotal, setOrderTotal] = useState(0);
@@ -131,14 +38,124 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
   useEffect(() => {
     if (!orderId) { setLoading(false); return; }
     setLoading(true);
-    fetchOrderItems(orderId).then((result) => {
-      if (result) {
-        setItems(result.items);
-        setOrderTotal(result.order_total);
-        setVendors(result.vendor_summary);
+
+    // Charger les données directement depuis Supabase
+    const loadData = async () => {
+      try {
+        // 1. Récupérer la commande (fallback pour produit et total)
+        const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/logistics_orders?select=order_total,product_id&order_id=eq.${orderId}&limit=1`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+        });
+        const orders = await orderRes.json();
+        const orderRow = orders?.[0];
+        const orderTotalFromRow = orderRow?.order_total ?? 0;
+        const productIdFromOrder = orderRow?.product_id ?? null;
+        console.log("[OrderItems] order:", { orderTotal: orderTotalFromRow, productId: productIdFromOrder });
+
+        // 2. Essayer order_items d'abord
+        const itemsRes = await fetch(`${SUPABASE_URL}/rest/v1/order_items?select=product_id,quantity&order_id=eq.${orderId}`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+        });
+        let orderItems = await itemsRes.json();
+        console.log("[OrderItems] order_items:", orderItems?.length ?? 0);
+
+        // FALLBACK: si aucun order_item, utiliser le product_id de la commande
+        if ((!orderItems || orderItems.length === 0) && productIdFromOrder) {
+          orderItems = [{ product_id: productIdFromOrder, quantity: 1 }];
+          console.log("[OrderItems] using fallback product_id:", productIdFromOrder);
+        }
+
+        if (!orderItems || orderItems.length === 0) {
+          setItems([]);
+          setOrderTotal(orderTotalFromRow);
+          setVendors([]);
+          setLoading(false);
+          return;
+        }
+
+        const productIds = orderItems.map((i: any) => i.product_id).filter(Boolean);
+
+        // 3. Produits
+        const prodsRes = await fetch(`${SUPABASE_URL}/rest/v1/products?select=id,name,designation,description,price,vendor_id,commission_rate&id=in.(${productIds.join(",")})`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+        });
+        const products = await prodsRes.json();
+        console.log("[OrderItems] products:", products?.length, products?.[0]);
+
+        // 4. Images
+        const imgsRes = await fetch(`${SUPABASE_URL}/rest/v1/product_images?select=product_id,url&product_id=in.(${productIds.join(",")})&order=position.asc`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+        });
+        const images = await imgsRes.json();
+        const imageMap = new Map<string, string>();
+        const allImagesMap = new Map<string, string[]>();
+        for (const img of images ?? []) {
+          if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+          if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
+          allImagesMap.get(img.product_id)!.push(img.url);
+        }
+
+        // 5. Vendeurs
+        const vendorIds = Array.from(new Set((products ?? []).map((p: any) => p.vendor_id).filter(Boolean)));
+        let vendorMap = new Map<string, { full_name: string; shop_name: string; is_admin_shop: boolean }>();
+        if (vendorIds.length > 0) {
+          const vendRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id,full_name,shop_name,is_admin_shop&id=in.(${vendorIds.join(",")})`, {
+            headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+          });
+          const vendors = await vendRes.json();
+          for (const v of vendors ?? []) {
+            vendorMap.set(v.id, { full_name: v.full_name ?? "—", shop_name: v.shop_name ?? null, is_admin_shop: v.is_admin_shop ?? false });
+          }
+        }
+
+        // 6. Assembler
+        const vendorGroups = new Map<string, any>();
+        const detailedItems: ItemData[] = orderItems.map((it: any, idx: number) => {
+          const prod = (products ?? []).find((p: any) => p.id === it.product_id);
+          const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
+          const qty = it.quantity ?? 1;
+          const price = prod?.price ?? 0;
+          const lineTotal = qty * price;
+
+          const vId = prod?.vendor_id ?? "unknown";
+          const existing = vendorGroups.get(vId);
+          if (existing) { existing.item_count += qty; existing.total += lineTotal; }
+          else {
+            vendorGroups.set(vId, {
+              vendor_id: vId, vendor_name: vendor?.full_name ?? "—",
+              shop_name: vendor?.shop_name ?? "Non identifié", item_count: qty, total: lineTotal, is_admin: vendor?.is_admin_shop ?? false,
+            });
+          }
+
+          return {
+            product_id: it.product_id ?? "",
+            product_name: prod?.name ?? `Article ${idx + 1}`,
+            product_designation: prod?.designation ?? null,
+            product_description: prod?.description ?? null,
+            product_image: imageMap.get(it.product_id ?? "") ?? null,
+            all_images: allImagesMap.get(it.product_id ?? "") ?? [],
+            quantity: qty,
+            unit_price: price,
+            line_total: lineTotal,
+            shop_name: vendor?.shop_name ?? vendor?.full_name ?? null,
+            owner_name: vendor?.full_name ?? null,
+            is_admin_shop: vendor?.is_admin_shop ?? false,
+            commission_rate: prod?.commission_rate ?? null,
+          };
+        });
+
+        const total = detailedItems.reduce((s, i) => s + i.line_total, 0);
+        setItems(detailedItems);
+        setOrderTotal(total > 0 ? total : orderTotalFromRow);
+        setVendors(Array.from(vendorGroups.values()));
+      } catch (e) {
+        console.error("[OrderItems] ERROR:", e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    loadData();
   }, [orderId]);
 
   if (detailItem) {
@@ -204,7 +221,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             <div className="text-center py-12 text-gray-500">
               <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
               <p className="text-sm font-medium">Aucun article</p>
-              <p className="text-xs text-gray-400 mt-1">Vérifiez la console (F12) pour les erreurs.</p>
+              <p className="text-xs text-gray-400 mt-1">Cette commande n'a pas de produit lié.</p>
             </div>
           )}
           {items.length > 0 && (
