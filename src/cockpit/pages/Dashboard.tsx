@@ -146,10 +146,9 @@ export default function CockpitDashboard() {
             unit_price: it.unit_price ?? 0,
             line_total: it.line_total ?? 0,
             status: "pending" as ArticleStatus,
-            // is_admin_shop = true → LOCAL (boutique Kawzone)
-            // is_admin_shop = false → IMPORT (vendeur externe)
-            is_import: !(it.is_admin_shop ?? false),
-            is_local: it.is_admin_shop ?? false,
+            // Le backend détermine is_import/is_local — on utilise directement
+            is_import: it.is_import ?? orderIsImport,
+            is_local: it.is_local ?? !orderIsImport,
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
@@ -172,7 +171,7 @@ export default function CockpitDashboard() {
             unit_price: selectedOrder.order_total ?? 0,
             line_total: selectedOrder.order_total ?? 0,
             status: "pending" as ArticleStatus,
-            is_import: orderIsImport,
+            is_import: orderIsImport,  // Fallback: type de la commande entière
             is_local: !orderIsImport,
             vendor_id: null,
             vendor_name: null,
@@ -848,5 +847,4 @@ function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
       </div>
     </div>
   );
-}// sync: Sun Jun 14 06:08:17 CST 2026
-// lovable-sync: 17
+}// sync: Sun J
