@@ -82,6 +82,8 @@ export type LogisticsOrderRow = {
   weighed_at: string | null;
   shipped_at: string | null;
   estimated_arrival_at: string | null;
+  destination_address?: string | null;
+  updated_at?: string | null;
 };
 
 export type LogisticsPage = {

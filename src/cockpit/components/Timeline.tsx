@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function Timeline({ order, payments, audit }: Props) {
-  const events: { date: string; label: string; sub?: string; icon: any; color: string; bg: string }[] = [];
+  const events: { date: string | null | undefined; label: string; sub?: string | null; icon: any; color: string; bg: string }[] = [];
 
   if (order.order_created_at) events.push({ date: order.order_created_at, label: "Commande créée", sub: "Système", icon: Package, color: "text-gray-600", bg: "bg-gray-100" });
 
@@ -33,13 +33,13 @@ export function Timeline({ order, payments, audit }: Props) {
   const cancelAudit = audit.find(a => a.action.includes("annul"));
   if (order.logistics_status === "cancelled" || cancelAudit) events.push({ date: cancelAudit?.timestamp ?? order.updated_at, label: "Annulée", sub: cancelAudit?.adminName, icon: XCircle, color: "text-red-600", bg: "bg-red-100" });
 
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  events.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
   if (events.length === 0) return <div className="text-xs text-gray-400 py-2 text-center">Aucun événement</div>;
 
   return (
     <div className="space-y-0">
       {events.map((e, i) => {
-        const d = new Date(e.date);
+        const d = new Date(e.date ?? Date.now());
         const Icon = e.icon;
         return (
           <div key={i} className="flex gap-3 py-1.5">
