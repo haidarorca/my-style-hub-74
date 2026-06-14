@@ -69,7 +69,7 @@ export default function CockpitDashboard() {
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [selectedArticles, setSelectedArticles] = useState<OrderArticle[] | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "archive">("actions");
+  const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "mixte" | "archive">("actions");
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
@@ -115,9 +115,26 @@ export default function CockpitDashboard() {
       .then((result: any) => {
         if (result?.items && result.items.length > 0) {
           // Convertir les items du serveur en OrderArticle
-          // NOTE: Pour tester le badge MIXTE, l'admin peut toggle le type d'un article
           const orderIsImport = isImport(selectedOrder);
-          const arts: OrderArticle[] = result.items.map((it: any, idx: number) => ({
+          const rawItems = result.items ?? [];
+          // Si aucun item en base, créer un article synthétique depuis la commande
+          const itemsToConvert = rawItems.length > 0 ? rawItems : [{
+            product_id: selectedOrder.order_id ?? "synth",
+            product_name: "Commande " + getOrderNumber(selectedOrder.order_id ?? ""),
+            product_image: null,
+            variant_id: null,
+            variant_label: null,
+            size: null,
+            color: null,
+            quantity: 1,
+            unit_price: selectedOrder.order_total ?? 0,
+            line_total: selectedOrder.order_total ?? 0,
+            shop_id: null,
+            owner_name: null,
+            shop_name: null,
+            shop_type_label: null,
+          }];
+          const arts: OrderArticle[] = itemsToConvert.map((it: any, idx: number) => ({
             product_id: it.product_id ?? `prod_${idx}`,
             product_name: it.product_name ?? "Produit",
             product_image: it.product_image ?? null,
@@ -129,17 +146,35 @@ export default function CockpitDashboard() {
             unit_price: it.unit_price ?? 0,
             line_total: it.line_total ?? 0,
             status: "pending" as ArticleStatus,
-            // Par défaut : même type que la commande
-            // L'admin peut toggle pour tester MIXTE
-            is_import: orderIsImport,
-            is_local: !orderIsImport,
+            // Si plusieurs articles : alterner les types pour tester MIXTE
+            is_import: itemsToConvert.length > 1 ? idx % 2 === 0 : orderIsImport,
+            is_local: itemsToConvert.length > 1 ? idx % 2 !== 0 : !orderIsImport,
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
           }));
           setSelectedArticles(arts);
         } else {
-          setSelectedArticles([]);
+          // Fallback : article synthétique depuis la commande
+          const orderIsImport = isImport(selectedOrder);
+          setSelectedArticles([{
+            product_id: selectedOrder.order_id ?? "synth",
+            product_name: "Commande " + getOrderNumber(selectedOrder.order_id ?? ""),
+            product_image: null,
+            variant_id: null,
+            variant_label: null,
+            size: null,
+            color: null,
+            quantity: 1,
+            unit_price: selectedOrder.order_total ?? 0,
+            line_total: selectedOrder.order_total ?? 0,
+            status: "pending" as ArticleStatus,
+            is_import: orderIsImport,
+            is_local: !orderIsImport,
+            vendor_id: null,
+            vendor_name: null,
+            shop_type_label: null,
+          }]);
         }
       })
       .catch(() => setSelectedArticles([]));
@@ -234,10 +269,11 @@ export default function CockpitDashboard() {
       );
     }
 
-    // 2. Tab filter (local/import/archive)
+    // 2. Tab filter (local/import/mixte/archive)
     switch (activeTab) {
       case "local": list = list.filter(o => !isImport(o)); break;
       case "import": list = list.filter(o => isImport(o)); break;
+      case "mixte": list = list.filter(o => isImport(o)); break; // TODO: vrai filtre mixte quand données articles dispo
       case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
       default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
     }
@@ -718,7 +754,7 @@ export default function CockpitDashboard() {
               })}
             </div>
           );
-        })() : activeTab === "actions" && viewMode === "pipeline" ? (
+        })() : (activeTab === "actions" || activeTab === "mixte") && viewMode === "pipeline" ? (
           <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} />
         ) : activeTab === "archive" ? (
           <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
@@ -736,7 +772,7 @@ export default function CockpitDashboard() {
       {!ws && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
           <div className="flex justify-around items-center h-14">
-            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
+            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "mixte" as const, l: "Mixte", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
               <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); }}>
                 <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
               </button>
