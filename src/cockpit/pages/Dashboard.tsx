@@ -115,6 +115,8 @@ export default function CockpitDashboard() {
       .then((result: any) => {
         if (result?.items && result.items.length > 0) {
           // Convertir les items du serveur en OrderArticle
+          // NOTE: Pour tester le badge MIXTE, l'admin peut toggle le type d'un article
+          const orderIsImport = isImport(selectedOrder);
           const arts: OrderArticle[] = result.items.map((it: any, idx: number) => ({
             product_id: it.product_id ?? `prod_${idx}`,
             product_name: it.product_name ?? "Produit",
@@ -127,8 +129,10 @@ export default function CockpitDashboard() {
             unit_price: it.unit_price ?? 0,
             line_total: it.line_total ?? 0,
             status: "pending" as ArticleStatus,
-            is_import: result.items.length > 1 ? idx % 2 === 0 : isImport(selectedOrder),
-            is_local: result.items.length > 1 ? idx % 2 !== 0 : !isImport(selectedOrder),
+            // Par défaut : même type que la commande
+            // L'admin peut toggle pour tester MIXTE
+            is_import: orderIsImport,
+            is_local: !orderIsImport,
             vendor_id: it.shop_id ?? null,
             vendor_name: it.owner_name ?? it.shop_name ?? null,
             shop_type_label: it.shop_type_label ?? null,
@@ -160,6 +164,15 @@ export default function CockpitDashboard() {
     setSelectedArticles(prev => prev?.map(a =>
       a.product_id === productId
         ? { ...a, delivered_qty: (a.delivered_qty ?? 0) + qty, status: ((a.delivered_qty ?? 0) + qty) >= a.quantity ? "delivered" as ArticleStatus : a.status }
+        : a
+    ));
+  }, []);
+
+  // ─── Toggle type article (pour tester MIXTE) ───
+  const handleToggleType = useCallback((productId: string) => {
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId
+        ? { ...a, is_import: !a.is_import, is_local: !a.is_local }
         : a
     ));
   }, []);
@@ -742,6 +755,7 @@ export default function CockpitDashboard() {
           onStockBreak={handleStockBreak}
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
+          onToggleType={handleToggleType}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
