@@ -22,11 +22,12 @@ interface Props {
   grandTotal?: number;
   quickAction?: QuickAction;
   articles?: OrderArticle[];
+  orderType?: "local" | "import" | "mixte";
 }
 
-export function OrderCard({ order, index, onClick, totalPaid, freight, grandTotal: gtProp, quickAction, articles }: Props) {
-  const mixte = articles ? getOrderMixType(articles) === "mixte" : false;
-  const imp = !mixte && isImport(order);
+export function OrderCard({ order, index, onClick, totalPaid, freight, grandTotal: gtProp, quickAction, articles, orderType }: Props) {
+  const isMixte = orderType === "mixte" || (articles ? getOrderMixType(articles) === "mixte" : false);
+  const imp = !isMixte && isImport(order);
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const productTotal = order.order_total ?? 0;
@@ -52,7 +53,7 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
           <span className="text-sm font-semibold truncate">{order.customer_name ?? "—"}</span>
-          {mixte ? (
+          {isMixte ? (
             <Badge variant="outline" className="text-[8px] h-4 px-1 bg-gradient-to-r from-indigo-50 to-emerald-50 text-indigo-700 border-indigo-200 font-bold">
               MIXTE
             </Badge>
