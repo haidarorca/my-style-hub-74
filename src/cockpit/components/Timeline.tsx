@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function Timeline({ order, payments, audit }: Props) {
-  const events: { date: string; label: string; sub?: string; icon: any; color: string; bg: string }[] = [];
+  const events: { date: string | null | undefined; label: string; sub?: string | null; icon: any; color: string; bg: string }[] = [];
 
   if (order.order_created_at) events.push({ date: order.order_created_at, label: "Commande créée", sub: "Système", icon: Package, color: "text-gray-600", bg: "bg-gray-100" });
 
