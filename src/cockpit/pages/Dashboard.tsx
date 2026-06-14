@@ -603,7 +603,8 @@ export default function CockpitDashboard() {
                                 setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } }));
                                 // Auto-avancement si solde atteint
                                 if (actualAmt >= remaining) {
-                                  const nextSt = isImport(o) ? "ready_delivery" : "ready";
+                                  const t = orderTypeMap[oid];
+                                  const nextSt = (t === "import" || t === "mixte") ? "ready_delivery" : "ready";
                                   handleStatus(oid, nextSt, adminName);
                                 }
                               }

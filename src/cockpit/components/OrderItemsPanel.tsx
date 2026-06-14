@@ -478,6 +478,19 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
 
                     {/* ── Info ── */}
                     <div className="flex-1 min-w-0 py-0.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {/* Badge LOCAL / IMPORT — pourquoi l'article entre dans le type de commande */}
+                        {(item as any).is_import ? (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">IMPORT</span>
+                        ) : (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">LOCAL</span>
+                        )}
+                        {(item as any).origin_country && (
+                          <span className="text-[9px] text-gray-500">
+                            {(item as any).origin_country_flag ?? ""} {(item as any).origin_country}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm font-semibold text-gray-900 truncate group-hover:text-orange-700 transition-colors">
                         {item.product_name}
                       </div>

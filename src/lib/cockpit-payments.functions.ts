@@ -486,20 +486,12 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
     // Étape 1: Charger order_items avec product_id
-    const { data: items } = await supabaseAdmin
+    const { data: itemsRaw } = await supabaseAdmin
       .from("order_items")
       .select("order_id, product_id")
       .in("order_id", data.order_ids);
 
-    if (!items || items.length === 0) {
-      // Fallback: shipping_service_id
-      const { data: orders } = await supabaseAdmin
-        .from("orders")
-        .select("id, shipping_service_id")
-        .in("id", data.order_ids);
-      // Pas de chemin rapide — on doit TOUJOURS vérifier import_products
-      // pour déterminer le type réel de chaque commande
-    }
+    const items = itemsRaw ?? [];
 
     // Étape 2: Charger les produits dans import_products
     const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean)));
