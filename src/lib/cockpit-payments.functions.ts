@@ -444,50 +444,53 @@ export const getOrderItems = createServerFn({ method: "POST" })
         });
       }
 
+      const originCountry = countryMap.get(it.product_id ?? "");
+      const isImportProduct = !isAdmin;  // vendor non-admin = produit importé
+      const isLocalProduct = isAdmin;    // vendor admin = produit local (Kawzone)
+
       return {
-        product_id: it.product_id ?? "",
-        product_name: prodName,
-        designation: (prod as any)?.designation ?? null,
-        description: (prod as any)?.description ?? null,
-        product_image: mainImage,
-        variant_image: variantImage,
-        all_images: allImgs,
-        quantity: qty,
-        unit_price: price,
-        line_total: lineTotal,
-        variant_id: it.variant_id ?? null,
-        variant_label: variantLabel,
-        size,
-        color,
-        color_hex: colorHex,
-        shop_id: it.vendor_id ?? null,
-        shop_name: shopName,
-        owner_name: vendor?.full_name ?? null,
-        is_admin_shop: isAdmin,
-        shop_type_label: shopTypeLabel,
-        commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
-        commission_amount: it.commission_amount ?? null,
-        // ─── Infos vendeur complètes pour la fiche ───
-        vendor: it.vendor_id && vendor ? {
-          vendor_id: it.vendor_id,
-          shop_name: vendor.shop_name ?? null,
-          owner_name: vendor.full_name ?? null,
-          is_admin_shop: vendor.is_admin_shop ?? false,
-          shop_type_label: (vendor.is_admin_shop ?? false) ? "Boutique Officielle" : "Boutique Vendeur",
-          phone: vendor.phone ?? null,
-          email: vendor.email ?? null,
-          address: vendor.address ?? null,
-          whatsapp: vendor.phone ?? null, // phone = whatsapp par défaut
-          shop_description: (vendor as any)?.shop_description ?? null,
-          shop_hours: (vendor as any)?.shop_hours ?? null,
-          shop_logo_url: (vendor as any)?.shop_logo_url ?? null,
-          is_verified: (vendor as any)?.is_verified ?? false,
-          vendor_mode: (vendor as any)?.vendor_mode ?? null,
-        } : null,
-        // ─── Pays d'origine ───
-        origin_country: countryMap.get(it.product_id ?? "")?.name ?? null,
-        origin_country_flag: countryMap.get(it.product_id ?? "")?.flag ?? null,
-      };
+          product_id: it.product_id ?? "",
+          product_name: prodName,
+          designation: (prod as any)?.designation ?? null,
+          description: (prod as any)?.description ?? null,
+          product_image: mainImage,
+          variant_image: variantImage,
+          all_images: allImgs,
+          quantity: qty,
+          unit_price: price,
+          line_total: lineTotal,
+          variant_id: it.variant_id ?? null,
+          variant_label: variantLabel,
+          size,
+          color,
+          color_hex: colorHex,
+          shop_id: it.vendor_id ?? null,
+          shop_name: shopName,
+          owner_name: vendor?.full_name ?? null,
+          is_admin_shop: isAdmin,
+          shop_type_label: shopTypeLabel,
+          commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
+          commission_amount: it.commission_amount ?? null,
+          is_import: isImportProduct,
+          is_local: isLocalProduct,
+          origin_country: originCountry?.name ?? null,
+          origin_country_flag: originCountry?.flag ?? null,
+          vendor: it.vendor_id && vendor ? {
+            vendor_id: it.vendor_id,
+            shop_name: vendor.shop_name ?? null,
+            owner_name: vendor.full_name ?? null,
+            is_admin_shop: vendor.is_admin_shop ?? false,
+            shop_type_label: (vendor.is_admin_shop ?? false) ? "Boutique Officielle" : "Boutique Vendeur",
+            email: vendor.email ?? null,
+            address: vendor.address ?? null,
+            whatsapp: vendor.phone ?? null,
+            shop_description: (vendor as any)?.shop_description ?? null,
+            shop_hours: (vendor as any)?.shop_hours ?? null,
+            shop_logo_url: (vendor as any)?.shop_logo_url ?? null,
+            is_verified: (vendor as any)?.is_verified ?? false,
+            vendor_mode: (vendor as any)?.vendor_mode ?? null,
+          } : null,
+        } as any;
     });
 
     const itemsTotal = detailedItems.reduce((s, i) => s + i.line_total, 0);
