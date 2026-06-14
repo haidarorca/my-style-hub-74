@@ -184,7 +184,13 @@ export default function CockpitDashboard() {
 
     // 4. Filtres avancés combinables
     if (statusFilter) {
-      list = list.filter(o => (o.logistics_status ?? "") === statusFilter);
+      // "new" = null/"" OU "new" en base (compat avec les anciennes et nouvelles commandes)
+      const statusMatch = (o: LogisticsOrderRow) => {
+        const s = o.logistics_status ?? "";
+        if (statusFilter === "new") return s === "" || s === "new";
+        return s === statusFilter;
+      };
+      list = list.filter(statusMatch);
     }
     if (typeFilter) {
       list = list.filter(o => typeFilter === "import" ? isImport(o) : !isImport(o));
