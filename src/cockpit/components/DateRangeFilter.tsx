@@ -12,6 +12,18 @@ function fmt(d: Date): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Parse dd/MM/yyyy → Date ou null
+function parseDate(s: string): Date | null {
+  const m = s.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (!m) return null;
+  const day = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10) - 1;
+  const year = parseInt(m[3], 10);
+  const d = new Date(year, month, day);
+  if (d.getDate() !== day || d.getMonth() !== month || d.getFullYear() !== year) return null;
+  return d;
+}
+
 // Nombre de jours dans un mois
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -29,6 +41,8 @@ export function DateRangeFilter({ dateRange, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+  const [manualFrom, setManualFrom] = useState("");
+  const [manualTo, setManualTo] = useState("");
 
   const fromStr = dateRange?.from ? fmt(dateRange.from) : "";
   const toStr = dateRange?.to ? fmt(dateRange.to) : "";
@@ -103,6 +117,44 @@ export function DateRangeFilter({ dateRange, onChange }: Props) {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold">Sélectionner une période</h3>
               <button onClick={() => setOpen(false)} className="p-1 rounded-full hover:bg-gray-100"><X className="h-4 w-4 text-gray-400" /></button>
+            </div>
+
+            {/* ─── Saisie manuelle des dates ─── */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] text-gray-500 block mb-0.5">Date début (JJ/MM/AAAA)</label>
+                <input
+                  type="text"
+                  value={manualFrom}
+                  onChange={e => {
+                    setManualFrom(e.target.value);
+                    const d = parseDate(e.target.value);
+                    if (d) {
+                      onChange({ from: d, to: dateRange?.to });
+                      setViewYear(d.getFullYear());
+                      setViewMonth(d.getMonth());
+                    }
+                  }}
+                  placeholder="01/06/2026"
+                  className="w-full text-[11px] border rounded h-8 px-2 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] text-gray-500 block mb-0.5">Date fin (JJ/MM/AAAA)</label>
+                <input
+                  type="text"
+                  value={manualTo}
+                  onChange={e => {
+                    setManualTo(e.target.value);
+                    const d = parseDate(e.target.value);
+                    if (d && dateRange?.from) {
+                      onChange({ from: dateRange.from, to: d });
+                    }
+                  }}
+                  placeholder="15/06/2026"
+                  className="w-full text-[11px] border rounded h-8 px-2 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                />
+              </div>
             </div>
 
             {/* Affichage sélection */}
