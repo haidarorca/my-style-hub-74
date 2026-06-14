@@ -61,7 +61,6 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
 
-  const imp = isImport(order);
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
@@ -72,22 +71,23 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const tp = financials.paid;
   const rem = financials.remaining;
   const paidFull = rem <= 0 && gt > 0;
-  const stepIdx = imp ? getImportStepIndex(status) : -1;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
   const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
-  const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
-
-  // ─── Type réel de la commande (basé sur les articles, pas sur shipping_service_id) ───
-  const hasLocal = articles && articles.some(a => a.is_local);
-  const hasImport = articles && articles.some(a => a.is_import);
+  // ─── Type réel de la commande : SEULE source de vérité = articles (is_import / is_local).
+  // Si articles non encore chargés, fallback prudent sur shipping_service_id.
+  const hasLocal = !!articles && articles.some(a => a.is_local);
+  const hasImport = !!articles && articles.some(a => a.is_import);
   const isMixte = !!articles && hasLocal && hasImport;
   const isLocalOrder = !!articles && hasLocal && !hasImport;
   const isImportOrder = !!articles && !hasLocal && hasImport;
-  // Si pas d'articles, fallback sur shipping_service_id (ancienne logique)
-  const isImportFallback = !articles && imp;
+  const isImportFallback = !articles && isImport(order);
+  // `imp` = workflow import (mixte aussi traversent le flux import pour la partie importée)
+  const imp = isMixte || isImportOrder || isImportFallback;
+  const stepIdx = imp ? getImportStepIndex(status) : -1;
+  const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
   // ─── Action suivante intelligente ───
   const nextActionInfo = articles ? getNextActionForOrder(status, articles, rem, sf > 0) : null;
@@ -115,9 +115,11 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                   <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-indigo-50 to-emerald-50 text-indigo-700 border-indigo-200 font-bold">
                     <Layers className="h-3 w-3 mr-1" />MIXTE
                   </Badge>
-                ) : (
-                  <Badge variant="outline" className={`text-[10px] ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>{imp ? "IMPORT" : "LOCAL"}</Badge>
-                )}
+                ) : isLocalOrder ? (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">LOCAL</Badge>
+                ) : isImportOrder || isImportFallback ? (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700">IMPORT</Badge>
+                ) : null}
                 <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
               </div>
             </div>
