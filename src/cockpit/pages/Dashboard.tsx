@@ -55,7 +55,7 @@ const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionC
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
-  const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+  const adminName = profile?.full_name ?? profile?.email ?? "Admin"; // v2-sync
   const {
     orders, isLoading, searchTerm, setSearchTerm,
     getPayments, getTotalPaid, getAudit,
