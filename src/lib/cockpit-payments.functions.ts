@@ -499,3 +499,70 @@ export const getOrderPaymentSummary = createServerFn({ method: "POST" })
 
     return summary ?? { total_paid: 0 };
   });
+
+/* ═══════════════════════════════════════════════════════════════
+   BATCH: Détermine le type (local/import/mixte) pour plusieurs
+   commandes en analysant leurs articles
+   ═══════════════════════════════════════════════════════════════ */
+
+const OrderIdsBatchSchema = z.object({ order_ids: z.array(z.string().min(1)).max(100) });
+
+export const getOrderTypesBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => OrderIdsBatchSchema.parse(input))
+  .handler(async ({ data }) => {
+    if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
+
+    // Charger order_items avec produits et vendors
+    const { data: items, error } = await supabaseAdmin
+      .from("order_items")
+      .select("order_id, product_id, quantity, products!inner(vendor_id, profiles!inner(is_admin_shop))")
+      .in("order_id", data.order_ids);
+
+    if (error) {
+      console.error("[getOrderTypesBatch] error:", error.message);
+      // Fallback: utiliser shipping_service_id des orders
+      const { data: orders } = await supabaseAdmin
+        .from("orders")
+        .select("id, shipping_service_id")
+        .in("id", data.order_ids);
+      const result: Record<string, "local" | "import" | "mixte"> = {};
+      for (const o of orders ?? []) {
+        result[o.id] = o.shipping_service_id ? "import" : "local";
+      }
+      return result as any;
+    }
+
+    // Grouper par order_id et déterminer le type
+    const orderItems = new Map<string, { is_admin: boolean }[]>();
+    for (const it of items ?? []) {
+      const orderId = it.order_id;
+      if (!orderItems.has(orderId)) orderItems.set(orderId, []);
+      const prod = (it as any).products;
+      const profile = prod?.profiles;
+      orderItems.get(orderId)!.push({ is_admin: profile?.is_admin_shop ?? false });
+    }
+
+    const result: Record<string, "local" | "import" | "mixte"> = {};
+    for (const [orderId, types] of orderItems) {
+      const hasLocal = types.some(t => t.is_admin);
+      const hasImport = types.some(t => !t.is_admin);
+      if (hasLocal && hasImport) result[orderId] = "mixte";
+      else if (hasImport) result[orderId] = "import";
+      else result[orderId] = "local";
+    }
+
+    // Pour les commandes sans items, fallback sur shipping_service_id
+    for (const oid of data.order_ids) {
+      if (!result[oid]) {
+        const { data: orderRow } = await supabaseAdmin
+          .from("orders")
+          .select("shipping_service_id")
+          .eq("id", oid)
+          .maybeSingle();
+        result[oid] = orderRow?.shipping_service_id ? "import" : "local";
+      }
+    }
+
+    return result as any;
+  });
