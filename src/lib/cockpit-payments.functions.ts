@@ -281,11 +281,13 @@ export const getOrderItems = createServerFn({ method: "POST" })
     // ═══════════════════════════════════════════════════════════════
     const { data: orderRow } = await supabaseAdmin
       .from("orders")
-      .select("id, total, status")
+      .select("id, total, status, shipping_service_id, destination_country_name")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    console.log("[getOrderItems] order total:", orderRow?.total);
+    const isImportOrder = !!orderRow?.shipping_service_id;  // commande IMPORT si shipping_service_id est défini
+    const orderCountry = orderRow?.destination_country_name ?? null;  // pays de destination pour les imports
+    console.log("[getOrderItems] order:", isImportOrder ? "IMPORT" : "LOCAL", "total:", orderRow?.total, "country:", orderCountry);
 
     // ═══════════════════════════════════════════════════════════════
     // ÉTAPE 1 : Charger les order_items (SOURCE DE VÉRITÉ)
@@ -446,11 +448,13 @@ export const getOrderItems = createServerFn({ method: "POST" })
         });
       }
 
-      const originCountry = countryMap.get(it.product_id ?? "");
-      // IMPORT = produit qui vient d'un autre pays (présent dans import_products)
-      // LOCAL = produit disponible localement (absent de import_products)
-      const isImportProduct = originCountry !== undefined;  // a un pays d'origine = importé
-      const isLocalProduct = !isImportProduct;              // pas de pays = local
+      // Type du produit : déterminé par le type de la commande
+      // IMPORT = commande avec shipping_service_id (produits importés)
+      // LOCAL = commande sans shipping_service_id (produits locaux)
+      // Le pays d'origine vient de destination_country_name sur la commande
+      const productOriginCountry = countryMap.get(it.product_id ?? "");
+      const isImportProduct = isImportOrder;  // type de la commande
+      const isLocalProduct = !isImportOrder;  // inverse du type import
 
       return {
           product_id: it.product_id ?? "",
@@ -477,8 +481,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
           commission_amount: it.commission_amount ?? null,
           is_import: isImportProduct,
           is_local: isLocalProduct,
-          origin_country: originCountry?.name ?? null,
-          origin_country_flag: originCountry?.flag ?? null,
+          // Pays d'origine : import_products > destination_country_name de la commande > null
+          origin_country: productOriginCountry?.name ?? (isImportOrder ? orderCountry : null),
+          origin_country_flag: productOriginCountry?.flag ?? null,
           vendor: it.vendor_id && vendor ? {
             vendor_id: it.vendor_id,
             shop_name: vendor.shop_name ?? null,
