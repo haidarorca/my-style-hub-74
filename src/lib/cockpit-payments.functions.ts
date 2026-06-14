@@ -233,84 +233,61 @@ export const getOrderItems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    console.log("[getOrderItems] START order_id:", data.order_id);
+    console.log("[getOrderItems] order_id:", data.order_id);
 
-    // 1. Récupérer la COMMANDE pour avoir le total (fallback)
+    // 1. Récupérer le total de la commande (fallback principal)
     const { data: orderRow } = await supabaseAdmin
       .from("logistics_orders")
-      .select("order_total, customer_name")
+      .select("order_total")
       .eq("order_id", data.order_id)
       .single();
-
     const orderTotal = orderRow?.order_total ?? 0;
-    console.log("[getOrderItems] orderTotal:", orderTotal);
 
     // 2. Charger les order_items
-    const { data: items, error: itemsErr } = await supabaseAdmin
+    const { data: items } = await supabaseAdmin
       .from("order_items")
       .select("product_id, quantity")
       .eq("order_id", data.order_id);
 
-    if (itemsErr || !items || items.length === 0) {
-      console.log("[getOrderItems] no items, returning empty");
-      return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
+    if (!items || items.length === 0) {
+      return { items: [], order_total: orderTotal, vendor_summary: [], error: null } as any;
     }
 
     const productIds = items.map(i => i.product_id).filter(Boolean);
     const totalQty = items.reduce((s, i) => s + (i.quantity ?? 1), 0);
-    console.log("[getOrderItems] items:", items.length, "qty:", totalQty);
 
-    // 3. ESSAYER de récupérer les produits — approche progressive
-    // 3a. D'abord juste les IDs
-    let productMap = new Map<string, { name: string; price: number; shop_id: string | null; description: string | null; commission_rate: number | null }>();
+    // 3. ESSAYER TOUTES les combinaisons possibles pour récupérer les produits
+    let productMap = new Map<string, { name: string; price: number; description: string | null; commission_rate: number | null; shop_id: string | null }>();
 
+    // Tentative 1: id, name, price, shop_id
     try {
-      const { data: prodsBasic } = await supabaseAdmin
-        .from("products")
-        .select("id")
-        .in("id", productIds);
-      console.log("[getOrderItems] basic ids:", prodsBasic?.length ?? 0);
-
-      if (prodsBasic && prodsBasic.length > 0) {
-        // 3b. Avec name et price
-        const { data: prodsFull } = await supabaseAdmin
-          .from("products")
-          .select("id, name, price, shop_id")
-          .in("id", productIds);
-        console.log("[getOrderItems] full:", prodsFull?.length ?? 0);
-
-        // 3c. Description et commission
-        const { data: prodsExtra } = await supabaseAdmin
-          .from("products")
-          .select("id, description, commission_rate")
-          .in("id", productIds);
-
-        for (const p of prodsFull ?? []) {
-          const extra = (prodsExtra ?? []).find(e => e.id === p.id);
-          productMap.set(p.id, {
-            name: p.name ?? `Article`,
-            price: p.price ?? 0,
-            shop_id: p.shop_id ?? null,
-            description: extra?.description ?? null,
-            commission_rate: extra?.commission_rate ?? null,
-          });
-        }
+      const { data: prods } = await supabaseAdmin.from("products").select("id, name, price, shop_id, description, commission_rate").in("id", productIds);
+      if (prods && prods.length > 0) {
+        for (const p of prods) productMap.set(p.id, { name: p.name ?? "Article", price: p.price ?? 0, description: p.description ?? null, commission_rate: p.commission_rate ?? null, shop_id: p.shop_id ?? null });
       }
     } catch (e) {
-      console.error("[getOrderItems] products query failed:", e);
+      // Tentative 2: sans description/commission
+      try {
+        const { data: prods } = await supabaseAdmin.from("products").select("id, name, price, shop_id").in("id", productIds);
+        if (prods) for (const p of prods) productMap.set(p.id, { name: p.name ?? "Article", price: p.price ?? 0, description: null, commission_rate: null, shop_id: p.shop_id ?? null });
+      } catch (e2) {
+        // Tentative 3: colonnes minimales
+        try {
+          const { data: prods } = await supabaseAdmin.from("products").select("id, shop_id").in("id", productIds);
+          if (prods) for (const p of prods) productMap.set(p.id, { name: "Article", price: 0, description: null, commission_rate: null, shop_id: p.shop_id ?? null });
+        } catch (e3) {
+          console.error("[getOrderItems] Toutes les tentatives products ont échoué");
+        }
+      }
     }
 
-    console.log("[getOrderItems] productMap size:", productMap.size);
+    console.log("[getOrderItems] productMap:", productMap.size, "/", productIds.length);
 
     // 4. Images
     const imageMap = new Map<string, string>();
     const allImagesMap = new Map<string, string[]>();
     try {
-      const { data: imgs } = await supabaseAdmin
-        .from("product_images")
-        .select("product_id, url")
-        .in("product_id", productIds)
-        .order("position", { ascending: true });
+      const { data: imgs } = await supabaseAdmin.from("product_images").select("product_id, url").in("product_id", productIds).order("position", { ascending: true });
       for (const img of imgs ?? []) {
         if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
         if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
@@ -318,27 +295,32 @@ export const getOrderItems = createServerFn({ method: "POST" })
       }
     } catch (e) { /* ignore */ }
 
-    // 5. Shops
+    // 5. Shops — ESSAYER plusieurs approches
     const shopIds = Array.from(new Set(Array.from(productMap.values()).map(p => p.shop_id).filter(Boolean)));
     const shopMap = new Map<string, { name: string; owner_name: string; is_admin: boolean }>();
-    try {
-      const { data: shops } = await supabaseAdmin.from("shops").select("id, name, owner_id").in("id", shopIds);
-      const ownerIds = Array.from(new Set((shops ?? []).map(s => s.owner_id).filter(Boolean)));
-      const { data: owners } = await supabaseAdmin.from("profiles").select("id, full_name, is_admin_shop").in("id", ownerIds);
-      const ownerMap = new Map((owners ?? []).map(o => [o.id, { full_name: o.full_name, is_admin_shop: o.is_admin_shop }]));
-      for (const s of shops ?? []) {
-        const owner = s.owner_id ? ownerMap.get(s.owner_id) : null;
-        shopMap.set(s.id, { name: s.name ?? "Boutique", owner_name: owner?.full_name ?? "—", is_admin: owner?.is_admin_shop ?? false });
-      }
-    } catch (e) { /* ignore */ }
 
-    // 6. Assembler — AVEC FALLBACKS
+    if (shopIds.length > 0) {
+      try {
+        const { data: shops } = await supabaseAdmin.from("shops").select("id, name, owner_id").in("id", shopIds);
+        if (shops && shops.length > 0) {
+          const ownerIds = Array.from(new Set(shops.map(s => s.owner_id).filter(Boolean)));
+          const { data: owners } = await supabaseAdmin.from("profiles").select("id, full_name, is_admin_shop").in("id", ownerIds);
+          const ownerMap = new Map((owners ?? []).map(o => [o.id, { full_name: o.full_name, is_admin_shop: o.is_admin_shop }]));
+          for (const s of shops) {
+            const owner = s.owner_id ? ownerMap.get(s.owner_id) : null;
+            shopMap.set(s.id, { name: s.name ?? "Boutique", owner_name: owner?.full_name ?? "—", is_admin: owner?.is_admin_shop ?? false });
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // 6. Assembler avec FALLBACKS
     const shopGroups = new Map<string, any>();
     const detailedItems = items.map((it, idx) => {
       const prod = productMap.get(it.product_id ?? "");
       const qty = it.quantity ?? 1;
-      // Prix: produit > order_total/totalQty > 0
-      const price = prod?.price && prod.price > 0 ? prod.price : (orderTotal > 0 ? Math.round(orderTotal / totalQty) : 0);
+      // PRIX: produit > order_total/qty > 0
+      const price = prod?.price && prod.price > 0 ? prod.price : (orderTotal > 0 && totalQty > 0 ? Math.round(orderTotal / totalQty) : 0);
       const lineTotal = qty * price;
       const shop = prod?.shop_id ? shopMap.get(prod.shop_id) : null;
 
@@ -370,12 +352,12 @@ export const getOrderItems = createServerFn({ method: "POST" })
       };
     });
 
-    const calculatedTotal = detailedItems.reduce((s, i) => s + i.line_total, 0);
-    console.log("[getOrderItems] DONE items:", detailedItems.length, "total:", calculatedTotal);
+    const total = detailedItems.reduce((s, i) => s + i.line_total, 0);
+    console.log("[getOrderItems] total:", total, "items:", detailedItems.length);
 
     return {
       items: detailedItems,
-      order_total: calculatedTotal > 0 ? calculatedTotal : orderTotal,
+      order_total: total > 0 ? total : orderTotal,
       vendor_summary: Array.from(shopGroups.values()).map(g => ({
         vendor_id: g.shop_id, vendor_name: g.owner_name, shop_name: g.shop_name,
         item_count: g.item_count, total: g.total, is_admin: g.is_admin,
