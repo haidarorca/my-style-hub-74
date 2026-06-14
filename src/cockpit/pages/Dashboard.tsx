@@ -64,7 +64,7 @@ export default function CockpitDashboard() {
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
     updateStatus, cancelOrder, getCancellation, cancellations,
-    freightMap, getOrderFinancials,
+    freightMap, getOrderFinancials, orderTypeMap,
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
@@ -726,6 +726,7 @@ export default function CockpitDashboard() {
                         totalPaid={paid}
                         freight={freight}
                         grandTotal={grandTotal}
+                        orderType={orderTypeMap[o.order_id ?? ""]}
                         quickAction={{
                           label: ws.actionLabel,
                           color: ws.actionColor,
@@ -749,20 +750,21 @@ export default function CockpitDashboard() {
                     totalPaid={paid}
                     freight={freight}
                     grandTotal={grandTotal}
+                    orderType={orderTypeMap[o.order_id ?? ""]}
                   />
                 );
               })}
             </div>
           );
         })() : (activeTab === "actions" || activeTab === "mixte") && viewMode === "pipeline" ? (
-          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} />
+          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} orderTypeMap={orderTypeMap} />
         ) : activeTab === "archive" ? (
           <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
           <div className="divide-y divide-gray-100">
             {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => {
               const a = getOrderFinancials(o);
-              return <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={a.paid} freight={a.freight} grandTotal={a.grandTotal} />;
+              return <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={a.paid} freight={a.freight} grandTotal={a.grandTotal} orderType={orderTypeMap[o.order_id ?? ""]} />;
             })}
           </div>
         )}
