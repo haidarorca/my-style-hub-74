@@ -4,7 +4,7 @@ import {
   CircleDot, Ban, RotateCcw, ArrowDownToLine,
 } from "lucide-react";
 import {
-  ARTICLE_STATUS_LABELS, ARTICLE_STATUS_COLORS, getOrderMixType,
+  ARTICLE_STATUS_LABELS, ARTICLE_STATUS_COLORS, getOrderMixType, STOCK_BREAK_ACTIONS,
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 import { StockBreakDialog } from "./StockBreakDialog";
