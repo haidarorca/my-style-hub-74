@@ -273,3 +273,29 @@ export function checkCanCancel(status: string, paidAmount: number): CancelCheck 
     warnings,
   };
 }
+
+/* ─── FORMATAGE DATE / HEURE ─── */
+const MONTH_NAMES = ["jan", "fév", "mar", "avr", "mai", "juin", "juil", "août", "sep", "oct", "nov", "déc"];
+
+/** Formate une date ISO en format court lisible: "14 juin, 14:32" */
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const isYesterday = new Date(now.getTime() - 86400000).toDateString() === d.toDateString();
+    const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    if (isToday) return `Aujourd'hui, ${timeStr}`;
+    if (isYesterday) return `Hier, ${timeStr}`;
+    const day = d.getDate();
+    const month = MONTH_NAMES[d.getMonth()];
+    const year = d.getFullYear();
+    const currentYear = now.getFullYear();
+    if (year === currentYear) return `${day} ${month}, ${timeStr}`;
+    return `${day} ${month} ${year}, ${timeStr}`;
+  } catch {
+    return "—";
+  }
+}
