@@ -313,8 +313,12 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
     const importProducts = (importProductsResult.status === "fulfilled" ? importProductsResult.value.data : []) ?? [];
 
+    // Map: product_id → pays d'origine (pour affichage)
     const countryMap = new Map<string, { name: string; flag: string }>();
+    // Set: product_id qui sont des imports (dans import_products = circuit import)
+    const importProductIds = new Set<string>();
     for (const ip of importProducts) {
+      importProductIds.add(ip.product_id);
       const c = (ip as any).countries;
       if (c?.name) {
         countryMap.set(ip.product_id, { name: c.name, flag: c.flag_emoji ?? "" });
@@ -388,11 +392,11 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
       const productOriginCountry = countryMap.get(it.product_id ?? "");
 
-      // TYPE DU PRODUIT : déterminé par le vendor (profiles.is_admin_shop)
-      // is_admin_shop = true  → LOCAL (boutique Kawzone)
-      // is_admin_shop = false → IMPORT (vendeur externe)
-      const isImportProduct = !isAdmin;
-      const isLocalProduct = isAdmin;
+      // TYPE DU PRODUIT : déterminé par la présence dans import_products
+      // Produit dans import_products    → IMPORT (circuit international)
+      // Produit PAS dans import_products → LOCAL (circuit local)
+      const isImportProduct = importProductIds.has(it.product_id ?? "");
+      const isLocalProduct = !isImportProduct;
 
       return {
         product_id: it.product_id ?? "",
@@ -481,10 +485,10 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
-    // Étape 1: Charger order_items avec vendor_id
+    // Étape 1: Charger order_items avec product_id
     const { data: items } = await supabaseAdmin
       .from("order_items")
-      .select("order_id, vendor_id")
+      .select("order_id, product_id")
       .in("order_id", data.order_ids);
 
     if (!items || items.length === 0) {
@@ -500,32 +504,29 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
       return result as any;
     }
 
-    // Étape 2: Charger vendors (profiles)
-    const vendorIds = Array.from(new Set(items.map(it => it.vendor_id).filter(Boolean)));
-    const { data: vendors } = await supabaseAdmin
-      .from("profiles")
-      .select("id, is_admin_shop")
-      .in("id", vendorIds);
+    // Étape 2: Charger les produits dans import_products
+    const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean)));
+    const { data: importProducts } = await supabaseAdmin
+      .from("import_products")
+      .select("product_id")
+      .in("product_id", productIds);
 
-    const vendorMap = new Map<string, boolean>();
-    for (const v of vendors ?? []) {
-      vendorMap.set(v.id, v.is_admin_shop ?? false);
-    }
+    const importProductIds = new Set((importProducts ?? []).map(ip => ip.product_id));
 
-    // Étape 3: Grouper par order_id et déterminer le type
-    const orderItems = new Map<string, { is_local: boolean }[]>();
+    // Étape 3: Grouper par order_id et compter local/import
+    const orderItems = new Map<string, { is_import: boolean }[]>();
     for (const it of items) {
       const orderId = it.order_id;
-      const isAdmin = vendorMap.get(it.vendor_id ?? "") ?? false;
+      const isImport = importProductIds.has(it.product_id ?? "");
       if (!orderItems.has(orderId)) orderItems.set(orderId, []);
-      orderItems.get(orderId)!.push({ is_local: isAdmin });
+      orderItems.get(orderId)!.push({ is_import: isImport });
     }
 
     const result: Record<string, "local" | "import" | "mixte"> = {};
     for (const [orderId, types] of orderItems) {
-      const hasLocal = types.some(t => t.is_local);
-      const hasImport = types.some(t => !t.is_local);
-      if (hasLocal && hasImport) result[orderId] = "mixte";
+      const hasImport = types.some(t => t.is_import);
+      const hasLocal = types.some(t => !t.is_import);
+      if (hasImport && hasLocal) result[orderId] = "mixte";
       else if (hasImport) result[orderId] = "import";
       else result[orderId] = "local";
     }
