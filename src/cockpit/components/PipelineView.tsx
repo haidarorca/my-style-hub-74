@@ -1,6 +1,6 @@
 import { useRef, useCallback } from "react";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
-import { fmtF, fmtDateTime, STATUS_COLORS, isImport } from "@/cockpit/lib/workflow";
+import { fmtF, fmtDateTime, STATUS_COLORS } from "@/cockpit/lib/workflow";
 import { getOrderMixType } from "@/cockpit/lib/article-states";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
@@ -93,9 +93,11 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                 const kz = getOrderNumber(order.order_id ?? "");
                 const oid = order.order_id ?? "";
                 const art = articlesMap?.[oid];
-                const typeFromMap = orderTypeMap?.[oid];
-                const isMixte = typeFromMap === "mixte" || (art ? getOrderMixType(art) === "mixte" : false);
-                const imp = !isMixte && isImport(order);
+                // SEULE source de vérité : orderTypeMap (calculé depuis import_products).
+                // Fallback sur articles si chargés, sinon "local" par défaut (le plus sûr).
+                const typeFromMap = orderTypeMap?.[oid] ?? (art ? getOrderMixType(art) : undefined);
+                const isMixte = typeFromMap === "mixte";
+                const imp = typeFromMap === "import";
                 const productTotal = order.order_total ?? 0;
                 const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
                 const grandTotal = productTotal + freight;
