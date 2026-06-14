@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, MapPin, Package, Clock, AlertTriangle } from "lucide-react";
-import { STATUS_LABELS, STATUS_COLORS, fmtF, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
+import { STATUS_LABELS, STATUS_COLORS, fmtF, fmtDateTime, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
@@ -51,6 +51,10 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
           <Badge variant="outline" className={`text-[8px] h-4 px-1 ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>
             {imp ? "IMPORT" : "LOCAL"}
           </Badge>
+        </div>
+        <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-1">
+          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          {fmtDateTime(order.order_created_at)}
         </div>
         {order.customer_phone && <div className="flex items-center gap-1 text-[11px] text-gray-500"><Phone className="h-3 w-3" />{order.customer_phone}</div>}
         {order.destination_address && <div className="flex items-center gap-1 text-[11px] text-gray-400 truncate"><MapPin className="h-3 w-3" />{order.destination_address}</div>}
