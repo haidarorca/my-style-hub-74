@@ -250,6 +250,9 @@ export interface OrderItemDetail {
   commission_amount: number | null;
   // ─── Infos vendeur complètes ───
   vendor: VendorFullInfo | null;
+  // ─── Pays d'origine (pour les imports) ───
+  origin_country: string | null;
+  origin_country_flag: string | null;
 }
 
 export interface OrderItemsResult {
@@ -314,7 +317,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
     // ═══════════════════════════════════════════════════════════════
     // ÉTAPE 3 : Charger produits + variantes + vendors + images (PARALLÈLE)
     // ═══════════════════════════════════════════════════════════════
-    const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
+    const [productsResult, variantsResult, vendorsResult, imagesResult, importProductsResult] = await Promise.allSettled([
       // 3a. Produits (designation, description)
       productIds.length > 0
         ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate").in("id", productIds)
@@ -336,12 +339,27 @@ export const getOrderItems = createServerFn({ method: "POST" })
       productIds.length > 0
         ? supabaseAdmin.from("product_images").select("product_id, url").in("product_id", productIds).order("position", { ascending: true })
         : Promise.resolve({ data: [] }),
+
+      // 3e. Import products (pays d'origine)
+      productIds.length > 0
+        ? supabaseAdmin.from("import_products").select("product_id, source_country_id, countries(name, flag_emoji)").in("product_id", productIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const products = (productsResult.status === "fulfilled" ? productsResult.value.data : []) ?? [];
     const variants = (variantsResult.status === "fulfilled" ? variantsResult.value.data : []) ?? [];
     const vendors = (vendorsResult.status === "fulfilled" ? vendorsResult.value.data : []) ?? [];
     const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
+    const importProducts = (importProductsResult.status === "fulfilled" ? importProductsResult.value.data : []) ?? [];
+
+    // Map: product_id → pays d'origine
+    const countryMap = new Map<string, { name: string; flag: string }>();
+    for (const ip of importProducts) {
+      const c = (ip as any).countries;
+      if (c?.name) {
+        countryMap.set(ip.product_id, { name: c.name, flag: c.flag_emoji ?? "" });
+      }
+    }
 
     // Maps pour lookup rapide
     const productMap = new Map(products.map(p => [p.id, p]));
@@ -466,6 +484,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
           is_verified: (vendor as any)?.is_verified ?? false,
           vendor_mode: (vendor as any)?.vendor_mode ?? null,
         } : null,
+        // ─── Pays d'origine ───
+        origin_country: countryMap.get(it.product_id ?? "")?.name ?? null,
+        origin_country_flag: countryMap.get(it.product_id ?? "")?.flag ?? null,
       };
     });
 
