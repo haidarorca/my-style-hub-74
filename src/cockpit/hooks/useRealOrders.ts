@@ -101,7 +101,7 @@ export function useRealOrders() {
 
   /* ── Fusion Supabase + local ── */
   const allPayments = useMemo(() => {
-    const sb = (sbPayments ?? []) as PaymentRecord[];
+    const sb = (sbPayments ?? []) as unknown as PaymentRecord[];
     const merged = [...sb];
     for (const lp of localPayments) if (!merged.some(m => m.id === lp.id)) merged.push(lp);
     return merged;
@@ -145,8 +145,9 @@ export function useRealOrders() {
   const editPayment = useCallback((paymentId: string, updates: { amount?: number; method?: string; reference?: string }) => {
     setLocalPayments(prev => prev.map(p => {
       if (p.id !== paymentId) return p;
-      const edit = { oldAmount: p.amount, newAmount: updates.amount ?? p.amount, oldMethod: p.method, newMethod: updates.method ?? p.method, editedBy: p.adminName, editedAt: new Date().toISOString() };
-      return { ...p, ...updates, editHistory: [...(p.editHistory ?? []), edit] };
+      const newMethod = (updates.method ?? p.method) as PaymentMethod;
+      const edit = { oldAmount: p.amount, newAmount: updates.amount ?? p.amount, oldMethod: p.method, newMethod, editedBy: p.adminName, editedAt: new Date().toISOString() };
+      return { ...p, ...updates, method: newMethod, editHistory: [...(p.editHistory ?? []), edit] } as PaymentRecord;
     }));
   }, []);
 
