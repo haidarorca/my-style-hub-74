@@ -106,12 +106,6 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${ARTICLE_STATUS_COLORS[art.status]}`}>
                     {ARTICLE_STATUS_LABELS[art.status]}
                   </span>
-                  {/* Badge type */}
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                    art.is_import ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
-                  }`}>
-                    {art.is_import ? "IMP" : "LOC"}
-                  </span>
                   {/* Qty */}
                   <span className="text-[10px] text-gray-500">
                     x{art.quantity}
