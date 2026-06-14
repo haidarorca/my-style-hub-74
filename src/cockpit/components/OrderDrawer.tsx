@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight } from "lucide-react";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Layers } from "lucide-react";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
@@ -18,6 +18,10 @@ import { Timeline } from "./Timeline";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
+import { NextActionBanner } from "./NextActionBanner";
+import { ArticlesPanel } from "./ArticlesPanel";
+import { getNextActionForOrder } from "@/cockpit/lib/article-states";
+import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 
 interface OrderFinancials {
   productTotal: number;
@@ -44,9 +48,14 @@ interface Props {
   onRequestCancel?: () => void;
   onViewItems?: () => void;
   onFormInteraction?: () => void;
+  // ─── Gestion article par article ───
+  articles?: OrderArticle[];
+  onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
+  onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
+  onPartialDeliver?: (productId: string, qty: number) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -70,6 +79,14 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
+  // ─── Type mixte (local + import dans la même commande) ───
+  const hasLocal = articles && articles.some(a => a.is_local);
+  const hasImport = articles && articles.some(a => a.is_import);
+  const isMixte = !!articles && hasLocal && hasImport;
+
+  // ─── Action suivante intelligente ───
+  const nextActionInfo = articles ? getNextActionForOrder(status, articles, rem, sf > 0) : null;
+
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
 
@@ -89,11 +106,22 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               <SheetTitle className="text-xl">{kz}</SheetTitle>
               <div className="font-mono text-[11px] text-gray-400">{tech}</div>
               <div className="flex gap-2 pt-1 flex-wrap">
-                <Badge variant="outline" className={`text-[10px] ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>{imp ? "IMPORT" : "LOCAL"}</Badge>
+                {isMixte ? (
+                  <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-indigo-50 to-emerald-50 text-indigo-700 border-indigo-200 font-bold">
+                    <Layers className="h-3 w-3 mr-1" />MIXTE
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className={`text-[10px] ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>{imp ? "IMPORT" : "LOCAL"}</Badge>
+                )}
                 <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
               </div>
             </div>
           </SheetHeader>
+
+          {/* ─── Action suivante ─── */}
+          {nextActionInfo && (
+            <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
+          )}
 
           {/* Workflow IMPORT */}
           {imp && stepIdx >= 0 && (
@@ -121,8 +149,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             {order.destination_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.destination_address}</div>}
           </div>
 
-          {/* Bouton Voir les articles */}
-          {onViewItems && (
+          {/* ─── Articles : gestion article par article ─── */}
+          {articles && articles.length > 0 ? (
+            <ArticlesPanel
+              articles={articles}
+              onStockBreak={onStockBreak}
+              onStatusChange={onArticleStatusChange}
+              onPartialDeliver={onPartialDeliver}
+            />
+          ) : onViewItems && (
             <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-2">
                 <ListOrdered className="h-5 w-5 text-orange-600" />
