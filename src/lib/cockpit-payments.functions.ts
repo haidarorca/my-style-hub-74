@@ -447,8 +447,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
       }
 
       const originCountry = countryMap.get(it.product_id ?? "");
-      const isImportProduct = !isAdmin;  // vendor non-admin = produit importé
-      const isLocalProduct = isAdmin;    // vendor admin = produit local (Kawzone)
+      // IMPORT = produit qui vient d'un autre pays (présent dans import_products)
+      // LOCAL = produit disponible localement (absent de import_products)
+      const isImportProduct = originCountry !== undefined;  // a un pays d'origine = importé
+      const isLocalProduct = !isImportProduct;              // pas de pays = local
 
       return {
           product_id: it.product_id ?? "",
