@@ -345,4 +345,13 @@ html[dir="rtl"] .lucide-home {
   -webkit-backdrop-filter: blur(40px) saturate(1.2);
 }
 
+/* ═══ Product Detail slide-in overlay ═══ */
+@keyframes slideInOverlay {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+  animation: slideInOverlay 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
 /* Cache-bust: 4 */
