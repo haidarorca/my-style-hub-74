@@ -203,15 +203,6 @@ export default function CockpitDashboard() {
     ));
   }, []);
 
-  // ─── Toggle type article (pour tester MIXTE) ───
-  const handleToggleType = useCallback((productId: string) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId
-        ? { ...a, is_import: !a.is_import, is_local: !a.is_local }
-        : a
-    ));
-  }, []);
-
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
   const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
@@ -793,7 +784,6 @@ export default function CockpitDashboard() {
           onStockBreak={handleStockBreak}
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
-          onToggleType={handleToggleType}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
