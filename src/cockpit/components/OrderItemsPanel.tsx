@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { X, Package, Store, User, ChevronRight, Loader2, AlertCircle, ShieldCheck, Users, ImageOff } from "lucide-react";
+import {
+  X, Package, Store, ChevronRight, Loader2, AlertCircle,
+  ShieldCheck, Users, ImageOff, Tag, Ruler, Palette, CircleDot,
+} from "lucide-react";
 import { getOrderItems } from "@/lib/cockpit-payments.functions";
 import { fmtF } from "@/cockpit/lib/workflow";
 import type { OrderItemDetail, OrderItemsResult } from "@/lib/cockpit-payments.functions";
@@ -9,8 +12,8 @@ interface Props {
   onClose: () => void;
 }
 
-// ─── Labels professionnels selon le type de vendeur ───
-function vendorLabel(isAdmin: boolean): { title: string; subtitle: string; icon: typeof Store; color: string; bg: string } {
+// ─── Labels selon le type de boutique ───
+function vendorLabel(isAdmin: boolean) {
   if (isAdmin) {
     return {
       title: "Boutique Officielle",
@@ -18,15 +21,57 @@ function vendorLabel(isAdmin: boolean): { title: string; subtitle: string; icon:
       icon: ShieldCheck,
       color: "text-purple-700",
       bg: "bg-purple-50 border-purple-200",
+      badge: "text-purple-600 bg-purple-100",
     };
   }
   return {
-    title: "Vendeur Partenaire",
-    subtitle: "Produit externe — Import",
+    title: "Boutique Vendeur",
+    subtitle: "Produit externe — Commission",
     icon: Users,
     color: "text-blue-700",
     bg: "bg-blue-50 border-blue-200",
+    badge: "text-blue-600 bg-blue-100",
   };
+}
+
+// ─── Badge de variante choisie ───
+function VariantBadge({ label, color, colorHex }: { label: string | null; color: string | null; colorHex: string | null }) {
+  if (!label && !color) return null;
+  const display = label ?? color ?? "";
+  return (
+    <div className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-2 py-0.5 text-[10px] font-medium text-gray-700">
+      {colorHex ? (
+        <span className="w-2.5 h-2.5 rounded-full border border-gray-300 shrink-0" style={{ backgroundColor: colorHex }} />
+      ) : (
+        <Tag className="h-3 w-3 text-gray-400" />
+      )}
+      {display}
+    </div>
+  );
+}
+
+// ─── Séparateur variante détaillée ───
+function VariantDetail({ size, color, colorHex }: { size: string | null; color: string | null; colorHex: string | null }) {
+  if (!size && !color) return null;
+  return (
+    <div className="flex items-center gap-3">
+      {size && (
+        <div className="flex items-center gap-1 text-sm text-gray-600">
+          <Ruler className="h-4 w-4 text-gray-400" />
+          <span>Taille: <b>{size}</b></span>
+        </div>
+      )}
+      {color && (
+        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+          <Palette className="h-4 w-4 text-gray-400" />
+          <span>Couleur: <b>{color}</b></span>
+          {colorHex && (
+            <span className="w-4 h-4 rounded-full border border-gray-300" style={{ backgroundColor: colorHex }} />
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function OrderItemsPanel({ orderId, onClose }: Props) {
@@ -62,7 +107,9 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
       .finally(() => setLoading(false));
   }, [orderId]);
 
-  // ─── Détail produit (plein écran) ───
+  // ═══════════════════════════════════════════════
+  // DÉTAIL PRODUIT (plein écran)
+  // ═══════════════════════════════════════════════
   if (detailItem) {
     const vLabel = vendorLabel(detailItem.is_admin_shop);
     const VIcon = vLabel.icon;
@@ -78,7 +125,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
         </div>
 
         <div className="overflow-y-auto flex-1 p-4 space-y-4">
-          {/* Galerie images */}
+          {/* ─── Galerie images (variante en premier) ─── */}
           {detailItem.all_images.length > 0 ? (
             <div className="space-y-2">
               <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden">
@@ -100,19 +147,42 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             </div>
           )}
 
-          {/* Nom produit */}
-          <h2 className="text-lg font-bold">{detailItem.product_name}</h2>
+          {/* ─── Nom produit ─── */}
+          <div>
+            <h2 className="text-lg font-bold">{detailItem.product_name}</h2>
+            {detailItem.designation && (
+              <p className="text-sm text-gray-500 mt-0.5">{detailItem.designation}</p>
+            )}
+          </div>
 
-          {/* Source / Vendeur */}
+          {/* ─── Description ─── */}
+          {detailItem.description && (
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{detailItem.description}</p>
+          )}
+
+          {/* ─── Variante choisie ─── */}
+          {(detailItem.size || detailItem.color) && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-1.5 text-orange-700 font-semibold text-sm">
+                <CircleDot className="h-4 w-4" />
+                Variante choisie
+              </div>
+              <VariantDetail size={detailItem.size} color={detailItem.color} colorHex={detailItem.color_hex} />
+            </div>
+          )}
+
+          {/* ─── Source / Boutique ─── */}
           <div className={`rounded-lg border p-3 ${vLabel.bg}`}>
             <div className="flex items-center gap-2">
               <VIcon className={`h-5 w-5 ${vLabel.color}`} />
               <div>
-                <div className={`text-sm font-semibold ${vLabel.color}`}>{vLabel.title}</div>
+                <div className={`text-sm font-semibold ${vLabel.color}`}>
+                  {detailItem.shop_type_label ?? vLabel.title}
+                </div>
                 <div className="text-xs text-gray-500">{vLabel.subtitle}</div>
               </div>
             </div>
-            {detailItem.shop_name && (
+            {detailItem.shop_name && detailItem.shop_name !== "Source inconnue" && (
               <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
                 <Store className="h-3.5 w-3.5" />
                 {detailItem.shop_name}
@@ -123,7 +193,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             )}
           </div>
 
-          {/* Quantité & Prix */}
+          {/* ─── Quantité & Prix ─── */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Quantité</span>
@@ -135,8 +205,10 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             </div>
             {detailItem.commission_rate && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Commission</span>
-                <span className="text-sm font-semibold text-orange-600">{detailItem.commission_rate}%</span>
+                <span className="text-sm text-gray-500">Commission ({detailItem.commission_rate}%)</span>
+                <span className="text-sm font-semibold text-orange-600">
+                  {detailItem.commission_amount ? fmtF(detailItem.commission_amount) : `${detailItem.commission_rate}%`}
+                </span>
               </div>
             )}
             <div className="border-t pt-2 flex items-center justify-between">
@@ -149,7 +221,9 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
     );
   }
 
-  // ─── Liste articles ───
+  // ═══════════════════════════════════════════════
+  // LISTE ARTICLES
+  // ═══════════════════════════════════════════════
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -186,7 +260,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
 
           {data && (
             <>
-              {/* ─── Résumé par source (shop/vendeur) ─── */}
+              {/* ─── Résumé par boutique ─── */}
               {data.vendor_summary.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source des articles</h4>
@@ -199,9 +273,11 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                           <div className="flex items-center gap-2">
                             <VIcon className={`h-4 w-4 ${label.color}`} />
                             <div>
-                              <div className={`text-sm font-semibold ${label.color}`}>{label.title}</div>
+                              <div className={`text-sm font-semibold ${label.color}`}>
+                                {v.shop_type_label ?? label.title}
+                              </div>
                               <div className="text-[10px] text-gray-500">
-                                {v.shop_name} • {v.item_count} article{v.item_count > 1 ? "s" : ""}
+                                {v.shop_name} &bull; {v.item_count} article{v.item_count > 1 ? "s" : ""}
                               </div>
                             </div>
                           </div>
@@ -213,7 +289,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                 </div>
               )}
 
-              {/* ─── Liste des articles (cliquables) ─── */}
+              {/* ─── Liste des articles ─── */}
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Détail des articles</h4>
                 {data.items.map((item, idx) => (
@@ -222,8 +298,8 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                     onClick={() => setDetailItem(item)}
                     className="w-full flex items-start gap-3 bg-white border rounded-lg p-3 text-left hover:shadow-md transition-shadow"
                   >
-                    {/* Image */}
-                    <div className="shrink-0 w-14 h-14 bg-gray-100 rounded-lg overflow-hidden">
+                    {/* Image (variante en priorité) */}
+                    <div className="shrink-0 w-14 h-14 bg-gray-100 rounded-lg overflow-hidden relative">
                       {item.product_image ? (
                         <img src={item.product_image} alt={item.product_name} className="w-full h-full object-cover" />
                       ) : (
@@ -231,17 +307,34 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                           <Package className="h-6 w-6" />
                         </div>
                       )}
+                      {/* Badge variante sur l'image */}
+                      {(item.variant_label || item.color) && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] text-center py-0.5 truncate px-1">
+                          {item.variant_label ?? item.color}
+                        </div>
+                      )}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{item.product_name}</div>
+                      {item.designation && (
+                        <div className="text-[10px] text-gray-400 truncate">{item.designation}</div>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[10px] text-gray-500">Qty: <b>{item.quantity}</b></span>
-                        <span className="text-[10px] text-gray-400">×</span>
+                        <span className="text-[10px] text-gray-400">&times;</span>
                         <span className="text-[10px] text-gray-500">{fmtF(item.unit_price)}</span>
                       </div>
-                      {/* Source avec badge intelligent */}
+
+                      {/* Variante choisie */}
+                      {(item.variant_label || item.color) && (
+                        <div className="mt-1">
+                          <VariantBadge label={item.variant_label} color={item.color} colorHex={item.color_hex} />
+                        </div>
+                      )}
+
+                      {/* Type boutique */}
                       {item.shop_name && (
                         <div className="flex items-center gap-1 mt-1">
                           {item.is_admin_shop ? (
@@ -250,13 +343,18 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                             <Users className="h-3 w-3 text-blue-500" />
                           )}
                           <span className={`text-[10px] font-medium ${item.is_admin_shop ? "text-purple-600" : "text-blue-600"}`}>
-                            {item.is_admin_shop ? "Officielle" : "Partenaire"}
+                            {item.shop_type_label ?? (item.is_admin_shop ? "Officielle" : "Vendeur")}
                           </span>
-                          <span className="text-[10px] text-gray-400">— {item.shop_name}</span>
+                          <span className="text-[10px] text-gray-400">&mdash; {item.shop_name}</span>
                         </div>
                       )}
+
+                      {/* Commission */}
                       {item.commission_rate && (
-                        <div className="text-[10px] text-orange-500 mt-0.5">Commission: {item.commission_rate}%</div>
+                        <div className="text-[10px] text-orange-500 mt-0.5">
+                          Commission: {item.commission_rate}%
+                          {item.commission_amount ? ` (${fmtF(item.commission_amount)})` : ""}
+                        </div>
                       )}
                     </div>
 
