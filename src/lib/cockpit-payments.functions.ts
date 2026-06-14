@@ -266,9 +266,8 @@ export const getOrderItems = createServerFn({ method: "POST" })
       .eq("id", data.order_id)
       .maybeSingle();
 
-    const isImportOrder = !!orderRow?.shipping_service_id;
     const orderCountry = orderRow?.destination_country_name ?? null;
-    console.log("[getOrderItems] order:", isImportOrder ? "IMPORT" : "LOCAL", "total:", orderRow?.total, "country:", orderCountry);
+    console.log("[getOrderItems] order total:", orderRow?.total, "country:", orderCountry);
 
     let orderItemsRaw: any[] = [];
 
@@ -389,6 +388,12 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
       const productOriginCountry = countryMap.get(it.product_id ?? "");
 
+      // TYPE DU PRODUIT : déterminé par le vendor (profiles.is_admin_shop)
+      // is_admin_shop = true  → LOCAL (boutique Kawzone)
+      // is_admin_shop = false → IMPORT (vendeur externe)
+      const isImportProduct = !isAdmin;
+      const isLocalProduct = isAdmin;
+
       return {
         product_id: it.product_id ?? "",
         product_name: prodName,
@@ -412,9 +417,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
         shop_type_label: shopTypeLabel,
         commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
         commission_amount: it.commission_amount ?? null,
-        is_import: isImportOrder,
-        is_local: !isImportOrder,
-        origin_country: productOriginCountry?.name ?? (isImportOrder ? orderCountry : null),
+        is_import: isImportProduct,
+        is_local: isLocalProduct,
+        origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
         vendor: it.vendor_id && vendor ? {
           vendor_id: it.vendor_id,
@@ -476,14 +481,65 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
-    const { data: orders } = await supabaseAdmin
-      .from("orders")
-      .select("id, shipping_service_id, destination_country_name")
-      .in("id", data.order_ids);
+    // Étape 1: Charger order_items avec vendor_id
+    const { data: items } = await supabaseAdmin
+      .from("order_items")
+      .select("order_id, vendor_id")
+      .in("order_id", data.order_ids);
+
+    if (!items || items.length === 0) {
+      // Fallback: shipping_service_id
+      const { data: orders } = await supabaseAdmin
+        .from("orders")
+        .select("id, shipping_service_id")
+        .in("id", data.order_ids);
+      const result: Record<string, "local" | "import" | "mixte"> = {};
+      for (const o of orders ?? []) {
+        result[o.id] = o.shipping_service_id ? "import" : "local";
+      }
+      return result as any;
+    }
+
+    // Étape 2: Charger vendors (profiles)
+    const vendorIds = Array.from(new Set(items.map(it => it.vendor_id).filter(Boolean)));
+    const { data: vendors } = await supabaseAdmin
+      .from("profiles")
+      .select("id, is_admin_shop")
+      .in("id", vendorIds);
+
+    const vendorMap = new Map<string, boolean>();
+    for (const v of vendors ?? []) {
+      vendorMap.set(v.id, v.is_admin_shop ?? false);
+    }
+
+    // Étape 3: Grouper par order_id et déterminer le type
+    const orderItems = new Map<string, { is_local: boolean }[]>();
+    for (const it of items) {
+      const orderId = it.order_id;
+      const isAdmin = vendorMap.get(it.vendor_id ?? "") ?? false;
+      if (!orderItems.has(orderId)) orderItems.set(orderId, []);
+      orderItems.get(orderId)!.push({ is_local: isAdmin });
+    }
 
     const result: Record<string, "local" | "import" | "mixte"> = {};
-    for (const o of orders ?? []) {
-      result[o.id] = o.shipping_service_id ? "import" : "local";
+    for (const [orderId, types] of orderItems) {
+      const hasLocal = types.some(t => t.is_local);
+      const hasImport = types.some(t => !t.is_local);
+      if (hasLocal && hasImport) result[orderId] = "mixte";
+      else if (hasImport) result[orderId] = "import";
+      else result[orderId] = "local";
+    }
+
+    // Fallback pour commandes sans items
+    for (const oid of data.order_ids) {
+      if (!result[oid]) {
+        const { data: orderRow } = await supabaseAdmin
+          .from("orders")
+          .select("shipping_service_id")
+          .eq("id", oid)
+          .maybeSingle();
+        result[oid] = orderRow?.shipping_service_id ? "import" : "local";
+      }
     }
 
     return result as any;
