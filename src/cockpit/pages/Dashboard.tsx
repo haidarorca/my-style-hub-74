@@ -252,7 +252,11 @@ export default function CockpitDashboard() {
     setSelectedOrder(null);
   }, [selectedOrder, cancelOrder, adminName]);
 
-  const handleCloseDrawer = useCallback(() => { if (hasChanges) setShowCloseConfirm(true); else setSelectedOrder(null); }, [hasChanges]);
+  const handleCloseDrawer = useCallback(() => {
+    setShowItemsPanel(false);
+    if (hasChanges) setShowCloseConfirm(true);
+    else setSelectedOrder(null);
+  }, [hasChanges]);
   const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
@@ -657,12 +661,7 @@ export default function CockpitDashboard() {
         </div>
       )}
 
-      {/* Panel Articles */}
-      {showItemsPanel && selectedOrder && (
-        <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
-      )}
-
-      {/* Drawer avec dialogs internes (dans SheetContent pour eviter inert Radix) */}
+      {/* Drawer — dialogs ET OrderItemsPanel rendus DANS SheetContent pour eviter inert Radix */}
       {selectedOrder && (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
@@ -670,6 +669,10 @@ export default function CockpitDashboard() {
           onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
           dialogs={
             <>
+              {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
+              {showItemsPanel && (
+                <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
+              )}
               <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />
               <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
             </>
