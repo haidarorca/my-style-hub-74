@@ -187,23 +187,21 @@ export default function CockpitDashboard() {
 
   // ─── KPI data ───
   const kpi = useMemo(() => {
-    const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
-    let debt = 0;
+    let newCount = 0, pendingPayment = 0, toWeigh = 0, ready = 0, shipped = 0, totalDebt = 0;
     for (const o of orders) {
       const st = o.logistics_status ?? "";
       if (st === "delivered" || st === "cancelled") continue;
 
-      // Compter par statut exact pour les KPI
-      if (st === "" || st === "new") s.new++;
-      else if (st === "awaiting_weighing") s.to_weigh++;
-      else if (st === "shipped") s.shipped++;
-      else if (st === "ready" || st === "ready_delivery") s.ready++;
+      if (st === "" || st === "new") newCount++;
+      else if (st === "awaiting_payment" || st === "payment_fees") pendingPayment++;
+      else if (st === "awaiting_weighing") toWeigh++;
+      else if (st === "shipped") shipped++;
+      else if (st === "ready" || st === "ready_delivery") ready++;
 
-      // Dettes: solde restant (toutes commandes actives)
       const { remaining } = getOrderFinancials(o);
-      if (remaining > 0) debt += remaining;
+      if (remaining > 0) totalDebt += remaining;
     }
-    return { ...s, debt };
+    return { newCount, pendingPayment, toWeigh, ready, shipped, totalDebt };
   }, [orders, getOrderFinancials]);
 
   // ─── Calcul d'alerte (âge de la commande) ───

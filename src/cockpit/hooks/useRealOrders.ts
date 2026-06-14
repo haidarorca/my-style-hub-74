@@ -101,8 +101,17 @@ export function useRealOrders() {
 
   /* ── Fusion Supabase + local ── */
   const allPayments = useMemo(() => {
-    const sb = (sbPayments ?? []) as PaymentRecord[];
-    const merged = [...sb];
+    const sbRaw = (sbPayments ?? []) as unknown as Array<{ id: string; order_id: string; amount: number; method: string; reference: string | null; admin_name: string; created_at: string }>;
+    const sb: PaymentRecord[] = sbRaw.map(p => ({
+      id: p.id,
+      orderId: p.order_id,
+      amount: p.amount,
+      method: p.method as PaymentMethod,
+      reference: p.reference ?? "",
+      adminName: p.admin_name,
+      timestamp: p.created_at,
+    }));
+    const merged: PaymentRecord[] = [...sb];
     for (const lp of localPayments) if (!merged.some(m => m.id === lp.id)) merged.push(lp);
     return merged;
   }, [sbPayments, localPayments]);
@@ -145,8 +154,15 @@ export function useRealOrders() {
   const editPayment = useCallback((paymentId: string, updates: { amount?: number; method?: string; reference?: string }) => {
     setLocalPayments(prev => prev.map(p => {
       if (p.id !== paymentId) return p;
-      const edit = { oldAmount: p.amount, newAmount: updates.amount ?? p.amount, oldMethod: p.method, newMethod: updates.method ?? p.method, editedBy: p.adminName, editedAt: new Date().toISOString() };
-      return { ...p, ...updates, editHistory: [...(p.editHistory ?? []), edit] };
+      const edit = { oldAmount: p.amount, newAmount: updates.amount ?? p.amount, oldMethod: p.method, newMethod: (updates.method ?? p.method) as string, editedBy: p.adminName, editedAt: new Date().toISOString() };
+      const next: PaymentRecord = {
+        ...p,
+        amount: updates.amount ?? p.amount,
+        method: (updates.method as PaymentMethod) ?? p.method,
+        reference: updates.reference ?? p.reference,
+        editHistory: [...(p.editHistory ?? []), edit],
+      };
+      return next;
     }));
   }, []);
 
