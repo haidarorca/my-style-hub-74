@@ -56,10 +56,10 @@ export const createOrderPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreatePaymentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const adminId = (context as any).userId ?? null;
-    const adminName = data.admin_name || (context as any).claims?.email || "Admin";
+    const adminId = context.user?.id ?? null;
+    const adminName = data.admin_name || context.user?.email || "Admin";
 
-    const { data: payment, error } = await (context.supabase as any)
+    const { data: payment, error } = await context.supabase
       .from("order_payments")
       .insert({
         order_id: data.order_id,
@@ -81,7 +81,7 @@ export const createOrderPayment = createServerFn({ method: "POST" })
     await recalcOrderPayment(data.order_id);
 
     // Audit direct
-    await (context.supabase as any).from("payment_audit").insert({
+    await context.supabase.from("payment_audit").insert({
       order_id: data.order_id,
       action: "Paiement enregistre",
       admin_name: adminName,
@@ -89,7 +89,7 @@ export const createOrderPayment = createServerFn({ method: "POST" })
       details: `${data.amount} FCFA via ${data.method}${data.reference ? " (Ref: " + data.reference + ")" : ""}`,
     });
 
-    return payment as unknown as OrderPayment;
+    return payment as OrderPayment;
   });
 
 /* ── 2. Lister les paiements d'une commande ── */
@@ -97,7 +97,7 @@ export const createOrderPayment = createServerFn({ method: "POST" })
 export const listOrderPayments = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    const { data: payments, error } = await (supabaseAdmin as any)
+    const { data: payments, error } = await supabaseAdmin
       .from("order_payments")
       .select("*")
       .eq("order_id", data.order_id)
@@ -108,14 +108,14 @@ export const listOrderPayments = createServerFn({ method: "POST" })
       return [] as OrderPayment[];
     }
 
-    return (payments ?? []) as unknown as OrderPayment[];
+    return (payments ?? []) as OrderPayment[];
   });
 
 /* ── 3. Lister les paiements de toutes les commandes ── */
 
 export const listAllOrderPayments = createServerFn({ method: "POST" })
   .handler(async () => {
-    const { data: payments, error } = await (supabaseAdmin as any)
+    const { data: payments, error } = await supabaseAdmin
       .from("order_payments")
       .select("*")
       .order("created_at", { ascending: false });
@@ -125,7 +125,7 @@ export const listAllOrderPayments = createServerFn({ method: "POST" })
       return [] as OrderPayment[];
     }
 
-    return (payments ?? []) as unknown as OrderPayment[];
+    return (payments ?? []) as OrderPayment[];
   });
 
 /* ── 4. Audit — journal des actions ── */
@@ -133,7 +133,7 @@ export const listAllOrderPayments = createServerFn({ method: "POST" })
 export const createPaymentAudit = createServerFn({ method: "POST" })
   .inputValidator((input) => AuditSchema.parse(input))
   .handler(async ({ data }) => {
-    const { error } = await (supabaseAdmin as any)
+    const { error } = await supabaseAdmin
       .from("payment_audit")
       .insert({
         order_id: data.order_id,
@@ -155,7 +155,7 @@ export const createPaymentAudit = createServerFn({ method: "POST" })
 export const listPaymentAudit = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    const { data: audit, error } = await (supabaseAdmin as any)
+    const { data: audit, error } = await supabaseAdmin
       .from("payment_audit")
       .select("*")
       .eq("order_id", data.order_id)
@@ -166,21 +166,21 @@ export const listPaymentAudit = createServerFn({ method: "POST" })
       return [] as PaymentAudit[];
     }
 
-    return (audit ?? []) as unknown as PaymentAudit[];
+    return (audit ?? []) as PaymentAudit[];
   });
 
 /* ── 6. Recalculer le total paye d'une commande ── */
 
 async function recalcOrderPayment(orderId: string) {
   try {
-    const { data: payments } = await (supabaseAdmin as any)
+    const { data: payments } = await supabaseAdmin
       .from("order_payments")
       .select("amount")
       .eq("order_id", orderId);
 
-    const totalPaid = ((payments ?? []) as Array<{ amount: number | null }>).reduce((s, p) => s + (p.amount ?? 0), 0);
+    const totalPaid = (payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
 
-    await (supabaseAdmin as any)
+    await supabaseAdmin
       .from("order_payment_summary")
       .upsert({
         order_id: orderId,
@@ -262,12 +262,12 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const { data: orderRow } = await supabaseAdmin
       .from("orders")
-      .select("id, total, status, shipping_service_id, destination_country_id")
+      .select("id, total, status, shipping_service_id, destination_country_name")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    const orderCountry: string | null = null;
-    console.log("[getOrderItems] order total:", orderRow?.total, "destination_country_id:", orderRow?.destination_country_id);
+    const orderCountry = orderRow?.destination_country_name ?? null;
+    console.log("[getOrderItems] order total:", orderRow?.total, "country:", orderCountry);
 
     let orderItemsRaw: any[] = [];
 
@@ -289,7 +289,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, requires_international_shipping").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate, requires_international_shipping").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
         ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
@@ -468,7 +468,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 export const getOrderPaymentSummary = createServerFn({ method: "POST" })
   .inputValidator((input) => OrderIdSchema.parse(input))
   .handler(async ({ data }) => {
-    const { data: summary, error } = await (supabaseAdmin as any)
+    const { data: summary, error } = await supabaseAdmin
       .from("order_payment_summary")
       .select("*")
       .eq("order_id", data.order_id)

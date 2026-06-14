@@ -32,7 +32,6 @@ export type ImportStatus =
   | "fees_calculated"
   | "payment_fees"
   | "ready_delivery"
-  | "shipped"
   | "delivered"
   | "cancelled";
 
