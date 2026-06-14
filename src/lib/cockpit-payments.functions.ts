@@ -503,16 +503,19 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
 
     const items = itemsRaw ?? [];
 
-    // Étape 2: Charger les produits dans import_products
-    const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean)));
-    const { data: importProducts } = await supabaseAdmin
-      .from("import_products")
-      .select("product_id")
-      .in("product_id", productIds);
+    // Étape 2: Source de vérité = products.requires_international_shipping
+    // (la table import_products concerne le scraping de fiches, pas le circuit logistique)
+    const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean))) as string[];
+    let importProductIds = new Set<string>();
+    if (productIds.length > 0) {
+      const { data: prods } = await supabaseAdmin
+        .from("products")
+        .select("id, requires_international_shipping")
+        .in("id", productIds);
+      importProductIds = new Set((prods ?? []).filter((p: any) => p?.requires_international_shipping === true).map((p: any) => p.id));
+    }
 
-    const importProductIds = new Set((importProducts ?? []).map(ip => ip.product_id));
-
-    // Étape 3: Grouper par order_id et compter local/import
+    // Étape 3: Grouper par order_id et classer
     const orderItems = new Map<string, { is_import: boolean }[]>();
     for (const it of items) {
       const orderId = it.order_id;
@@ -530,31 +533,10 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
       else result[orderId] = "local";
     }
 
-    // Fallback pour commandes sans items : vérifier si les produits
-    // de cette commande sont dans import_products (même logique que le batch)
+    // Commandes sans items détectables → "local" par défaut (le plus sûr,
+    // n'enclenche pas le circuit IMPORT/MIXTE qui exigerait pesée et fret)
     for (const oid of data.order_ids) {
-      if (!result[oid]) {
-        // Récupérer les product_ids de cette commande
-        const { data: orderItems } = await supabaseAdmin
-          .from("order_items")
-          .select("product_id")
-          .eq("order_id", oid);
-        const pids = Array.from(new Set((orderItems ?? []).map(it => it.product_id).filter(Boolean)));
-        if (pids.length > 0) {
-          const { data: ipRows } = await supabaseAdmin
-            .from("import_products")
-            .select("product_id")
-            .in("product_id", pids);
-          const hasImport = (ipRows ?? []).length > 0;
-          const hasLocal = (ipRows ?? []).length < pids.length;
-          if (hasImport && hasLocal) result[oid] = "mixte";
-          else if (hasImport) result[oid] = "import";
-          else result[oid] = "local";
-        } else {
-          // Sans produits identifiables : marquer "local" par défaut (le plus sûr)
-          result[oid] = "local";
-        }
-      }
+      if (!result[oid]) result[oid] = "local";
     }
 
     return result as any;
