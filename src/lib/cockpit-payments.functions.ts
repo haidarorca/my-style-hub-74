@@ -208,22 +208,42 @@ async function recalcOrderPayment(orderId: string) {
 export interface OrderItemDetail {
   product_id: string;
   product_name: string;
-  product_image: string | null;
-  all_images: string[]; // toutes les images pour le détail
+  designation: string | null;        // ex: "T-shirt coton premium"
+  description: string | null;        // ex: "100% coton, lavable machine"
+  product_image: string | null;      // image principale (variante prioritaire)
+  variant_image: string | null;      // image de la variante choisie
+  all_images: string[];              // toutes les images pour le détail
   quantity: number;
   unit_price: number;
   line_total: number;
+  // ─── Variante choisie ───
+  variant_id: string | null;
+  variant_label: string | null;      // ex: "Rouge - M"
+  size: string | null;
+  color: string | null;
+  color_hex: string | null;
+  // ─── Source / Boutique ───
   shop_id: string | null;
   shop_name: string | null;
   owner_name: string | null;
   is_admin_shop: boolean;
+  shop_type_label: string | null;    // "Boutique Officielle" ou "Boutique Vendeur"
   commission_rate: number | null;
+  commission_amount: number | null;
 }
 
 export interface OrderItemsResult {
   items: OrderItemDetail[];
   order_total: number;
-  vendor_summary: { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }[];
+  vendor_summary: {
+    vendor_id: string;
+    vendor_name: string;
+    shop_name: string;
+    shop_type_label: string | null;
+    item_count: number;
+    total: number;
+    is_admin: boolean;
+  }[];
   error?: string | null;
 }
 
@@ -234,159 +254,140 @@ export const getOrderItems = createServerFn({ method: "POST" })
     console.log("[getOrderItems] order_id:", data.order_id);
 
     // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 0 : Récupérer la commande pour fallback
+    // ÉTAPE 0 : Récupérer la commande (pour le total et fallback)
     // ═══════════════════════════════════════════════════════════════
     const { data: orderRow } = await supabaseAdmin
       .from("orders")
-      .select("id, total, product_id, product_name, designation, description, vendor_id, quantity, unit_price, commission_rate, status")
+      .select("id, total, status")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    console.log("[getOrderItems] orderRow:", orderRow ? "found" : "not found", "total:", orderRow?.total);
+    console.log("[getOrderItems] order total:", orderRow?.total);
 
     // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 1 : Charger les order_items
+    // ÉTAPE 1 : Charger les order_items (SOURCE DE VÉRITÉ)
+    //  Structure: product_id, product_name, product_code, product_image_url,
+    //              variant_id, size, color, unit_price, quantity,
+    //              vendor_id, commission_rate, commission_amount, customization
     // ═══════════════════════════════════════════════════════════════
-    let items: Array<{ product_id: string | null; quantity: number | null; unit_price?: number | null }> = [];
+    let orderItemsRaw: any[] = [];
 
-    const { data: orderItems, error: itemsErr } = await supabaseAdmin
+    const { data: itemsFromDb, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("product_id, quantity, unit_price")
+      .select("product_id, product_name, product_code, product_image_url, variant_id, size, color, unit_price, quantity, vendor_id, commission_rate, commission_amount, customization")
       .eq("order_id", data.order_id);
 
     if (itemsErr) {
       console.error("[getOrderItems] order_items error:", itemsErr.message);
-    } else if (orderItems && orderItems.length > 0) {
-      items = orderItems;
-      console.log("[getOrderItems] order_items found:", items.length);
+    } else if (itemsFromDb && itemsFromDb.length > 0) {
+      orderItemsRaw = itemsFromDb;
+      console.log("[getOrderItems] order_items found:", orderItemsRaw.length);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // FALLBACK 1 : Si order_items vide mais product_id sur orders
+    // ÉTAPE 2 : Collecter les IDs pour les requêtes annexes
     // ═══════════════════════════════════════════════════════════════
-    if (items.length === 0 && orderRow?.product_id) {
-      console.log("[getOrderItems] Fallback: using product_id from orders table");
-      items = [{
-        product_id: orderRow.product_id as string,
-        quantity: (orderRow.quantity as number) ?? 1,
-        unit_price: (orderRow.unit_price as number) ?? null,
-      }];
+    const productIds = orderItemsRaw.map(i => i.product_id).filter(Boolean) as string[];
+    const variantIds = orderItemsRaw.map(i => i.variant_id).filter(Boolean) as string[];
+    const vendorIds = orderItemsRaw.map(i => i.vendor_id).filter(Boolean) as string[];
+
+    // ═══════════════════════════════════════════════════════════════
+    // ÉTAPE 3 : Charger produits + variantes + vendors + images (PARALLÈLE)
+    // ═══════════════════════════════════════════════════════════════
+    const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
+      // 3a. Produits (designation, description)
+      productIds.length > 0
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate").in("id", productIds)
+        : Promise.resolve({ data: [] }),
+
+      // 3b. Variantes (image de la variante choisie)
+      variantIds.length > 0
+        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
+        : Promise.resolve({ data: [] }),
+
+      // 3c. Vendors (profiles)
+      vendorIds.length > 0
+        ? supabaseAdmin.from("profiles").select("id, full_name, is_admin_shop, shop_name").in("id", vendorIds)
+        : Promise.resolve({ data: [] }),
+
+      // 3d. Images des produits
+      productIds.length > 0
+        ? supabaseAdmin.from("product_images").select("product_id, url").in("product_id", productIds).order("position", { ascending: true })
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const products = (productsResult.status === "fulfilled" ? productsResult.value.data : []) ?? [];
+    const variants = (variantsResult.status === "fulfilled" ? variantsResult.value.data : []) ?? [];
+    const vendors = (vendorsResult.status === "fulfilled" ? vendorsResult.value.data : []) ?? [];
+    const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
+
+    // Maps pour lookup rapide
+    const productMap = new Map(products.map(p => [p.id, p]));
+    const variantMap = new Map(variants.map(v => [v.id, v]));
+    const vendorMap = new Map(vendors.map(v => [v.id, v]));
+
+    // Images par produit
+    const imageMap = new Map<string, string>();
+    const allImagesMap = new Map<string, string[]>();
+    for (const img of productImages) {
+      if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+      if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
+      allImagesMap.get(img.product_id)!.push(img.url);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // FALLBACK 2 : Aucun article du tout → créer un item synthétique
-    // ═══════════════════════════════════════════════════════════════
-    if (items.length === 0 && orderRow) {
-      console.log("[getOrderItems] Fallback: creating synthetic item from order total");
-      const syntheticName = (orderRow.product_name as string)
-        || (orderRow.designation as string)
-        || "Commande " + data.order_id;
-      return {
-        items: [{
-          product_id: orderRow.id as string,
-          product_name: syntheticName,
-          product_image: null,
-          all_images: [],
-          quantity: (orderRow.quantity as number) ?? 1,
-          unit_price: (orderRow.unit_price as number) ?? (orderRow.total as number) ?? 0,
-          line_total: (orderRow.total as number) ?? 0,
-          shop_id: (orderRow.vendor_id as string) ?? null,
-          shop_name: null,
-          owner_name: null,
-          is_admin_shop: false,
-          commission_rate: (orderRow.commission_rate as number) ?? null,
-        }],
-        order_total: (orderRow.total as number) ?? 0,
-        vendor_summary: [],
-        error: null,
-      } as any;
-    }
-
-    if (items.length === 0) {
-      return { items: [], order_total: 0, vendor_summary: [], error: null } as any;
-    }
+    console.log("[getOrderItems] products:", products.length, "variants:", variants.length, "vendors:", vendors.length);
 
     // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 2 : Charger les produits (avec vendor_id pour jointure)
+    // ÉTAPE 4 : Assembler les items détaillés
     // ═══════════════════════════════════════════════════════════════
-    const productIds = items.map(i => i.product_id).filter(Boolean) as string[];
-    const { data: products, error: prodErr } = await supabaseAdmin
-      .from("products")
-      .select("id, name, designation, description, vendor_id, price, commission_rate")
-      .in("id", productIds);
+    const vendorGroups = new Map<string, {
+      vendor_id: string; vendor_name: string; shop_name: string;
+      shop_type_label: string | null; item_count: number; total: number; is_admin: boolean;
+    }>();
 
-    if (prodErr) console.error("[getOrderItems] products error:", prodErr.message);
-    console.log("[getOrderItems] products found:", products?.length ?? 0);
-
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 3 : Charger les images des produits
-    // ═══════════════════════════════════════════════════════════════
-    let imageMap = new Map<string, string>();
-    let allImagesMap = new Map<string, string[]>();
-    try {
-      const { data: productImages } = await supabaseAdmin
-        .from("product_images")
-        .select("product_id, url")
-        .in("product_id", productIds)
-        .order("position", { ascending: true });
-
-      for (const img of productImages ?? []) {
-        if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
-        if (!allImagesMap.has(img.product_id)) allImagesMap.set(img.product_id, []);
-        allImagesMap.get(img.product_id)!.push(img.url);
-      }
-    } catch { /* ignorer */ }
-
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 4 : Charger les vendors (profiles) directement
-    // ═══════════════════════════════════════════════════════════════
-    const vendorIds = Array.from(new Set((products ?? []).map(p => p.vendor_id).filter(Boolean))) as string[];
-    console.log("[getOrderItems] vendorIds:", vendorIds);
-
-    let vendorMap = new Map<string, { name: string; full_name: string; is_admin: boolean }>();
-    if (vendorIds.length > 0) {
-      try {
-        const { data: vendors } = await supabaseAdmin
-          .from("profiles")
-          .select("id, full_name, is_admin_shop, shop_name")
-          .in("id", vendorIds);
-
-        for (const v of vendors ?? []) {
-          vendorMap.set(v.id, {
-            name: v.shop_name ?? v.full_name ?? "Vendeur",
-            full_name: v.full_name ?? "—",
-            is_admin: v.is_admin_shop ?? false,
-          });
-        }
-        console.log("[getOrderItems] vendors found:", vendors?.length ?? 0);
-      } catch (e) {
-        console.error("[getOrderItems] vendors error:", (e as Error).message);
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 5 : Assembler le résultat
-    // ═══════════════════════════════════════════════════════════════
-    const vendorGroups = new Map<string, { vendor_id: string; vendor_name: string; shop_name: string; item_count: number; total: number; is_admin: boolean }>();
-
-    const detailedItems: OrderItemDetail[] = items.map((it, idx) => {
-      const prod = (products ?? []).find(p => p.id === it.product_id);
-      const vendor = prod?.vendor_id ? vendorMap.get(prod.vendor_id) : null;
+    const detailedItems: OrderItemDetail[] = orderItemsRaw.map((it, idx) => {
+      const prod = it.product_id ? productMap.get(it.product_id) : null;
+      const variant = it.variant_id ? variantMap.get(it.variant_id) : null;
+      const vendor = it.vendor_id ? vendorMap.get(it.vendor_id) : null;
       const qty = it.quantity ?? 1;
-      // Prix : unit_price sur order_items > price sur products > 0
       const price = it.unit_price ?? prod?.price ?? 0;
       const lineTotal = qty * price;
 
-      // Nom produit : name > designation > description > "Produit inconnu"
-      const prodName = prod?.name
-        || (prod as any)?.designation
-        || (prod as any)?.description
-        || (orderRow?.product_name as string)
-        || (orderRow?.designation as string)
-        || "Produit " + (idx + 1);
+      // ─── Nom produit : order_items > products > fallback ───
+      const prodName = it.product_name
+        ?? prod?.name
+        ?? (prod as any)?.designation
+        ?? it.product_code
+        ?? "Produit " + (idx + 1);
 
-      // Grouper par vendor
-      const vId = prod?.vendor_id ?? "unknown";
+      // ─── Image : variante choisie > image produit > null ───
+      const variantImage = variant?.image_url ?? null;
+      const productImage = it.product_image_url
+        ?? imageMap.get(it.product_id ?? "")
+        ?? null;
+      const mainImage = variantImage ?? productImage;
+
+      // ─── Toutes les images : variante en premier, puis produit ───
+      const allImgs: string[] = [];
+      if (variantImage) allImgs.push(variantImage);
+      const prodImgs = allImagesMap.get(it.product_id ?? "") ?? [];
+      for (const img of prodImgs) if (!allImgs.includes(img)) allImgs.push(img);
+
+      // ─── Label variante : ex: "Rouge - M" ───
+      const size = it.size ?? variant?.size ?? null;
+      const color = it.color ?? variant?.color ?? null;
+      const colorHex = variant?.color_hex ?? null;
+      const variantLabel = size && color
+        ? `${color} - ${size}`
+        : color ?? size ?? null;
+
+      // ─── Type de boutique ───
+      const isAdmin = vendor?.is_admin_shop ?? false;
+      const shopTypeLabel = isAdmin ? "Boutique Officielle" : "Boutique Vendeur";
+      const shopName = vendor?.shop_name ?? vendor?.full_name ?? "Source inconnue";
+
+      // ─── Grouper par vendor ───
+      const vId = it.vendor_id ?? "unknown";
       const existing = vendorGroups.get(vId);
       if (existing) {
         existing.item_count += qty;
@@ -395,42 +396,46 @@ export const getOrderItems = createServerFn({ method: "POST" })
         vendorGroups.set(vId, {
           vendor_id: vId,
           vendor_name: vendor?.full_name ?? "—",
-          shop_name: vendor?.name ?? "Source inconnue",
+          shop_name: shopName,
+          shop_type_label: shopTypeLabel,
           item_count: qty,
           total: lineTotal,
-          is_admin: vendor?.is_admin ?? false,
+          is_admin: isAdmin,
         });
       }
 
       return {
         product_id: it.product_id ?? "",
         product_name: prodName,
-        product_image: imageMap.get(it.product_id ?? "") ?? null,
-        all_images: allImagesMap.get(it.product_id ?? "") ?? [],
+        designation: (prod as any)?.designation ?? null,
+        description: (prod as any)?.description ?? null,
+        product_image: mainImage,
+        variant_image: variantImage,
+        all_images: allImgs,
         quantity: qty,
         unit_price: price,
         line_total: lineTotal,
-        shop_id: prod?.vendor_id ?? null,
-        shop_name: vendor?.name ?? null,
+        variant_id: it.variant_id ?? null,
+        variant_label: variantLabel,
+        size,
+        color,
+        color_hex: colorHex,
+        shop_id: it.vendor_id ?? null,
+        shop_name: shopName,
         owner_name: vendor?.full_name ?? null,
-        is_admin_shop: vendor?.is_admin ?? false,
-        commission_rate: (prod as any)?.commission_rate ?? null,
+        is_admin_shop: isAdmin,
+        shop_type_label: shopTypeLabel,
+        commission_rate: it.commission_rate ?? (prod as any)?.commission_rate ?? null,
+        commission_amount: it.commission_amount ?? null,
       };
     });
 
-    const total = detailedItems.reduce((s, i) => s + i.line_total, 0);
+    const itemsTotal = detailedItems.reduce((s, i) => s + i.line_total, 0);
 
     return {
       items: detailedItems,
-      order_total: total > 0 ? total : (orderRow?.total as number) ?? 0,
-      vendor_summary: Array.from(vendorGroups.values()).map(g => ({
-        vendor_id: g.vendor_id,
-        vendor_name: g.vendor_name,
-        shop_name: g.shop_name,
-        item_count: g.item_count,
-        total: g.total,
-        is_admin: g.is_admin,
-      })),
+      order_total: itemsTotal > 0 ? itemsTotal : (orderRow?.total as number) ?? 0,
+      vendor_summary: Array.from(vendorGroups.values()),
       error: null,
     } as any;
   });
