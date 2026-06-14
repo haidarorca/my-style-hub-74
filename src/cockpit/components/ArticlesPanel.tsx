@@ -102,6 +102,12 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                   <div className="text-[10px] text-gray-400">{art.variant_label}</div>
                 )}
                 <div className="flex items-center gap-2 mt-1">
+                  {/* Badge type IMP/LOC */}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                    art.is_import ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
+                  }`}>
+                    {art.is_import ? "IMP" : "LOC"}
+                  </span>
                   {/* Badge statut */}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${ARTICLE_STATUS_COLORS[art.status]}`}>
                     {ARTICLE_STATUS_LABELS[art.status]}
@@ -154,22 +160,29 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                   </div>
                 )}
 
-                {/* ── Actions ── */}
-                <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  {/* Marquer rupture */}
+                {/* ── Actions contextuelles ── */}
+                <div className="space-y-2 pt-1">
+                  {/* 
+                    LOGIQUE : 
+                    1. Rupture stock → toujours dispo (action d'urgence)
+                    2. Livrer → seulement si article est Prêt/Disponible/Reçu
+                    3. Changer état → seulement les transitions logiques
+                  */}
+
+                  {/* (1) Rupture stock — toujours visible */}
                   {!art.stock_break && onStockBreak && (
                     <button
                       onClick={() => setStockBreakProduct(art)}
-                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-red-200 text-[10px] font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors"
                     >
-                      <AlertTriangle className="h-3 w-3" />
-                      Rupture stock
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Signaler rupture de stock
                     </button>
                   )}
 
-                  {/* Marquer livré partiellement */}
-                  {!isDelivered && onPartialDeliver && (
-                    <div className="col-span-2 flex items-center gap-1.5">
+                  {/* (2) Livrer — SEULEMENT si l'article est prêt */}
+                  {!isDelivered && onPartialDeliver && ["ready", "available", "received"].includes(art.status) && (
+                    <div className="flex items-center gap-2">
                       <input
                         type="number"
                         min={1}
@@ -177,42 +190,55 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                         value={partialQty[art.product_id] ?? ""}
                         onChange={e => setPartialQty(prev => ({ ...prev, [art.product_id]: e.target.value }))}
                         placeholder="Qty"
-                        className="w-16 h-8 text-[11px] border rounded-lg px-2 text-center"
+                        className="w-16 h-9 text-[11px] border rounded-lg px-2 text-center"
                       />
                       <button
                         onClick={() => {
                           const qty = parseInt(partialQty[art.product_id] ?? "0", 10);
-                          if (qty > 0) {
-                            onPartialDeliver(art.product_id, qty);
-                            setPartialQty(prev => ({ ...prev, [art.product_id]: "" }));
-                          }
+                          if (qty > 0) { onPartialDeliver(art.product_id, qty); setPartialQty(prev => ({ ...prev, [art.product_id]: "" })); }
                         }}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-teal-600 text-white text-[10px] font-medium hover:bg-teal-700 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-teal-600 text-white text-[11px] font-semibold hover:bg-teal-700 transition-colors"
                       >
-                        <CheckCircle2 className="h-3 w-3" />
-                        Livrer {partialQty[art.product_id] ?? "?"}
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Livrer {partialQty[art.product_id] || art.quantity} / {art.quantity}
                       </button>
                     </div>
                   )}
 
-                  {/* Changer statut */}
+                  {/* (3) Changer état — transitions logiques uniquement */}
                   {onStatusChange && (
-                    <div className="col-span-2">
-                      <div className="text-[9px] text-gray-400 mb-1">Changer l'état :</div>
-                      <div className="flex flex-wrap gap-1">
-                        {(["pending", "available", "ordered", "received", "ready", "delivered"] as ArticleStatus[]).map(st => (
-                          <button
-                            key={st}
-                            onClick={() => onStatusChange(art.product_id, st)}
-                            className={`text-[9px] px-2 py-1 rounded-full font-medium transition-colors ${
-                              art.status === st
-                                ? ARTICLE_STATUS_COLORS[st]
-                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
-                          >
-                            {ARTICLE_STATUS_LABELS[st]}
-                          </button>
-                        ))}
+                    <div>
+                      <div className="text-[9px] text-gray-400 mb-1.5">Prochaine étape :</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(() => {
+                          // Transitions logiques selon l'état actuel
+                          const transitions: Record<ArticleStatus, ArticleStatus[]> = {
+                            pending:     ["available", "ordered"],
+                            available:   ["ready"],
+                            ordered:     ["received"],
+                            received:    ["ready"],
+                            ready:       ["delivered"],
+                            delivered:   [],
+                            partial_stock: ["available", "ordered"],
+                            no_stock:    ["available", "ordered"],
+                            shipped:     ["delivered"],
+                            returned:    ["pending"],
+                            refunded:    [],
+                          };
+                          const nextStates = transitions[art.status] ?? [];
+                          if (nextStates.length === 0) {
+                            return <span className="text-[10px] text-gray-400 italic">Aucune action — article terminé</span>;
+                          }
+                          return nextStates.map(st => (
+                            <button
+                              key={st}
+                              onClick={() => onStatusChange(art.product_id, st)}
+                              className={`text-[10px] px-3 py-1.5 rounded-full font-semibold transition-colors ${ARTICLE_STATUS_COLORS[st]} hover:opacity-80`}
+                            >
+                              {ARTICLE_STATUS_LABELS[st]}
+                            </button>
+                          ));
+                        })()}
                       </div>
                     </div>
                   )}
