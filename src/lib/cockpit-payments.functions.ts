@@ -287,23 +287,20 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const variantIds = orderItemsRaw.map(i => i.variant_id).filter(Boolean) as string[];
     const vendorIds = orderItemsRaw.map(i => i.vendor_id).filter(Boolean) as string[];
 
-    const [productsResult, variantsResult, vendorsResult, imagesResult, importProductsResult] = await Promise.allSettled([
+    const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, commission_rate, requires_international_shipping").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
         ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
         : Promise.resolve({ data: [] }),
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
-            "id, full_name, is_admin_shop, shop_name, phone, email, address, shop_description, shop_hours, shop_logo_url, is_verified, vendor_mode"
+            "id, full_name, is_admin_shop, shop_name, phone, email, address, shop_description, shop_hours, shop_logo_url, is_verified, vendor_mode, source_country_id"
           ).in("id", vendorIds)
         : Promise.resolve({ data: [] }),
       productIds.length > 0
         ? supabaseAdmin.from("product_images").select("product_id, url").in("product_id", productIds).order("position", { ascending: true })
-        : Promise.resolve({ data: [] }),
-      productIds.length > 0
-        ? supabaseAdmin.from("import_products").select("product_id, source_country_id, countries(name, flag_emoji)").in("product_id", productIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -311,18 +308,31 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const variants = (variantsResult.status === "fulfilled" ? variantsResult.value.data : []) ?? [];
     const vendors = (vendorsResult.status === "fulfilled" ? vendorsResult.value.data : []) ?? [];
     const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
-    const importProducts = (importProductsResult.status === "fulfilled" ? importProductsResult.value.data : []) ?? [];
 
-    // Map: product_id → pays d'origine (pour affichage)
+    // SOURCE DE VÉRITÉ unique pour LOCAL vs IMPORT : products.requires_international_shipping
+    // (la table import_products sert au scraping/import de fiches produits, PAS au circuit logistique)
+    const importProductIds = new Set<string>(
+      products.filter((p: any) => p?.requires_international_shipping === true).map((p: any) => p.id)
+    );
+
+    // Pays d'origine : récupéré via le vendeur du produit (profiles.source_country_id)
+    const sourceCountryIds = Array.from(new Set(
+      vendors.map((v: any) => v?.source_country_id).filter(Boolean)
+    ));
+    let countriesData: any[] = [];
+    if (sourceCountryIds.length > 0) {
+      const { data: cs } = await supabaseAdmin.from("countries").select("id, name, flag_emoji").in("id", sourceCountryIds);
+      countriesData = cs ?? [];
+    }
+    const countryByIdMap = new Map(countriesData.map((c: any) => [c.id, { name: c.name, flag: c.flag_emoji ?? "" }]));
     const countryMap = new Map<string, { name: string; flag: string }>();
-    // Set: product_id qui sont des imports (dans import_products = circuit import)
-    const importProductIds = new Set<string>();
-    for (const ip of importProducts) {
-      importProductIds.add(ip.product_id);
-      const c = (ip as any).countries;
-      if (c?.name) {
-        countryMap.set(ip.product_id, { name: c.name, flag: c.flag_emoji ?? "" });
-      }
+    for (const p of products) {
+      if (!(p as any).requires_international_shipping) continue;
+      const vid = (p as any).vendor_id;
+      const v = vid ? vendors.find((x: any) => x.id === vid) : null;
+      const cid = (v as any)?.source_country_id;
+      const c = cid ? countryByIdMap.get(cid) : null;
+      if (c) countryMap.set((p as any).id, c);
     }
 
     const productMap = new Map(products.map(p => [p.id, p]));
