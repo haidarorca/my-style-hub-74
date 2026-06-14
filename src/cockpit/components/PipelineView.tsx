@@ -1,5 +1,5 @@
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
-import { fmtF, STATUS_COLORS, isImport } from "@/cockpit/lib/workflow";
+import { fmtF, fmtDateTime, STATUS_COLORS, isImport } from "@/cockpit/lib/workflow";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
 interface Props {
@@ -63,6 +63,10 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect }: Pro
                     <span className={`text-[8px] px-1 py-0.5 rounded ${imp ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"}`}>{imp ? "IMP" : "LOC"}</span>
                   </div>
                   <div className="text-xs font-medium truncate">{order.customer_name ?? "—"}</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {fmtDateTime(order.order_created_at)}
+                  </div>
                   {/* Décomposition des montants */}
                   <div className="mt-1 space-y-0.5">
                     <div className="flex items-center justify-between">
