@@ -33,13 +33,13 @@ export function Timeline({ order, payments, audit }: Props) {
   const cancelAudit = audit.find(a => a.action.includes("annul"));
   if (order.logistics_status === "cancelled" || cancelAudit) events.push({ date: cancelAudit?.timestamp ?? order.updated_at, label: "Annulée", sub: cancelAudit?.adminName, icon: XCircle, color: "text-red-600", bg: "bg-red-100" });
 
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  events.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
   if (events.length === 0) return <div className="text-xs text-gray-400 py-2 text-center">Aucun événement</div>;
 
   return (
     <div className="space-y-0">
       {events.map((e, i) => {
-        const d = new Date(e.date);
+        const d = new Date(e.date ?? 0);
         const Icon = e.icon;
         return (
           <div key={i} className="flex gap-3 py-1.5">
