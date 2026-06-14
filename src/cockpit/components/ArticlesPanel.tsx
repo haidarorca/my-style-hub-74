@@ -30,6 +30,13 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
 
   if (!articles || articles.length === 0) return null;
 
+  // Trier : LOCAL d'abord, puis IMPORT (groupés par origine)
+  const sortedArticles = [...articles].sort((a, b) => {
+    if (a.is_local && !b.is_local) return -1;
+    if (!a.is_local && b.is_local) return 1;
+    return 0;
+  });
+
   const mixType = getOrderMixType(articles);
   const hasBreak = articles.some(a => a.stock_break && !a.stock_break.resolved);
   const deliveredCount = articles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
@@ -62,8 +69,8 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
         </div>
       </div>
 
-      {/* ─── Liste des articles ─── */}
-      {articles.map((art) => {
+      {/* ─── Liste des articles (triés: LOCAL puis IMPORT) ─── */}
+      {sortedArticles.map((art) => {
         const isExpanded = expandedId === art.product_id;
         const StatusIcon = STATUS_ICONS[art.status] ?? CircleDot;
         const isBreak = art.stock_break && !art.stock_break.resolved;
@@ -102,11 +109,13 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                   <div className="text-[10px] text-gray-400">{art.variant_label}</div>
                 )}
                 <div className="flex items-center gap-2 mt-1">
-                  {/* Badge type IMP/LOC */}
+                  {/* Badge type IMP/LOC + pays d'origine */}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
                     art.is_import ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
                   }`}>
-                    {art.is_import ? "IMP" : "LOC"}
+                    {art.is_import
+                      ? `IMP ${art.origin_country_flag ?? ""} ${art.origin_country ?? ""}`.trim()
+                      : "LOC"}
                   </span>
                   {/* Badge statut */}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${ARTICLE_STATUS_COLORS[art.status]}`}>
