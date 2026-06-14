@@ -53,10 +53,9 @@ interface Props {
   onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
   onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
-  onToggleType?: (productId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onToggleType }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -171,7 +170,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
-              onToggleType={onToggleType}
+              // Gestion article par article — types determinés automatiquement
             />
           )}
 
