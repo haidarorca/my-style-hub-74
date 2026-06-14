@@ -5,7 +5,8 @@ import {
 } from "lucide-react";
 import { getOrderItems } from "@/lib/cockpit-payments.functions";
 import { fmtF } from "@/cockpit/lib/workflow";
-import type { OrderItemDetail, OrderItemsResult } from "@/lib/cockpit-payments.functions";
+import type { OrderItemDetail, OrderItemsResult, VendorFullInfo } from "@/lib/cockpit-payments.functions";
+import { VendorDetailPanel } from "./VendorDetailPanel";
 
 interface Props {
   orderId: string;
@@ -63,10 +64,12 @@ function ProductDetail({
   item,
   onBack,
   onClose,
+  onViewVendor,
 }: {
   item: OrderItemDetail;
   onBack: () => void;
   onClose: () => void;
+  onViewVendor: (v: VendorFullInfo) => void;
 }) {
   const [activeImg, setActiveImg] = useState(0);
   const vLabel = vendorLabel(item.is_admin_shop);
@@ -202,16 +205,20 @@ function ProductDetail({
             </div>
           )}
 
-          {/* ─── Source / Boutique ─── */}
-          <div className={`rounded-xl border p-4 ${vLabel.bg}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${vLabel.badgeBg}`}>
-                <VIcon className={`h-5 w-5 ${vLabel.color}`} />
-              </div>
-              <div className="flex-1">
-                <div className={`text-sm font-bold ${vLabel.color}`}>
-                  {item.shop_type_label ?? vLabel.title}
+          {/* ─── Source / Boutique (cliquable) ─── */}
+          {item.vendor ? (
+            <button
+              onClick={() => onViewVendor(item.vendor!)}
+              className={`w-full rounded-xl border p-4 ${vLabel.bg} hover:shadow-md transition-all text-left`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${vLabel.badgeBg}`}>
+                  <VIcon className={`h-5 w-5 ${vLabel.color}`} />
                 </div>
+                <div className="flex-1">
+                  <div className={`text-sm font-bold ${vLabel.color}`}>
+                    {item.shop_type_label ?? vLabel.title}
+                  </div>
                 <div className="text-xs text-gray-500">{vLabel.subtitle}</div>
               </div>
             </div>
@@ -224,7 +231,25 @@ function ProductDetail({
                 )}
               </div>
             )}
+            {/* Indicateur cliquable */}
+            <div className="mt-2 text-xs text-orange-600 font-medium flex items-center gap-1">
+              <ChevronRight className="h-3 w-3" />
+              Voir la fiche vendeur
+            </div>
+          </button>
+        ) : (
+          <div className={`rounded-xl border p-4 ${vLabel.bg}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${vLabel.badgeBg}`}>
+                <VIcon className={`h-5 w-5 ${vLabel.color}`} />
+              </div>
+              <div>
+                <div className={`text-sm font-bold ${vLabel.color}`}>{item.shop_type_label ?? vLabel.title}</div>
+                <div className="text-xs text-gray-500">{vLabel.subtitle}</div>
+              </div>
+            </div>
           </div>
+        )}
 
           {/* ─── Prix & Commission ─── */}
           <div className="bg-gray-50 rounded-xl p-4 space-y-3">
@@ -265,6 +290,7 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
   const [error, setError] = useState("");
   const [emptyMsg, setEmptyMsg] = useState("");
   const [detailItem, setDetailItem] = useState<OrderItemDetail | null>(null);
+  const [viewVendor, setViewVendor] = useState<VendorFullInfo | null>(null);
 
   useEffect(() => {
     if (!orderId) {
@@ -321,6 +347,15 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
             item={detailItem}
             onBack={() => setDetailItem(null)}
             onClose={onClose}
+            onViewVendor={(v) => { setDetailItem(null); setViewVendor(v); }}
+          />
+        )}
+
+        {/* ═══ Overlay Fiche Vendeur ═══ */}
+        {viewVendor && (
+          <VendorDetailPanel
+            vendor={viewVendor}
+            onClose={() => setViewVendor(null)}
           />
         )}
 
@@ -377,8 +412,13 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                   {data.vendor_summary.map((v) => {
                     const label = vendorLabel(v.is_admin);
                     const VIcon = label.icon;
+                    const vFull = data.items.find(i => i.shop_id === v.vendor_id)?.vendor ?? null;
                     return (
-                      <div key={v.vendor_id} className={`rounded-xl border p-3.5 ${label.bg}`}>
+                      <button
+                        key={v.vendor_id}
+                        onClick={() => vFull && setViewVendor(vFull)}
+                        className={`w-full rounded-xl border p-3.5 ${label.bg} text-left ${vFull ? "hover:shadow-md cursor-pointer" : ""}`}
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
                             <VIcon className={`h-4 w-4 ${label.color}`} />
@@ -391,9 +431,12 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                               </div>
                             </div>
                           </div>
-                          <div className="text-sm font-bold text-gray-900">{fmtF(v.total)}</div>
+                          <div className="flex items-center gap-1">
+                            <div className="text-sm font-bold text-gray-900">{fmtF(v.total)}</div>
+                            {vFull && <ChevronRight className="h-4 w-4 text-gray-400" />}
+                          </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -456,9 +499,15 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                         </div>
                       )}
 
-                      {/* Boutique */}
+                      {/* Boutique (cliquable -> fiche vendeur) */}
                       {item.shop_name && item.shop_name !== "Source inconnue" && (
-                        <div className="flex items-center gap-1 mt-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.vendor) setViewVendor(item.vendor);
+                          }}
+                          className="flex items-center gap-1 mt-1.5 hover:bg-gray-50 rounded px-1 py-0.5 -ml-1 transition-colors"
+                        >
                           {item.is_admin_shop ? (
                             <ShieldCheck className="h-3 w-3 text-purple-500" />
                           ) : (
@@ -468,7 +517,8 @@ export function OrderItemsPanel({ orderId, onClose }: Props) {
                             {item.shop_type_label ?? (item.is_admin_shop ? "Officielle" : "Vendeur")}
                           </span>
                           <span className="text-[10px] text-gray-400">&middot; {item.shop_name}</span>
-                        </div>
+                          {item.vendor && <ChevronRight className="h-2.5 w-2.5 text-gray-300" />}
+                        </button>
                       )}
                     </div>
 
