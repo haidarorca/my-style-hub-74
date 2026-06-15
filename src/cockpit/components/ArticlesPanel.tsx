@@ -23,6 +23,8 @@ interface Props {
   onPartialDeliver?: (productId: string, qty: number) => void;
   /** Montant déjà payé sur la commande (sert à filtrer les actions de rupture). */
   paidAmount?: number;
+  /** Statut global de la commande — masque les actions si livrée/annulée. */
+  orderStatus?: string;
 }
 
 export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver, paidAmount = 0 }: Props) {
