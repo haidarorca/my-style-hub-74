@@ -112,6 +112,21 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
             by: o.by, icon: ShieldAlert, tone: "amber",
           });
         }
+        if (sb.settlement) {
+          const s = sb.settlement;
+          const lbl =
+            s.kind === "refund" ? `Remboursement validé · ${fmtF(s.amount)}`
+            : s.kind === "credit" ? `Avoir émis · ${fmtF(s.amount)}`
+            : `Complément encaissé · ${fmtF(s.amount)}`;
+          const subParts: string[] = [art.product_name];
+          if (s.method) subParts.push(`${PAYMENT_METHOD_LABELS[s.method] ?? s.method}`);
+          if (s.reference) subParts.push(s.reference);
+          if (s.note) subParts.push(s.note);
+          out.push({
+            date: s.at, label: lbl, sub: subParts.join(" · "),
+            by: s.by, icon: CheckCircle, tone: "emerald",
+          });
+        }
       }
       // Livraison partielle (état courant — pas d'historique)
       const delivered = art.delivered_qty ?? 0;
