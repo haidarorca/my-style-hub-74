@@ -130,17 +130,27 @@ export function ArticlesPanel({
                   <div className="text-[10px] text-gray-400">{art.variant_label}</div>
                 )}
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
                     art.is_import ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
                   }`}>
                     {art.is_import ? `IMP ${art.origin_country_flag ?? ""} ${art.origin_country ?? ""}`.trim() : "LOC"}
                   </span>
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${ARTICLE_STATUS_COLORS[art.status]}`}>
-                    {ARTICLE_STATUS_LABELS[art.status]}
+                    {getArticleStatusLabel(art)}
                   </span>
                   <span className="text-[10px] text-gray-500">x{art.quantity}</span>
-                  {/* Badge décision visible DIRECTEMENT dans la ligne (statique) */}
-                  {decisionBadge && (
+                  {/* Badge ÉTAT MÉTIER (toujours visible, statique) */}
+                  {(() => {
+                    const bs = getArticleBusinessState(art);
+                    if (bs === "active" || bs === "delivered") return null;
+                    return (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${BUSINESS_STATE_COLORS[bs]}`}>
+                        {BUSINESS_STATE_LABELS[bs]}
+                      </span>
+                    );
+                  })()}
+                  {/* Badge décision détaillé (delta financier replace) */}
+                  {decisionBadge && art.stock_break?.action === "replace" && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${decisionBadge.className}`}>
                       {decisionBadge.label}
                     </span>
