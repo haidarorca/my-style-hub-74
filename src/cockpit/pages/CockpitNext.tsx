@@ -21,6 +21,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Flame, Wallet, PackageCheck, Clock, Target, ArrowRight,
   ShoppingCart, RotateCcw, ArrowLeft, Zap, CheckCircle2,
+  ArrowDownLeft, ArrowUpRight, Scale, FileText,
 } from "lucide-react";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useOrderAggregatesBatch, type OrderWithAggregate } from "@/cockpit/hooks/useOrderAggregatesBatch";
