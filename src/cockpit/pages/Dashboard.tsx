@@ -171,6 +171,28 @@ export default function CockpitDashboard() {
     ));
   }, []);
 
+  // ─── Settlement financier (lève le pending refund / credit / extra_payment) ───
+  const handleSettleFinancial = useCallback((productId: string, data: { kind: "refund" | "credit" | "extra_payment"; amount: number; method?: string; reference?: string; note?: string }) => {
+    setSelectedArticles(prev => prev?.map(a => {
+      if (a.product_id !== productId || !a.stock_break) return a;
+      return {
+        ...a,
+        stock_break: {
+          ...a.stock_break,
+          settlement: {
+            kind: data.kind,
+            amount: data.amount,
+            method: data.method,
+            reference: data.reference,
+            note: data.note,
+            by: adminName,
+            at: new Date().toISOString(),
+          },
+        },
+      };
+    }));
+  }, [adminName]);
+
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
   const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
