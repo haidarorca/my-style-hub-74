@@ -223,10 +223,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
 
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
-          {articles && onSettleFinancial && (
+          {scopedArticles && onSettleFinancial && (
             <div id="cockpit-financial-actions">
               <PendingFinancialActions
-                articles={articles}
+                articles={scopedArticles}
                 remainingToPay={rem}
                 onSettle={onSettleFinancial}
               />
@@ -264,9 +264,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           )}
 
           {/* ─── Gestion article par article (matrice v3) ─── */}
-          {articles && articles.length > 0 && (
+          {scopedArticles && scopedArticles.length > 0 && (
             <ArticlesPanel
-              articles={articles}
+              articles={scopedArticles}
               paidAmount={tp}
               orderStatus={status}
               onStockBreak={onStockBreak}
@@ -334,7 +334,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               }
             }
             // Livraison partielle en cours → lecture agrégateur
-            const partialCount = (articles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
+            const partialCount = (scopedArticles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
             if (partialCount > 0) {
               alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partialCount} article(s) partiellement livré(s).` });
             }
