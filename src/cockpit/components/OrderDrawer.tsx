@@ -27,6 +27,7 @@ import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
 import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
+import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
