@@ -133,8 +133,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Centre de contrôle du workflow ─── */}
+          {/* ─── Centre de contrôle du workflow (Option B) ─── */}
           <WorkflowControlPanel
+            orderId={order.order_id ?? undefined}
             status={status}
             isImport={!!(isImportOrder || isImportFallback)}
             isLocal={!!isLocalOrder}
@@ -142,6 +143,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             articles={articles}
             onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
           />
+
+          {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
+          <PartialDeliveryBanner articles={articles} />
 
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
@@ -157,7 +161,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
           </div>
 
-          {/* ─── Bouton : Voir les articles (détail produit/vendeur) ─── */}
+          {/* ─── Bouton : Voir les articles ─── */}
           {onViewItems && (
             <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-2">
@@ -171,7 +175,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </button>
           )}
 
-          {/* ─── Gestion article par article ─── */}
+          {/* ─── Gestion article par article (matrice v3) ─── */}
           {articles && articles.length > 0 && (
             <ArticlesPanel
               articles={articles}
@@ -180,6 +184,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
+              onOverrideDecision={onOverrideDecision}
             />
           )}
 
