@@ -374,3 +374,49 @@ export const NEXT_ACTION_LABELS: Record<AggregateNextAction, string> = {
   done: "Terminée",
   review: "À examiner",
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Adaptateurs UI — convertissent l'agrégateur en payload prêt à
+// consommer par les anciens composants visuels (zéro changement
+// de design pendant la transition).
+// ═══════════════════════════════════════════════════════════════
+
+/** Forme attendue par <NextActionBanner /> (compatible NextActionInfo legacy). */
+export interface NextActionBannerPayload {
+  label: string;
+  description: string;
+  color: string;       // classe text-*
+  bg: string;          // classe bg-* + border-*
+  icon: string;        // nom lucide (ICON_MAP du banner)
+  // ★ Enrichissements agrégateur (optionnels, le banner les rend si présents)
+  why?: string;
+  driver_label?: string;
+}
+
+const NEXT_ACTION_STYLE: Record<AggregateNextAction, { color: string; bg: string; icon: string }> = {
+  resolve_break:     { color: "text-red-700",     bg: "bg-red-50 border-red-200",         icon: "AlertTriangle" },
+  order_supplier:    { color: "text-blue-700",    bg: "bg-blue-50 border-blue-200",       icon: "ShoppingCart" },
+  receive_warehouse: { color: "text-purple-700",  bg: "bg-purple-50 border-purple-200",   icon: "Package" },
+  settle_money:      { color: "text-amber-700",   bg: "bg-amber-50 border-amber-200",     icon: "Wallet" },
+  prepare_shipment:  { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: "PackageCheck" },
+  ship:              { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: "Truck" },
+  wait_restock:      { color: "text-slate-700",   bg: "bg-slate-50 border-slate-200",     icon: "Package" },
+  done:              { color: "text-green-700",   bg: "bg-green-50 border-green-200",     icon: "CheckCircle" },
+  review:            { color: "text-gray-700",    bg: "bg-gray-50 border-gray-200",       icon: "Search" },
+};
+
+/** Construit le payload du bandeau "Action suivante" à partir de l'agrégateur.
+ *  C'est la source unique de vérité — fini `getNextActionForOrder()` côté UI. */
+export function buildNextActionBannerPayload(agg: OrderAggregate): NextActionBannerPayload {
+  const style = NEXT_ACTION_STYLE[agg.next_action];
+  return {
+    label: NEXT_ACTION_LABELS[agg.next_action],
+    description: agg.next_action_reason,
+    color: style.color,
+    bg: style.bg,
+    icon: style.icon,
+    why: agg.next_action_why,
+    driver_label: agg.next_action_driver?.product_name,
+  };
+}
+
