@@ -53,12 +53,13 @@ interface Props {
   onFormInteraction?: () => void;
   // ─── Gestion article par article ───
   articles?: OrderArticle[];
-  onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
+  onStockBreak?: (productId: string, data: StockBreakSubmit) => void;
   onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
+  onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
