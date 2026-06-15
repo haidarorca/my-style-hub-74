@@ -1,163 +1,195 @@
-# Architecture cible Kawzone — Split par boutique + Engagements ouverts
+# Architecture Kawzone — Split boutique + Responsabilités
 
-> Document de référence. Toute décision de code future doit être compatible avec cette architecture.
-> Validé après analyse des cas A (livraison consolidée), B (container import), D (paiement échelonné), E (remplacement cross-boutique), G (stock partagé), H (modification post-commande), L (décisions mère vs filles).
-
----
-
-## Vision
-
-Une **commande client** est un agrégat. Les **opérations** se passent au niveau de **sous-commandes par boutique**. Les **imports** sont regroupés dans des **containers** parallèles. Tout engagement non clos (financier, logistique, fournisseur) est un **Commitment** dérivé, requêtable de façon symétrique pour clients et vendeurs.
+Pas de code. Ce plan fige les **concepts**, la **matrice de responsabilité**, et la **séquence d'implémentation**. Chaque décision est justifiée par une réalité métier. Les critiques honnêtes de tes intuitions sont en fin de document.
 
 ---
 
-## 3 entités de premier niveau
+## 1. Les 4 entités fondamentales
+
+On arrête de raisonner en "commande + statuts". On raisonne en **4 objets séparés**, chacun avec une responsabilité unique :
+
+| Entité | Rôle unique | Mutable ? |
+|---|---|---|
+| **mother_order** | Vue client + paiement global | Lecture seule (sauf paiement) |
+| **sub_order** (par boutique) | Unité opérationnelle : stock, prépa, livraison, vendeur | Mutable avant point de non-retour |
+| **article_state** | Réalité physique d'un article (en stock, rupture, partiel, livré) | Mutable — reflète le terrain |
+| **ledger_entry** | Écriture comptable immuable (qui doit quoi à qui) | **JAMAIS modifié** — on ajoute des contre-écritures |
+
+**Pourquoi 4 et pas 3 :** la séparation `article_state` vs `ledger_entry` est ce qui permet de répondre à "qui supporte le coût ?" indépendamment de "où est l'article ?". Sans cette séparation, on mélange logistique et finance — c'est le piège du modèle actuel.
+
+---
+
+## 2. Les 5 principes figés
+
+### P1 — Paiement unique, imputation dérivée
+- Le client paie **une fois** sur la mother_order.
+- L'imputation par sub_order est **dérivée** (calcul, pas écriture).
+- Un remboursement génère un `ledger_entry` négatif rattaché à la sub_order responsable.
+
+### P2 — Jamais réécrire l'histoire (logique comptable)
+- Avant point de non-retour (PNR) : édition directe de la sub_order.
+- Après PNR : **uniquement** des évènements compensatoires (`stock_break`, `replacement`, `refund`, `credit_note`, `goodwill`).
+- Les `ledger_entry` sont append-only. Une correction = nouvelle écriture, jamais un UPDATE.
+
+### P3 — Matrice de responsabilité explicite (voir §4)
+Chaque scénario métier a une ligne dans la matrice qui répond à 4 questions :
+qui paie, qui perd, qui est responsable, qui décide.
+
+### P4 — Cockpit = vue d'action, pas vue de statut
+Le Cockpit n'affiche pas "Statut: preparing". Il affiche :
+- **Ce qui m'attend** (décision admin requise)
+- **Ce qui attend le client** (paiement, validation rupture)
+- **Ce qui attend un vendeur** (préparation, confirmation stock)
+- **Ce qui peut partir aujourd'hui** (prêt + payé)
+- **Ce qui est en souffrance** (> seuil SLA)
+
+### P5 — Extensibilité par composition
+Litiges, garanties, avances vendeurs → tous se modélisent comme **nouveaux types de `ledger_entry`** + **nouveaux types d'évènements compensatoires**. Le schéma de base ne bouge pas.
+
+---
+
+## 3. Points de non-retour (PNR) — par sub_order
+
+Une sub_order devient immutable sur certains aspects dès qu'elle franchit un de ces seuils. Les PNR sont **indépendants par sub_order** (c'est tout l'intérêt du split).
+
+| PNR | Ce qui devient immutable | Ce qui reste mutable |
+|---|---|---|
+| Préparation lancée | Composition d'articles | Adresse, instructions |
+| Expédition | Quantités, articles | Adresse de livraison (si transporteur le permet) |
+| Livraison | Tout sauf retours | Déclencher un retour/avoir |
+| Règlement vendeur | Commission, montant vendeur | Litige (= nouvelle écriture) |
+| Clôture comptable (mensuelle) | Tout | Avoir sur période suivante |
+
+**Règle de vérification :** avant toute mutation, le système check `is_mutable(sub_order, field)`. Si non → forcer le passage par un évènement compensatoire.
+
+---
+
+## 4. Matrice de responsabilité financière
+
+Cette matrice est aussi importante que le schéma DB. Format : **Scénario → Qui paie / Qui perd / Responsable / Décideur**.
+
+| # | Scénario | Qui paie le coût | Qui perd la marge | Responsable | Décideur |
+|---|---|---|---|---|---|
+| 1 | Rupture vendeur (article promis, jamais en stock) | Vendeur (pénalité) ou Kawzone (geste) | Vendeur | Vendeur | Admin |
+| 2 | Rupture fournisseur (import non arrivé) | Kawzone | Kawzone | Fournisseur | Admin |
+| 3 | Annulation client avant prépa | Personne | Personne | Client | Client (auto) |
+| 4 | Annulation client après prépa | Client (frais de prépa) ou Kawzone (geste) | Vendeur (partiel) | Client | Admin |
+| 5 | Annulation client après expédition | Client (fret + restocking) | Vendeur (si retour endommagé) | Client | Admin |
+| 6 | Retour client (défaut produit) | Vendeur | Vendeur | Vendeur | Admin |
+| 7 | Retour client (changement d'avis) | Client (fret retour) | Personne | Client | Admin |
+| 8 | Remplacement inter-boutiques (B→A pour livraison consolidée) | Kawzone (transfert interne) | Boutique B (vente perdue compensée) | Kawzone | Admin |
+| 9 | Geste commercial | Kawzone | Kawzone | Admin | Admin |
+| 10 | Erreur logistique (mauvais colis) | Kawzone | Kawzone | Kawzone | Admin |
+| 11 | Erreur de stock (vendeur dit "ok" puis rupture) | Vendeur | Vendeur | Vendeur | Admin |
+| 12 | Article cassé en transit | Transporteur ou Kawzone (assurance) | Selon assurance | Transporteur | Admin |
+| 13 | Client absent à la livraison | Client (frais relivraison) | Personne | Client | Admin |
+| 14 | Promo cross-boutique (réduction globale) | Kawzone | Réparti au prorata | Kawzone | Système |
+| 15 | Litige paiement (chargeback) | Vendeur si fraude prouvée, sinon Kawzone | — | Banque | Admin |
+
+**Lecture :** chaque ligne génère un `ledger_entry` au moment où le scénario se produit. Le montant et le débiteur sont déterminés par la matrice, pas par un humain.
+
+---
+
+## 5. Structure des évènements compensatoires
+
+Tout évènement post-PNR a la même forme :
 
 ```text
-mother_order            (1 par commande client — lieu de LECTURE et PAIEMENT)
-  ├─ paiements (encaissements client, jamais ventilés en base)
-  ├─ adresse de livraison
-  ├─ statut consolidé (DÉRIVÉ des sub_orders)
-  └─ sub_orders[]
-        ├─ vendor_id / shop_id
-        ├─ items[]
-        ├─ statut propre (workflow indépendant)
-        ├─ stock_breaks + settlements (scopés vendeur)
-        ├─ commitments[] (engagements ouverts dérivés)
-        └─ → peut être rattachée à un import_container
-
-import_container         (3ᵉ entité, parallèle)
-  ├─ regroupe N sub_orders d'origine import (même container Taobao)
-  ├─ pesée, fret total, dédouanement, statut transit
-  └─ ventile automatiquement le fret sur ses sub_orders au prorata du poids
-```
-
----
-
-## Règles non négociables
-
-### Split
-- **Le split est figé au checkout** (G), basé sur une `split_strategy` versionnée.
-- Une `sub_order` est **mutable** tant qu'aucune action irréversible (expédition, settlement, rupture validée) n'a été posée (H).
-- Le re-split d'un article entre sub_orders (cas E) est une **opération explicite et tracée**, jamais implicite.
-
-### Paiements
-- Le paiement appartient à la **commande mère** (D). Jamais ventilé physiquement.
-- La quote-part par sub_order est une **vue dérivée** au prorata du total TTC.
-- Un complément (ex : `replace_higher` chez B) crée un Commitment sur la sub_order B, mais s'encaisse sur la mère.
-
-### Décisions
-- La commande mère est **lecture + paiement uniquement** (L).
-- Toute décision destructive (annulation, refund, résolution rupture, livraison) vit sur la sub_order.
-- "Annuler la commande" au niveau mère = boucle confirmée sur chaque fille, jamais un clic magique.
-
-### Livraison
-- Frais de livraison portés par **Kawzone** par défaut (A), configurable par sub_order pour le multi-livreur futur.
-- Frais remboursés au client **uniquement si la mère est annulée intégralement**.
-
-### Imports
-- Un `import_container` est une 3ᵉ entité indépendante (B).
-- Plusieurs sub_orders (même de boutiques différentes) peuvent partager un container.
-- Pesée → ventilation automatique du fret au prorata du poids.
-
----
-
-## Commitments (engagements ouverts)
-
-Brique transverse, **dérivée des données** au round 1. Aucun nouveau schéma SQL initial.
-
-```text
-Commitment {
-  id              : déterministe (sub_order_id + product_id + kind)
-  kind            : client_refund_due | client_credit_due | client_extra_payment_due
-                  | restock_followup | delivery_remainder | weighing_pending
-                  | vendor_payout_due | vendor_charge_due
-  family          : financial | logistical | supplier
-  direction       : kawzone_owes | owes_kawzone | internal
-  counterparty    : { type: client | vendor | supplier | internal, id?, name? }
-  amount?         : number     (si family=financial)
-  reason          : phrase courte
-  source          : { sub_order_id, product_id?, decision_kind, decided_at, decided_by }
-  opened_at       : ISO
-  due_by?         : ISO
-  status          : open | in_progress | closed
-  resolution?     : { kind, reference?, amount?, note? }
+event {
+  id, timestamp, sub_order_id, article_id (optional)
+  type: stock_break | replacement | refund | credit_note | goodwill | return | dispute
+  triggered_by: customer | vendor | admin | system
+  matrix_row: # (référence ligne matrice §4)
+  ledger_entries: [ {debtor, creditor, amount, reason} ]
+  visible_to_customer: bool
 }
 ```
 
-**Requêtes de pilotage** que cette structure rend triviales :
-- "Que devons-nous aux clients ?" → `family=financial AND direction=kawzone_owes AND counterparty.type=client`
-- "Que nous doivent les clients ?" → `direction=owes_kawzone AND counterparty.type=client`
-- "Que doivent / leur devons-nous aux vendeurs ?" → idem avec `counterparty.type=vendor`
-- "Actions logistiques ouvertes ?" → `family=logistical AND status=open`
-- "Dossiers bloqués depuis longtemps ?" → tri par `opened_at` ascendant
+**Conséquence :** l'historique d'audit n'est plus une timeline de statuts, c'est une **timeline d'évènements** avec leur impact financier. On peut reconstruire l'état à n'importe quel instant T.
 
 ---
 
-## Décisions de rupture → Commitments générés (table de routage)
+## 6. Cockpit — réorganisation par "ce qui attend"
 
-| Décision (sub_order) | Commitment(s) créé(s) | Ferme quand |
-|---|---|---|
-| Rupture → refund | `client_refund_due(montant)` | settlement posé |
-| Rupture → credit | `client_credit_due(montant)` | settlement posé |
-| Rupture → replace_higher | `client_extra_payment_due(delta)` | settlement posé |
-| Rupture → replace_lower | `client_refund_due(delta)` | settlement posé |
-| Rupture → wait_restock | `restock_followup(article)` | `resumed_at` posé |
-| Rupture → partial_ship | rien (article exclu, scope fermé) | immédiat |
-| Annulation sub_order avec refund | `client_refund_due(total payé sub)` | settlement posé |
-| Livraison partielle | `delivery_remainder(qté)` + éventuel `client_refund_due` | livraison finale ou refund |
-| Pesée import à faire | `weighing_pending(sub_order)` | pesée enregistrée |
-| *(futur)* Commission vendeur due | `vendor_payout_due(montant)` | virement vendeur posé |
-| *(futur)* Charge vendeur due | `vendor_charge_due(montant)` | encaissement vendeur posé |
+Remplacer les colonnes par statut par des **buckets d'action** :
 
----
+```text
+┌─────────────────────────────────────────────────────┐
+│  M'ATTEND (décision admin)              [12]        │
+│  → ruptures non résolues, override décisions       │
+├─────────────────────────────────────────────────────┤
+│  ATTEND LE CLIENT                       [8]         │
+│  → paiement, validation remplacement                │
+├─────────────────────────────────────────────────────┤
+│  ATTEND UN VENDEUR                      [5]         │
+│  → confirmation stock, préparation                  │
+├─────────────────────────────────────────────────────┤
+│  PEUT PARTIR AUJOURD'HUI                [3]         │
+│  → prêt + payé + transporteur dispo                 │
+├─────────────────────────────────────────────────────┤
+│  EN SOUFFRANCE (> SLA)                  [2]         │
+│  → bloqué depuis > 7j                               │
+└─────────────────────────────────────────────────────┘
+```
 
-## Ordre d'implémentation (chantier de fond)
-
-### Phase 0 — Acquis
-- Cockpit Next visible (`/admin/cockpit-next`) avec agrégateur, hero "À faire maintenant", Engagements financiers, deep-link.
-- Bug "Modifications non enregistrées" fantôme corrigé (les 5 handlers d'article ne flippent plus `hasChanges`).
-
-### Phase 1 — `sub_order` comme **vue dérivée front** (sans migration SQL)
-- Regrouper `metadata.articles` par `vendor_id` dans l'agrégateur → exposer un tableau `sub_orders` calculé.
-- Cockpit Next affiche les sub_orders dans la vue commande au lieu de l'agrégat unique.
-- Workflow control par sub_order, plus par commande.
-- **Permet de valider l'UX sans risque, sans toucher à la base.**
-
-### Phase 2 — Commitments dérivés (front uniquement)
-- `deriveCommitments(sub_order)` pure function.
-- La section "Engagements financiers" du Cockpit Next se rebranche dessus.
-- Sections "Suivi opérationnel" et "Attente externe" alimentées par le même flux.
-- **Aucune nouvelle table.**
-
-### Phase 3 — Migration SQL (réversible)
-- Tables `mother_orders`, `sub_orders`, `import_containers`.
-- Script de bascule idempotent : pour chaque `orders` actuelle → 1 mère + N filles selon `order_items.vendor_id`.
-- Bascule réversible : la table `orders` reste en place pendant la transition.
-- Vues SQL pour la rétro-compatibilité des écrans pas encore migrés.
-
-### Phase 4 — Containers d'import
-- Réutiliser ou étendre `import_batches`.
-- Logique de ventilation du fret au prorata du poids.
-
-### Phase 5 — Portail vendeur natif
-- Trivial après Phase 3 : chaque vendeur ne voit que ses `sub_orders`.
+Chaque carte montre : **qui** attend, **depuis quand**, **impact €**, **prochaine action obligatoire** (1 bouton).
 
 ---
 
-## Hors-scope (à valider plus tard)
+## 7. Séquence d'implémentation (phases)
 
-- Notifications client/vendeur automatisées (WhatsApp).
-- Calcul auto des commissions selon `commission_rules`.
-- Portefeuille client réutilisable pour `credit`.
-- Livraison multi-livreurs (Jumia Express style).
+Ordre choisi pour **minimiser le risque** : on commence par ce qui ne casse rien (vue dérivée), on migre la donnée seulement quand les concepts sont validés en vrai.
+
+### Phase 0 — Geler les concepts (en cours)
+- Valider la matrice §4 ligne par ligne avec toi.
+- Trancher les 3 questions ouvertes (cf §9).
+
+### Phase 1 — Vue dérivée sub_orders (zéro SQL)
+- Aggregator front qui groupe `metadata.articles` par `vendor_id`.
+- Affichage Cockpit en buckets d'action (§6).
+- Aucune migration. Permet de valider l'UX sur des cas réels.
+
+### Phase 2 — Table `ledger_entries` (append-only)
+- Migration : créer la table, alimentée par tous les évènements existants (paiement, remboursement, rupture).
+- Pas encore de sub_orders en DB — `ledger_entry.sub_order_ref` = dérivé.
+
+### Phase 3 — Table `sub_orders` matérialisée
+- Migration : créer la table, backfill depuis les commandes existantes.
+- Bascule progressive : lectures depuis sub_orders, écritures dual (mother + sub).
+
+### Phase 4 — Évènements compensatoires unifiés
+- Table `order_events` qui remplace `stock_breaks` + `audit_logs` + `refund_requests`.
+- Tout post-PNR passe par là.
+
+### Phase 5 — Extensions (litiges, garanties, avances)
+- Nouveaux `event.type`, nouvelles lignes de matrice. **Zéro changement de schéma.**
 
 ---
 
-## Garantie d'ouverture
+## 8. Critiques honnêtes de tes intuitions
 
-À aucun moment une logique financière ou opérationnelle ne doit court-circuiter le modèle Commitment. Tout nouvel ajout (commissions, payouts, retours, litiges) doit produire un `Commitment` — c'est la règle.
+Tu m'as demandé d'être franc. Voici 4 points où je pense que ton intuition a une faille ou un risque :
 
-À aucun moment une décision destructive ne doit vivre au niveau `mother_order` — sub_order uniquement.
+### C1 — "Le client paie une fois" : vrai à 90%, faux dans 1 cas
+Si tu fais du **paiement échelonné par boutique** (cas D), le client peut vouloir payer la boutique A maintenant et la boutique B dans 2 semaines. Décision à figer : soit tu interdis ça (paiement = mother only), soit tu acceptes des paiements par sub_order. **Recommandation : paiement mother uniquement, échéances = dérivées.** Sinon la trésorerie devient ingérable.
 
-À aucun moment un paiement ne doit être ventilé physiquement en base — la quote-part par sub_order est toujours dérivée.
+### C2 — "Sous-commande mutable" : danger sur les commissions
+Si une sub_order est mutable et que la commission est calculée à la création, ajouter un article change la commission rétroactivement. **Recommandation : geler la commission au moment du règlement vendeur (PNR §3), pas avant.** Tant que pas réglé, recalcul libre.
+
+### C3 — "Split par boutique" est bon, mais pas universel
+Pour un **multi-shop vendor** (un vendeur avec 3 boutiques), splitter en 3 sub_orders crée 3 commissions, 3 règlements, 3 livraisons potentielles — alors que le vendeur voit 1 seule opération. **Recommandation : split par `vendor_id`, pas par `shop_id`.** La boutique devient un attribut d'affichage, pas l'unité de split. Sinon tu vas créer de la friction pour rien.
+
+### C4 — La matrice de responsabilité va évoluer
+La matrice §4 a 15 lignes aujourd'hui. Dans 1 an elle en aura 40. **Recommandation : stocker la matrice en DB (table `responsibility_rules`), pas en code.** Un admin peut ajuster une règle sans redéploiement. Indispensable quand tu négocieras des contrats vendeurs différenciés.
+
+---
+
+## 9. Décisions à trancher avant Phase 1
+
+3 questions où j'ai besoin de ton arbitrage explicite :
+
+1. **Paiement** : mother uniquement (recommandé) ou autorisé par sub_order ?
+2. **Unité de split** : `vendor_id` (recommandé) ou `shop_id` strict ?
+3. **Matrice** : codée en dur (rapide) ou stockée en DB (recommandé, extensible) ?
+
+Réponds sur ces 3 points et je rédige le plan technique Phase 1 + 2 prêt à exécuter.
