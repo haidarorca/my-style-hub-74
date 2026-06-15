@@ -956,6 +956,56 @@ export type Database = {
         }
         Relationships: []
       }
+      order_article_states: {
+        Row: {
+          created_at: string
+          delivered_qty: number
+          id: string
+          order_id: string
+          product_id: string
+          status: string
+          stock_break: Json | null
+          updated_at: string
+          updated_by: string | null
+          variant_id: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          delivered_qty?: number
+          id?: string
+          order_id: string
+          product_id: string
+          status?: string
+          stock_break?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          variant_id?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          delivered_qty?: number
+          id?: string
+          order_id?: string
+          product_id?: string
+          status?: string
+          stock_break?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          variant_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_article_states_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           buyer_id: string | null
