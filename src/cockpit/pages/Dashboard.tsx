@@ -161,7 +161,7 @@ export default function CockpitDashboard() {
           reason: data.reason,
           action: data.action,
           action_label: data.action,
-          resolved: true, // décision admin posée immédiatement par le dialog
+          resolved: false,
           created_at: new Date().toISOString(),
           last_valid_status,
         },
