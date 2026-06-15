@@ -150,12 +150,43 @@ export default function CockpitDashboard() {
 
   // ─── Handlers gestion article par article ───
   const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId
-        ? { ...a, status: "no_stock" as ArticleStatus, stock_break: { reason: data.reason, action: data.action, action_label: data.action, resolved: false, created_at: new Date().toISOString() } }
-        : a
-    ));
+    setSelectedArticles(prev => prev?.map(a => {
+      if (a.product_id !== productId) return a;
+      // Mémorise le statut valide AVANT la rupture pour les sous-flux qui peuvent reprendre (wait_restock).
+      const last_valid_status = a.status !== "no_stock" ? a.status : a.stock_break?.last_valid_status;
+      return {
+        ...a,
+        status: "no_stock" as ArticleStatus,
+        stock_break: {
+          reason: data.reason,
+          action: data.action,
+          action_label: data.action,
+          resolved: true, // décision admin posée immédiatement par le dialog
+          created_at: new Date().toISOString(),
+          last_valid_status,
+        },
+      };
+    }));
   }, []);
+
+  // ─── Reprise après réappro : restaure le statut mémorisé ou fallback type, marque resumed_at ───
+  const handleResumeRestock = useCallback((productId: string) => {
+    setSelectedArticles(prev => prev?.map(a => {
+      if (a.product_id !== productId || !a.stock_break || a.stock_break.action !== "wait_restock") return a;
+      const memorized = a.stock_break.last_valid_status;
+      const fallback: ArticleStatus = a.is_import ? "received" : "available";
+      const target: ArticleStatus = memorized ?? fallback;
+      return {
+        ...a,
+        status: target,
+        stock_break: {
+          ...a.stock_break,
+          resumed_at: new Date().toISOString(),
+          resumed_by: adminName,
+        },
+      };
+    }));
+  }, [adminName]);
 
   const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
     setSelectedArticles(prev => prev?.map(a =>
