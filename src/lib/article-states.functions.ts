@@ -30,6 +30,14 @@ const UpsertSchema = z.object({
 
 /* ── Types DTO (forme 1:1 avec la table) ── */
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json }
+  | Json[];
+
 export interface ArticleStateRow {
   id: string;
   order_id: string;
@@ -37,8 +45,8 @@ export interface ArticleStateRow {
   variant_id: string | null;
   status: string;
   delivered_qty: number;
-  stock_break: Record<string, unknown> | null;
-  settlement: Record<string, unknown> | null;
+  stock_break: Json | null;
+  settlement: Json | null;
   version: number;
   updated_by: string | null;
   updated_at: string;
