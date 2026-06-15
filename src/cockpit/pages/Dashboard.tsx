@@ -19,6 +19,7 @@ import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
 import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
+import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
 import type { DateRange } from "react-day-picker";
 import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
@@ -69,6 +70,17 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
+  /** Phase 2 : si défini, le drawer est scopé à cette boutique de la commande mère. */
+  const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
+
+  // Sub-order rows (1 ligne par vendeur de chaque commande) — alimente la pipeline.
+  const { rows: subOrderRows } = useSubOrderRows(orders);
+
+  // Helper : ouvre une commande sans scope (legacy).
+  const openOrder = useCallback((o: LogisticsOrderRow) => {
+    setSelectedVendorId(undefined);
+    setSelectedOrder(o);
+  }, []);
 
   // ─── Deep-link : ?orderId=…&focus=money ─────────────────────────────
   // Permet à Cockpit Next (et à tout lien externe) d'ouvrir directement
