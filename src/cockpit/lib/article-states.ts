@@ -148,10 +148,12 @@ export function getReplaceImpact(article: OrderArticle): {
   return { variant, delta, newLineTotal: newUnit * article.quantity };
 }
 
-/** Statut financier dérivé. Aucun mouvement automatique : juste une intention. */
+/** Statut financier dérivé. Aucun mouvement automatique : juste une intention.
+ *  Si `stock_break.settlement` est posé (action admin explicite), le pending est levé. */
 export function getArticleFinancialStatus(article: OrderArticle): ArticleFinancialStatus {
   const sb = article.stock_break;
   if (!sb || !sb.resolved) return "none";
+  if (sb.settlement) return "none"; // traité par admin — pending levé
   if (sb.action === "refund") return "refund_pending";
   if (sb.action === "credit") return "credit_pending";
   if (sb.action === "replace") {
@@ -160,6 +162,18 @@ export function getArticleFinancialStatus(article: OrderArticle): ArticleFinanci
     if (sb.diff_handling === "credit") return "credit_pending";
   }
   return "none";
+}
+
+/** Montant attendu du settlement pour un article (en valeur absolue). */
+export function getExpectedSettlementAmount(article: OrderArticle): number {
+  const sb = article.stock_break;
+  if (!sb || !sb.resolved) return 0;
+  if (sb.action === "refund" || sb.action === "credit") return article.line_total;
+  if (sb.action === "replace") {
+    const imp = getReplaceImpact(article);
+    return imp ? Math.abs(imp.delta) : 0;
+  }
+  return 0;
 }
 
 /** Verrou commande : la commande gèle toutes les actions article. */
