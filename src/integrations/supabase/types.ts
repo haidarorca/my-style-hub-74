@@ -1027,6 +1027,73 @@ export type Database = {
           },
         ]
       }
+      order_payment_summary: {
+        Row: {
+          order_id: string
+          total_paid: number
+          updated_at: string
+        }
+        Insert: {
+          order_id: string
+          total_paid?: number
+          updated_at?: string
+        }
+        Update: {
+          order_id?: string
+          total_paid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payment_summary_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_payments: {
+        Row: {
+          admin_id: string | null
+          admin_name: string
+          amount: number
+          created_at: string
+          id: string
+          method: string
+          order_id: string
+          reference: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          admin_name?: string
+          amount: number
+          created_at?: string
+          id?: string
+          method: string
+          order_id: string
+          reference?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          admin_name?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          method?: string
+          order_id?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_shipment_assessments: {
         Row: {
           admin_comment: string | null
@@ -1223,6 +1290,44 @@ export type Database = {
           used?: boolean
         }
         Relationships: []
+      }
+      payment_audit: {
+        Row: {
+          action: string
+          admin_id: string | null
+          admin_name: string
+          created_at: string
+          details: string | null
+          id: string
+          order_id: string
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          admin_name?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          order_id: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          admin_name?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_audit_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_admin_metadata: {
         Row: {
