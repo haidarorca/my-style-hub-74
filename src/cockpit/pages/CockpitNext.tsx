@@ -1,25 +1,32 @@
 // ═══════════════════════════════════════════════════════════════
-// CockpitNext — maquette fonctionnelle du Cockpit orienté ACTIONS
+// CockpitNext — vue ACTIONS du Cockpit (lecture seule).
 //
-// ▸ Vue alternative à `/admin/cockpit` (l'ancienne reste intacte).
-// ▸ Ligne du feu (4 tuiles) · Sur mon bureau · Prêt à avancer ·
-//   En attente externe · Liste filtrée.
-// ▸ Source : `aggregateOrder()` pour chaque commande (batch ≤ 60).
-// ▸ Aucune décision opérateur — c'est une lecture. Cliquer ouvre
-//   l'ancien Cockpit (lien retour).
+// Question unique posée par l'écran :
+//   « Si j'arrive le matin, qu'est-ce que je fais en premier ? »
+//
+// Hiérarchie visuelle :
+//   1. À FAIRE MAINTENANT — la commande la plus prioritaire, nommée.
+//   2. LIGNE DU FEU — 4 tuiles filtrables (Bloqué · Argent · Prêt · Souffrance).
+//   3. SUR MON BUREAU — décisions admin, triées par ancienneté.
+//   4. PRÊT À AVANCER — peut partir aujourd'hui.
+//   5. EN ATTENTE EXTERNE — fournisseur / réappro.
+//   6. LISTE filtrée.
+//
+// Source : aggregateOrder() (batch ≤ 60). Aucune action métier ici —
+// les clics renvoient vers l'ancien Cockpit (lien retour conservé).
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Flame, Wallet, PackageCheck, Clock, Target, ArrowRight,
-  AlertTriangle, ShoppingCart, RotateCcw, ArrowLeft,
+  ShoppingCart, RotateCcw, ArrowLeft, Zap, CheckCircle2,
 } from "lucide-react";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useOrderAggregatesBatch, type OrderWithAggregate } from "@/cockpit/hooks/useOrderAggregatesBatch";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { fmtF } from "@/cockpit/lib/workflow";
-import { NEXT_ACTION_LABELS } from "@/cockpit/lib/order-aggregate";
+import { NEXT_ACTION_LABELS, type AggregateNextAction } from "@/cockpit/lib/order-aggregate";
 
 // ─── Staleness (proxy basé sur order_created_at) ───
 type Staleness = "fresh" | "watch" | "stale" | "critical";
@@ -38,11 +45,26 @@ const STALE_PILL: Record<Staleness, string> = {
   critical: "bg-red-600 text-white",
 };
 const STALE_LABEL: Record<Staleness, string> = {
-  fresh: "récente",
-  watch: "à surveiller",
-  stale: "ancienne",
-  critical: "critique",
+  fresh: "récente", watch: "à surveiller", stale: "ancienne", critical: "critique",
 };
+
+// ─── Priorité globale : sert à élire « ce que je fais en premier » ───
+// Plus le score est haut, plus c'est urgent. La staleness pondère.
+const ACTION_PRIORITY: Record<AggregateNextAction, number> = {
+  resolve_break: 100,
+  settle_money: 80,
+  ship: 60,
+  prepare_shipment: 50,
+  receive_warehouse: 30,
+  order_supplier: 20,
+  wait_restock: 5,
+  review: 1,
+  done: 0,
+};
+
+function isActionable(a: AggregateNextAction): boolean {
+  return a !== "done" && a !== "review" && a !== "wait_restock";
+}
 
 type Filter = "all" | "blocked" | "money" | "ready" | "stale";
 
@@ -57,7 +79,7 @@ export default function CockpitNext() {
     let blockedArticles = 0, blockedOrders = 0;
     let refundTotal = 0, extraTotal = 0, moneyOrders = 0;
     let readyOrders = 0, readyArticles = 0, readyValue = 0;
-    let painCritical = 0, painStale = 0; let oldest = 0;
+    let painCritical = 0, painStale = 0, oldest = 0;
 
     for (const e of enriched) {
       const agg = e.aggregate; if (!agg) continue;
@@ -74,10 +96,14 @@ export default function CockpitNext() {
         readyArticles += agg.counters.ready;
         for (const r of agg.by_bucket.ready) readyValue += r.article.line_total ?? 0;
       }
-      const s = staleness(e);
-      if (s.level === "critical") painCritical++;
-      else if (s.level === "stale") painStale++;
-      if (s.days > oldest) oldest = s.days;
+      // En souffrance : on ne compte QUE les commandes encore actives.
+      // Une vieille commande livrée n'est pas une douleur opérationnelle.
+      if (isActionable(agg.next_action)) {
+        const s = staleness(e);
+        if (s.level === "critical") painCritical++;
+        else if (s.level === "stale") painStale++;
+        if (s.days > oldest) oldest = s.days;
+      }
     }
     return {
       blockedArticles, blockedOrders,
@@ -87,35 +113,65 @@ export default function CockpitNext() {
     };
   }, [enriched]);
 
-  // ─── Catégorisation pour les 3 sections ──────────────────────
-  const onMyDesk = useMemo(() => enriched.filter(e => {
-    const a = e.aggregate; if (!a) return false;
-    return a.counters.blocked > 0 || a.counters.waiting_money > 0;
-  }), [enriched]);
+  // ─── ÉLECTION : la SEULE commande à attaquer en premier ──────
+  const topPriority = useMemo(() => {
+    let best: { e: OrderWithAggregate; score: number; days: number } | null = null;
+    for (const e of enriched) {
+      const a = e.aggregate; if (!a) continue;
+      if (!isActionable(a.next_action)) continue;
+      const s = staleness(e);
+      // Score = priorité métier + bonus ancienneté (cap 30 jours).
+      const score = ACTION_PRIORITY[a.next_action] + Math.min(s.days, 30);
+      if (!best || score > best.score) best = { e, score, days: s.days };
+    }
+    return best;
+  }, [enriched]);
 
-  const readyToProgress = useMemo(() => enriched.filter(e => {
-    const a = e.aggregate; if (!a) return false;
-    return a.flags.can_ship_today;
-  }), [enriched]);
+  // ─── Catégorisation pour les 3 sections (triées par ancienneté) ──
+  const sortByStaleDesc = (a: OrderWithAggregate, b: OrderWithAggregate) =>
+    staleness(b).days - staleness(a).days;
 
-  const waitingExternal = useMemo(() => enriched.filter(e => {
-    const a = e.aggregate; if (!a) return false;
-    if (a.counters.blocked > 0 || a.counters.waiting_money > 0) return false;
-    return a.counters.waiting_supplier > 0 || a.counters.waiting_restock > 0;
-  }), [enriched]);
+  const onMyDesk = useMemo(() => enriched
+    .filter(e => {
+      const a = e.aggregate; if (!a) return false;
+      return a.counters.blocked > 0 || a.counters.waiting_money > 0;
+    })
+    .sort(sortByStaleDesc), [enriched]);
+
+  const readyToProgress = useMemo(() => enriched
+    .filter(e => e.aggregate?.flags.can_ship_today)
+    .sort(sortByStaleDesc), [enriched]);
+
+  const waitingExternal = useMemo(() => enriched
+    .filter(e => {
+      const a = e.aggregate; if (!a) return false;
+      if (a.counters.blocked > 0 || a.counters.waiting_money > 0) return false;
+      return a.counters.waiting_supplier > 0 || a.counters.waiting_restock > 0;
+    })
+    .sort(sortByStaleDesc), [enriched]);
 
   // ─── Filtre liste ─────────────────────────────────────────────
-  const filteredList = useMemo(() => enriched.filter(e => {
-    const a = e.aggregate; if (!a) return filter === "all";
-    if (filter === "all") return true;
-    if (filter === "blocked") return a.counters.blocked > 0;
-    if (filter === "money") return a.pending_money.total_abs > 0;
-    if (filter === "ready") return a.flags.can_ship_today;
-    if (filter === "stale") {
-      const s = staleness(e); return s.level === "critical" || s.level === "stale";
-    }
-    return true;
-  }), [enriched, filter]);
+  const filteredList = useMemo(() => enriched
+    .filter(e => {
+      const a = e.aggregate; if (!a) return filter === "all";
+      if (filter === "all") return true;
+      if (filter === "blocked") return a.counters.blocked > 0;
+      if (filter === "money") return a.pending_money.total_abs > 0;
+      if (filter === "ready") return a.flags.can_ship_today;
+      if (filter === "stale") {
+        if (!isActionable(a.next_action)) return false;
+        const s = staleness(e); return s.level === "critical" || s.level === "stale";
+      }
+      return true;
+    })
+    .sort(sortByStaleDesc), [enriched, filter]);
+
+  const moneyNet = fire.extraTotal - fire.refundTotal;
+  const allClear = !isLoading
+    && fire.blockedArticles === 0
+    && fire.moneyOrders === 0
+    && fire.painCritical === 0
+    && !topPriority;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -127,7 +183,7 @@ export default function CockpitNext() {
         <div className="flex-1">
           <h1 className="text-sm font-bold">Cockpit · vue actions</h1>
           <p className="text-[10px] text-gray-500">
-            Maquette branchée sur l'agrégateur · {enriched.length} commande(s) analysée(s)
+            {enriched.length} commande(s) · cliquer une commande → ancien Cockpit
           </p>
         </div>
         <Link to="/admin/cockpit" className="text-[10px] text-indigo-600 underline">
@@ -136,41 +192,54 @@ export default function CockpitNext() {
       </header>
 
       <main className="p-3 space-y-4">
+        {/* ─── À FAIRE MAINTENANT (héros) ─────────────────────── */}
+        {topPriority && (
+          <TopPriority item={topPriority.e} days={topPriority.days} />
+        )}
+
+        {allClear && (
+          <section className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+            <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+            <div>
+              <h2 className="text-sm font-bold text-emerald-900">Aucune action urgente</h2>
+              <p className="text-[11px] text-emerald-700">
+                Rien ne bloque, aucun règlement en attente, rien de critique. Bonne journée.
+              </p>
+            </div>
+          </section>
+        )}
+
         {/* ─── LIGNE DU FEU ─────────────────────────────────────── */}
         <section className="grid grid-cols-2 gap-2">
           <FireTile
-            tone="red"
-            icon={Flame}
-            label="Bloqué"
-            primary={`${fire.blockedArticles} article${fire.blockedArticles > 1 ? "s" : ""}`}
-            secondary={`${fire.blockedOrders} commande${fire.blockedOrders > 1 ? "s" : ""}`}
+            tone="red" icon={Flame} label="Bloqué"
+            primary={fire.blockedArticles === 0 ? "0" : `${fire.blockedArticles} article${fire.blockedArticles > 1 ? "s" : ""}`}
+            secondary={fire.blockedOrders === 0 ? "tout est traité" : `${fire.blockedOrders} commande${fire.blockedOrders > 1 ? "s" : ""}`}
             active={filter === "blocked"}
             onClick={() => setFilter(filter === "blocked" ? "all" : "blocked")}
           />
           <FireTile
-            tone="amber"
-            icon={Wallet}
-            label="Argent à régler"
-            primary={fire.refundTotal + fire.extraTotal > 0 ? signedMoney(fire.refundTotal, fire.extraTotal) : "—"}
-            secondary={`${fire.moneyOrders} commande${fire.moneyOrders > 1 ? "s" : ""}`}
+            tone="amber" icon={Wallet} label="Argent à régler"
+            primary={fire.moneyOrders === 0 ? "—" : (moneyNet === 0 ? "à équilibrer" : (moneyNet > 0 ? `+ ${fmtF(moneyNet)}` : `− ${fmtF(-moneyNet)}`))}
+            secondary={fire.moneyOrders === 0
+              ? "aucun règlement dû"
+              : `${fmtF(fire.refundTotal)} à rembourser · ${fmtF(fire.extraTotal)} à encaisser`}
             active={filter === "money"}
             onClick={() => setFilter(filter === "money" ? "all" : "money")}
           />
           <FireTile
-            tone="emerald"
-            icon={PackageCheck}
-            label="Peut partir aujourd'hui"
+            tone="emerald" icon={PackageCheck} label="Peut partir aujourd'hui"
             primary={`${fire.readyOrders} commande${fire.readyOrders > 1 ? "s" : ""}`}
-            secondary={`${fire.readyArticles} art. · ${fmtF(fire.readyValue)}`}
+            secondary={fire.readyOrders === 0 ? "rien de prêt" : `${fire.readyArticles} art. · ${fmtF(fire.readyValue)}`}
             active={filter === "ready"}
             onClick={() => setFilter(filter === "ready" ? "all" : "ready")}
           />
           <FireTile
-            tone="orange"
-            icon={Clock}
-            label="En souffrance"
-            primary={`${fire.painCritical} critique${fire.painCritical > 1 ? "s" : ""}`}
-            secondary={`${fire.painStale} à surveiller · plus vieux : ${fire.oldest}j`}
+            tone="orange" icon={Clock} label="En souffrance"
+            primary={fire.painCritical === 0 ? (fire.painStale === 0 ? "0" : `${fire.painStale} ancienne${fire.painStale > 1 ? "s" : ""}`) : `${fire.painCritical} critique${fire.painCritical > 1 ? "s" : ""}`}
+            secondary={fire.oldest > 0
+              ? `+ ${fire.painStale} à surveiller · vieille de ${fire.oldest}j`
+              : "rien en retard"}
             active={filter === "stale"}
             onClick={() => setFilter(filter === "stale" ? "all" : "stale")}
           />
@@ -179,13 +248,12 @@ export default function CockpitNext() {
         {/* ─── SUR MON BUREAU ──────────────────────────────────── */}
         <Section
           title="Sur mon bureau"
-          subtitle="ce qui attend ma décision"
-          icon={Target}
-          items={onMyDesk}
+          subtitle="ce qui attend ma décision (triée par ancienneté)"
+          icon={Target} items={onMyDesk}
           empty="Aucune décision à prendre — bravo."
           renderLabel={(e) => {
             const a = e.aggregate!;
-            if (a.counters.blocked > 0) return `Rupture · ${a.counters.blocked} art.`;
+            if (a.counters.blocked > 0) return `Rupture · ${a.counters.blocked} art. · ${a.next_action_driver?.product_name ?? ""}`;
             if (a.counters.waiting_money > 0) return `Règlement · ${fmtF(a.pending_money.total_abs)}`;
             return NEXT_ACTION_LABELS[a.next_action];
           }}
@@ -196,8 +264,7 @@ export default function CockpitNext() {
         <Section
           title="Prêt à avancer"
           subtitle="rien ne bloque, prêt à expédier"
-          icon={ArrowRight}
-          items={readyToProgress}
+          icon={ArrowRight} items={readyToProgress}
           empty="Aucune commande n'est encore prête à partir."
           renderLabel={(e) => {
             const a = e.aggregate!;
@@ -211,8 +278,7 @@ export default function CockpitNext() {
         <Section
           title="En attente externe"
           subtitle="fournisseur, réappro — pas d'action de ma part"
-          icon={ShoppingCart}
-          items={waitingExternal}
+          icon={ShoppingCart} items={waitingExternal}
           empty="Aucune attente externe en cours."
           renderLabel={(e) => {
             const a = e.aggregate!;
@@ -233,8 +299,7 @@ export default function CockpitNext() {
                 onClick={() => setFilter("all")}
                 className="text-[10px] text-indigo-600 underline flex items-center gap-1"
               >
-                <RotateCcw className="h-3 w-3" />
-                Réinitialiser filtre
+                <RotateCcw className="h-3 w-3" /> Réinitialiser filtre
               </button>
             )}
           </div>
@@ -254,6 +319,38 @@ export default function CockpitNext() {
 }
 
 // ─── Sous-composants ────────────────────────────────────────────
+
+function TopPriority({ item, days }: { item: OrderWithAggregate; days: number }) {
+  const a = item.aggregate!;
+  const action = NEXT_ACTION_LABELS[a.next_action];
+  const driver = a.next_action_driver?.product_name;
+  const num = getOrderNumber(item.order.order_id ?? "");
+  const cust = item.order.customer_name ?? "—";
+  return (
+    <Link
+      to="/admin/cockpit"
+      className="block bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-xl p-3.5 shadow-md active:scale-[0.99] transition-transform"
+    >
+      <div className="flex items-center gap-1.5 mb-2 opacity-90">
+        <Zap className="h-3.5 w-3.5" />
+        <span className="text-[10px] font-bold uppercase tracking-wider">À faire maintenant</span>
+        {days >= 7 && (
+          <span className="ml-auto bg-white/20 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+            {days}j d'attente
+          </span>
+        )}
+      </div>
+      <div className="text-base font-bold leading-tight">{action}</div>
+      <div className="text-[12px] mt-1 opacity-95">
+        {num} · {cust}
+      </div>
+      <div className="text-[10px] mt-1 opacity-80 italic">
+        {a.next_action_why}
+        {driver ? ` — déclencheur : ${driver}` : ""}
+      </div>
+    </Link>
+  );
+}
 
 function FireTile({
   tone, icon: Icon, label, primary, secondary, active, onClick,
@@ -279,7 +376,7 @@ function FireTile({
         <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
       </div>
       <div className="text-base font-bold leading-tight">{primary}</div>
-      <div className="text-[10px] opacity-80 mt-0.5">{secondary}</div>
+      <div className="text-[10px] opacity-80 mt-0.5 leading-tight">{secondary}</div>
     </button>
   );
 }
@@ -314,14 +411,19 @@ function Section({
       ) : (
         <ul className="divide-y">
           {items.slice(0, 8).map(e => (
-            <li key={e.order.order_id} className="py-2 flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-bold text-gray-800">
-                  {getOrderNumber(e.order.order_id ?? "")} · {e.order.customer_name ?? "—"}
+            <li key={e.order.order_id}>
+              <Link
+                to="/admin/cockpit"
+                className="py-2 flex items-start gap-2 hover:bg-gray-50 -mx-1 px-1 rounded"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold text-gray-800">
+                    {getOrderNumber(e.order.order_id ?? "")} · {e.order.customer_name ?? "—"}
+                  </div>
+                  <div className="text-[10px] text-gray-500 truncate">{renderLabel(e)}</div>
                 </div>
-                <div className="text-[10px] text-gray-500 truncate">{renderLabel(e)}</div>
-              </div>
-              <StalenessPill item={e} />
+                <StalenessPill item={e} />
+              </Link>
             </li>
           ))}
           {items.length > 8 && (
@@ -338,18 +440,20 @@ function Section({
 function OrderRow({ item }: { item: OrderWithAggregate }) {
   const a = item.aggregate;
   return (
-    <li className="py-2 flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-bold text-gray-800">
-          {getOrderNumber(item.order.order_id ?? "")} · {item.order.customer_name ?? "—"}
+    <li>
+      <Link to="/admin/cockpit" className="py-2 flex items-start gap-2 hover:bg-gray-50 -mx-1 px-1 rounded">
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-bold text-gray-800">
+            {getOrderNumber(item.order.order_id ?? "")} · {item.order.customer_name ?? "—"}
+          </div>
+          <div className="text-[10px] text-gray-500 truncate">
+            {a
+              ? `${NEXT_ACTION_LABELS[a.next_action]} — ${a.next_action_reason}`
+              : (item.isLoading ? "chargement de l'agrégateur…" : "—")}
+          </div>
         </div>
-        <div className="text-[10px] text-gray-500 truncate">
-          {a
-            ? `${NEXT_ACTION_LABELS[a.next_action]} — ${a.next_action_reason}`
-            : (item.isLoading ? "chargement de l'agrégateur…" : "—")}
-        </div>
-      </div>
-      <StalenessPill item={item} />
+        <StalenessPill item={item} />
+      </Link>
     </li>
   );
 }
@@ -362,15 +466,3 @@ function StalenessPill({ item }: { item: OrderWithAggregate }) {
     </span>
   );
 }
-
-// ─── Helpers ────────────────────────────────────────────────────
-function signedMoney(refund: number, extra: number): string {
-  const parts: string[] = [];
-  if (refund > 0) parts.push(`− ${fmtF(refund)}`);
-  if (extra > 0) parts.push(`+ ${fmtF(extra)}`);
-  return parts.join(" / ") || "—";
-}
-
-interface OrderWithAggregateProp { item: OrderWithAggregate }
-// (eslint placebo — interface utilisée nulle part en export)
-void (null as unknown as OrderWithAggregateProp);
