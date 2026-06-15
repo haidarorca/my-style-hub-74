@@ -150,6 +150,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
           <PartialDeliveryBanner articles={articles} />
 
+          {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
+          {articles && onSettleFinancial && (
+            <PendingFinancialActions
+              articles={articles}
+              remainingToPay={rem}
+              onSettle={onSettleFinancial}
+            />
+          )}
+
+
+
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-1.5"><User className="h-4 w-4" />Client</h3>
