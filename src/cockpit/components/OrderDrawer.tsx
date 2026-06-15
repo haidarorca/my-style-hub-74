@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
+import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getNextActionForOrder, getPendingFinancialActions } from "@/cockpit/lib/article-states";
@@ -133,7 +134,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Action suivante ─── */}
+          {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
+          <AggregateDebugPanel articles={articles} orderStatus={status} />
+
+          {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
           {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
