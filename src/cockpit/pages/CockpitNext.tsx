@@ -558,7 +558,7 @@ function FinancialCommitments({ enriched }: { enriched: OrderWithAggregate[] }) 
       {/* Liste détaillée par dossier */}
       <ul className="divide-y">
         {rows.slice(0, 10).map((r, i) => (
-          <li key={`${r.order.order_id}-${r.kind}-${i}`}>
+          <li key={`${r.order.order.order_id}-${r.kind}-${i}`}>
             <Link
               to="/admin/cockpit"
               className="py-2 flex items-center gap-2 hover:bg-gray-50 -mx-1 px-1 rounded"
@@ -566,7 +566,7 @@ function FinancialCommitments({ enriched }: { enriched: OrderWithAggregate[] }) 
               <FinBadge kind={r.kind} />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-bold text-gray-800 truncate">
-                  {getOrderNumber(r.order.order_id ?? "")} · {r.order.customer_name ?? "—"}
+                  {getOrderNumber(r.order.order.order_id ?? "")} · {r.order.order.customer_name ?? "—"}
                 </div>
                 <div className="text-[10px] text-gray-500">
                   {FIN_LABEL[r.kind]}
