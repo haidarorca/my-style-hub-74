@@ -174,88 +174,102 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
                 )}
 
                 {/* ── Actions contextuelles ── */}
-                <div className="space-y-2 pt-1">
-                  {/* 
-                    LOGIQUE : 
-                    1. Rupture stock → toujours dispo (action d'urgence)
-                    2. Livrer → seulement si article est Prêt/Disponible/Reçu
-                    3. Changer état → seulement les transitions logiques
-                  */}
-
-                  {/* (1) Rupture stock — toujours visible */}
-                  {!art.stock_break && onStockBreak && (
-                    <button
-                      onClick={() => setStockBreakProduct(art)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Signaler rupture de stock
-                    </button>
-                  )}
-
-                  {/* (2) Livrer — SEULEMENT si l'article est prêt */}
-                  {!isDelivered && onPartialDeliver && ["ready", "available", "received"].includes(art.status) && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={1}
-                        max={art.quantity - (art.delivered_qty ?? 0)}
-                        value={partialQty[art.product_id] ?? ""}
-                        onChange={e => setPartialQty(prev => ({ ...prev, [art.product_id]: e.target.value }))}
-                        placeholder="Qty"
-                        className="w-16 h-9 text-[11px] border rounded-lg px-2 text-center"
-                      />
-                      <button
-                        onClick={() => {
-                          const qty = parseInt(partialQty[art.product_id] ?? "0", 10);
-                          if (qty > 0) { onPartialDeliver(art.product_id, qty); setPartialQty(prev => ({ ...prev, [art.product_id]: "" })); }
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-teal-600 text-white text-[11px] font-semibold hover:bg-teal-700 transition-colors"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Livrer {partialQty[art.product_id] || art.quantity} / {art.quantity}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* (3) Changer état — transitions logiques uniquement */}
-                  {onStatusChange && (
-                    <div>
-                      <div className="text-[9px] text-gray-400 mb-1.5">Prochaine étape :</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(() => {
-                          // Transitions logiques selon l'état actuel
-                          const transitions: Record<ArticleStatus, ArticleStatus[]> = {
-                            pending:     ["available", "ordered"],
-                            available:   ["ready"],
-                            ordered:     ["received"],
-                            received:    ["ready"],
-                            ready:       ["delivered"],
-                            delivered:   [],
-                            partial_stock: ["available", "ordered"],
-                            no_stock:    ["available", "ordered"],
-                            shipped:     ["delivered"],
-                            returned:    ["pending"],
-                            refunded:    [],
-                          };
-                          const nextStates = transitions[art.status] ?? [];
-                          if (nextStates.length === 0) {
-                            return <span className="text-[10px] text-gray-400 italic">Aucune action — article terminé</span>;
-                          }
-                          return nextStates.map(st => (
-                            <button
-                              key={st}
-                              onClick={() => onStatusChange(art.product_id, st)}
-                              className={`text-[10px] px-3 py-1.5 rounded-full font-semibold transition-colors ${ARTICLE_STATUS_COLORS[st]} hover:opacity-80`}
-                            >
-                              {ARTICLE_STATUS_LABELS[st]}
-                            </button>
-                          ));
-                        })()}
+                {/* Verrou : aucune action si la commande est livrée ou annulée, ou si l'article est livré/remboursé */}
+                {(() => {
+                  const orderLocked = orderStatus === "delivered" || orderStatus === "cancelled";
+                  const articleLocked = art.status === "delivered" || art.status === "refunded" || art.status === "returned";
+                  if (orderLocked) {
+                    return (
+                      <div className="text-[10px] text-gray-400 italic pt-1">
+                        {orderStatus === "delivered" ? "Commande livrée — aucune action possible" : "Commande annulée — aucune action possible"}
                       </div>
+                    );
+                  }
+                  if (articleLocked) {
+                    return (
+                      <div className="text-[10px] text-gray-400 italic pt-1">
+                        Article {art.status === "delivered" ? "livré" : art.status === "refunded" ? "remboursé" : "retourné"} — aucune action possible
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2 pt-1">
+                      {/* (1) Rupture stock */}
+                      {!art.stock_break && onStockBreak && (
+                        <button
+                          onClick={() => setStockBreakProduct(art)}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors min-h-[40px]"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Signaler rupture de stock
+                        </button>
+                      )}
+
+                      {/* (2) Livrer — SEULEMENT si l'article est prêt */}
+                      {!isDelivered && onPartialDeliver && ["ready", "available", "received"].includes(art.status) && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={art.quantity - (art.delivered_qty ?? 0)}
+                            value={partialQty[art.product_id] ?? ""}
+                            onChange={e => setPartialQty(prev => ({ ...prev, [art.product_id]: e.target.value }))}
+                            placeholder="Qty"
+                            className="w-20 h-10 text-sm border rounded-lg px-2 text-center"
+                          />
+                          <button
+                            onClick={() => {
+                              const qty = parseInt(partialQty[art.product_id] ?? "0", 10);
+                              if (qty > 0) { onPartialDeliver(art.product_id, qty); setPartialQty(prev => ({ ...prev, [art.product_id]: "" })); }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-semibold hover:bg-teal-700 transition-colors min-h-[40px]"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Livrer {partialQty[art.product_id] || art.quantity} / {art.quantity}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* (3) Changer état — transitions logiques uniquement */}
+                      {onStatusChange && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 mb-1.5">Prochaine étape :</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(() => {
+                              const transitions: Record<ArticleStatus, ArticleStatus[]> = {
+                                pending:     ["available", "ordered"],
+                                available:   ["ready"],
+                                ordered:     ["received"],
+                                received:    ["ready"],
+                                ready:       ["delivered"],
+                                delivered:   [],
+                                partial_stock: ["available", "ordered"],
+                                no_stock:    ["available", "ordered"],
+                                shipped:     ["delivered"],
+                                returned:    [],
+                                refunded:    [],
+                              };
+                              const nextStates = transitions[art.status] ?? [];
+                              if (nextStates.length === 0) {
+                                return <span className="text-[10px] text-gray-400 italic">Aucune transition</span>;
+                              }
+                              return nextStates.map(st => (
+                                <button
+                                  key={st}
+                                  onClick={() => onStatusChange(art.product_id, st)}
+                                  className={`text-[11px] px-3 py-2 rounded-full font-semibold transition-colors ${ARTICLE_STATUS_COLORS[st]} hover:opacity-80 min-h-[36px]`}
+                                >
+                                  {ARTICLE_STATUS_LABELS[st]}
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             )}
           </div>
