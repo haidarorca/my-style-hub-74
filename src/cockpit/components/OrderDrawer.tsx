@@ -164,11 +164,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
           {articles && onSettleFinancial && (
-            <PendingFinancialActions
-              articles={articles}
-              remainingToPay={rem}
-              onSettle={onSettleFinancial}
-            />
+            <div id="cockpit-financial-actions">
+              <PendingFinancialActions
+                articles={articles}
+                remainingToPay={rem}
+                onSettle={onSettleFinancial}
+              />
+            </div>
           )}
 
 
