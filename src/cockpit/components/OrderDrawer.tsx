@@ -99,8 +99,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
-  // ─── Action suivante intelligente ───
-  const nextActionInfo = articles ? getNextActionForOrder(status, articles, rem, sf > 0) : null;
+  // ─── ★ Agrégateur : source unique pour next_action / banners / alertes ───
+  const agg = useMemo(() => aggregateOrder(articles, status), [articles, status]);
+  const nextActionInfo = articles ? buildNextActionBannerPayload(agg) : null;
 
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
