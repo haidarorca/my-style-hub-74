@@ -21,6 +21,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Flame, Wallet, PackageCheck, Clock, Target, ArrowRight,
   ShoppingCart, RotateCcw, ArrowLeft, Zap, CheckCircle2,
+  ArrowDownLeft, ArrowUpRight, Scale, FileText,
 } from "lucide-react";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useOrderAggregatesBatch, type OrderWithAggregate } from "@/cockpit/hooks/useOrderAggregatesBatch";
@@ -245,6 +246,11 @@ export default function CockpitNext() {
           />
         </section>
 
+        {/* ─── ENGAGEMENTS FINANCIERS ─────────────────────────── */}
+        <FinancialCommitments enriched={enriched} />
+
+
+
         {/* ─── SUR MON BUREAU ──────────────────────────────────── */}
         <Section
           title="Sur mon bureau"
@@ -455,6 +461,153 @@ function OrderRow({ item }: { item: OrderWithAggregate }) {
         <StalenessPill item={item} />
       </Link>
     </li>
+  );
+}
+
+// ─── ENGAGEMENTS FINANCIERS ─────────────────────────────────────
+// Lit pending_money de chaque commande et sépare clairement :
+//   • Dette envers clients  = refund + credit (Kawzone doit de l'argent / un avoir)
+//   • Créance sur clients   = extra_payment  (le client doit payer un complément)
+// Chaque ligne est cliquable pour aller exécuter la décision dans l'ancien drawer.
+type FinKind = "refund" | "credit" | "extra";
+interface FinRow {
+  order: OrderWithAggregate;
+  kind: FinKind;
+  amount: number;
+  days: number;
+}
+
+function FinancialCommitments({ enriched }: { enriched: OrderWithAggregate[] }) {
+  const { rows, totals } = useMemo(() => {
+    const rows: FinRow[] = [];
+    let refund = 0, credit = 0, extra = 0;
+    for (const e of enriched) {
+      const pm = e.aggregate?.pending_money;
+      if (!pm || pm.total_abs === 0) continue;
+      const days = staleness(e).days;
+      if (pm.refund > 0) { rows.push({ order: e, kind: "refund", amount: pm.refund, days }); refund += pm.refund; }
+      if (pm.credit > 0) { rows.push({ order: e, kind: "credit", amount: pm.credit, days }); credit += pm.credit; }
+      if (pm.extra_payment > 0) { rows.push({ order: e, kind: "extra",  amount: pm.extra_payment, days }); extra += pm.extra_payment; }
+    }
+    // Trier : montant le plus dû en premier, puis le plus ancien.
+    rows.sort((a, b) => b.amount - a.amount || b.days - a.days);
+    return { rows, totals: { refund, credit, extra, debt: refund + credit, claim: extra } };
+  }, [enriched]);
+
+  if (rows.length === 0) {
+    return (
+      <section className="bg-white rounded-xl border p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="h-7 w-7 rounded-md grid place-items-center border bg-emerald-50 border-emerald-200 text-emerald-700">
+            <Scale className="h-3.5 w-3.5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold">Engagements financiers</h2>
+            <p className="text-[10px] text-gray-500">aucune dette, aucune créance ouverte</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-white rounded-xl border p-3 space-y-3">
+      <div className="flex items-start gap-2">
+        <div className="shrink-0 h-7 w-7 rounded-md grid place-items-center border bg-rose-50 border-rose-200 text-rose-700">
+          <Scale className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-sm font-bold">
+            Engagements financiers <span className="text-gray-400 font-normal">({rows.length})</span>
+          </h2>
+          <p className="text-[10px] text-gray-500">décisions prises mais argent pas encore réglé</p>
+        </div>
+      </div>
+
+      {/* Deux totaux clairement séparés */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border-2 border-rose-200 bg-rose-50 p-2.5">
+          <div className="flex items-center gap-1 text-rose-800">
+            <ArrowDownLeft className="h-3 w-3" />
+            <span className="text-[10px] font-bold uppercase tracking-wide">Nous devons</span>
+          </div>
+          <div className="text-base font-bold text-rose-900 leading-tight mt-0.5">
+            {totals.debt > 0 ? fmtF(totals.debt) : "—"}
+          </div>
+          <div className="text-[10px] text-rose-700 leading-tight mt-0.5">
+            {totals.refund > 0 && <>remb. {fmtF(totals.refund)}</>}
+            {totals.refund > 0 && totals.credit > 0 && " · "}
+            {totals.credit > 0 && <>avoir {fmtF(totals.credit)}</>}
+            {totals.debt === 0 && "aucune dette client"}
+          </div>
+        </div>
+        <div className="rounded-lg border-2 border-indigo-200 bg-indigo-50 p-2.5">
+          <div className="flex items-center gap-1 text-indigo-800">
+            <ArrowUpRight className="h-3 w-3" />
+            <span className="text-[10px] font-bold uppercase tracking-wide">On nous doit</span>
+          </div>
+          <div className="text-base font-bold text-indigo-900 leading-tight mt-0.5">
+            {totals.claim > 0 ? fmtF(totals.claim) : "—"}
+          </div>
+          <div className="text-[10px] text-indigo-700 leading-tight mt-0.5">
+            {totals.claim > 0 ? "compléments à encaisser" : "aucune créance client"}
+          </div>
+        </div>
+      </div>
+
+      {/* Liste détaillée par dossier */}
+      <ul className="divide-y">
+        {rows.slice(0, 10).map((r, i) => (
+          <li key={`${r.order.order.order_id}-${r.kind}-${i}`}>
+            <Link
+              to="/admin/cockpit"
+              className="py-2 flex items-center gap-2 hover:bg-gray-50 -mx-1 px-1 rounded"
+            >
+              <FinBadge kind={r.kind} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold text-gray-800 truncate">
+                  {getOrderNumber(r.order.order.order_id ?? "")} · {r.order.order.customer_name ?? "—"}
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  {FIN_LABEL[r.kind]}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className={`text-[12px] font-bold ${FIN_AMOUNT_TONE[r.kind]}`}>
+                  {r.kind === "extra" ? "+ " : "− "}{fmtF(r.amount)}
+                </div>
+                <div className="text-[9px] text-gray-400">{r.days > 0 ? `${r.days}j` : "aujourd'hui"}</div>
+              </div>
+            </Link>
+          </li>
+        ))}
+        {rows.length > 10 && (
+          <li className="pt-2 text-[10px] text-gray-400 text-center italic">+ {rows.length - 10} autre(s)…</li>
+        )}
+      </ul>
+    </section>
+  );
+}
+
+const FIN_LABEL: Record<FinKind, string> = {
+  refund: "Remboursement à enregistrer",
+  credit: "Avoir à émettre",
+  extra:  "Complément à encaisser",
+};
+const FIN_AMOUNT_TONE: Record<FinKind, string> = {
+  refund: "text-rose-700",
+  credit: "text-amber-700",
+  extra:  "text-indigo-700",
+};
+function FinBadge({ kind }: { kind: FinKind }) {
+  const cls = kind === "refund" ? "bg-rose-100 text-rose-700"
+            : kind === "credit" ? "bg-amber-100 text-amber-700"
+            : "bg-indigo-100 text-indigo-700";
+  const Icon = kind === "extra" ? ArrowUpRight : kind === "credit" ? FileText : ArrowDownLeft;
+  return (
+    <span className={`shrink-0 h-7 w-7 rounded-md grid place-items-center ${cls}`}>
+      <Icon className="h-3.5 w-3.5" />
+    </span>
   );
 }
 
