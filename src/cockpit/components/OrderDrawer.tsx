@@ -134,7 +134,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Action suivante ─── */}
+          {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
+          <AggregateDebugPanel articles={articles} orderStatus={status} />
+
+          {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
           {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
