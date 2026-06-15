@@ -259,22 +259,22 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
               alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
             }
-            // Rupture non résolue
-            const breaks = (articles ?? []).filter(a => a.stock_break && !a.stock_break.resolved);
-            if (breaks.length > 0) {
-              alerts.push({ tone: "red", title: `${breaks.length} rupture${breaks.length > 1 ? "s" : ""} non résolue${breaks.length > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
+            // Rupture non résolue → lecture agrégateur (source unique)
+            if (agg.flags.has_blocking) {
+              const n = agg.counters.blocked;
+              alerts.push({ tone: "red", title: `${n} rupture${n > 1 ? "s" : ""} non résolue${n > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
             }
-            // Commande bloquée depuis X jours
+            // Commande bloquée depuis X jours (dimension temporelle — pas encore dans agg)
             if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
               const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
               if (days >= 7) {
                 alerts.push({ tone: days >= 14 ? "red" : "amber", title: `Commande bloquée depuis ${days} jours`, text: `Statut actuel : ${status}. Relancez le flux.` });
               }
             }
-            // Livraison partielle en cours
-            const partial = (articles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity);
-            if (partial.length > 0) {
-              alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partial.length} article(s) partiellement livré(s).` });
+            // Livraison partielle en cours → lecture agrégateur
+            const partialCount = (articles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
+            if (partialCount > 0) {
+              alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partialCount} article(s) partiellement livré(s).` });
             }
 
             if (alerts.length === 0) return null;
