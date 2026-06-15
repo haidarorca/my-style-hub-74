@@ -1,53 +1,69 @@
 // ═══════════════════════════════════════════════════════════════
-// SUB-ORDERS — Vue dérivée par vendeur (Phase 1.5, zéro SQL).
+// SUB-ORDERS — Vue dérivée par vendeur (Phase 3).
 //
-// Une "sub_order" = projection mentale d'une commande, groupée par
-// `vendor_id`. C'est désormais l'unité opérationnelle principale.
+// Une "sub_order" = projection d'une commande mère par `vendor_id`.
+// C'est l'unité opérationnelle principale du Cockpit.
 //
-// Décisions actées :
-//   - Split par vendor_id (un vendeur multi-boutique = 1 sub_order).
-//   - Le concept "MIXTE" n'existe plus : chaque sub_order suit son
-//     propre workflow (local OU import). Une commande peut contenir
-//     des sub_orders de natures différentes, mais aucune n'est "mixte".
-//   - Pure : aucune migration DB, aucune écriture.
+// Règle de visibilité Cockpit (validée) :
+//   - is_admin_shop = true             → "kawzone"     (visible)
+//   - sinon, commission_amount > 0     → "commission"  (visible)
+//   - sinon                            → "autonomous"  (HORS Cockpit)
+//
+// Le scope est calculé directement à partir des articles : on évite
+// un aller-retour serveur supplémentaire — `getOrderItems` capture
+// déjà `is_admin_shop` et `commission_amount` pour chaque ligne.
 // ═══════════════════════════════════════════════════════════════
 
 import type { OrderArticle } from "./article-states";
 import { aggregateOrder, type OrderAggregate } from "./order-aggregate";
 import { formatSubOrderLabel } from "./orderNumbers";
 
-/** Type opérationnel d'une sub_order : local pur, import pur, ou les deux
- *  chez un même vendeur (le cas reste rare ; pas de workflow spécial). */
 export type SubOrderKind = "local" | "import" | "local_and_import";
+export type SubOrderCockpitScope = "kawzone" | "commission" | "autonomous";
 
 export interface DerivedSubOrder {
-  /** Identité — vendor_id, "unknown" si null. */
   vendor_id: string;
   vendor_name: string;
-  /** Position dans la commande mère (1-indexed) et total. */
   index: number;
   total: number;
-  /** Libellé complet : "KZ-000101 · 1/3". */
   label: string;
-  /** Type opérationnel : local / import / les deux chez un même vendeur. */
   kind: SubOrderKind;
-  /** Articles rattachés à ce vendeur dans la mother_order. */
   articles: OrderArticle[];
-  /** Agrégat (réutilise aggregateOrder pour cohérence stricte). */
   aggregate: OrderAggregate;
-  /** Finances dérivées — quote-part de cette sub_order. */
+  /** Scope dérivé des articles — détermine la visibilité Cockpit. */
+  cockpit_scope: SubOrderCockpitScope;
+  /** Raccourci : true si la sous-commande appartient au Cockpit principal. */
+  is_kawzone_managed: boolean;
+  /** Finances par sous-commande. */
   financials: {
-    /** Somme des line_total des articles non annulés. */
     product_total: number;
-    /** Nb d'articles total / livrés / bloqués. */
     article_count: number;
     delivered_count: number;
     blocked_count: number;
+    /** Somme commission_amount Kawzone (toutes lignes non annulées). */
+    commission_total: number;
+    /** Marge Kawzone = commission encaissée (revenus nets pour Kawzone). */
+    kawzone_margin: number;
+    /** Total remboursements client (settlement.type === "refund"). */
+    refund_total: number;
+    /** Total avoirs client (settlement.type === "credit"). */
+    credit_total: number;
   };
 }
 
-/** Dérive la liste des sub_orders d'une commande, groupées par vendor_id.
- *  La boutique est un attribut d'affichage, pas l'unité de split. */
+function computeScope(articles: OrderArticle[]): SubOrderCockpitScope {
+  let hasAdmin = false;
+  let hasCommission = false;
+  for (const a of articles) {
+    if (a.status === "cancelled") continue;
+    if (a.is_admin_shop) hasAdmin = true;
+    if ((a.commission_amount ?? 0) > 0) hasCommission = true;
+  }
+  if (hasAdmin) return "kawzone";
+  if (hasCommission) return "commission";
+  return "autonomous";
+}
+
 export function deriveSubOrders(
   articles: OrderArticle[] | null | undefined,
   orderStatus?: string,
@@ -56,7 +72,6 @@ export function deriveSubOrders(
   const list = articles ?? [];
   if (list.length === 0) return [];
 
-  // Groupement par vendor_id (null → "unknown").
   const groups = new Map<string, OrderArticle[]>();
   for (const a of list) {
     const key = a.vendor_id ?? "unknown";
@@ -79,9 +94,19 @@ export function deriveSubOrders(
       : hasImport ? "import"
       : "local";
 
-    const product_total = vendorArticles
-      .filter(a => a.status !== "cancelled")
-      .reduce((s, a) => s + (a.line_total ?? 0), 0);
+    const active = vendorArticles.filter(a => a.status !== "cancelled");
+    const product_total = active.reduce((s, a) => s + (a.line_total ?? 0), 0);
+    const commission_total = active.reduce((s, a) => s + (a.commission_amount ?? 0), 0);
+    const refund_total = vendorArticles.reduce((s, a) => {
+      const st = a.settlement;
+      return st && st.type === "refund" ? s + (st.amount ?? 0) : s;
+    }, 0);
+    const credit_total = vendorArticles.reduce((s, a) => {
+      const st = a.settlement;
+      return st && st.type === "credit" ? s + (st.amount ?? 0) : s;
+    }, 0);
+
+    const cockpit_scope = computeScope(vendorArticles);
 
     raw.push({
       vendor_id,
@@ -89,16 +114,22 @@ export function deriveSubOrders(
       kind,
       articles: vendorArticles,
       aggregate,
+      cockpit_scope,
+      is_kawzone_managed: cockpit_scope !== "autonomous",
       financials: {
         product_total,
         article_count: vendorArticles.length,
         delivered_count: aggregate.counters.delivered,
         blocked_count: aggregate.counters.blocked,
+        commission_total,
+        kawzone_margin: commission_total,
+        refund_total,
+        credit_total,
       },
     });
   }
 
-  // Tri : bloquants d'abord, puis règlements en attente, puis ready, puis le reste.
+  // Tri opérationnel : bloquants, puis règlements en attente, puis prêts.
   const sorted = raw.sort((a, b) => {
     const score = (s: RawSub) =>
       (s.aggregate.flags.has_blocking ? 1000 : 0) +

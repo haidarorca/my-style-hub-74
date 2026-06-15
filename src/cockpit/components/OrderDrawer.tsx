@@ -27,6 +27,7 @@ import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
 import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
+import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
@@ -185,6 +186,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               onSelect={onVendorChange}
             />
           )}
+
+          {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
+          {isScoped && currentSub && (
+            <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
+          )}
+
 
           {/* Agrégateur (debug) — sur les articles scopés. */}
           <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />

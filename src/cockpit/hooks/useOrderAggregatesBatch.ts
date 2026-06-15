@@ -40,6 +40,9 @@ interface CatalogItem {
   shop_type_label?: string | null;
   origin_country?: string | null;
   origin_country_flag?: string | null;
+  is_admin_shop?: boolean;
+  commission_rate?: number | null;
+  commission_amount?: number | null;
 }
 
 export function useOrderAggregatesBatch(orders: LogisticsOrderRow[], max = 60): OrderWithAggregate[] {

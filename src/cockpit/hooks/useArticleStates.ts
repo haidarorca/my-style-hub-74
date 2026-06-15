@@ -37,6 +37,9 @@ interface CatalogItem {
   shop_type_label?: string | null;
   origin_country?: string | null;
   origin_country_flag?: string | null;
+  is_admin_shop?: boolean;
+  commission_rate?: number | null;
+  commission_amount?: number | null;
 }
 
 /** Projette un statut initial cohérent avec le statut commande (pour les articles sans row DB). */
@@ -71,6 +74,9 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
     shop_type_label: item.shop_type_label ?? null,
     origin_country: item.origin_country ?? null,
     origin_country_flag: item.origin_country_flag ?? null,
+    is_admin_shop: item.is_admin_shop ?? false,
+    commission_rate: item.commission_rate ?? null,
+    commission_amount: item.commission_amount ?? null,
     status,
     delivered_qty: row?.delivered_qty ?? 0,
     stock_break: (row?.stock_break as unknown as StockBreakDecision | undefined) ?? undefined,

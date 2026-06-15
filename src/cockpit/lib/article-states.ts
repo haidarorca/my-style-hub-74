@@ -180,6 +180,13 @@ export interface OrderArticle {
   shop_type_label: string | null;
   origin_country?: string | null;
   origin_country_flag?: string | null;
+  // ─── Périmètre Cockpit (responsabilité Kawzone) ───
+  /** True si l'article appartient à une boutique gérée directement par Kawzone. */
+  is_admin_shop?: boolean;
+  /** Taux de commission appliqué à cet article (0 si vendeur autonome). */
+  commission_rate?: number | null;
+  /** Montant de commission Kawzone capturé sur cet article (FCFA). */
+  commission_amount?: number | null;
   // ─── État mutant (vient de order_article_states) ───
   status: ArticleStatus;
   delivered_qty?: number;
