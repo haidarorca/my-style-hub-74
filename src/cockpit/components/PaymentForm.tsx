@@ -16,12 +16,11 @@ export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
   const [method, setMethod] = useState("wave");
   const [reference, setReference] = useState("");
 
-  const amt = parseFloat(amount);
-  const isOverPay = amt > balance;
-
   const handleSubmit = () => {
-    if (!amt || amt <= 0 || isOverPay) return;
-    onPayment(orderId, amt, method, reference, adminName);
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return;
+    const finalAmt = amt > balance ? balance : amt;
+    onPayment(orderId, finalAmt, method, reference, adminName);
     setAmount("");
     setReference("");
   };
@@ -36,12 +35,7 @@ export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
         </select>
       </div>
       <Input placeholder="Référence (optionnel)" value={reference} onChange={e => setReference(e.target.value)} className="h-9 text-sm" />
-      {isOverPay && (
-        <div className="text-[10px] text-red-600 bg-red-50 rounded p-1.5">
-          Le montant ({fmtF(amt)}) dépasse le solde ({fmtF(balance)}).
-        </div>
-      )}
-      <Button size="sm" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit} disabled={!amount || amt <= 0 || isOverPay}>
+      <Button size="sm" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit} disabled={!amount || parseFloat(amount) <= 0}>
         Enregistrer le paiement
       </Button>
     </div>

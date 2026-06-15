@@ -187,21 +187,23 @@ export default function CockpitDashboard() {
 
   // ─── KPI data ───
   const kpi = useMemo(() => {
-    let newCount = 0, pendingPayment = 0, toWeigh = 0, ready = 0, shipped = 0, totalDebt = 0;
+    const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
+    let debt = 0;
     for (const o of orders) {
       const st = o.logistics_status ?? "";
       if (st === "delivered" || st === "cancelled") continue;
 
-      if (st === "" || st === "new") newCount++;
-      else if (st === "awaiting_payment" || st === "payment_fees") pendingPayment++;
-      else if (st === "awaiting_weighing") toWeigh++;
-      else if (st === "shipped") shipped++;
-      else if (st === "ready" || st === "ready_delivery") ready++;
+      // Compter par statut exact pour les KPI
+      if (st === "" || st === "new") s.new++;
+      else if (st === "awaiting_weighing") s.to_weigh++;
+      else if (st === "shipped") s.shipped++;
+      else if (st === "ready" || st === "ready_delivery") s.ready++;
 
+      // Dettes: solde restant (toutes commandes actives)
       const { remaining } = getOrderFinancials(o);
-      if (remaining > 0) totalDebt += remaining;
+      if (remaining > 0) debt += remaining;
     }
-    return { newCount, pendingPayment, toWeigh, ready, shipped, totalDebt };
+    return { ...s, debt };
   }, [orders, getOrderFinancials]);
 
   // ─── Calcul d'alerte (âge de la commande) ───
@@ -364,7 +366,7 @@ export default function CockpitDashboard() {
       {/* KPI (seulement hors poste de travail) */}
       {!ws && activeTab === "actions" && (
         <div className="px-4 pt-2 pb-1">
-          <KpiCards {...kpi} activeFilter={kpiFilter} onFilter={setKpiFilter} />
+          <KpiCards newCount={kpi.new} pendingPayment={kpi.payment_pending} toWeigh={kpi.to_weigh} ready={kpi.ready} shipped={kpi.shipped} totalDebt={kpi.debt} activeFilter={kpiFilter} onFilter={setKpiFilter} />
           {kpiFilter && <button onClick={() => setKpiFilter(null)} className="mt-1 text-[10px] text-orange-600 flex items-center gap-1"><X className="h-3 w-3" />Effacer le filtre</button>}
         </div>
       )}

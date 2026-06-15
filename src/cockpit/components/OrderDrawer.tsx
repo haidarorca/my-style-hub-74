@@ -20,6 +20,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
 import { ArticlesPanel } from "./ArticlesPanel";
+import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getNextActionForOrder } from "@/cockpit/lib/article-states";
 import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 
@@ -60,7 +61,6 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
 
-  const imp = isImport(order);
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
@@ -71,22 +71,23 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const tp = financials.paid;
   const rem = financials.remaining;
   const paidFull = rem <= 0 && gt > 0;
-  const stepIdx = imp ? getImportStepIndex(status) : -1;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
   const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
-  const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
-
-  // ─── Type réel de la commande (basé sur les articles, pas sur shipping_service_id) ───
-  const hasLocal = articles && articles.some(a => a.is_local);
-  const hasImport = articles && articles.some(a => a.is_import);
+  // ─── Type réel de la commande : SEULE source de vérité = articles (is_import / is_local).
+  // Si articles non encore chargés, fallback prudent sur shipping_service_id.
+  const hasLocal = !!articles && articles.some(a => a.is_local);
+  const hasImport = !!articles && articles.some(a => a.is_import);
   const isMixte = !!articles && hasLocal && hasImport;
   const isLocalOrder = !!articles && hasLocal && !hasImport;
   const isImportOrder = !!articles && !hasLocal && hasImport;
-  // Si pas d'articles, fallback sur shipping_service_id (ancienne logique)
-  const isImportFallback = !articles && imp;
+  const isImportFallback = !articles && isImport(order);
+  // `imp` = workflow import (mixte aussi traversent le flux import pour la partie importée)
+  const imp = isMixte || isImportOrder || isImportFallback;
+  const stepIdx = imp ? getImportStepIndex(status) : -1;
+  const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
   // ─── Action suivante intelligente ───
   const nextActionInfo = articles ? getNextActionForOrder(status, articles, rem, sf > 0) : null;
@@ -114,9 +115,11 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                   <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-indigo-50 to-emerald-50 text-indigo-700 border-indigo-200 font-bold">
                     <Layers className="h-3 w-3 mr-1" />MIXTE
                   </Badge>
-                ) : (
-                  <Badge variant="outline" className={`text-[10px] ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>{imp ? "IMPORT" : "LOCAL"}</Badge>
-                )}
+                ) : isLocalOrder ? (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">LOCAL</Badge>
+                ) : isImportOrder || isImportFallback ? (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700">IMPORT</Badge>
+                ) : null}
                 <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
               </div>
             </div>
@@ -127,52 +130,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Workflow LOCAL (commandes 100% locales) ─── */}
-          {isLocalOrder && (
-            <div className="bg-emerald-50 rounded-lg p-3 space-y-2 border border-emerald-200">
-              <h3 className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5"><Home className="h-3.5 w-3.5" />Circuit LOCAL</h3>
-              <div className="text-[10px] text-emerald-600 space-y-1">
-                <p>Workflow simplifié : pas de circuit international.</p>
-                <p>Confirmation → Préparation → Livraison directe</p>
-              </div>
-            </div>
-          )}
-
-          {/* ─── Workflow IMPORT (commandes 100% import) ─── */}
-          {(isImportOrder || isImportFallback) && stepIdx >= 0 && (
-            <div className="bg-indigo-50 rounded-lg p-3 space-y-2 border border-indigo-200">
-              <h3 className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" />Circuit IMPORT</h3>
-              <div className="w-full bg-indigo-200 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full transition-all" style={{ width: `${Math.max(5, ((stepIdx + 1) / IMPORT_STEPS.length) * 100)}%` }} /></div>
-              <div className="flex gap-1 flex-wrap">
-                {IMPORT_STEPS.map((s, i) => <div key={s.key} className={`text-[9px] px-1.5 py-0.5 rounded-full ${i <= stepIdx ? (i === stepIdx ? "bg-indigo-600 text-white font-bold" : "bg-indigo-200 text-indigo-800") : "bg-gray-200 text-gray-400"}`}>{i + 1}</div>)}
-              </div>
-              <div className="text-[10px] text-indigo-600 font-medium">{IMPORT_STEPS[stepIdx]?.description}</div>
-            </div>
-          )}
-
-          {/* ─── Workflow MIXTE (les deux circuits en parallèle) ─── */}
-          {isMixte && (
-            <div className="space-y-2">
-              <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 rounded-lg p-3 border border-orange-200">
-                <h3 className="text-xs font-semibold text-orange-800 flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" />Commande MIXTE — Deux circuits en parallèle</h3>
-                <p className="text-[10px] text-gray-600 mt-1">Cette commande contient des articles locaux ET des articles imports. Chaque circuit doit être géré séparément.</p>
-              </div>
-              {/* Articles locaux */}
-              {articles && articles.filter(a => a.is_local).length > 0 && (
-                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                  <h4 className="text-[10px] font-semibold text-emerald-700">Articles locaux ({articles.filter(a => a.is_local).length})</h4>
-                  <p className="text-[9px] text-emerald-600">Circuit : Confirmation → Préparation → Livraison</p>
-                </div>
-              )}
-              {/* Articles imports */}
-              {articles && articles.filter(a => a.is_import).length > 0 && (
-                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
-                  <h4 className="text-[10px] font-semibold text-indigo-700">Articles imports ({articles.filter(a => a.is_import).length})</h4>
-                  <p className="text-[9px] text-indigo-600">Circuit : Fournisseur → Réception → Pesée → Frais → Expédition</p>
-                </div>
-              )}
-            </div>
-          )}
+          {/* ─── Centre de contrôle du workflow ─── */}
+          <WorkflowControlPanel
+            status={status}
+            isImport={!!(isImportOrder || isImportFallback)}
+            isLocal={!!isLocalOrder}
+            isMixte={isMixte}
+            articles={articles}
+            onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
+          />
 
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
@@ -206,10 +172,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {articles && articles.length > 0 && (
             <ArticlesPanel
               articles={articles}
-              paidAmount={financials.paid}
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
+              // Gestion article par article — types determinés automatiquement
             />
           )}
 
@@ -242,7 +208,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* Historique paiements */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" />Paiements ({payments.length})</h3>
-            <div onClick={onFormInteraction}><PaymentHistory payments={payments} isLocked={status === "delivered"} onEdit={onEditPayment} onDelete={onDeletePayment} /></div>
+            <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} /></div>
           </div>
 
           {/* Timeline */}
@@ -281,19 +247,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {nextStep && (
             <div className="pt-2 pb-2">
               <div className="text-[10px] text-gray-500 mb-1.5 text-center">Étape suivante : {nextStep.label}</div>
-              <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => {
-                // Alerte fret non payé pour IMPORT (alerte, pas blocage)
-                if (nextStep.status === "shipped" && imp && rem > 0) {
-                  const confirmed = window.confirm(
-                    `⚠️ FRET NON PAYÉ\n\n` +
-                    `Solde restant : ${fmtF(rem)}\n` +
-                    `Le fret n'est pas encore payé par le client.\n\n` +
-                    `Expédier quand même ?`
-                  );
-                  if (!confirmed) return;
-                }
-                handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName);
-              }}>
+              <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
                 <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
               </Button>
             </div>

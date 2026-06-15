@@ -7,16 +7,13 @@ interface Props {
   open: boolean;
   productName: string;
   variantLabel: string | null;
-  paidAmount: number; // montant total payé par le client sur la commande
   onClose: () => void;
   onConfirm: (data: { reason: string; action: StockBreakAction }) => void;
 }
 
-export function StockBreakDialog({ open, productName, variantLabel, paidAmount, onClose, onConfirm }: Props) {
+export function StockBreakDialog({ open, productName, variantLabel, onClose, onConfirm }: Props) {
   const [reason, setReason] = useState("");
-  // Si le client n'a rien payé, on ne propose pas remboursement ni crédit
-  const hasPayment = paidAmount > 0;
-  const [action, setAction] = useState<StockBreakAction>(hasPayment ? "wait_restock" : "wait_restock");
+  const [action, setAction] = useState<StockBreakAction>("wait_restock");
 
   if (!open) return null;
 
@@ -59,30 +56,23 @@ export function StockBreakDialog({ open, productName, variantLabel, paidAmount, 
           />
         </div>
 
-        {/* Action proposée — filtrée selon le montant payé */}
+        {/* Action proposée */}
         <div>
           <label className="text-xs font-semibold text-gray-700 block mb-1.5">Action proposée au client *</label>
-          {!hasPayment && (
-            <div className="text-[10px] text-amber-600 bg-amber-50 rounded-lg p-2 mb-2">
-              Le client n'a encore rien payé — le remboursement et le crédit ne sont pas applicables.
-            </div>
-          )}
           <div className="space-y-1.5">
-            {STOCK_BREAK_ACTIONS
-              .filter(a => hasPayment || (a.key !== "refund" && a.key !== "credit"))
-              .map(a => (
-                <button
-                  key={a.key}
-                  onClick={() => setAction(a.key)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
-                    action === a.key
-                      ? "border-orange-500 bg-orange-50 text-orange-700 font-semibold"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  {a.label}
-                </button>
-              ))}
+            {STOCK_BREAK_ACTIONS.map(a => (
+              <button
+                key={a.key}
+                onClick={() => setAction(a.key)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
+                  action === a.key
+                    ? "border-orange-500 bg-orange-50 text-orange-700 font-semibold"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

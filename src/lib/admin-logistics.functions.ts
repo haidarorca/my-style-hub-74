@@ -46,7 +46,6 @@ export type LogisticsOrderRow = {
   destination_country_id: string | null;
   destination_country_name: string | null;
   item_count: number;
-  is_commission: boolean | null;
   days_pending: number;
 
   // Logistique
@@ -83,6 +82,9 @@ export type LogisticsOrderRow = {
   weighed_at: string | null;
   shipped_at: string | null;
   estimated_arrival_at: string | null;
+  // Champs optionnels exposés par certaines vues / consommateurs UI
+  destination_address?: string | null;
+  updated_at?: string | null;
 };
 
 export type LogisticsPage = {
@@ -182,7 +184,7 @@ async function tryLogisticsView(
     let q = supabase
       .from("logistics_order_view")
       .select("*", { count: "exact", head: false })
-      .eq("is_commission", true)
+      .eq("has_import_items", true)
       .order("order_created_at", { ascending: false });
 
     if (data.orderStatus) q = q.eq("order_status", data.orderStatus);
@@ -229,7 +231,6 @@ async function fallbackLogisticsQuery(
   let { data: rawOrders, error: orderErr, count } = await supabase
     .from("orders")
     .select("*", { count: "exact" })
-    .eq("is_commission", true)
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -423,7 +424,6 @@ async function fallbackLogisticsQuery(
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
       item_count: items.reduce((s, i) => s + (i.quantity ?? 1), 0),
-      is_commission: Boolean(order.is_commission),
       days_pending: daysBetween(String(order.created_at)),
 
       assessment_id: assessmentId,
@@ -1182,6 +1182,5 @@ export const createOrderReturn = createServerFn({ method: "POST" })
       newValues: { status: "returned", reason: data.reason },
     });
 
-    return { success: true };
+    return { ok: true };
   });
-

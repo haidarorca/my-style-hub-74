@@ -39,7 +39,7 @@ export function Timeline({ order, payments, audit }: Props) {
   return (
     <div className="space-y-0">
       {events.map((e, i) => {
-        const d = new Date(e.date ?? Date.now());
+        const d = new Date(e.date ?? 0);
         const Icon = e.icon;
         return (
           <div key={i} className="flex gap-3 py-1.5">
