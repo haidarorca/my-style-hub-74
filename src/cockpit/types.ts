@@ -8,11 +8,10 @@ export type PaymentMethod = "wave" | "orange_money" | "cash" | "bank_transfer" |
 /** Type de remboursement lors d'une annulation */
 export type RefundType = "refund" | "credit" | "no_refund" | "partial_refund";
 
-/** Statuts du workflow LOCAL */
+/** Statuts du workflow LOCAL officiel
+    new → confirmed → preparing → ready → shipped → delivered */
 export type LocalStatus =
   | "new"
-  | "contacted"
-  | "awaiting_payment"
   | "confirmed"
   | "preparing"
   | "ready"
@@ -115,10 +114,7 @@ export type ArchiveFilter = "delivered" | "cancelled" | "refunded" | "all";
 
 /** Données de statut pour un order */
 export interface OrderStatusData {
-  /** Statut affiché (logistics_status de Supabase) */
   status: string;
-  /** Date de dernière mise à jour */
   updatedAt: string;
-  /** Qui a fait la dernière action */
   updatedBy: string;
 }
