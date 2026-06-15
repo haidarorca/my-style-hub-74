@@ -126,6 +126,14 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                     row.kind === "local" ? "LOC"
                     : row.kind === "import" ? "IMP"
                     : "MIX";
+                  const scopeClass =
+                    row.cockpit_scope === "kawzone" ? "bg-blue-600 text-white"
+                    : row.cockpit_scope === "commission" ? "bg-purple-600 text-white"
+                    : "bg-gray-400 text-white";
+                  const scopeLabel =
+                    row.cockpit_scope === "kawzone" ? "KZ"
+                    : row.cockpit_scope === "commission" ? "COM"
+                    : "EXT";
                   return (
                     <button
                       key={`${row.mother_order_id}-${row.vendor_id}`}
