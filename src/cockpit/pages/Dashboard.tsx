@@ -74,7 +74,13 @@ export default function CockpitDashboard() {
   const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
 
   // Sub-order rows (1 ligne par vendeur de chaque commande) — alimente la pipeline.
-  const { rows: subOrderRows } = useSubOrderRows(orders);
+  // Phase 3 : par défaut on n'affiche QUE les sous-commandes qui demandent une
+  // intervention Kawzone (boutique interne ou vendeur en commission). Le toggle
+  // `showAutonomous` permet de consulter aussi les sous-commandes autonomes.
+  const { rows: managedSubRows, allRows: allSubRows } = useSubOrderRows(orders);
+  const [showAutonomous, setShowAutonomous] = useState(false);
+  const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
+  const autonomousCount = allSubRows.length - managedSubRows.length;
 
   // Helper : ouvre une commande sans scope (legacy).
   const openOrder = useCallback((o: LogisticsOrderRow) => {
