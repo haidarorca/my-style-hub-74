@@ -156,7 +156,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           />
 
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
-          <PartialDeliveryBanner articles={articles} />
+          <PartialDeliveryBanner articles={articles} aggregate={agg} />
 
           {/* ─── Sous-processus : articles en attente de réapprovisionnement ─── */}
           <RestockWaitingPanel articles={articles} orderStatus={status} onResumeRestock={onResumeRestock} />
