@@ -246,6 +246,11 @@ export default function CockpitNext() {
           />
         </section>
 
+        {/* ─── ENGAGEMENTS FINANCIERS ─────────────────────────── */}
+        <FinancialCommitments enriched={enriched} />
+
+
+
         {/* ─── SUR MON BUREAU ──────────────────────────────────── */}
         <Section
           title="Sur mon bureau"
