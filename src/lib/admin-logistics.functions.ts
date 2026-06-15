@@ -83,12 +83,7 @@ export type LogisticsOrderRow = {
   weighed_at: string | null;
   shipped_at: string | null;
   estimated_arrival_at: string | null;
-
-  // Optionnels
-  destination_address?: string | null;
-  updated_at?: string | null;
 };
-
 
 export type LogisticsPage = {
   rows: LogisticsOrderRow[];
@@ -1187,7 +1182,6 @@ export const createOrderReturn = createServerFn({ method: "POST" })
       newValues: { status: "returned", reason: data.reason },
     });
 
-    return { ok: true };
+    return { success: true };
   });
-
 

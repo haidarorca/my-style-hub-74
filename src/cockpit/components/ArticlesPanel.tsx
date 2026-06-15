@@ -18,12 +18,13 @@ const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
 
 interface Props {
   articles: OrderArticle[];
+  paidAmount?: number; // montant total payé par le client (pour filtrer les actions de rupture)
   onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
   onStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
 }
 
-export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver }: Props) {
+export function ArticlesPanel({ articles, paidAmount = 0, onStockBreak, onStatusChange, onPartialDeliver }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
@@ -264,6 +265,7 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
           open={!!stockBreakProduct}
           productName={stockBreakProduct.product_name}
           variantLabel={stockBreakProduct.variant_label}
+          paidAmount={paidAmount}
           onClose={() => setStockBreakProduct(null)}
           onConfirm={(data) => {
             onStockBreak?.(stockBreakProduct.product_id, data);
