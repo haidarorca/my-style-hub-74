@@ -60,8 +60,45 @@ export const STOCK_BREAK_ACTIONS: { key: StockBreakAction; label: string }[] = [
   { key: "partial_ship", label: "Expédier sans cet article" },
 ];
 
-/** Structure d'un article avec son état individuel */
+/** Décision métier sur un article en rupture. NE contient JAMAIS de données financières. */
+export interface StockBreakDecision {
+  reason: string;
+  action: StockBreakAction;
+  action_label: string;
+  resolved: boolean;
+  created_at: string;
+  replacement?: { product_name: string; new_unit_price: number };
+  /** Pour replace : comment l'admin a choisi de traiter la différence (utilisé par requiresSettlement). */
+  diff_handling?: "extra_payment" | "refund" | "credit";
+  override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
+  /** Cycle wait_restock : statut au moment de la mise en attente (mémoire). */
+  last_valid_status?: ArticleStatus;
+  /** Cycle wait_restock : reprise du flux normal après retour de stock. */
+  resumed_at?: string;
+  resumed_by?: string;
+}
+
+/** Exécution financière d'une décision article — vit SÉPARÉMENT de stock_break.
+ *  Mappe 1:1 sur `order_article_states.settlement` (jsonb) en DB. */
+export interface Settlement {
+  /** Type d'opération réellement effectuée. */
+  type: "refund" | "credit" | "complement" | "none";
+  amount: number;
+  /** Qui supporte le coût : choisi cas par cas AU MOMENT du règlement (pas à la rupture). */
+  cost_attribution: "kawzone" | "vendor" | "shared";
+  /** Si shared : ventilation manuelle. */
+  shared_split?: { kawzone: number; vendor: number };
+  reference?: string;
+  method?: string;
+  note?: string;
+  processed_at: string;
+  processed_by: string;
+}
+
+/** Structure d'un article avec son état individuel.
+ *  Forme IDENTIQUE à `order_article_states` en DB (Option A — une seule représentation mentale). */
 export interface OrderArticle {
+  // ─── Catalogue (figé, vient de order_items) ───
   product_id: string;
   product_name: string;
   product_image: string | null;
@@ -72,45 +109,26 @@ export interface OrderArticle {
   quantity: number;
   unit_price: number;
   line_total: number;
-  status: ArticleStatus;
-  is_import: boolean;    // true = produit importé
-  is_local: boolean;     // true = produit local
+  is_import: boolean;
+  is_local: boolean;
   vendor_id: string | null;
   vendor_name: string | null;
   shop_type_label: string | null;
-  // Rupture de stock (état dérivé, sans nouvelle colonne DB)
-  stock_break?: {
-    reason: string;
-    action: StockBreakAction;
-    action_label: string;
-    resolved: boolean;
-    created_at: string;
-    replacement?: { product_name: string; new_unit_price: number };
-    diff_handling?: "extra_payment" | "refund" | "credit";
-    override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
-    settlement?: {
-      kind: "refund" | "credit" | "extra_payment";
-      amount: number;
-      payment_id?: string;
-      method?: string;
-      reference?: string;
-      note?: string;
-      by: string;
-      at: string;
-    };
-    /** Cycle wait_restock : statut au moment de la mise en attente (mémoire). */
-    last_valid_status?: ArticleStatus;
-    /** Cycle wait_restock : reprise du flux normal après retour de stock. */
-    resumed_at?: string;
-    resumed_by?: string;
-  };
-  // Livraison partielle
-  delivered_qty?: number;
-  // Historique des états
-  status_history?: { status: ArticleStatus; at: string; by: string }[];
-  // Pays d'origine (pour les imports)
   origin_country?: string | null;
   origin_country_flag?: string | null;
+  // ─── État mutant (vient de order_article_states) ───
+  status: ArticleStatus;
+  delivered_qty?: number;
+  /** Décision métier (rupture/replace/wait_restock/partial_ship). */
+  stock_break?: StockBreakDecision;
+  /** ★ Exécution financière — TOP-LEVEL, séparée de stock_break. ★ */
+  settlement?: Settlement;
+  /** Concurrence optimiste (incrémenté par trigger DB à chaque UPDATE). */
+  version?: number;
+  updated_by?: string | null;
+  updated_at?: string;
+  // ─── Historique optionnel ───
+  status_history?: { status: ArticleStatus; at: string; by: string }[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -277,12 +295,52 @@ export function getReplaceImpact(article: OrderArticle): {
   return { variant, delta, newLineTotal: newUnit * article.quantity };
 }
 
+/** ★ SOURCE DE VÉRITÉ UNIQUE ★
+ *  Une décision exige-t-elle un règlement financier ?
+ *  C'EST LE SEUL HELPER À UTILISER. Ne jamais tester `settlement == null` seul. */
+export function requiresSettlement(
+  article: OrderArticle,
+  opts?: { article_already_paid?: boolean }
+): boolean {
+  const sb = article.stock_break;
+  if (!sb || !sb.resolved) return false;
+  switch (sb.action) {
+    case "refund":
+    case "credit":
+      return true;
+    case "replace": {
+      // replace_same → non ; replace_higher / replace_lower → oui
+      const imp = getReplaceImpact(article);
+      if (!imp) return false;
+      return imp.variant !== "replace_same";
+    }
+    case "partial_ship":
+      // Conditionnel : seulement si le client a déjà payé la part de cet article.
+      return !!opts?.article_already_paid;
+    case "wait_restock":
+      return false;
+  }
+  return false;
+}
+
+/** Décision financièrement non terminée ? (utilisée pour les vues "actions en attente"). */
+export function isSettlementPending(
+  article: OrderArticle,
+  opts?: { article_already_paid?: boolean }
+): boolean {
+  return requiresSettlement(article, opts) && !article.settlement;
+}
+
 /** Statut financier dérivé. Aucun mouvement automatique : juste une intention.
- *  Si `stock_break.settlement` est posé (action admin explicite), le pending est levé. */
-export function getArticleFinancialStatus(article: OrderArticle): ArticleFinancialStatus {
+ *  Si `article.settlement` est posé (action admin explicite), le pending est levé. */
+export function getArticleFinancialStatus(
+  article: OrderArticle,
+  opts?: { article_already_paid?: boolean }
+): ArticleFinancialStatus {
   const sb = article.stock_break;
   if (!sb || !sb.resolved) return "none";
-  if (sb.settlement) return "none"; // traité par admin — pending levé
+  if (!requiresSettlement(article, opts)) return "none";
+  if (article.settlement) return "none"; // traité par admin — pending levé
   if (sb.action === "refund") return "refund_pending";
   if (sb.action === "credit") return "credit_pending";
   if (sb.action === "replace") {
@@ -290,6 +348,7 @@ export function getArticleFinancialStatus(article: OrderArticle): ArticleFinanci
     if (sb.diff_handling === "refund") return "refund_pending";
     if (sb.diff_handling === "credit") return "credit_pending";
   }
+  if (sb.action === "partial_ship") return "refund_pending"; // l'admin choisira refund OU credit au règlement
   return "none";
 }
 
@@ -302,6 +361,7 @@ export function getExpectedSettlementAmount(article: OrderArticle): number {
     const imp = getReplaceImpact(article);
     return imp ? Math.abs(imp.delta) : 0;
   }
+  if (sb.action === "partial_ship") return article.line_total;
   return 0;
 }
 
