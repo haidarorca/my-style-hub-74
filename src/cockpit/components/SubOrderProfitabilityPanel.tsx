@@ -72,7 +72,7 @@ export function SubOrderProfitabilityPanel({ sub, articles }: Props) {
           <Indicator label="Remplacés" value={replaced} tone={replaced > 0 ? "amber" : "muted"} />
           <Indicator label="Partiels" value={partial} tone={partial > 0 ? "amber" : "muted"} />
           <Indicator label="Modifs" value={modifications} tone={modifications > 0 ? "blue" : "muted"} />
-          <Indicator label="Règl. attente" value={sub.aggregate.pending_money.actions.length} icon={<Wallet className="h-3 w-3" />} tone={sub.aggregate.pending_money.total_abs > 0 ? "amber" : "muted"} />
+          <Indicator label="Règl. attente" value={fmtF(sub.aggregate.pending_money.total_abs)} icon={<Wallet className="h-3 w-3" />} tone={sub.aggregate.pending_money.total_abs > 0 ? "amber" : "muted"} />
           <Indicator label="Prêt expédition" value={sub.aggregate.flags.can_ship_today ? "✓" : "—"} tone={sub.aggregate.flags.can_ship_today ? "emerald" : "muted"} />
         </div>
       </div>
