@@ -3,6 +3,8 @@
 // ═══════════════════════════════════════════════════════════════
 
 import type { LocalStatus, ImportStatus, OrderStatus, KpiFilter, RefundType } from "@/cockpit/types";
+import type { OrderArticle } from "@/cockpit/lib/article-states";
+import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 
 /* ─── TARIF FRET ─── */
 export const FREIGHT_RATE_PER_KG = 7500;
