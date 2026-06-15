@@ -91,6 +91,17 @@ export interface OrderArticle {
     diff_handling?: "extra_payment" | "refund" | "credit";
     /** Historique des overrides Super Admin (en mémoire — pas de colonne DB dédiée). */
     override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
+    /** Trace du traitement financier — lève le pending. Aucun mouvement automatique : posé par action admin explicite. */
+    settlement?: {
+      kind: "refund" | "credit" | "extra_payment";
+      amount: number;
+      payment_id?: string;   // ligne `payments` existante (refund / extra_payment)
+      method?: string;       // moyen de paiement (refund / extra_payment)
+      reference?: string;    // référence libre (avoir, virement, etc.)
+      note?: string;
+      by: string;            // admin qui a validé
+      at: string;            // ISO timestamp
+    };
   };
   // Livraison partielle
   delivered_qty?: number;
@@ -137,10 +148,12 @@ export function getReplaceImpact(article: OrderArticle): {
   return { variant, delta, newLineTotal: newUnit * article.quantity };
 }
 
-/** Statut financier dérivé. Aucun mouvement automatique : juste une intention. */
+/** Statut financier dérivé. Aucun mouvement automatique : juste une intention.
+ *  Si `stock_break.settlement` est posé (action admin explicite), le pending est levé. */
 export function getArticleFinancialStatus(article: OrderArticle): ArticleFinancialStatus {
   const sb = article.stock_break;
   if (!sb || !sb.resolved) return "none";
+  if (sb.settlement) return "none"; // traité par admin — pending levé
   if (sb.action === "refund") return "refund_pending";
   if (sb.action === "credit") return "credit_pending";
   if (sb.action === "replace") {
@@ -149,6 +162,18 @@ export function getArticleFinancialStatus(article: OrderArticle): ArticleFinanci
     if (sb.diff_handling === "credit") return "credit_pending";
   }
   return "none";
+}
+
+/** Montant attendu du settlement pour un article (en valeur absolue). */
+export function getExpectedSettlementAmount(article: OrderArticle): number {
+  const sb = article.stock_break;
+  if (!sb || !sb.resolved) return 0;
+  if (sb.action === "refund" || sb.action === "credit") return article.line_total;
+  if (sb.action === "replace") {
+    const imp = getReplaceImpact(article);
+    return imp ? Math.abs(imp.delta) : 0;
+  }
+  return 0;
 }
 
 /** Verrou commande : la commande gèle toutes les actions article. */

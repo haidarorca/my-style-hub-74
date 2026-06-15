@@ -16,6 +16,8 @@ import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
 import { OrderAuditTimeline } from "./OrderAuditTimeline";
 import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
+import { PendingFinancialActions } from "./PendingFinancialActions";
+import type { SettlementInput } from "./PendingFinancialActions";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
@@ -57,9 +59,10 @@ interface Props {
   onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
+  onSettleFinancial?: (productId: string, data: SettlementInput) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -146,6 +149,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
           <PartialDeliveryBanner articles={articles} />
+
+          {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
+          {articles && onSettleFinancial && (
+            <PendingFinancialActions
+              articles={articles}
+              remainingToPay={rem}
+              onSettle={onSettleFinancial}
+            />
+          )}
+
+
 
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
