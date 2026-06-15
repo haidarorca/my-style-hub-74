@@ -51,16 +51,20 @@ export function ArticlesPanel({
 
   if (!articles || articles.length === 0) return null;
 
-  const sortedArticles = [...articles].sort((a, b) => {
+  // Articles en attente de réappro non repris → traités dans RestockWaitingPanel (hors workflow normal)
+  const visibleArticles = articles.filter(a => !isWaitingRestock(a));
+  if (visibleArticles.length === 0) return null;
+
+  const sortedArticles = [...visibleArticles].sort((a, b) => {
     if (a.is_local && !b.is_local) return -1;
     if (!a.is_local && b.is_local) return 1;
     return 0;
   });
 
-  const mixType = getOrderMixType(articles);
-  const hasBreak = articles.some(a => a.stock_break && !a.stock_break.resolved);
-  const deliveredCount = articles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
-  const totalQty = articles.reduce((s, a) => s + a.quantity, 0);
+  const mixType = getOrderMixType(visibleArticles);
+  const hasBreak = visibleArticles.some(a => a.stock_break && !a.stock_break.resolved);
+  const deliveredCount = visibleArticles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
+  const totalQty = visibleArticles.reduce((s, a) => s + a.quantity, 0);
 
   return (
     <div className="space-y-3">
