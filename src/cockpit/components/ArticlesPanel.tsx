@@ -9,7 +9,7 @@ import {
   isArticleLocked, isOrderLocked, getDecisionBadge,
   getArticleStatusLabel, getNextArticleSteps, getArticleBusinessState,
   BUSINESS_STATE_LABELS, BUSINESS_STATE_COLORS,
-  canResumeFromRestock, getResumeTargetStatus,
+  isWaitingRestock,
   IMPORT_STATUS_LABELS, LOCAL_STATUS_LABELS, ARTICLE_STATUS_LABELS,
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
