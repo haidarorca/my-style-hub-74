@@ -2,8 +2,10 @@ import { useRef, useCallback } from "react";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { fmtF, fmtDateTime, STATUS_COLORS } from "@/cockpit/lib/workflow";
 import { getOrderMixType } from "@/cockpit/lib/article-states";
+import { Store, Layers } from "lucide-react";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
 
 interface Props {
   orders: LogisticsOrderRow[];
@@ -12,6 +14,9 @@ interface Props {
   onSelect: (o: LogisticsOrderRow) => void;
   articlesMap?: Record<string, OrderArticle[]>;
   orderTypeMap?: Record<string, "local" | "import" | "mixte">;
+  /** Phase 2 : rangée par sous-commande boutique. Si fourni, prime sur `orders`. */
+  subRows?: SubOrderRow[];
+  onSelectSubRow?: (row: SubOrderRow) => void;
 }
 
 interface Column {
@@ -34,14 +39,30 @@ const COLUMNS: Column[] = [
   { key: "shipped", title: "Expediee", short: "Exped.", color: "border-t-indigo-500", bgColor: "bg-indigo-50", chipBg: "bg-indigo-100", chipText: "text-indigo-700", statuses: ["shipped"] },
 ];
 
-export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, articlesMap, orderTypeMap }: Props) {
+export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, articlesMap, orderTypeMap, subRows, onSelectSubRow }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const colRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const columnsWithOrders = COLUMNS.map(col => ({
-    ...col,
-    orders: orders.filter(o => col.statuses.includes((o.logistics_status ?? "").trim())),
-  }));
+  // Phase 2 : si on a des subRows, on les groupe par colonne via le statut de la mère.
+  // Sinon fallback sur les commandes mères (Phase 1).
+  const useSubMode = !!subRows && subRows.length > 0;
+
+  const columnsWithItems = COLUMNS.map(col => {
+    if (useSubMode) {
+      return {
+        ...col,
+        subs: subRows!.filter(r => col.statuses.includes((r.order.logistics_status ?? "").trim())),
+        orders: [] as LogisticsOrderRow[],
+      };
+    }
+    return {
+      ...col,
+      subs: [] as SubOrderRow[],
+      orders: orders.filter(o => col.statuses.includes((o.logistics_status ?? "").trim())),
+    };
+  });
+
+  const columnsWithOrders = columnsWithItems; // alias for legacy chip count
 
   const scrollToColumn = useCallback((key: string) => {
     const el = colRefs.current.get(key);
