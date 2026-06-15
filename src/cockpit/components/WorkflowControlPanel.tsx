@@ -15,14 +15,14 @@ interface FlowStep {
   bgColor: string;
 }
 
-/** Circuit LOCAL complet */
+/** Circuit LOCAL officiel : new → confirmed → preparing → ready → shipped → delivered */
 const LOCAL_STEPS: FlowStep[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue", color: "text-purple-700", bgColor: "bg-purple-100" },
-  { key: "contacted", label: "Confirmée", description: "Client contacté", color: "text-blue-700", bgColor: "bg-blue-100" },
-  { key: "confirmed", label: "Préparation", description: "Préparation en cours", color: "text-orange-700", bgColor: "bg-orange-100" },
-  { key: "preparing", label: "Prête", description: "Prête à livrer", color: "text-cyan-700", bgColor: "bg-cyan-100" },
-  { key: "ready", label: "Expédiée", description: "En cours de livraison", color: "text-indigo-700", bgColor: "bg-indigo-100" },
-  { key: "shipped", label: "Livrée", description: "Commande livrée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
+  { key: "new", label: "À confirmer", description: "Commande reçue", color: "text-purple-700", bgColor: "bg-purple-100" },
+  { key: "confirmed", label: "Confirmée", description: "Commande confirmée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
+  { key: "preparing", label: "Préparation", description: "En préparation", color: "text-orange-700", bgColor: "bg-orange-100" },
+  { key: "ready", label: "Prête", description: "Prête à expédier", color: "text-cyan-700", bgColor: "bg-cyan-100" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison", color: "text-indigo-700", bgColor: "bg-indigo-100" },
+  { key: "delivered", label: "Livrée", description: "Commande livrée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
 ];
 
 /** Circuit IMPORT complet */

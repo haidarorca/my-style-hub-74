@@ -21,11 +21,10 @@ export const IMPORT_STEPS: { key: ImportStatus; label: string; description: stri
   { key: "delivered", label: "Livrée", description: "Commande livrée au client" },
 ];
 
-/* ─── WORKFLOW LOCAL (8 étapes) ─── */
+/* ─── WORKFLOW LOCAL OFFICIEL (6 étapes) ───
+   new → confirmed → preparing → ready → shipped → delivered */
 export const LOCAL_STEPS: { key: LocalStatus; label: string; description: string }[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue" },
-  { key: "contacted", label: "Contactée", description: "Client contacté" },
-  { key: "awaiting_payment", label: "Paiement attendu", description: "En attente de paiement" },
+  { key: "new", label: "À confirmer", description: "Commande reçue, à confirmer" },
   { key: "confirmed", label: "Confirmée", description: "Commande confirmée" },
   { key: "preparing", label: "Préparation", description: "En préparation" },
   { key: "ready", label: "Prête", description: "Prête à expédier" },
@@ -36,8 +35,6 @@ export const LOCAL_STEPS: { key: LocalStatus; label: string; description: string
 /* ─── COULEURS DES STATUTS ─── */
 export const STATUS_COLORS: Record<string, string> = {
   new: "bg-purple-100 text-purple-800 border-purple-300",
-  contacted: "bg-blue-100 text-blue-800 border-blue-300",
-  awaiting_payment: "bg-amber-100 text-amber-800 border-amber-300",
   confirmed: "bg-cyan-100 text-cyan-800 border-cyan-300",
   preparing: "bg-orange-100 text-orange-800 border-orange-300",
   ready: "bg-emerald-100 text-emerald-800 border-emerald-300",
@@ -55,8 +52,6 @@ export const STATUS_COLORS: Record<string, string> = {
 /* ─── LIBELLÉS DES STATUTS ─── */
 export const STATUS_LABELS: Record<string, string> = {
   new: "À confirmer",
-  contacted: "Contactée",
-  awaiting_payment: "Paiement attendu",
   confirmed: "Confirmée",
   preparing: "Préparation",
   ready: "Prête",
@@ -157,28 +152,20 @@ export function isImport(order: { shipping_service_id?: string | null; order_typ
 */
 export function statusToKpiFilter(status: string | null | undefined): KpiFilter {
   const s = (status ?? "").trim();
-  
-  // Cas nouveau (inclut "" et null)
+
   if (s === "" || s === "new") return "new";
-  
-  // Paiement en attente
-  if (s === "awaiting_payment" || s === "payment_fees") return "payment_pending";
-  
-  // A peser
+
+  // Paiement en attente : uniquement le paiement du fret import
+  if (s === "payment_fees") return "payment_pending";
+
   if (s === "awaiting_weighing") return "to_weigh";
-  
-  // Pret : SEULEMENT les commandes reellement pretes a expedier
+
   if (s === "ready" || s === "ready_delivery") return "ready";
-  
-  // Expediee
+
   if (s === "shipped") return "shipped";
-  
-  // Archive (pas de KPI)
+
   if (s === "delivered" || s === "cancelled") return null;
-  
-  // Statuts intermediaires (confirmed, ordered_supplier, received_warehouse,
-  // fees_calculated, preparing, contacted, etc.) : AUCUN KPI
-  // Ils restent visibles dans la vue Pipeline / Liste generale
+
   return null;
 }
 
@@ -191,12 +178,10 @@ export interface NextStep {
   color: string;
 }
 
-/** Circuit LOCAL : nouvelle → contactée → paiement → confirmée → préparation → prête → expédiée → livrée */
+/** Circuit LOCAL officiel : new → confirmed → preparing → ready → shipped → delivered */
 const LOCAL_FLOW: Record<string, NextStep> = {
   "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
-  new: { status: "contacted", label: "Contactée", actionLabel: "Marquer contactée", color: "bg-blue-600" },
-  contacted: { status: "awaiting_payment", label: "Paiement attendu", actionLabel: "Attente paiement", color: "bg-amber-600" },
-  awaiting_payment: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
   confirmed: { status: "preparing", label: "Préparation", actionLabel: "Lancer préparation", color: "bg-orange-600" },
   preparing: { status: "ready", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
   ready: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },

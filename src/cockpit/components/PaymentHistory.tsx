@@ -9,9 +9,11 @@ interface Props {
   payments: PaymentRecord[];
   onEdit?: (id: string, u: { amount?: number; method?: string; reference?: string }) => void;
   onDelete?: (id: string) => void;
+  /** Si true (ex: commande livrée), désactive édition et suppression. */
+  locked?: boolean;
 }
 
-export function PaymentHistory({ payments, onEdit, onDelete }: Props) {
+export function PaymentHistory({ payments, onEdit, onDelete, locked = false }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [amt, setAmt] = useState("");
@@ -58,8 +60,8 @@ export function PaymentHistory({ payments, onEdit, onDelete }: Props) {
         return (
           <div key={p.id} className="bg-white border rounded-lg p-2.5 text-sm group relative">
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {onEdit && <button onClick={() => { setEditingId(p.id); setAmt(String(p.amount)); setMeth(p.method); setRef(p.reference); }} className="p-1 rounded hover:bg-gray-100 text-blue-500" title="Modifier"><Pencil className="h-3 w-3" /></button>}
-              {onDelete && <button onClick={() => setDeletingId(p.id)} className="p-1 rounded hover:bg-gray-100 text-red-500" title="Supprimer"><Trash2 className="h-3 w-3" /></button>}
+              {!locked && onEdit && <button onClick={() => { setEditingId(p.id); setAmt(String(p.amount)); setMeth(p.method); setRef(p.reference); }} className="p-1 rounded hover:bg-gray-100 text-blue-500" title="Modifier"><Pencil className="h-3 w-3" /></button>}
+              {!locked && onDelete && <button onClick={() => setDeletingId(p.id)} className="p-1 rounded hover:bg-gray-100 text-red-500" title="Supprimer"><Trash2 className="h-3 w-3" /></button>}
             </div>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1 text-xs text-gray-500"><Calendar className="h-3 w-3" />{date.toLocaleDateString("fr-FR")} {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</div>

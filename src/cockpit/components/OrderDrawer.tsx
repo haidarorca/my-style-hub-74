@@ -172,10 +172,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {articles && articles.length > 0 && (
             <ArticlesPanel
               articles={articles}
+              paidAmount={tp}
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
-              // Gestion article par article — types determinés automatiquement
             />
           )}
 
@@ -191,6 +191,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             {!paidFull ? <div className="bg-red-50 rounded-lg p-3 text-center"><div className="text-[10px] text-red-600">Reste à payer</div><div className="text-xl font-bold text-red-700">{fmtF(rem)}</div></div>
               : gt > 0 ? <div className="bg-emerald-50 rounded-lg p-3 text-center"><div className="text-sm font-bold text-emerald-700">Payé en totalité</div><div className="text-xs text-emerald-600">{fmtF(tp)} / {fmtF(gt)}</div></div> : null}
           </div>
+
+          {/* ─── Alerte fret import non payé avant expédition ─── */}
+          {imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status) && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800">
+                <div className="font-bold">Fret import non payé</div>
+                <div className="mt-0.5">Reste à payer : <span className="font-semibold">{fmtF(rem)}</span>. Encaissez le solde avant d'expédier.</div>
+              </div>
+            </div>
+          )}
 
           {/* Stats paiements */}
           {payments.length > 0 && (
@@ -208,7 +219,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* Historique paiements */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" />Paiements ({payments.length})</h3>
-            <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} /></div>
+            <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
           {/* Timeline */}

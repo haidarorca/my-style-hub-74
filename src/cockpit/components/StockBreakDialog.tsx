@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { X, AlertTriangle } from "lucide-react";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
 import type { StockBreakAction } from "@/cockpit/lib/article-states";
@@ -7,13 +7,23 @@ interface Props {
   open: boolean;
   productName: string;
   variantLabel: string | null;
+  /** Montant déjà payé sur la commande. Si 0, on ne propose pas Rembourser/Créditer. */
+  paidAmount?: number;
   onClose: () => void;
   onConfirm: (data: { reason: string; action: StockBreakAction }) => void;
 }
 
-export function StockBreakDialog({ open, productName, variantLabel, onClose, onConfirm }: Props) {
+export function StockBreakDialog({ open, productName, variantLabel, paidAmount = 0, onClose, onConfirm }: Props) {
+  const availableActions = useMemo(() => {
+    // Si rien n'a été payé : pas de Rembourser ni Créditer
+    if (paidAmount <= 0) {
+      return STOCK_BREAK_ACTIONS.filter(a => a.key !== "refund" && a.key !== "credit");
+    }
+    return STOCK_BREAK_ACTIONS;
+  }, [paidAmount]);
+
   const [reason, setReason] = useState("");
-  const [action, setAction] = useState<StockBreakAction>("wait_restock");
+  const [action, setAction] = useState<StockBreakAction>(availableActions[0]?.key ?? "wait_restock");
 
   if (!open) return null;
 
@@ -21,12 +31,11 @@ export function StockBreakDialog({ open, productName, variantLabel, onClose, onC
     if (!reason.trim()) return;
     onConfirm({ reason: reason.trim(), action });
     setReason("");
-    setAction("wait_restock");
+    setAction(availableActions[0]?.key ?? "wait_restock");
   };
 
   return (
     <div className="absolute inset-0 z-[80] bg-white flex flex-col animate-slide-in">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -38,14 +47,18 @@ export function StockBreakDialog({ open, productName, variantLabel, onClose, onC
       </div>
 
       <div className="overflow-y-auto flex-1 p-4 space-y-4">
-        {/* Produit concerné */}
         <div className="bg-red-50 border border-red-200 rounded-xl p-3">
           <div className="text-[10px] text-red-500 font-semibold uppercase">Produit concerné</div>
           <div className="text-sm font-bold text-gray-900 mt-0.5">{productName}</div>
           {variantLabel && <div className="text-xs text-gray-500">{variantLabel}</div>}
         </div>
 
-        {/* Motif */}
+        {paidAmount <= 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-700">
+            Aucun paiement enregistré : remboursement et crédit non proposés.
+          </div>
+        )}
+
         <div>
           <label className="text-xs font-semibold text-gray-700 block mb-1.5">Motif de la rupture *</label>
           <textarea
@@ -56,11 +69,10 @@ export function StockBreakDialog({ open, productName, variantLabel, onClose, onC
           />
         </div>
 
-        {/* Action proposée */}
         <div>
           <label className="text-xs font-semibold text-gray-700 block mb-1.5">Action proposée au client *</label>
           <div className="space-y-1.5">
-            {STOCK_BREAK_ACTIONS.map(a => (
+            {availableActions.map(a => (
               <button
                 key={a.key}
                 onClick={() => setAction(a.key)}
@@ -77,7 +89,6 @@ export function StockBreakDialog({ open, productName, variantLabel, onClose, onC
         </div>
       </div>
 
-      {/* Footer */}
       <div className="border-t p-4 shrink-0 space-y-2">
         <button
           onClick={handleConfirm}
