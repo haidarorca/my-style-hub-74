@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
+import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getNextActionForOrder, getPendingFinancialActions } from "@/cockpit/lib/article-states";
