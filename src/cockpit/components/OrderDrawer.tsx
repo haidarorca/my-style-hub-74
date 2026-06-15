@@ -25,10 +25,12 @@ import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types"
 import { NextActionBanner } from "./NextActionBanner";
 import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
+import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
+import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 
@@ -65,9 +67,13 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
+  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
+  vendorId?: string;
+  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
+  onVendorChange?: (vendorId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
