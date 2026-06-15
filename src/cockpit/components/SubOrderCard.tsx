@@ -52,6 +52,15 @@ export function SubOrderCard({ row, onClick }: Props) {
             <Store className="h-3 w-3 text-gray-500 shrink-0" />
             <span className="text-xs font-bold truncate">{row.vendor_name}</span>
             <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${kindClass}`}>{kindLabel}</span>
+            {row.cockpit_scope === "kawzone" && (
+              <span className="text-[8px] uppercase font-bold bg-blue-600 text-white px-1 rounded">Kawzone</span>
+            )}
+            {row.cockpit_scope === "commission" && (
+              <span className="text-[8px] uppercase font-bold bg-purple-600 text-white px-1 rounded">Commission</span>
+            )}
+            {row.cockpit_scope === "autonomous" && (
+              <span className="text-[8px] uppercase font-bold bg-gray-400 text-white px-1 rounded">Externe</span>
+            )}
             {vendorDeleted && (
               <span className="text-[8px] uppercase font-bold bg-gray-700 text-white px-1 rounded inline-flex items-center gap-0.5">
                 <Ban className="h-2.5 w-2.5" />supp.
