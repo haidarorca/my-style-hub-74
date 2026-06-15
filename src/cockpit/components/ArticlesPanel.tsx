@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Package, ChevronRight, AlertTriangle, CheckCircle2,
-  CircleDot, Ban, ArrowDownToLine, ShieldAlert, RefreshCw,
+  CircleDot, Ban, ArrowDownToLine, ShieldAlert,
 } from "lucide-react";
 import {
   ARTICLE_STATUS_COLORS, getOrderMixType, STOCK_BREAK_ACTIONS,
@@ -9,7 +9,7 @@ import {
   isArticleLocked, isOrderLocked, getDecisionBadge,
   getArticleStatusLabel, getNextArticleSteps, getArticleBusinessState,
   BUSINESS_STATE_LABELS, BUSINESS_STATE_COLORS,
-  canResumeFromRestock, getResumeTargetStatus,
+  isWaitingRestock,
   IMPORT_STATUS_LABELS, LOCAL_STATUS_LABELS, ARTICLE_STATUS_LABELS,
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
@@ -51,16 +51,20 @@ export function ArticlesPanel({
 
   if (!articles || articles.length === 0) return null;
 
-  const sortedArticles = [...articles].sort((a, b) => {
+  // Articles en attente de réappro non repris → traités dans RestockWaitingPanel (hors workflow normal)
+  const visibleArticles = articles.filter(a => !isWaitingRestock(a));
+  if (visibleArticles.length === 0) return null;
+
+  const sortedArticles = [...visibleArticles].sort((a, b) => {
     if (a.is_local && !b.is_local) return -1;
     if (!a.is_local && b.is_local) return 1;
     return 0;
   });
 
-  const mixType = getOrderMixType(articles);
-  const hasBreak = articles.some(a => a.stock_break && !a.stock_break.resolved);
-  const deliveredCount = articles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
-  const totalQty = articles.reduce((s, a) => s + a.quantity, 0);
+  const mixType = getOrderMixType(visibleArticles);
+  const hasBreak = visibleArticles.some(a => a.stock_break && !a.stock_break.resolved);
+  const deliveredCount = visibleArticles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
+  const totalQty = visibleArticles.reduce((s, a) => s + a.quantity, 0);
 
   return (
     <div className="space-y-3">
@@ -243,16 +247,8 @@ export function ArticlesPanel({
                           </button>
                         )}
 
-                        {/* Reprise après réappro (wait_restock résolu) */}
-                        {canResumeFromRestock(art, orderStatus) && onStatusChange && (
-                          <button
-                            onClick={() => onStatusChange(art.product_id, getResumeTargetStatus(art))}
-                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-bold hover:bg-teal-700 min-h-[40px]"
-                          >
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            Stock revenu — reprendre le flux
-                          </button>
-                        )}
+                        {/* La reprise wait_restock est gérée dans RestockWaitingPanel — hors workflow normal. */}
+
 
                         {showPartial && onPartialDeliver && (
                           <div className="flex items-center gap-2">

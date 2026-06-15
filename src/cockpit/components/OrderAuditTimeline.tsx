@@ -127,6 +127,18 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
             by: s.by, icon: CheckCircle, tone: "emerald",
           });
         }
+        // Reprise après réappro (wait_restock)
+        if (sb.action === "wait_restock" && sb.resumed_at) {
+          const start = new Date(sb.created_at).getTime();
+          const end = new Date(sb.resumed_at).getTime();
+          const days = Math.max(0, Math.floor((end - start) / 86400000));
+          out.push({
+            date: sb.resumed_at,
+            label: `Stock revenu — flux repris · ${art.product_name}`,
+            sub: `Attente : ${days} j${days > 1 ? "" : ""}`,
+            by: sb.resumed_by, icon: RefreshCw, tone: "teal",
+          });
+        }
       }
       // Livraison partielle (état courant — pas d'historique)
       const delivered = art.delivered_qty ?? 0;

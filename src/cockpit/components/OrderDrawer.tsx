@@ -16,6 +16,7 @@ import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
 import { OrderAuditTimeline } from "./OrderAuditTimeline";
 import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
+import { RestockWaitingPanel } from "./RestockWaitingPanel";
 import { PendingFinancialActions } from "./PendingFinancialActions";
 import type { SettlementInput } from "./PendingFinancialActions";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,9 +61,10 @@ interface Props {
   onPartialDeliver?: (productId: string, qty: number) => void;
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
+  onResumeRestock?: (productId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -149,6 +151,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
           <PartialDeliveryBanner articles={articles} />
+
+          {/* ─── Sous-processus : articles en attente de réapprovisionnement ─── */}
+          <RestockWaitingPanel articles={articles} orderStatus={status} onResumeRestock={onResumeRestock} />
+
 
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
           {articles && onSettleFinancial && (

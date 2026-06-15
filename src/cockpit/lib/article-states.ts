@@ -85,23 +85,24 @@ export interface OrderArticle {
     action_label: string;
     resolved: boolean;
     created_at: string;
-    /** Sous-cas pour `replace` : produit de remplacement saisi par l'admin. */
     replacement?: { product_name: string; new_unit_price: number };
-    /** Pour `replace` quand le nouveau prix diffère, ou pour différencier refund vs credit. */
     diff_handling?: "extra_payment" | "refund" | "credit";
-    /** Historique des overrides Super Admin (en mémoire — pas de colonne DB dédiée). */
     override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
-    /** Trace du traitement financier — lève le pending. Aucun mouvement automatique : posé par action admin explicite. */
     settlement?: {
       kind: "refund" | "credit" | "extra_payment";
       amount: number;
-      payment_id?: string;   // ligne `payments` existante (refund / extra_payment)
-      method?: string;       // moyen de paiement (refund / extra_payment)
-      reference?: string;    // référence libre (avoir, virement, etc.)
+      payment_id?: string;
+      method?: string;
+      reference?: string;
       note?: string;
-      by: string;            // admin qui a validé
-      at: string;            // ISO timestamp
+      by: string;
+      at: string;
     };
+    /** Cycle wait_restock : statut au moment de la mise en attente (mémoire). */
+    last_valid_status?: ArticleStatus;
+    /** Cycle wait_restock : reprise du flux normal après retour de stock. */
+    resumed_at?: string;
+    resumed_by?: string;
   };
   // Livraison partielle
   delivered_qty?: number;
@@ -185,7 +186,7 @@ export function getArticleBusinessState(article: OrderArticle): ArticleBusinessS
   if (sb && !sb.resolved) return "stock_break_open";
   if (sb && sb.resolved) {
     switch (sb.action) {
-      case "wait_restock": return "waiting_restock";
+      case "wait_restock": return sb.resumed_at ? "active" : "waiting_restock";
       case "partial_ship": return "excluded";
       case "refund": return "refunded";
       case "credit": return "credited";
@@ -193,6 +194,29 @@ export function getArticleBusinessState(article: OrderArticle): ArticleBusinessS
     }
   }
   return "active";
+}
+
+/** Article actuellement en attente de réappro (décision wait_restock NON encore reprise). */
+export function isWaitingRestock(article: OrderArticle): boolean {
+  const sb = article.stock_break;
+  return !!(sb && sb.resolved && sb.action === "wait_restock" && !sb.resumed_at);
+}
+
+/** Nombre de jours écoulés depuis la mise en attente (figé à la reprise si reprise). */
+export function getRestockWaitDays(article: OrderArticle): number {
+  const sb = article.stock_break;
+  if (!sb || sb.action !== "wait_restock" || !sb.resolved) return 0;
+  const start = new Date(sb.created_at).getTime();
+  const end = sb.resumed_at ? new Date(sb.resumed_at).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+export type RestockAlertLevel = "ok" | "orange" | "red" | "critical";
+export function getRestockAlertLevel(days: number): RestockAlertLevel {
+  if (days >= 30) return "critical";
+  if (days >= 14) return "red";
+  if (days >= 7) return "orange";
+  return "ok";
 }
 
 export const BUSINESS_STATE_LABELS: Record<ArticleBusinessState, string> = {
@@ -313,10 +337,10 @@ export function canChangeArticleStatus(article: OrderArticle, orderStatus?: stri
   if (orderStatus && ["preparing", "ready", "ready_delivery", "shipped"].includes(orderStatus)) {
     return false;
   }
-  // Rupture résolue : seuls replace et wait_restock permettent une suite normale.
+  // Rupture résolue : replace et wait_restock(repris) permettent une suite normale.
   if (sb && sb.resolved) {
     if (sb.action === "replace") return true;
-    if (sb.action === "wait_restock") return true;
+    if (sb.action === "wait_restock") return !!sb.resumed_at; // après reprise uniquement
     return false;
   }
   return true;
@@ -326,8 +350,11 @@ export function canChangeArticleStatus(article: OrderArticle, orderStatus?: stri
 export function canPartialDeliver(article: OrderArticle, orderStatus?: string): boolean {
   if (isArticleLocked(article, orderStatus)) return false;
   const sb = article.stock_break;
-  // Décisions qui excluent du colis
-  if (sb && sb.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(sb.action)) return false;
+  // Décisions qui excluent du colis (wait_restock NON repris = exclu)
+  if (sb && sb.resolved) {
+    if (["partial_ship", "refund", "credit"].includes(sb.action)) return false;
+    if (sb.action === "wait_restock" && !sb.resumed_at) return false;
+  }
   if ((article.delivered_qty ?? 0) >= article.quantity) return false;
   return ["ready", "available", "received"].includes(article.status);
 }
@@ -336,11 +363,16 @@ export function canPartialDeliver(article: OrderArticle, orderStatus?: string): 
 export function canResumeFromRestock(article: OrderArticle, orderStatus?: string): boolean {
   if (isOrderLocked(orderStatus)) return false;
   const sb = article.stock_break;
-  return !!(sb && sb.resolved && sb.action === "wait_restock");
+  return !!(sb && sb.resolved && sb.action === "wait_restock" && !sb.resumed_at);
 }
 
-/** Statut cible quand on reprend après réappro (selon type article). */
+/** Statut cible quand on reprend après réappro : statut mémorisé OU fallback selon type. */
 export function getResumeTargetStatus(article: OrderArticle): ArticleStatus {
+  const memorized = article.stock_break?.last_valid_status;
+  if (memorized) {
+    const flow = getArticleFlow(article);
+    if (flow.includes(memorized)) return memorized;
+  }
   return article.is_import ? "received" : "available";
 }
 
@@ -371,7 +403,9 @@ export function getDecisionBadge(article: OrderArticle): DecisionBadge | null {
     case "credit":
       return { label: "Crédit à traiter", className: "bg-amber-100 text-amber-800 border border-amber-300" };
     case "wait_restock":
-      return { label: "Attente réappro", className: "bg-slate-200 text-slate-800 border border-slate-300" };
+      return sb.resumed_at
+        ? { label: "Stock revenu — flux repris", className: "bg-emerald-100 text-emerald-800 border border-emerald-300" }
+        : { label: "Attente réappro", className: "bg-slate-200 text-slate-800 border border-slate-300" };
     case "replace": {
       const impact = getReplaceImpact(article);
       if (!impact || impact.variant === "replace_same") return { label: "Remplacement", className: "bg-violet-100 text-violet-800 border border-violet-300" };
@@ -399,7 +433,7 @@ export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): 
   const list = articles ?? [];
   const deliveredCount = list.filter(a => (a.delivered_qty ?? 0) >= a.quantity).length;
   const pendingCount = list.length - deliveredCount;
-  const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock").length;
+  const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock" && !a.stock_break.resumed_at).length;
   const excludedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "partial_ship").length;
   const replacedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "replace").length;
   const refundedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "refund").length;
