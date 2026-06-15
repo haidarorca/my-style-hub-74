@@ -203,85 +203,106 @@ export function ArticlesPanel({
                   </div>
                 )}
 
-                {/* ── Actions selon la matrice v3 ── */}
+                {/* ── Actions selon la matrice v3 (verrous stricts par type LOCAL/IMPORT) ── */}
                 {locked ? (
                   <div className="text-[10px] text-gray-400 italic pt-1">
                     {isOrderLocked(orderStatus)
                       ? orderStatus === "delivered" ? "Commande livrée — aucune action possible" : "Commande annulée — aucune action possible"
-                      : `Article ${ARTICLE_STATUS_LABELS[art.status].toLowerCase()} — aucune action possible`}
+                      : `Article ${getArticleStatusLabel(art).toLowerCase()} — aucune action possible`}
                   </div>
                 ) : (
                   <div className="space-y-2 pt-1">
-                    {showSignal && onStockBreak && (
-                      <button
-                        onClick={() => setStockBreakProduct(art)}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors min-h-[40px]"
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        Signaler rupture de stock
-                      </button>
-                    )}
-
-                    {isBreakUnresolved && (
-                      <div className="text-[10px] text-red-600 italic">Résolvez la rupture pour débloquer les actions.</div>
-                    )}
-
-                    {showPartial && onPartialDeliver && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" inputMode="numeric" min={1}
-                          max={art.quantity - (art.delivered_qty ?? 0)}
-                          value={partialQty[art.product_id] ?? ""}
-                          onChange={e => setPartialQty(p => ({ ...p, [art.product_id]: e.target.value }))}
-                          placeholder="Qty"
-                          className="w-20 h-10 text-sm border rounded-lg px-2 text-center"
-                        />
-                        <button
-                          onClick={() => {
-                            const qty = parseInt(partialQty[art.product_id] ?? "0", 10);
-                            if (qty > 0) { onPartialDeliver(art.product_id, qty); setPartialQty(p => ({ ...p, [art.product_id]: "" })); }
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-semibold hover:bg-teal-700 min-h-[40px]"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Livrer {partialQty[art.product_id] || (art.quantity - (art.delivered_qty ?? 0))} / {art.quantity}
-                        </button>
-                      </div>
-                    )}
-
-                    {showStatusChange && onStatusChange && (
-                      <div>
-                        <div className="text-[9px] text-gray-400 mb-1.5">Prochaine étape :</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(() => {
-                            const transitions: Record<ArticleStatus, ArticleStatus[]> = {
-                              pending: ["available", "ordered"],
-                              available: ["ready"],
-                              ordered: ["received"],
-                              received: ["ready"],
-                              ready: ["delivered"],
-                              delivered: [],
-                              partial_stock: ["available", "ordered"],
-                              no_stock: ["available", "ordered"],
-                              shipped: ["delivered"],
-                              returned: [],
-                              refunded: [],
-                            };
-                            const next = transitions[art.status] ?? [];
-                            if (next.length === 0) return <span className="text-[10px] text-gray-400 italic">Aucune transition</span>;
-                            return next.map(st => (
-                              <button key={st}
-                                onClick={() => onStatusChange(art.product_id, st)}
-                                className={`text-[11px] px-3 py-2 rounded-full font-semibold ${ARTICLE_STATUS_COLORS[st]} hover:opacity-80 min-h-[36px]`}>
-                                {ARTICLE_STATUS_LABELS[st]}
-                              </button>
-                            ));
-                          })()}
+                    {/* RUPTURE OUVERTE — verrou exclusif : aucune action normale */}
+                    {isBreakUnresolved ? (
+                      <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 space-y-2">
+                        <div className="text-[11px] font-bold text-red-800 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Rupture en cours — résolution obligatoire
                         </div>
+                        <div className="text-[10px] text-red-700">
+                          Toutes les actions normales sont gelées tant que la rupture n'est pas résolue.
+                        </div>
+                        {onStockBreak && (
+                          <button
+                            onClick={() => setStockBreakProduct(art)}
+                            className="w-full px-3 py-2.5 rounded-lg bg-red-600 text-white text-[12px] font-bold hover:bg-red-700 min-h-[40px]"
+                          >
+                            Résoudre la rupture
+                          </button>
+                        )}
                       </div>
+                    ) : (
+                      <>
+                        {showSignal && onStockBreak && (
+                          <button
+                            onClick={() => setStockBreakProduct(art)}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors min-h-[40px]"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            Signaler rupture de stock
+                          </button>
+                        )}
+
+                        {/* Reprise après réappro (wait_restock résolu) */}
+                        {canResumeFromRestock(art, orderStatus) && onStatusChange && (
+                          <button
+                            onClick={() => onStatusChange(art.product_id, getResumeTargetStatus(art))}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-bold hover:bg-teal-700 min-h-[40px]"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Stock revenu — reprendre le flux
+                          </button>
+                        )}
+
+                        {showPartial && onPartialDeliver && (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number" inputMode="numeric" min={1}
+                              max={art.quantity - (art.delivered_qty ?? 0)}
+                              value={partialQty[art.product_id] ?? ""}
+                              onChange={e => setPartialQty(p => ({ ...p, [art.product_id]: e.target.value }))}
+                              placeholder="Qty"
+                              className="w-20 h-10 text-sm border rounded-lg px-2 text-center"
+                            />
+                            <button
+                              onClick={() => {
+                                const qty = parseInt(partialQty[art.product_id] ?? "0", 10);
+                                if (qty > 0) { onPartialDeliver(art.product_id, qty); setPartialQty(p => ({ ...p, [art.product_id]: "" })); }
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-semibold hover:bg-teal-700 min-h-[40px]"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Livrer {partialQty[art.product_id] || (art.quantity - (art.delivered_qty ?? 0))} / {art.quantity}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Prochaine étape — filtrée STRICTEMENT par type LOCAL/IMPORT */}
+                        {showStatusChange && onStatusChange && (() => {
+                          const next = getNextArticleSteps(art);
+                          if (next.length === 0) return null;
+                          const labelMap = art.is_import ? IMPORT_STATUS_LABELS : LOCAL_STATUS_LABELS;
+                          return (
+                            <div>
+                              <div className="text-[9px] text-gray-400 mb-1.5">
+                                Prochaine étape ({art.is_import ? "IMPORT" : "LOCAL"}) :
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {next.map(st => (
+                                  <button key={st}
+                                    onClick={() => onStatusChange(art.product_id, st)}
+                                    className={`text-[11px] px-3 py-2 rounded-full font-semibold ${ARTICLE_STATUS_COLORS[st]} hover:opacity-80 min-h-[36px]`}>
+                                    {labelMap[st] ?? ARTICLE_STATUS_LABELS[st]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
                     )}
 
-                    {/* Bouton Super Admin */}
+                    {/* Bouton Super Admin — toujours disponible si décision résolue */}
                     {showOverride && onOverrideDecision && (
                       <button
                         onClick={() => { setOverrideProduct(art); setOverrideStep("choose"); setOverrideDraft(null); }}
