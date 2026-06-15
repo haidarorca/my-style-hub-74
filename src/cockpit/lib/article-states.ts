@@ -337,10 +337,10 @@ export function canChangeArticleStatus(article: OrderArticle, orderStatus?: stri
   if (orderStatus && ["preparing", "ready", "ready_delivery", "shipped"].includes(orderStatus)) {
     return false;
   }
-  // Rupture résolue : seuls replace et wait_restock permettent une suite normale.
+  // Rupture résolue : replace et wait_restock(repris) permettent une suite normale.
   if (sb && sb.resolved) {
     if (sb.action === "replace") return true;
-    if (sb.action === "wait_restock") return true;
+    if (sb.action === "wait_restock") return !!sb.resumed_at; // après reprise uniquement
     return false;
   }
   return true;
