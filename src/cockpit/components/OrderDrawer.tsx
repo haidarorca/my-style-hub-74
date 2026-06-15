@@ -152,6 +152,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
           <PartialDeliveryBanner articles={articles} />
 
+          {/* ─── Sous-processus : articles en attente de réapprovisionnement ─── */}
+          <RestockWaitingPanel articles={articles} orderStatus={status} onResumeRestock={onResumeRestock} />
+
+
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
           {articles && onSettleFinancial && (
             <PendingFinancialActions
