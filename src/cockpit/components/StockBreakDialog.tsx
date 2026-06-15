@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { X, AlertTriangle } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { X, AlertTriangle, RefreshCw, Wallet, Repeat, Clock, PackageMinus, Check } from "lucide-react";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
 import type { StockBreakAction } from "@/cockpit/lib/article-states";
 
@@ -13,9 +13,16 @@ interface Props {
   onConfirm: (data: { reason: string; action: StockBreakAction }) => void;
 }
 
+const ACTION_ICONS: Record<StockBreakAction, React.ElementType> = {
+  refund: Wallet,
+  credit: RefreshCw,
+  replace: Repeat,
+  wait_restock: Clock,
+  partial_ship: PackageMinus,
+};
+
 export function StockBreakDialog({ open, productName, variantLabel, paidAmount = 0, onClose, onConfirm }: Props) {
   const availableActions = useMemo(() => {
-    // Si rien n'a été payé : pas de Rembourser ni Créditer
     if (paidAmount <= 0) {
       return STOCK_BREAK_ACTIONS.filter(a => a.key !== "refund" && a.key !== "credit");
     }
@@ -24,6 +31,17 @@ export function StockBreakDialog({ open, productName, variantLabel, paidAmount =
 
   const [reason, setReason] = useState("");
   const [action, setAction] = useState<StockBreakAction>(availableActions[0]?.key ?? "wait_restock");
+  const actionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  // Scroll automatique vers l'action sélectionnée + le bouton de confirmation
+  useEffect(() => {
+    if (!open) return;
+    const el = actionRefs.current[action];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [action, open]);
 
   if (!open) return null;
 
@@ -36,17 +54,17 @@ export function StockBreakDialog({ open, productName, variantLabel, paidAmount =
 
   return (
     <div className="absolute inset-0 z-[80] bg-white flex flex-col animate-slide-in">
-      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0 sticky top-0 bg-white z-10">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-red-500" />
           <h3 className="text-sm font-bold">Rupture de stock</h3>
         </div>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100">
+        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 -mr-2">
           <X className="h-5 w-5 text-gray-400" />
         </button>
       </div>
 
-      <div className="overflow-y-auto flex-1 p-4 space-y-4">
+      <div className="overflow-y-auto flex-1 p-4 space-y-4 pb-24">
         <div className="bg-red-50 border border-red-200 rounded-xl p-3">
           <div className="text-[10px] text-red-500 font-semibold uppercase">Produit concerné</div>
           <div className="text-sm font-bold text-gray-900 mt-0.5">{productName}</div>
@@ -70,27 +88,42 @@ export function StockBreakDialog({ open, productName, variantLabel, paidAmount =
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-gray-700 block mb-1.5">Action proposée au client *</label>
-          <div className="space-y-1.5">
-            {availableActions.map(a => (
-              <button
-                key={a.key}
-                onClick={() => setAction(a.key)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
-                  action === a.key
-                    ? "border-orange-500 bg-orange-50 text-orange-700 font-semibold"
-                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                {a.label}
-              </button>
-            ))}
+          <label className="text-xs font-semibold text-gray-700 block mb-2">Action proposée au client *</label>
+          <div className="space-y-2">
+            {availableActions.map(a => {
+              const Icon = ACTION_ICONS[a.key];
+              const selected = action === a.key;
+              return (
+                <button
+                  key={a.key}
+                  ref={el => { actionRefs.current[a.key] = el; }}
+                  onClick={() => setAction(a.key)}
+                  aria-pressed={selected}
+                  className={`w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl border-2 text-sm transition-all ${
+                    selected
+                      ? "border-orange-500 bg-orange-50 text-orange-800 font-bold shadow-[0_0_0_3px_rgba(249,115,22,0.15)]"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <span className={`shrink-0 h-9 w-9 grid place-items-center rounded-full ${selected ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-500"}`}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="flex-1 min-w-0">{a.label}</span>
+                  {selected && (
+                    <span className="shrink-0 h-6 w-6 grid place-items-center rounded-full bg-orange-500 text-white">
+                      <Check className="h-4 w-4" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="border-t p-4 shrink-0 space-y-2">
+      <div className="border-t p-4 shrink-0 space-y-2 sticky bottom-0 bg-white pb-[max(1rem,env(safe-area-inset-bottom))]">
         <button
+          ref={confirmRef}
           onClick={handleConfirm}
           disabled={!reason.trim()}
           className="w-full h-12 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
