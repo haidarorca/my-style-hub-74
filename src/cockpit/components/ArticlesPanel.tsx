@@ -4,7 +4,7 @@ import {
   CircleDot, Ban, ArrowDownToLine, ShieldAlert,
 } from "lucide-react";
 import {
-  ARTICLE_STATUS_COLORS, getOrderMixType, STOCK_BREAK_ACTIONS,
+  ARTICLE_STATUS_COLORS, STOCK_BREAK_ACTIONS,
   canSignalBreak, canChangeArticleStatus, canPartialDeliver, canOverrideDecision,
   isArticleLocked, isOrderLocked, getDecisionBadge,
   getArticleStatusLabel, getNextArticleSteps, getArticleBusinessState,
@@ -61,7 +61,6 @@ export function ArticlesPanel({
     return 0;
   });
 
-  const mixType = getOrderMixType(visibleArticles);
   const hasBreak = visibleArticles.some(a => a.stock_break && !a.stock_break.resolved);
   const deliveredCount = visibleArticles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
   const totalQty = visibleArticles.reduce((s, a) => s + a.quantity, 0);
@@ -73,11 +72,6 @@ export function ArticlesPanel({
           Articles ({articles.length})
         </h4>
         <div className="flex items-center gap-2">
-          {mixType === "mixte" && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-100 to-emerald-100 text-indigo-700 border border-indigo-200">
-              MIXTE
-            </span>
-          )}
           {hasBreak && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />

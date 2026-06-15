@@ -5,11 +5,13 @@ import type { NextStep } from "@/cockpit/lib/workflow";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 
 /* ═══════════════════════════════════════════════════════════════
-   WorkflowControlPanel v3 — Option B (accordéon compact)
+   WorkflowControlPanel v4 — Option B (accordéon compact)
    - Replié par défaut : ~140px ; affiche l'étape courante + action
    - Tap "Voir toutes les étapes" : déplie la timeline complète
-   - Pour MIXTE : 2 accordéons indépendants (LOCAL + IMPORT)
    - Mémoire d'ouverture par commande dans localStorage
+   - Le concept MIXTE a disparu : chaque sub_order a son propre
+     workflow. Pour une commande multi-boutiques, le drawer ne
+     rend PAS ce composant globalement — il sera rendu par sub_order.
    ═══════════════════════════════════════════════════════════════ */
 
 interface FlowStep {
@@ -43,7 +45,6 @@ interface Props {
   status: string;
   isImport: boolean;
   isLocal: boolean;
-  isMixte: boolean;
   articles?: OrderArticle[];
   onStatusChange: (status: string) => void;
 }
@@ -175,42 +176,9 @@ function CircuitAccordion({
   );
 }
 
-export function WorkflowControlPanel({ orderId, status, isImport, isLocal, isMixte, articles, onStatusChange }: Props) {
+export function WorkflowControlPanel({ orderId, status, isImport, isLocal, onStatusChange }: Props) {
   const s = status ?? "new";
   const keyBase = `cockpit:circuit-open:${orderId ?? "_"}`;
-
-  if (isMixte && articles) {
-    const localCount = articles.filter(a => a.is_local).length;
-    const importCount = articles.filter(a => a.is_import).length;
-    return (
-      <div className="space-y-2">
-        <CircuitAccordion
-          storageKey={`${keyBase}:local`}
-          defaultOpen={false}
-          steps={LOCAL_STEPS}
-          currentStatus={s}
-          isImportFlow={false}
-          title={`Circuit LOCAL (${localCount} article${localCount > 1 ? "s" : ""})`}
-          icon={Home}
-          headerColor="bg-emerald-100 text-emerald-700"
-          action={getNextStep(s, false)}
-          onStatusChange={onStatusChange}
-        />
-        <CircuitAccordion
-          storageKey={`${keyBase}:import`}
-          defaultOpen={false}
-          steps={IMPORT_STEPS_V2}
-          currentStatus={s}
-          isImportFlow={true}
-          title={`Circuit IMPORT (${importCount} article${importCount > 1 ? "s" : ""})`}
-          icon={Truck}
-          headerColor="bg-indigo-100 text-indigo-700"
-          action={getNextStep(s, true)}
-          onStatusChange={onStatusChange}
-        />
-      </div>
-    );
-  }
 
   if (isLocal) {
     return (
