@@ -49,30 +49,54 @@ export interface BucketedArticle {
   reason: string;          // Phrase courte expliquant POURQUOI cet article est dans ce bucket
 }
 
+// ─── Préparation IMPORT : pesée (squelette, données pas encore branchées) ───
+// L'agrégateur expose dès maintenant les points d'entrée. Tant que les champs
+// `actual_weight` / `estimated_weight` ne sont pas posés sur OrderArticle,
+// chaque article importé tombera en `weight_state: "unknown"`.
+export type WeightState = "known" | "estimated" | "unknown";
+
+export interface WeighingReadiness {
+  applicable: boolean;             // false si commande 100% locale
+  total_import_articles: number;
+  by_state: Record<WeightState, number>;
+  articles: Array<{
+    article: OrderArticle;
+    weight_state: WeightState;
+    reason: string;
+  }>;
+}
+
+export interface NextActionDriver {
+  bucket: ArticleBucket;
+  article_id: string;
+  product_name: string;
+  reason: string;
+}
+
 export interface OrderAggregate {
-  // Comptage par bucket (synthèse rapide)
   counters: Record<ArticleBucket, number>;
-  // Articles regroupés par bucket (pour rendu UI direct)
   by_bucket: Record<ArticleBucket, BucketedArticle[]>;
-  // Liste à plat (ordre stable = ordre d'origine)
   articles: BucketedArticle[];
-  // Action prioritaire au niveau commande
   next_action: AggregateNextAction;
   next_action_reason: string;
-  // Total financier en attente (refund + credit + extra_payment)
+  /** ★ Pourquoi cette action a été choisie (priorité métier appliquée). */
+  next_action_why: string;
+  /** ★ Article qui provoque l'action prioritaire (null si done / review). */
+  next_action_driver: NextActionDriver | null;
   pending_money: {
     refund: number;
     credit: number;
     extra_payment: number;
     total_abs: number;
   };
-  // Drapeaux pratiques
+  /** ★ Préparation IMPORT pesée (points d'entrée, pas encore alimentés). */
+  weighing: WeighingReadiness;
   flags: {
     has_blocking: boolean;
     has_ready: boolean;
     all_delivered: boolean;
     fully_cancelled: boolean;
-    can_ship_today: boolean;     // Tout ce qui peut partir est prêt, rien ne bloque
+    can_ship_today: boolean;
   };
 }
 
