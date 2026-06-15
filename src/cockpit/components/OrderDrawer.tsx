@@ -173,35 +173,95 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <ArticlesPanel
               articles={articles}
               paidAmount={tp}
+              orderStatus={status}
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
             />
           )}
 
-          {/* Finances */}
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Finances</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Produits</div><div className="text-sm font-bold">{fmtF(ot)}</div></div>
-              <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Fret</div><div className="text-sm font-bold">{fmtF(sf)}</div></div>
-              <div className="bg-white rounded p-2 text-center border-2 border-gray-200"><div className="text-[10px] text-gray-500 font-semibold">TOTAL</div><div className="text-sm font-bold">{fmtF(gt)}</div></div>
-              <div className="bg-emerald-50 rounded p-2 text-center"><div className="text-[10px] text-emerald-600">Payé</div><div className="text-sm font-bold text-emerald-700">{fmtF(tp)}</div></div>
-            </div>
-            {!paidFull ? <div className="bg-red-50 rounded-lg p-3 text-center"><div className="text-[10px] text-red-600">Reste à payer</div><div className="text-xl font-bold text-red-700">{fmtF(rem)}</div></div>
-              : gt > 0 ? <div className="bg-emerald-50 rounded-lg p-3 text-center"><div className="text-sm font-bold text-emerald-700">Payé en totalité</div><div className="text-xs text-emerald-600">{fmtF(tp)} / {fmtF(gt)}</div></div> : null}
-          </div>
-
-          {/* ─── Alerte fret import non payé avant expédition ─── */}
-          {imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status) && (
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-xs text-amber-800">
-                <div className="font-bold">Fret import non payé</div>
-                <div className="mt-0.5">Reste à payer : <span className="font-semibold">{fmtF(rem)}</span>. Encaissez le solde avant d'expédier.</div>
+          {/* Finances — Vue détaillée avec split produits/fret */}
+          {(() => {
+            // Allocation FIFO : on impute d'abord aux produits, puis au fret
+            const productPaid = Math.min(tp, ot);
+            const freightPaid = Math.max(0, tp - ot);
+            const productRem = Math.max(0, ot - productPaid);
+            const freightRem = Math.max(0, sf - freightPaid);
+            const showSplit = imp && sf > 0;
+            return (
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Finances</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Produits</div><div className="text-sm font-bold">{fmtF(ot)}</div></div>
+                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Fret</div><div className="text-sm font-bold">{fmtF(sf)}</div></div>
+                  <div className="bg-white rounded p-2 text-center border-2 border-gray-200"><div className="text-[10px] text-gray-500 font-semibold">TOTAL</div><div className="text-sm font-bold">{fmtF(gt)}</div></div>
+                  <div className="bg-emerald-50 rounded p-2 text-center"><div className="text-[10px] text-emerald-600">Payé</div><div className="text-sm font-bold text-emerald-700">{fmtF(tp)}</div></div>
+                </div>
+                {showSplit && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className={`rounded-lg p-2 border ${productRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
+                      <div className="text-[10px] text-gray-500 font-semibold uppercase">Produits</div>
+                      <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(productPaid)}</span></div>
+                      <div className={`text-[11px] ${productRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(productRem)}</div>
+                    </div>
+                    <div className={`rounded-lg p-2 border ${freightRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
+                      <div className="text-[10px] text-gray-500 font-semibold uppercase">Fret</div>
+                      <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(freightPaid)}</span></div>
+                      <div className={`text-[11px] ${freightRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(freightRem)}</div>
+                    </div>
+                  </div>
+                )}
+                {!paidFull ? <div className="bg-red-50 rounded-lg p-3 text-center"><div className="text-[10px] text-red-600">Reste à payer (total)</div><div className="text-xl font-bold text-red-700">{fmtF(rem)}</div></div>
+                  : gt > 0 ? <div className="bg-emerald-50 rounded-lg p-3 text-center"><div className="text-sm font-bold text-emerald-700">Payé en totalité</div><div className="text-xs text-emerald-600">{fmtF(tp)} / {fmtF(gt)}</div></div> : null}
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {/* ─── Alertes opérationnelles ─── */}
+          {(() => {
+            const alerts: { tone: "red" | "amber" | "blue"; title: string; text: string }[] = [];
+
+            // Fret non payé avant expédition
+            if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
+              alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
+            }
+            // Rupture non résolue
+            const breaks = (articles ?? []).filter(a => a.stock_break && !a.stock_break.resolved);
+            if (breaks.length > 0) {
+              alerts.push({ tone: "red", title: `${breaks.length} rupture${breaks.length > 1 ? "s" : ""} non résolue${breaks.length > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
+            }
+            // Commande bloquée depuis X jours
+            if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
+              const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
+              if (days >= 7) {
+                alerts.push({ tone: days >= 14 ? "red" : "amber", title: `Commande bloquée depuis ${days} jours`, text: `Statut actuel : ${status}. Relancez le flux.` });
+              }
+            }
+            // Livraison partielle en cours
+            const partial = (articles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity);
+            if (partial.length > 0) {
+              alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partial.length} article(s) partiellement livré(s).` });
+            }
+
+            if (alerts.length === 0) return null;
+            const toneClass = (t: "red" | "amber" | "blue") =>
+              t === "red" ? "bg-red-50 border-red-300 text-red-800"
+              : t === "amber" ? "bg-amber-50 border-amber-300 text-amber-800"
+              : "bg-blue-50 border-blue-300 text-blue-800";
+            return (
+              <div className="space-y-2">
+                {alerts.map((a, i) => (
+                  <div key={i} className={`border rounded-lg p-3 flex items-start gap-2 ${toneClass(a.tone)}`}>
+                    <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <div className="font-bold">{a.title}</div>
+                      <div className="mt-0.5">{a.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Stats paiements */}
           {payments.length > 0 && (
