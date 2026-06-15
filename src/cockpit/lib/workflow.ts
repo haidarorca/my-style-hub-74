@@ -286,3 +286,61 @@ export function fmtDateTime(iso: string | null | undefined): string {
     return "—";
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   RÈGLES DE PROGRESSION v3 — bloquent les transitions dangereuses
+   ═══════════════════════════════════════════════════════════════ */
+
+export interface ProgressionCheck {
+  ok: boolean;
+  reasons: string[];
+}
+
+/** Bloque le passage à `preparing` s'il reste une rupture non résolue. */
+export function canMarkPreparing(articles: OrderArticle[] | undefined): ProgressionCheck {
+  const reasons: string[] = [];
+  const unresolved = (articles ?? []).filter(a => a.stock_break && !a.stock_break.resolved);
+  if (unresolved.length > 0) reasons.push(`${unresolved.length} rupture(s) non résolue(s)`);
+  return { ok: reasons.length === 0, reasons };
+}
+
+/** Bloque l'expédition s'il n'y a rien à expédier. wait_restock n'empêche PAS shipped. */
+export function canMarkShipped(articles: OrderArticle[] | undefined): ProgressionCheck {
+  const reasons: string[] = [];
+  const list = articles ?? [];
+  const unresolved = list.filter(a => a.stock_break && !a.stock_break.resolved);
+  if (unresolved.length > 0) reasons.push(`${unresolved.length} rupture(s) non résolue(s)`);
+  const shippable = list.filter(a => ["ready", "available", "received"].includes(a.status)
+    && !(a.stock_break?.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(a.stock_break.action)));
+  if (list.length > 0 && shippable.length === 0) reasons.push("Aucun article prêt à expédier");
+  return { ok: reasons.length === 0, reasons };
+}
+
+/** Bloque la livraison finale tant que des articles ne sont pas livrés,
+    qu'une rupture est en cours, qu'un article attend réappro, ou qu'un
+    `*_pending` financier n'est pas traité. */
+export function canMarkDelivered(articles: OrderArticle[] | undefined): ProgressionCheck {
+  const reasons: string[] = [];
+  const list = articles ?? [];
+
+  const unresolved = list.filter(a => a.stock_break && !a.stock_break.resolved);
+  if (unresolved.length > 0) reasons.push(`${unresolved.length} rupture(s) non résolue(s)`);
+
+  const waiting = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock");
+  if (waiting.length > 0) reasons.push(`${waiting.length} article(s) en attente de réappro`);
+
+  const undelivered = list.filter(a => {
+    const sb = a.stock_break;
+    const excluded = sb?.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(sb.action);
+    if (excluded) return false;
+    return (a.delivered_qty ?? 0) < a.quantity;
+  });
+  if (undelivered.length > 0) reasons.push(`${undelivered.length} article(s) à livrer`);
+
+  const pending = getPendingFinancialActions(list);
+  if (pending.refundPending > 0) reasons.push(`Remboursement à traiter : ${pending.refundPending.toLocaleString("fr-FR")} FCFA`);
+  if (pending.creditPending > 0) reasons.push(`Crédit à traiter : ${pending.creditPending.toLocaleString("fr-FR")} FCFA`);
+  if (pending.extraPaymentPending > 0) reasons.push(`Complément à encaisser : ${pending.extraPaymentPending.toLocaleString("fr-FR")} FCFA`);
+
+  return { ok: reasons.length === 0, reasons };
+}
