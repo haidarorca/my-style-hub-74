@@ -9,20 +9,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Layers, Home } from "lucide-react";
-import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep } from "@/cockpit/lib/workflow";
+import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
-import { Timeline } from "./Timeline";
+import { OrderAuditTimeline } from "./OrderAuditTimeline";
+import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
-import { getNextActionForOrder } from "@/cockpit/lib/article-states";
-import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
+import { getNextActionForOrder, getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
+import type { StockBreakSubmit } from "./StockBreakDialog";
 
 interface OrderFinancials {
   productTotal: number;
