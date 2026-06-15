@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Package, ChevronRight, AlertTriangle, CheckCircle2,
-  CircleDot, Ban, ArrowDownToLine, ShieldAlert, RefreshCw,
+  CircleDot, Ban, ArrowDownToLine, ShieldAlert,
 } from "lucide-react";
 import {
   ARTICLE_STATUS_COLORS, getOrderMixType, STOCK_BREAK_ACTIONS,
