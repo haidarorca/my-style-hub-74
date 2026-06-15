@@ -193,3 +193,40 @@ La matrice §4 a 15 lignes aujourd'hui. Dans 1 an elle en aura 40. **Recommandat
 3. **Matrice** : codée en dur (rapide) ou stockée en DB (recommandé, extensible) ?
 
 Réponds sur ces 3 points et je rédige le plan technique Phase 1 + 2 prêt à exécuter.
+
+---
+
+## 10. Phase 1.5 — Suppression MIXTE + sub_order = unité principale (FAIT)
+
+Arbitrages utilisateur :
+- Multi-boutiques : 1 commande client → N sub_orders indépendantes.
+- "MIXTE" supprimé du Cockpit (badges, workflow, accordéon double).
+- Libellé "KZ-XXXXXX · i/N" pour chaque sub_order.
+- Si boutique supprimée (`vendor_id = unknown`) : badge "Boutique supprimée" + historique conservé.
+- Frais multi-expéditions : politique non figée (Phase 3).
+- UX client : inchangée (1 commande visible).
+
+Changements appliqués :
+- `lib/orderNumbers.ts` : `formatSubOrderLabel(orderId, i, n)` → "KZ-… · i/n".
+- `lib/sub-orders.ts` : retiré `is_mixed`, ajouté `kind` ("local"/"import"/"local_and_import"), `index`, `total`, `label`. Tri inchangé (bloquants → règlements → ready → reste).
+- `components/SubOrdersPanel.tsx` : libellé i/N, badge "Boutique supprimée", prop `alwaysShow` (panel rendu même pour 1 sub_order quand demandé).
+- `components/OrderDrawer.tsx` : retiré badge MIXTE + `isMixte`. Badge "Multi-boutiques" dynamique. `WorkflowControlPanel` masqué si multi-boutiques (sera remplacé par 1 panel par sub_order en Phase 2).
+- `components/WorkflowControlPanel.tsx` : retiré prop `isMixte` + branche double accordéon.
+- `components/OrderCard.tsx` : retiré badge MIXTE, ajouté badge dynamique "N boutiques".
+- `components/ArticlesPanel.tsx` : retiré badge MIXTE de l'en-tête + import `getOrderMixType`.
+
+Briques MIXTE restantes (à nettoyer dans des passes ciblées, pas bloquantes) :
+- `Dashboard.tsx` onglet "mixte" (sera remplacé par buckets d'actions Phase 4).
+- `routes/admin.logistics.tsx`, `admin.orders.tsx`, `admin.index.tsx` (badges MIXTE legacy).
+- `WorkflowFilterPanel.tsx`, `use-workflow-filters.ts` (filtre "mixed").
+- `cockpit-payments.functions.ts` (`getOrderTypesBatch` → renommer en `getOrderSubOrdersBatch` Phase 2).
+- `MiniTimeline.tsx` (`WORKFLOW_MIXED` non utilisé en pratique).
+- `article-states.ts` (`getOrderMixType` plus appelé dans le Cockpit — peut être supprimé en sécurité).
+- Types `OrderType = "mixed"` dans `admin1/types`, `admin-logistics.functions`, `types/workflow`.
+
+## 11. Phase 2 — Sub_order pilote son propre workflow (à venir)
+
+Objectif : quand `isMultiVendor`, le drawer affiche 1 `WorkflowControlPanel` par sub_order (avec son statut, son type, son next_step). Implique :
+- Étendre `DerivedSubOrder` avec `status` propre (initialement = statut de la mère).
+- Découpler les actions `onStatusChange` au niveau sub_order (handlers contextuels).
+- Préparer la migration `sub_orders` DB (Phase 3) pour que ce statut devienne persistant.

@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Layers, Home } from "lucide-react";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home } from "lucide-react";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
@@ -87,16 +87,16 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
-  // ─── Type réel de la commande : SEULE source de vérité = articles (is_import / is_local).
-  // Si articles non encore chargés, fallback prudent sur shipping_service_id.
+  // ─── Type réel : déterminé par les articles (is_import / is_local).
+  // Le concept MIXTE disparaît au niveau commande — c'est par sub_order désormais.
   const hasLocal = !!articles && articles.some(a => a.is_local);
   const hasImport = !!articles && articles.some(a => a.is_import);
-  const isMixte = !!articles && hasLocal && hasImport;
   const isLocalOrder = !!articles && hasLocal && !hasImport;
   const isImportOrder = !!articles && !hasLocal && hasImport;
   const isImportFallback = !articles && isImport(order);
-  // `imp` = workflow import (mixte aussi traversent le flux import pour la partie importée)
-  const imp = isMixte || isImportOrder || isImportFallback;
+  const isMultiVendor = !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
+  // `imp` = workflow import global (utile pour la légende ; les sub_orders ont leur propre type)
+  const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
@@ -122,10 +122,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div className="space-y-1">
               <SheetTitle className="text-xl">{kz}</SheetTitle>
               <div className="font-mono text-[11px] text-gray-400">{tech}</div>
-              <div className="flex gap-2 pt-1 flex-wrap">
-                {isMixte ? (
-                  <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-indigo-50 to-emerald-50 text-indigo-700 border-indigo-200 font-bold">
-                    <Layers className="h-3 w-3 mr-1" />MIXTE
+              <div className="flex gap-2 pt-1 flex-wrap items-center">
+                {isMultiVendor ? (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
+                    Multi-boutiques
                   </Badge>
                 ) : isLocalOrder ? (
                   <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">LOCAL</Badge>
@@ -140,24 +140,32 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
           <AggregateDebugPanel articles={articles} orderStatus={status} />
 
-          {/* ─── ★ Phase 1 ★ Split par vendeur (vue dérivée, zéro SQL) ─── */}
-          <SubOrdersPanel articles={articles} orderStatus={status} />
+          {/* ─── Sous-commandes par boutique — unité opérationnelle principale ─── */}
+          <SubOrdersPanel
+            articles={articles}
+            orderStatus={status}
+            motherOrderId={order.order_id ?? undefined}
+            alwaysShow={isMultiVendor}
+          />
 
           {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
           {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Centre de contrôle du workflow (Option B) ─── */}
-          <WorkflowControlPanel
-            orderId={order.order_id ?? undefined}
-            status={status}
-            isImport={!!(isImportOrder || isImportFallback)}
-            isLocal={!!isLocalOrder}
-            isMixte={isMixte}
-            articles={articles}
-            onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
-          />
+          {/* ─── Centre de contrôle du workflow ───
+              Masqué quand multi-boutiques : chaque sub_order aura son propre workflow.
+              (Phase 2 : 1 WorkflowControlPanel par sub_order.) */}
+          {!isMultiVendor && (
+            <WorkflowControlPanel
+              orderId={order.order_id ?? undefined}
+              status={status}
+              isImport={!!(isImportOrder || isImportFallback)}
+              isLocal={!!isLocalOrder}
+              articles={articles}
+              onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
+            />
+          )}
 
           {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
           <PartialDeliveryBanner articles={articles} aggregate={agg} />

@@ -134,3 +134,11 @@ export function preloadOrderNumbers(orderIds: string[]): Record<string, string> 
 
   return map;
 }
+
+/** Libellé d'une sous-commande : "KZ-000101 · 1/3".
+ *  Si total <= 1 (commande mono-boutique), retourne juste le numéro KZ. */
+export function formatSubOrderLabel(orderId: string, index: number, total: number): string {
+  const kz = getOrderNumber(orderId);
+  if (total <= 1) return kz;
+  return `${kz} · ${index}/${total}`;
+}

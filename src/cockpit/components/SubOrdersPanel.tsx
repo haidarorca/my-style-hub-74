@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
-// SubOrdersPanel — Vue dérivée par boutique/vendeur (Phase 1).
+// SubOrdersPanel — Vue par sous-commande boutique (Phase 1.5).
 //
-// Affiche la mother_order décomposée en sub_orders, une carte
-// par vendeur. Aucune écriture — purement de la lecture.
-// Objectif : valider l'UX du split avant migration SQL.
+// Devient l'unité principale d'affichage : une carte par vendeur,
+// avec son workflow propre, ses compteurs propres, sa next_action.
+// Le concept MIXTE disparaît au profit du libellé "KZ-XXX · i/N".
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo } from "react";
-import { Store, Package, AlertTriangle, Wallet, CheckCircle2, Layers } from "lucide-react";
+import { Store, Package, AlertTriangle, Wallet, CheckCircle2, Layers, Ban } from "lucide-react";
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { NEXT_ACTION_LABELS } from "@/cockpit/lib/order-aggregate";
@@ -16,27 +16,36 @@ import type { OrderArticle } from "@/cockpit/lib/article-states";
 interface Props {
   articles: OrderArticle[] | undefined | null;
   orderStatus?: string;
+  motherOrderId?: string;
+  /** Affiche le panel même quand il n'y a qu'une seule sub_order. */
+  alwaysShow?: boolean;
 }
 
-export function SubOrdersPanel({ articles, orderStatus }: Props) {
-  const subs = useMemo(() => deriveSubOrders(articles, orderStatus), [articles, orderStatus]);
+export function SubOrdersPanel({ articles, orderStatus, motherOrderId, alwaysShow = false }: Props) {
+  const subs = useMemo(
+    () => deriveSubOrders(articles, orderStatus, motherOrderId),
+    [articles, orderStatus, motherOrderId],
+  );
 
   if (subs.length === 0) return null;
-  // Pas d'intérêt à afficher le panel si un seul vendeur : pas de split à visualiser.
-  if (subs.length === 1) return null;
+  if (!alwaysShow && subs.length === 1) return null;
 
   return (
     <div className="bg-white border-2 border-indigo-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-1.5">
         <Layers className="h-4 w-4 text-indigo-600" />
         <h3 className="text-sm font-bold text-indigo-900">
-          Split par vendeur — {subs.length} sous-commandes
+          {subs.length > 1
+            ? `${subs.length} sous-commandes boutiques`
+            : "Sous-commande boutique"}
         </h3>
       </div>
-      <p className="text-[10px] text-gray-500 leading-snug">
-        Vue dérivée (zéro SQL). Le client voit 1 commande, mais opérationnellement
-        ce sont {subs.length} flux indépendants.
-      </p>
+      {subs.length > 1 && (
+        <p className="text-[10px] text-gray-500 leading-snug">
+          Le client voit 1 commande. Opérationnellement : {subs.length} flux indépendants,
+          chacun avec son propre workflow et ses propres actions.
+        </p>
+      )}
 
       <div className="space-y-2 pt-1">
         {subs.map((s) => {
@@ -45,6 +54,7 @@ export function SubOrdersPanel({ articles, orderStatus }: Props) {
           const money = a.pending_money.total_abs > 0;
           const ready = a.flags.can_ship_today;
           const done = a.flags.all_delivered;
+          const vendorDeleted = s.vendor_id === "unknown";
 
           const toneBorder =
             blocked ? "border-red-300 bg-red-50"
@@ -53,20 +63,40 @@ export function SubOrdersPanel({ articles, orderStatus }: Props) {
             : done ? "border-gray-200 bg-gray-50"
             : "border-slate-200 bg-white";
 
+          const kindLabel =
+            s.kind === "local" ? "LOCAL"
+            : s.kind === "import" ? "IMPORT"
+            : "LOCAL + IMPORT";
+          const kindClass =
+            s.kind === "local" ? "bg-emerald-100 text-emerald-700"
+            : s.kind === "import" ? "bg-indigo-100 text-indigo-700"
+            : "bg-slate-100 text-slate-700";
+
           return (
             <div key={s.vendor_id} className={`border rounded-lg p-2.5 ${toneBorder}`}>
-              {/* Header sub_order */}
+              {/* Header sub_order : KZ-XXX · i/N + nom boutique */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-1.5 min-w-0">
                   <Store className="h-3.5 w-3.5 text-gray-600 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold truncate">{s.vendor_name}</div>
-                    <div className="text-[10px] text-gray-500">
-                      {s.is_mixed ? "mixte" : s.is_import_only ? "import" : "local"}
-                      {" · "}
-                      {s.financials.article_count} art.
-                      {" · "}
-                      {fmtF(s.financials.product_total)}
+                    <div className="font-mono text-[10px] font-bold text-gray-500">{s.label}</div>
+                    <div className="text-xs font-bold truncate flex items-center gap-1 flex-wrap">
+                      <span className="truncate">{s.vendor_name}</span>
+                      {vendorDeleted && (
+                        <span className="text-[8px] uppercase font-bold bg-gray-700 text-white px-1 py-0.5 rounded inline-flex items-center gap-0.5">
+                          <Ban className="h-2.5 w-2.5" />
+                          Boutique supprimée
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5 flex-wrap">
+                      <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${kindClass}`}>
+                        {kindLabel}
+                      </span>
+                      <span>·</span>
+                      <span>{s.financials.article_count} art.</span>
+                      <span>·</span>
+                      <span>{fmtF(s.financials.product_total)}</span>
                     </div>
                   </div>
                 </div>
