@@ -4,10 +4,11 @@
 // la commande dans son cycle de vie.
 // ═══════════════════════════════════════════════════════════════
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
+import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
 import { useAuth } from "@/hooks/use-auth";
 import { KpiCards } from "@/cockpit/components/KpiCards";
 import { OrderCard } from "@/cockpit/components/OrderCard";
@@ -22,8 +23,7 @@ import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
-import { getOrderItems } from "@/lib/cockpit-payments.functions";
-import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
+import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
 
 // ─── Config tri ───
 type SortField = "date" | "amount" | "name" | "status";
@@ -68,7 +68,6 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [selectedArticles, setSelectedArticles] = useState<OrderArticle[] | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "mixte" | "archive">("actions");
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
@@ -102,127 +101,117 @@ export default function CockpitDashboard() {
   const [editingPay, setEditingPay] = useState<string | null>(null);
   const [editPayForm, setEditPayForm] = useState<{ amount: string; method: string; reference: string }>({ amount: "", method: "wave", reference: "" });
 
-  // ─── Charger les articles quand une commande est sélectionnée ───
-  useEffect(() => {
-    if (!selectedOrder) {
-      setSelectedArticles(undefined);
-      return;
-    }
-    const orderId = selectedOrder.order_id ?? "";
-    if (!orderId) return;
+  // ═══════════════════════════════════════════════════════════════
+  // ARTICLE STATES — persistance réelle (order_article_states)
+  // Article = source de vérité métier · Commande = agrégat calculé.
+  // ═══════════════════════════════════════════════════════════════
+  const articlesHook = useArticleStates(
+    selectedOrder?.order_id ?? null,
+    selectedOrder?.logistics_status ?? undefined
+  );
+  const selectedArticles = selectedOrder ? articlesHook.articles : undefined;
 
-    getOrderItems({ data: { order_id: orderId } })
-      .then((result: any) => {
-        if (result?.items && result.items.length > 0) {
-          // Convertir les items du serveur en OrderArticle
-          // Le backend DÉTERMINE is_import/is_local — on utilise SES valeurs sans fallback
-          const rawItems = result.items ?? [];
-          const arts: OrderArticle[] = rawItems.map((it: any, idx: number) => ({
-            product_id: it.product_id ?? `prod_${idx}`,
-            product_name: it.product_name ?? "Produit",
-            product_image: it.product_image ?? null,
-            variant_id: it.variant_id ?? null,
-            variant_label: it.variant_label ?? null,
-            size: it.size ?? null,
-            color: it.color ?? null,
-            quantity: it.quantity ?? 1,
-            unit_price: it.unit_price ?? 0,
-            line_total: it.line_total ?? 0,
-            status: "pending" as ArticleStatus,
-            // PAS DE FALLBACK : si le backend ne renvoie pas is_import/is_local,
-            // c'est false par défaut. Le backend est la seule source de vérité.
-            is_import: it.is_import ?? false,
-            is_local: it.is_local ?? false,
-            vendor_id: it.shop_id ?? null,
-            vendor_name: it.owner_name ?? it.shop_name ?? null,
-            shop_type_label: it.shop_type_label ?? null,
-            origin_country: it.origin_country ?? null,
-            origin_country_flag: it.origin_country_flag ?? null,
-          }));
-          setSelectedArticles(arts);
-        } else {
-          // Aucun article en base : tableau vide (pas de synthétique biaisé)
-          setSelectedArticles([]);
-        }
-      })
-      .catch(() => setSelectedArticles([]));
-  }, [selectedOrder]);
-
-  // ─── Handlers gestion article par article ───
+  // ─── Handlers article-centric (persistent en DB via upsertArticleState) ───
   const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    setSelectedArticles(prev => prev?.map(a => {
-      if (a.product_id !== productId) return a;
-      // Mémorise le statut valide AVANT la rupture pour les sous-flux qui peuvent reprendre (wait_restock).
-      const last_valid_status = a.status !== "no_stock" ? a.status : a.stock_break?.last_valid_status;
-      return {
-        ...a,
-        status: "no_stock" as ArticleStatus,
-        stock_break: {
-          reason: data.reason,
-          action: data.action,
-          action_label: data.action,
-          resolved: true, // dialog admin = décision posée immédiatement
-          created_at: new Date().toISOString(),
-          last_valid_status,
-        },
-      };
-    }));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const last_valid_status = art.status !== "no_stock" ? art.status : art.stock_break?.last_valid_status;
+    const decision: StockBreakDecision = {
+      reason: data.reason,
+      action: data.action,
+      action_label: data.action,
+      resolved: true,
+      created_at: new Date().toISOString(),
+      last_valid_status,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status: "no_stock", stock_break: decision },
+      audit_action: `stock_break.${data.action}`,
+      expected_version: art.version,
+    });
+    setHasChanges(true);
+  }, [selectedArticles, articlesHook]);
 
   // ─── Reprise après réappro : restaure le statut mémorisé ou fallback type, marque resumed_at ───
   const handleResumeRestock = useCallback((productId: string) => {
-    setSelectedArticles(prev => prev?.map(a => {
-      if (a.product_id !== productId || !a.stock_break || a.stock_break.action !== "wait_restock") return a;
-      const memorized = a.stock_break.last_valid_status;
-      const fallback: ArticleStatus = a.is_import ? "received" : "available";
-      const target: ArticleStatus = memorized ?? fallback;
-      return {
-        ...a,
-        status: target,
-        stock_break: {
-          ...a.stock_break,
-          resumed_at: new Date().toISOString(),
-          resumed_by: adminName,
-        },
-      };
-    }));
-  }, [adminName]);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art || !art.stock_break || art.stock_break.action !== "wait_restock") return;
+    const memorized = art.stock_break.last_valid_status;
+    const fallback: ArticleStatus = art.is_import ? "received" : "available";
+    const target: ArticleStatus = memorized ?? fallback;
+    const newSb: StockBreakDecision = {
+      ...art.stock_break,
+      resumed_at: new Date().toISOString(),
+      resumed_by: adminName,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status: target, stock_break: newSb },
+      audit_action: "stock_break.resume_restock",
+      expected_version: art.version,
+    });
+    setHasChanges(true);
+  }, [selectedArticles, articlesHook, adminName]);
 
   const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId ? { ...a, status } : a
-    ));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status },
+      audit_action: `status.${status}`,
+      expected_version: art.version,
+    });
+    setHasChanges(true);
+  }, [selectedArticles, articlesHook]);
 
   const handlePartialDeliver = useCallback((productId: string, qty: number) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId
-        ? { ...a, delivered_qty: (a.delivered_qty ?? 0) + qty, status: ((a.delivered_qty ?? 0) + qty) >= a.quantity ? "delivered" as ArticleStatus : a.status }
-        : a
-    ));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const newDelivered = (art.delivered_qty ?? 0) + qty;
+    const fullyDelivered = newDelivered >= art.quantity;
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: {
+        delivered_qty: newDelivered,
+        status: fullyDelivered ? "delivered" : art.status,
+      },
+      audit_action: "partial_deliver",
+      expected_version: art.version,
+    });
+    setHasChanges(true);
+  }, [selectedArticles, articlesHook]);
 
-  // ─── Settlement financier (lève le pending refund / credit / extra_payment) ───
-  const handleSettleFinancial = useCallback((productId: string, data: { kind: "refund" | "credit" | "extra_payment"; amount: number; method?: string; reference?: string; note?: string }) => {
-    setSelectedArticles(prev => prev?.map(a => {
-      if (a.product_id !== productId || !a.stock_break) return a;
-      return {
-        ...a,
-        stock_break: {
-          ...a.stock_break,
-          settlement: {
-            kind: data.kind,
-            amount: data.amount,
-            method: data.method,
-            reference: data.reference,
-            note: data.note,
-            by: adminName,
-            at: new Date().toISOString(),
-          },
-        },
-      };
-    }));
-  }, [adminName]);
+  // ─── Settlement financier TOP-LEVEL (séparé de stock_break) ───
+  // À utiliser UNIQUEMENT si requiresSettlement(article) est vrai.
+  const handleSettleFinancial = useCallback((productId: string, data: { type: Settlement["type"]; amount: number; cost_attribution: Settlement["cost_attribution"]; method?: string; reference?: string; note?: string; shared_split?: Settlement["shared_split"] }) => {
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const settlement: Settlement = {
+      type: data.type,
+      amount: data.amount,
+      cost_attribution: data.cost_attribution,
+      shared_split: data.shared_split,
+      method: data.method,
+      reference: data.reference,
+      note: data.note,
+      processed_at: new Date().toISOString(),
+      processed_by: adminName,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { settlement },
+      audit_action: `settlement.${data.type}`,
+      expected_version: art.version,
+    });
+    setHasChanges(true);
+  }, [selectedArticles, articlesHook, adminName]);
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];

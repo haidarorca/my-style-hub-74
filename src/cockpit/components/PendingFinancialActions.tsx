@@ -12,9 +12,13 @@ import {
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 
+/** Shape envoyé au handler Dashboard — aligné sur le top-level `OrderArticle.settlement`. */
 export interface SettlementInput {
-  kind: "refund" | "credit" | "extra_payment";
+  type: "refund" | "credit" | "complement";
   amount: number;
+  /** Choisi cas par cas au moment du règlement (jamais à la rupture). */
+  cost_attribution: "kawzone" | "vendor" | "shared";
+  shared_split?: { kawzone: number; vendor: number };
   method?: string;
   reference?: string;
   note?: string;
@@ -156,6 +160,8 @@ function SettlementForm({
   const [method, setMethod] = useState<string>("cash");
   const [reference, setReference] = useState<string>("");
   const [note, setNote] = useState<string>("");
+  // Choix cost_attribution au règlement (cas par cas — jamais à la rupture)
+  const [costAttr, setCostAttr] = useState<SettlementInput["cost_attribution"]>("kawzone");
 
   const amountNum = parseFloat(amt) || 0;
   const isExtra = kind === "extra_payment_pending";
@@ -164,10 +170,12 @@ function SettlementForm({
 
   const submit = () => {
     if (!valid) return;
-    const sKind: SettlementInput["kind"] = isCredit ? "credit" : isExtra ? "extra_payment" : "refund";
+    // Mapping pending → type top-level (extra_payment_pending → complement)
+    const sType: SettlementInput["type"] = isCredit ? "credit" : isExtra ? "complement" : "refund";
     onConfirm({
-      kind: sKind,
+      type: sType,
       amount: amountNum,
+      cost_attribution: costAttr,
       method: isCredit ? undefined : method,
       reference: reference.trim() || undefined,
       note: note.trim() || undefined,
@@ -208,6 +216,17 @@ function SettlementForm({
           placeholder={isCredit ? "Ex: AV-2026-0042" : "Ex: TXN-123"}
           className="w-full h-10 border rounded-lg px-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
         />
+      </div>
+      <div>
+        <label className="text-[11px] font-semibold text-gray-700 block mb-1">Qui supporte le coût ?</label>
+        <select
+          value={costAttr} onChange={e => setCostAttr(e.target.value as SettlementInput["cost_attribution"])}
+          className="w-full h-10 border rounded-lg px-2 text-sm bg-white"
+        >
+          <option value="kawzone">Kawzone</option>
+          <option value="vendor">Vendeur</option>
+          <option value="shared">Partagé</option>
+        </select>
       </div>
       <div>
         <label className="text-[11px] font-semibold text-gray-700 block mb-1">Note (optionnel)</label>

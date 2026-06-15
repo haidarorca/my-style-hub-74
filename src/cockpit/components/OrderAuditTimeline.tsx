@@ -112,19 +112,22 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
             by: o.by, icon: ShieldAlert, tone: "amber",
           });
         }
-        if (sb.settlement) {
-          const s = sb.settlement;
+        // Settlement (exécution financière) — TOP-LEVEL sur l'article, séparé de stock_break.
+        if (art.settlement) {
+          const s = art.settlement;
           const lbl =
-            s.kind === "refund" ? `Remboursement validé · ${fmtF(s.amount)}`
-            : s.kind === "credit" ? `Avoir émis · ${fmtF(s.amount)}`
-            : `Complément encaissé · ${fmtF(s.amount)}`;
+            s.type === "refund" ? `Remboursement validé · ${fmtF(s.amount)}`
+            : s.type === "credit" ? `Avoir émis · ${fmtF(s.amount)}`
+            : s.type === "complement" ? `Complément encaissé · ${fmtF(s.amount)}`
+            : `Règlement · ${fmtF(s.amount)}`;
           const subParts: string[] = [art.product_name];
           if (s.method) subParts.push(`${PAYMENT_METHOD_LABELS[s.method] ?? s.method}`);
+          if (s.cost_attribution) subParts.push(`charge: ${s.cost_attribution}`);
           if (s.reference) subParts.push(s.reference);
           if (s.note) subParts.push(s.note);
           out.push({
-            date: s.at, label: lbl, sub: subParts.join(" · "),
-            by: s.by, icon: CheckCircle, tone: "emerald",
+            date: s.processed_at, label: lbl, sub: subParts.join(" · "),
+            by: s.processed_by, icon: CheckCircle, tone: "emerald",
           });
         }
         // Reprise après réappro (wait_restock)
