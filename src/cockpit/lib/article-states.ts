@@ -350,8 +350,11 @@ export function canChangeArticleStatus(article: OrderArticle, orderStatus?: stri
 export function canPartialDeliver(article: OrderArticle, orderStatus?: string): boolean {
   if (isArticleLocked(article, orderStatus)) return false;
   const sb = article.stock_break;
-  // Décisions qui excluent du colis
-  if (sb && sb.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(sb.action)) return false;
+  // Décisions qui excluent du colis (wait_restock NON repris = exclu)
+  if (sb && sb.resolved) {
+    if (["partial_ship", "refund", "credit"].includes(sb.action)) return false;
+    if (sb.action === "wait_restock" && !sb.resumed_at) return false;
+  }
   if ((article.delivered_qty ?? 0) >= article.quantity) return false;
   return ["ready", "available", "received"].includes(article.status);
 }
@@ -360,11 +363,16 @@ export function canPartialDeliver(article: OrderArticle, orderStatus?: string): 
 export function canResumeFromRestock(article: OrderArticle, orderStatus?: string): boolean {
   if (isOrderLocked(orderStatus)) return false;
   const sb = article.stock_break;
-  return !!(sb && sb.resolved && sb.action === "wait_restock");
+  return !!(sb && sb.resolved && sb.action === "wait_restock" && !sb.resumed_at);
 }
 
-/** Statut cible quand on reprend après réappro (selon type article). */
+/** Statut cible quand on reprend après réappro : statut mémorisé OU fallback selon type. */
 export function getResumeTargetStatus(article: OrderArticle): ArticleStatus {
+  const memorized = article.stock_break?.last_valid_status;
+  if (memorized) {
+    const flow = getArticleFlow(article);
+    if (flow.includes(memorized)) return memorized;
+  }
   return article.is_import ? "received" : "available";
 }
 
