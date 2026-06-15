@@ -17,6 +17,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 export interface OrderWithAggregate {
   order: LogisticsOrderRow;
   aggregate: OrderAggregate | null;  // null tant que les articles ne sont pas chargés
+  articles: import("@/cockpit/lib/article-states").OrderArticle[];
   isLoading: boolean;
 }
 
@@ -59,16 +60,21 @@ export function useOrderAggregatesBatch(orders: LogisticsOrderRow[], max = 60): 
           const row = states.find(r => r.product_id === it.product_id && (r.variant_id ?? null) === (it.variant_id ?? null));
           return mergeRow(it, row, o.logistics_status ?? undefined);
         });
-        return aggregateOrder(articles, o.logistics_status ?? undefined);
+        const aggregate = aggregateOrder(articles, o.logistics_status ?? undefined);
+        return { articles, aggregate };
       },
       enabled: !!o.order_id,
       staleTime: 30_000,
     })),
   });
 
-  return scoped.map((o, i) => ({
-    order: o,
-    aggregate: (queries[i]?.data ?? null) as OrderAggregate | null,
-    isLoading: !!queries[i]?.isLoading,
-  }));
+  return scoped.map((o, i) => {
+    const data = queries[i]?.data as { articles: import("@/cockpit/lib/article-states").OrderArticle[]; aggregate: OrderAggregate } | undefined;
+    return {
+      order: o,
+      aggregate: data?.aggregate ?? null,
+      articles: data?.articles ?? [],
+      isLoading: !!queries[i]?.isLoading,
+    };
+  });
 }

@@ -33,46 +33,38 @@ KZ-000101  (vue agrégée)
 4. **Paiement** : reste sur la mère (un seul `PaymentForm` accessible depuis chaque drawer, en lecture+action).
 5. **Workflow** : 1 `WorkflowControlPanel` par drawer (la boutique = unité de pilotage).
 
-## Chantier (Phase 2)
+## Phase 2 — LIVRÉE
 
-### Étape A — Modèle "ligne = sub_order" en mémoire
-- Nouveau hook `useSubOrderRows()` : à partir de `useRealOrders()`, déplie chaque commande en N lignes `SubOrderRow` (1 par vendor). Pure dérivation, zéro SQL.
-- Type `SubOrderRow` = `DerivedSubOrder` enrichi des champs nécessaires à la liste (customer, mother totals lecture seule, `mother_order_id`, `siblings: {label, vendor_id}[]`).
+### Livré
+- `useOrderAggregatesBatch` expose désormais `articles` (en plus de `aggregate`).
+- Nouveau hook `useSubOrderRows()` → produit N `SubOrderRow` par commande (1 par vendeur), avec `mother_order_id`, `siblings`, `kind` (LOCAL/IMPORT/MIX), KPI, libellé `KZ-000101 · 2/3`.
+- Nouveau `SubOrderCard` (carte d'une sous-commande dans une liste).
+- Nouveau `RelatedSubOrdersStrip` (chips de navigation vers les boutiques sœurs).
+- `PipelineView` accepte `subRows` et `onSelectSubRow` : en mode sub, chaque colonne affiche 1 carte par boutique (label `KZ-XXX · i/N`, vendeur, kind, KPI scopés).
+- `OrderDrawer` accepte `vendorId` + `onVendorChange` :
+  - Articles, workflow, agrégat, alertes et finances pro-rata scopés à la boutique sélectionnée.
+  - Header : `KZ-000101 · 2/3 — Boutique B` + badge "Sous-commande boutique".
+  - `RelatedSubOrdersStrip` en haut pour naviguer vers `1/3`, `3/3` sans fermer le drawer.
+  - L'ancien `SubOrdersPanel` interne n'apparaît plus quand on est scopé.
+- `Dashboard` :
+  - Tracks `selectedVendorId` (reset sur cancel/close).
+  - `useSubOrderRows(orders)` → injecté dans `PipelineView`.
+  - `onSelectSubRow` → ouvre le drawer scopé à la boutique cliquée.
+  - Ancien `openOrder()` (sans scope) conservé pour les vues legacy (postes, list).
 
-### Étape B — Liste Cockpit
-- `OrderCard.tsx` → `SubOrderCard.tsx` (ou même fichier, props adaptées). Affiche `label` (`KZ-000101 · 2/3`), nom boutique, kind (LOCAL/IMPORT), KPI de la sub-order uniquement.
-- `CockpitNext.tsx` / `PipelineView.tsx` : itèrent sur `subOrderRows` au lieu de `orders`.
-- Buckets / onglets recalculés sur la sub-order (pas sur la mère).
-- Filtres : retirer `mixed`, ajuster compteurs.
+### Effets pour l'admin
+- Pipeline : `KZ-000101` apparaît en 3 cartes distinctes (1 par boutique) au lieu d'une seule.
+- Clic sur une carte → drawer ne contient QUE les articles/workflow de cette boutique.
+- Navigation entre sœurs via chips, sans rechargement.
 
-### Étape C — Drawer scopé sub-order
-- `OrderDrawer.tsx` : accepte `{ motherOrderId, vendorId }` au lieu d'`orderId` seul.
-- Charge la mère, filtre `articles` au `vendor_id` reçu, dérive UNE sub-order.
-- Supprime `SubOrdersPanel` (plus de liste interne).
-- 1 seul `WorkflowControlPanel` (celui de la boutique courante).
-- `ArticlesPanel` : articles de la boutique uniquement.
-- Header : `KZ-000101 · 2/3 — Boutique B`.
-- Nouveau composant `RelatedSubOrdersStrip` : chips cliquables vers les sœurs, met à jour `vendorId` dans le drawer (pas de fermeture).
-- Bloc finances mère en lecture seule (montant total commande, payé, solde) + lien "Paiement client" qui ouvre la modal `PaymentForm` (action sur la mère).
+## Phase 3 — à venir
+- Soft-delete vendeur + snapshots `vendor_name_snapshot`.
+- Suppression complète du concept MIXTE (badge, filtres, `getOrderTypesBatch`, onglet "Mixte").
+- Workflow 1-per-vendor également dans les vues "postes" (Confirmer, Peser, Encaisser).
 
-### Étape D — Nettoyage final MIXTE
-- Recherche `rg -i "mixte|mixed|is_mixed|OrderMixType|WORKFLOW_MIXED"` → suppression. Adaptation des types `OrderType`, `OrderTypeBadge`.
-- `getOrderTypesBatch` / `orderTypeMap` : supprimés ou remplacés par dérivation sub-order.
-
-### Étape E — Audit / vérif
-- Build vert.
-- Playwright : ouvrir Cockpit, vérifier que `KZ-000101` apparaît en 3 lignes, ouvrir `2/3`, vérifier le drawer ne contient QUE Boutique B, cliquer sur chip `1/3` → drawer recharge sur A.
-
-## Hors scope (phases ultérieures)
-
-- Soft-delete vendeur + snapshots `vendor_name_snapshot` (Phase 3).
-- Panneau rentabilité par article (Phase 4).
-- Frais d'expédition multi-colis flexible (Phase 4).
+## Phase 4
+- Panneau rentabilité par article (coût, prix vendu, marge, commission, bénéfice).
+- Frais d'expédition multi-colis flexibles.
 
 ## Risque assumé
-
-Les hooks `useOrderAggregatesBatch`, `useArticleStates`, `usePendingFinancialActions` aujourd'hui calculent par mère. Pour Phase 2 on garde l'agrégat mère mais on l'**utilise** scopé par vendor au niveau de la ligne et du drawer (dérivation in-memory déjà faite par `deriveSubOrders` / `aggregateOrder`). Pas de refonte hooks ce sprint.
-
-**Estimation** : ~10–12 fichiers édités, 1–2 fichiers créés, aucune migration DB.
-
-Dis "go Phase 2" et j'enchaîne directement.
+Les vues "postes" (paiement, peser, simple station) du Dashboard restent centrées sur la commande mère (Phase 3). Le pipeline est la première vue à passer au modèle sub-order, conformément à la priorité opérationnelle exprimée.

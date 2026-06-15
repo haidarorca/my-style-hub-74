@@ -25,10 +25,12 @@ import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types"
 import { NextActionBanner } from "./NextActionBanner";
 import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
+import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
+import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 
@@ -65,9 +67,13 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
+  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
+  vendorId?: string;
+  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
+  onVendorChange?: (vendorId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -75,34 +81,61 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
-  // Finances centralisées — SEULE source de vérité
-  const ot = financials.productTotal;
-  const sf = financials.freight;
-  const gt = financials.grandTotal;
-  const tp = financials.paid;
-  const rem = financials.remaining;
+
+  // ─── Phase 2 : SCOPE BOUTIQUE ───
+  // Toutes les sous-commandes sœurs (pour navigation et libellé).
+  const allSubs = useMemo(
+    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
+    [articles, status, order.order_id],
+  );
+  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
+  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
+  const scopedArticles = useMemo(
+    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
+    [articles, vendorId],
+  );
+  const siblings = useMemo(
+    () => allSubs.map(s => ({
+      vendor_id: s.vendor_id, vendor_name: s.vendor_name,
+      index: s.index, total: s.total, label: s.label,
+    })),
+    [allSubs],
+  );
+  const isScoped = !!vendorId && !!currentSub;
+  // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
+  const headerLabel = isScoped ? currentSub!.label : kz;
+  const headerVendor = isScoped ? currentSub!.vendor_name : null;
+
+  // Finances : pro-rata du sous-total produits quand scopé.
+  const productShare = isScoped && financials.productTotal > 0
+    ? currentSub!.financials.product_total / financials.productTotal
+    : 1;
+  const ot = isScoped ? currentSub!.financials.product_total : financials.productTotal;
+  const sf = isScoped ? Math.round(financials.freight * productShare) : financials.freight;
+  const gt = ot + sf;
+  const tp = Math.round(financials.paid * (isScoped ? productShare : 1));
+  const rem = Math.max(0, gt - tp);
   const paidFull = rem <= 0 && gt > 0;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
   const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
-  // ─── Type réel : déterminé par les articles (is_import / is_local).
-  // Le concept MIXTE disparaît au niveau commande — c'est par sub_order désormais.
-  const hasLocal = !!articles && articles.some(a => a.is_local);
-  const hasImport = !!articles && articles.some(a => a.is_import);
-  const isLocalOrder = !!articles && hasLocal && !hasImport;
-  const isImportOrder = !!articles && !hasLocal && hasImport;
-  const isImportFallback = !articles && isImport(order);
-  const isMultiVendor = !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
-  // `imp` = workflow import global (utile pour la légende ; les sub_orders ont leur propre type)
+  // ─── Type opérationnel du contenu affiché (scope-aware) ───
+  const hasLocal = !!scopedArticles && scopedArticles.some(a => a.is_local);
+  const hasImport = !!scopedArticles && scopedArticles.some(a => a.is_import);
+  const isLocalOrder = !!scopedArticles && hasLocal && !hasImport;
+  const isImportOrder = !!scopedArticles && !hasLocal && hasImport;
+  const isImportFallback = !scopedArticles && isImport(order);
+  // Quand scopé : pas de "multi-vendor" dans ce drawer (par définition c'est UNE boutique).
+  const isMultiVendor = !isScoped && !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
-  // ─── ★ Agrégateur : source unique pour next_action / banners / alertes ───
-  const agg = useMemo(() => aggregateOrder(articles, status), [articles, status]);
-  const nextActionInfo = articles ? buildNextActionBannerPayload(agg) : null;
+  // Agrégateur — sur les articles scopés.
+  const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
+  const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
@@ -120,10 +153,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* Header */}
           <SheetHeader className="pb-2">
             <div className="space-y-1">
-              <SheetTitle className="text-xl">{kz}</SheetTitle>
+              <SheetTitle className="text-xl">{headerLabel}</SheetTitle>
+              {headerVendor && (
+                <div className="text-sm font-semibold text-indigo-700">{headerVendor}</div>
+              )}
               <div className="font-mono text-[11px] text-gray-400">{tech}</div>
               <div className="flex gap-2 pt-1 flex-wrap items-center">
-                {isMultiVendor ? (
+                {isScoped ? (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
+                    Sous-commande boutique
+                  </Badge>
+                ) : isMultiVendor ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
                     Multi-boutiques
                   </Badge>
@@ -137,48 +177,56 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
-          <AggregateDebugPanel articles={articles} orderStatus={status} />
+          {/* ─── Phase 2 : Strip de navigation vers les sœurs (uniquement quand scopé) ─── */}
+          {isScoped && onVendorChange && (
+            <RelatedSubOrdersStrip
+              siblings={siblings}
+              currentVendorId={vendorId!}
+              onSelect={onVendorChange}
+            />
+          )}
 
-          {/* ─── Sous-commandes par boutique — unité opérationnelle principale ─── */}
-          <SubOrdersPanel
-            articles={articles}
-            orderStatus={status}
-            motherOrderId={order.order_id ?? undefined}
-            alwaysShow={isMultiVendor}
-          />
+          {/* Agrégateur (debug) — sur les articles scopés. */}
+          <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
 
-          {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
+          {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
+          {!isScoped && (
+            <SubOrdersPanel
+              articles={articles}
+              orderStatus={status}
+              motherOrderId={order.order_id ?? undefined}
+              alwaysShow={isMultiVendor}
+            />
+          )}
+
+          {/* Action suivante */}
           {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Centre de contrôle du workflow ───
-              Masqué quand multi-boutiques : chaque sub_order aura son propre workflow.
-              (Phase 2 : 1 WorkflowControlPanel par sub_order.) */}
-          {!isMultiVendor && (
+          {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
+          {(isScoped || !isMultiVendor) && (
             <WorkflowControlPanel
               orderId={order.order_id ?? undefined}
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
-              articles={articles}
+              articles={scopedArticles}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}
 
-          {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
-          <PartialDeliveryBanner articles={articles} aggregate={agg} />
+          <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
 
-          {/* ─── Sous-processus : articles en attente de réapprovisionnement ─── */}
-          <RestockWaitingPanel articles={articles} orderStatus={status} onResumeRestock={onResumeRestock} />
+          <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
+
 
 
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
-          {articles && onSettleFinancial && (
+          {scopedArticles && onSettleFinancial && (
             <div id="cockpit-financial-actions">
               <PendingFinancialActions
-                articles={articles}
+                articles={scopedArticles}
                 remainingToPay={rem}
                 onSettle={onSettleFinancial}
               />
@@ -216,9 +264,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           )}
 
           {/* ─── Gestion article par article (matrice v3) ─── */}
-          {articles && articles.length > 0 && (
+          {scopedArticles && scopedArticles.length > 0 && (
             <ArticlesPanel
-              articles={articles}
+              articles={scopedArticles}
               paidAmount={tp}
               orderStatus={status}
               onStockBreak={onStockBreak}
@@ -286,7 +334,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               }
             }
             // Livraison partielle en cours → lecture agrégateur
-            const partialCount = (articles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
+            const partialCount = (scopedArticles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
             if (partialCount > 0) {
               alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partialCount} article(s) partiellement livré(s).` });
             }
