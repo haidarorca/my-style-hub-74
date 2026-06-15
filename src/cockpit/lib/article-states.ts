@@ -160,7 +160,7 @@ export function getNextActionForOrder(
 
   // Articles commandés fournisseur en attente
   const waitingSupplier = articles.filter(a => a.status === "ordered");
-  if (waitingSupplier.length > 0 && ["confirmed", "ordered_supplier", "new", "contacted"].includes(status)) {
+  if (waitingSupplier.length > 0 && ["confirmed", "ordered_supplier", "new"].includes(status)) {
     return {
       action: "receive_warehouse",
       label: "Réception fournisseur",
@@ -173,7 +173,7 @@ export function getNextActionForOrder(
 
   // Articles disponibles en attente de commande fournisseur
   const needSupplier = articles.filter(a => a.is_import && ["pending", "available"].includes(a.status));
-  if (needSupplier.length > 0 && ["confirmed", "new", "contacted"].includes(status)) {
+  if (needSupplier.length > 0 && ["confirmed", "new"].includes(status)) {
     return {
       action: "order_supplier",
       label: "Commander fournisseur",
@@ -257,18 +257,6 @@ export function getNextActionForOrder(
       color: "text-purple-700",
       bg: "bg-purple-50 border-purple-200",
       icon: "Phone",
-    };
-  }
-
-  // Contacté
-  if (status === "contacted") {
-    return {
-      action: "check_stock",
-      label: "Vérifier stock",
-      description: "Client contacté — vérifier la disponibilité des articles",
-      color: "text-cyan-700",
-      bg: "bg-cyan-50 border-cyan-200",
-      icon: "Search",
     };
   }
 

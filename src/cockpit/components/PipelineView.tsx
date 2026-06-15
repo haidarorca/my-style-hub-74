@@ -27,11 +27,9 @@ interface Column {
 
 const COLUMNS: Column[] = [
   { key: "new", title: "A confirmer", short: "Nouv.", color: "border-t-purple-500", bgColor: "bg-purple-50", chipBg: "bg-purple-100", chipText: "text-purple-700", statuses: ["", "new"] },
-  { key: "contacted", title: "Contactee", short: "Contact.", color: "border-t-blue-500", bgColor: "bg-blue-50", chipBg: "bg-blue-100", chipText: "text-blue-700", statuses: ["contacted"] },
-  { key: "awaiting_payment", title: "Paiement", short: "Paiemt.", color: "border-t-amber-500", bgColor: "bg-amber-50", chipBg: "bg-amber-100", chipText: "text-amber-700", statuses: ["awaiting_payment", "payment_fees"] },
   { key: "in_progress", title: "En cours", short: "Cours", color: "border-t-cyan-500", bgColor: "bg-cyan-50", chipBg: "bg-cyan-100", chipText: "text-cyan-700", statuses: ["confirmed", "preparing", "ordered_supplier", "received_warehouse"] },
   { key: "to_weigh", title: "A peser", short: "Peser", color: "border-t-orange-500", bgColor: "bg-orange-50", chipBg: "bg-orange-100", chipText: "text-orange-700", statuses: ["awaiting_weighing"] },
-  { key: "fees_calculated", title: "Calcul frais", short: "Frais", color: "border-t-pink-500", bgColor: "bg-pink-50", chipBg: "bg-pink-100", chipText: "text-pink-700", statuses: ["fees_calculated"] },
+  { key: "fees_calculated", title: "Calcul frais", short: "Frais", color: "border-t-pink-500", bgColor: "bg-pink-50", chipBg: "bg-pink-100", chipText: "text-pink-700", statuses: ["fees_calculated", "payment_fees"] },
   { key: "ready", title: "Prete", short: "Prete", color: "border-t-emerald-500", bgColor: "bg-emerald-50", chipBg: "bg-emerald-100", chipText: "text-emerald-700", statuses: ["ready", "ready_delivery"] },
   { key: "shipped", title: "Expediee", short: "Exped.", color: "border-t-indigo-500", bgColor: "bg-indigo-50", chipBg: "bg-indigo-100", chipText: "text-indigo-700", statuses: ["shipped"] },
 ];
