@@ -1,10 +1,10 @@
 import { Clock, RefreshCw, AlertTriangle, Package, Store } from "lucide-react";
 import {
   isWaitingRestock, getRestockWaitDays, getRestockAlertLevel,
-  getResumeTargetStatus, getArticleStatusLabel, getArticleFlow,
+  getResumeTargetStatus,
   ARTICLE_STATUS_LABELS, LOCAL_STATUS_LABELS, IMPORT_STATUS_LABELS,
 } from "@/cockpit/lib/article-states";
-import type { OrderArticle, ArticleStatus, RestockAlertLevel } from "@/cockpit/lib/article-states";
+import type { OrderArticle, RestockAlertLevel } from "@/cockpit/lib/article-states";
 
 /* ═══════════════════════════════════════════════════════════════
    RestockWaitingPanel — sous-processus "en attente de réappro"
