@@ -9,20 +9,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Layers, Home } from "lucide-react";
-import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep } from "@/cockpit/lib/workflow";
+import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
-import { Timeline } from "./Timeline";
+import { OrderAuditTimeline } from "./OrderAuditTimeline";
+import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
-import { getNextActionForOrder } from "@/cockpit/lib/article-states";
-import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
+import { getNextActionForOrder, getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
+import type { StockBreakSubmit } from "./StockBreakDialog";
 
 interface OrderFinancials {
   productTotal: number;
@@ -51,12 +53,13 @@ interface Props {
   onFormInteraction?: () => void;
   // ─── Gestion article par article ───
   articles?: OrderArticle[];
-  onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
+  onStockBreak?: (productId: string, data: StockBreakSubmit) => void;
   onArticleStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
+  onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -130,8 +133,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Centre de contrôle du workflow ─── */}
+          {/* ─── Centre de contrôle du workflow (Option B) ─── */}
           <WorkflowControlPanel
+            orderId={order.order_id ?? undefined}
             status={status}
             isImport={!!(isImportOrder || isImportFallback)}
             isLocal={!!isLocalOrder}
@@ -139,6 +143,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             articles={articles}
             onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
           />
+
+          {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
+          <PartialDeliveryBanner articles={articles} />
 
           {/* Client */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
@@ -154,7 +161,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
           </div>
 
-          {/* ─── Bouton : Voir les articles (détail produit/vendeur) ─── */}
+          {/* ─── Bouton : Voir les articles ─── */}
           {onViewItems && (
             <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-2">
@@ -168,7 +175,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </button>
           )}
 
-          {/* ─── Gestion article par article ─── */}
+          {/* ─── Gestion article par article (matrice v3) ─── */}
           {articles && articles.length > 0 && (
             <ArticlesPanel
               articles={articles}
@@ -177,6 +184,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               onStockBreak={onStockBreak}
               onStatusChange={onArticleStatusChange}
               onPartialDeliver={onPartialDeliver}
+              onOverrideDecision={onOverrideDecision}
             />
           )}
 
@@ -282,10 +290,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Timeline */}
+          {/* Historique d'audit unifié */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Timeline</h3>
-            <Timeline order={order} payments={payments} audit={audit} />
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
+            <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
           </div>
 
           {/* Pesées */}

@@ -78,13 +78,19 @@ export interface OrderArticle {
   vendor_id: string | null;
   vendor_name: string | null;
   shop_type_label: string | null;
-  // Rupture de stock
+  // Rupture de stock (état dérivé, sans nouvelle colonne DB)
   stock_break?: {
     reason: string;
     action: StockBreakAction;
     action_label: string;
     resolved: boolean;
     created_at: string;
+    /** Sous-cas pour `replace` : produit de remplacement saisi par l'admin. */
+    replacement?: { product_name: string; new_unit_price: number };
+    /** Pour `replace` quand le nouveau prix diffère, ou pour différencier refund vs credit. */
+    diff_handling?: "extra_payment" | "refund" | "credit";
+    /** Historique des overrides Super Admin (en mémoire — pas de colonne DB dédiée). */
+    override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
   };
   // Livraison partielle
   delivered_qty?: number;
@@ -93,6 +99,201 @@ export interface OrderArticle {
   // Pays d'origine (pour les imports)
   origin_country?: string | null;
   origin_country_flag?: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MATRICE v3 — Helpers de verrouillage et calculs dérivés
+// (Aucune nouvelle colonne DB. Tout est dérivé de stock_break + status.)
+// ═══════════════════════════════════════════════════════════════
+
+/** Statut financier dérivé d'un article (jamais persisté). */
+export type ArticleFinancialStatus =
+  | "none"
+  | "refund_pending"
+  | "credit_pending"
+  | "extra_payment_pending";
+
+/** Sous-cas du remplacement, dérivé de la différence de prix. */
+export type ReplaceVariant = "replace_same" | "replace_higher" | "replace_lower";
+
+export function getReplaceVariant(oldUnitPrice: number, newUnitPrice: number): ReplaceVariant {
+  if (newUnitPrice > oldUnitPrice) return "replace_higher";
+  if (newUnitPrice < oldUnitPrice) return "replace_lower";
+  return "replace_same";
+}
+
+/** Impact financier d'un remplacement, calculé pour un article (qty incluse). */
+export function getReplaceImpact(article: OrderArticle): {
+  variant: ReplaceVariant;
+  delta: number; // positif = à encaisser, négatif = à rembourser/créditer
+  newLineTotal: number;
+} | null {
+  const sb = article.stock_break;
+  if (!sb || sb.action !== "replace" || !sb.replacement) return null;
+  const oldUnit = article.unit_price;
+  const newUnit = sb.replacement.new_unit_price;
+  const variant = getReplaceVariant(oldUnit, newUnit);
+  const delta = (newUnit - oldUnit) * article.quantity;
+  return { variant, delta, newLineTotal: newUnit * article.quantity };
+}
+
+/** Statut financier dérivé. Aucun mouvement automatique : juste une intention. */
+export function getArticleFinancialStatus(article: OrderArticle): ArticleFinancialStatus {
+  const sb = article.stock_break;
+  if (!sb || !sb.resolved) return "none";
+  if (sb.action === "refund") return "refund_pending";
+  if (sb.action === "credit") return "credit_pending";
+  if (sb.action === "replace") {
+    if (sb.diff_handling === "extra_payment") return "extra_payment_pending";
+    if (sb.diff_handling === "refund") return "refund_pending";
+    if (sb.diff_handling === "credit") return "credit_pending";
+  }
+  return "none";
+}
+
+/** Verrou commande : la commande gèle toutes les actions article. */
+export function isOrderLocked(orderStatus?: string): boolean {
+  return orderStatus === "delivered" || orderStatus === "cancelled";
+}
+
+/** Verrou article (livré, remboursé, retourné). */
+export function isArticleTerminal(article: OrderArticle): boolean {
+  return article.status === "delivered" || article.status === "refunded" || article.status === "returned";
+}
+
+/** Verrou complet : aucune action possible sur cet article. */
+export function isArticleLocked(article: OrderArticle, orderStatus?: string): boolean {
+  return isOrderLocked(orderStatus) || isArticleTerminal(article);
+}
+
+/** Peut-on signaler une rupture sur cet article ? */
+export function canSignalBreak(article: OrderArticle, orderStatus?: string): boolean {
+  if (isArticleLocked(article, orderStatus)) return false;
+  if (article.stock_break) return false; // toute rupture (résolue ou non) gèle ce bouton
+  return true;
+}
+
+/** Peut-on changer le statut article (chips "Prochaine étape") ? */
+export function canChangeArticleStatus(article: OrderArticle, orderStatus?: string): boolean {
+  if (isArticleLocked(article, orderStatus)) return false;
+  const sb = article.stock_break;
+  // Rupture non résolue → seul le dialog peut agir.
+  if (sb && !sb.resolved) return false;
+  // Après preparing : aucun retour arrière possible (sauf super admin via override).
+  if (orderStatus && ["preparing", "ready", "ready_delivery", "shipped"].includes(orderStatus)) {
+    return false;
+  }
+  // Rupture résolue : seuls replace et wait_restock permettent une suite normale.
+  if (sb && sb.resolved) {
+    if (sb.action === "replace") return true;
+    if (sb.action === "wait_restock") return true;
+    return false;
+  }
+  return true;
+}
+
+/** Peut-on livrer (partiellement) cet article ? */
+export function canPartialDeliver(article: OrderArticle, orderStatus?: string): boolean {
+  if (isArticleLocked(article, orderStatus)) return false;
+  const sb = article.stock_break;
+  // Décisions qui excluent du colis
+  if (sb && sb.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(sb.action)) return false;
+  if ((article.delivered_qty ?? 0) >= article.quantity) return false;
+  return ["ready", "available", "received"].includes(article.status);
+}
+
+/** Bouton Super Admin "Modifier la décision". */
+export function canOverrideDecision(article: OrderArticle, orderStatus: string | undefined, isSuperAdmin: boolean): boolean {
+  if (!isSuperAdmin) return false;
+  if (isOrderLocked(orderStatus)) return false;
+  return !!(article.stock_break && article.stock_break.resolved);
+}
+
+/** Badge décision affiché DIRECTEMENT dans la ligne article. Aucun clignotement. */
+export interface DecisionBadge {
+  label: string;
+  className: string;
+}
+
+export function getDecisionBadge(article: OrderArticle): DecisionBadge | null {
+  const sb = article.stock_break;
+  if (!sb) return null;
+  if (!sb.resolved) {
+    return { label: "Rupture à traiter", className: "bg-red-600 text-white" };
+  }
+  switch (sb.action) {
+    case "partial_ship":
+      return { label: "Exclu du colis", className: "bg-gray-700 text-white" };
+    case "refund":
+      return { label: "Remboursement à traiter", className: "bg-rose-100 text-rose-800 border border-rose-300" };
+    case "credit":
+      return { label: "Crédit à traiter", className: "bg-amber-100 text-amber-800 border border-amber-300" };
+    case "wait_restock":
+      return { label: "Attente réappro", className: "bg-slate-200 text-slate-800 border border-slate-300" };
+    case "replace": {
+      const impact = getReplaceImpact(article);
+      if (!impact || impact.variant === "replace_same") return { label: "Remplacement", className: "bg-violet-100 text-violet-800 border border-violet-300" };
+      if (impact.variant === "replace_higher") return { label: `Remplacement (+${impact.delta.toLocaleString("fr-FR")})`, className: "bg-violet-100 text-violet-800 border border-violet-300" };
+      return { label: `Remplacement (${impact.delta.toLocaleString("fr-FR")})`, className: "bg-violet-100 text-violet-800 border border-violet-300" };
+    }
+  }
+  return null;
+}
+
+/** Résumé livraison partielle d'une commande. */
+export interface PartialDeliveryStatus {
+  active: boolean;
+  deliveredCount: number;
+  pendingCount: number;
+  waitingRestock: number;
+}
+
+export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): PartialDeliveryStatus {
+  const list = articles ?? [];
+  const deliveredCount = list.filter(a => (a.delivered_qty ?? 0) >= a.quantity).length;
+  const pendingCount = list.length - deliveredCount;
+  const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock").length;
+  const someDelivered = list.some(a => (a.delivered_qty ?? 0) > 0);
+  return {
+    active: someDelivered && pendingCount > 0,
+    deliveredCount,
+    pendingCount,
+    waitingRestock,
+  };
+}
+
+/** Récap financier des décisions en attente sur une commande. */
+export function getPendingFinancialActions(articles: OrderArticle[] | undefined): {
+  refundPending: number;
+  creditPending: number;
+  extraPaymentPending: number;
+  hasAny: boolean;
+} {
+  let refundPending = 0;
+  let creditPending = 0;
+  let extraPaymentPending = 0;
+  for (const a of articles ?? []) {
+    const fs = getArticleFinancialStatus(a);
+    if (fs === "refund_pending") {
+      if (a.stock_break?.action === "replace") {
+        const imp = getReplaceImpact(a);
+        if (imp) refundPending += Math.abs(imp.delta);
+      } else {
+        refundPending += a.line_total;
+      }
+    } else if (fs === "credit_pending") {
+      if (a.stock_break?.action === "replace") {
+        const imp = getReplaceImpact(a);
+        if (imp) creditPending += Math.abs(imp.delta);
+      } else {
+        creditPending += a.line_total;
+      }
+    } else if (fs === "extra_payment_pending") {
+      const imp = getReplaceImpact(a);
+      if (imp) extraPaymentPending += imp.delta;
+    }
+  }
+  return { refundPending, creditPending, extraPaymentPending, hasAny: refundPending + creditPending + extraPaymentPending > 0 };
 }
 
 /** Type de commande : local, import, ou mixte */
