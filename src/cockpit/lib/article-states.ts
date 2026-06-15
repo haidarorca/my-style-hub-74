@@ -91,6 +91,17 @@ export interface OrderArticle {
     diff_handling?: "extra_payment" | "refund" | "credit";
     /** Historique des overrides Super Admin (en mémoire — pas de colonne DB dédiée). */
     override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
+    /** Trace du traitement financier — lève le pending. Aucun mouvement automatique : posé par action admin explicite. */
+    settlement?: {
+      kind: "refund" | "credit" | "extra_payment";
+      amount: number;
+      payment_id?: string;   // ligne `payments` existante (refund / extra_payment)
+      method?: string;       // moyen de paiement (refund / extra_payment)
+      reference?: string;    // référence libre (avoir, virement, etc.)
+      note?: string;
+      by: string;            // admin qui a validé
+      at: string;            // ISO timestamp
+    };
   };
   // Livraison partielle
   delivered_qty?: number;
