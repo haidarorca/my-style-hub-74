@@ -247,16 +247,8 @@ export function ArticlesPanel({
                           </button>
                         )}
 
-                        {/* Reprise après réappro (wait_restock résolu) */}
-                        {canResumeFromRestock(art, orderStatus) && onStatusChange && (
-                          <button
-                            onClick={() => onStatusChange(art.product_id, getResumeTargetStatus(art))}
-                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-[12px] font-bold hover:bg-teal-700 min-h-[40px]"
-                          >
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            Stock revenu — reprendre le flux
-                          </button>
-                        )}
+                        {/* La reprise wait_restock est gérée dans RestockWaitingPanel — hors workflow normal. */}
+
 
                         {showPartial && onPartialDeliver && (
                           <div className="flex items-center gap-2">
