@@ -1182,3 +1182,7 @@ export const createOrderReturn = createServerFn({ method: "POST" })
       newValues: { status: "returned", reason: data.reason },
     });
 
+    return { ok: true };
+  });
+
+
