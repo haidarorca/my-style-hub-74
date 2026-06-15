@@ -24,6 +24,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
 import { NextActionBanner } from "./NextActionBanner";
 import { AggregateDebugPanel } from "./AggregateDebugPanel";
+import { SubOrdersPanel } from "./SubOrdersPanel";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
@@ -138,6 +139,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
           <AggregateDebugPanel articles={articles} orderStatus={status} />
+
+          {/* ─── ★ Phase 1 ★ Split par vendeur (vue dérivée, zéro SQL) ─── */}
+          <SubOrdersPanel articles={articles} orderStatus={status} />
 
           {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
           {nextActionInfo && (
