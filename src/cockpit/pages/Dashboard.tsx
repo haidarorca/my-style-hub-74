@@ -4,7 +4,8 @@
 // la commande dans son cycle de vie.
 // ═══════════════════════════════════════════════════════════════
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
