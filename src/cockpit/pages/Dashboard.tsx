@@ -813,6 +813,7 @@ export default function CockpitDashboard() {
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
           onSettleFinancial={handleSettleFinancial}
+          onResumeRestock={handleResumeRestock}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
