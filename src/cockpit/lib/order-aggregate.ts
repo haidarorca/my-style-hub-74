@@ -49,30 +49,54 @@ export interface BucketedArticle {
   reason: string;          // Phrase courte expliquant POURQUOI cet article est dans ce bucket
 }
 
+// ─── Préparation IMPORT : pesée (squelette, données pas encore branchées) ───
+// L'agrégateur expose dès maintenant les points d'entrée. Tant que les champs
+// `actual_weight` / `estimated_weight` ne sont pas posés sur OrderArticle,
+// chaque article importé tombera en `weight_state: "unknown"`.
+export type WeightState = "known" | "estimated" | "unknown";
+
+export interface WeighingReadiness {
+  applicable: boolean;             // false si commande 100% locale
+  total_import_articles: number;
+  by_state: Record<WeightState, number>;
+  articles: Array<{
+    article: OrderArticle;
+    weight_state: WeightState;
+    reason: string;
+  }>;
+}
+
+export interface NextActionDriver {
+  bucket: ArticleBucket;
+  article_id: string;
+  product_name: string;
+  reason: string;
+}
+
 export interface OrderAggregate {
-  // Comptage par bucket (synthèse rapide)
   counters: Record<ArticleBucket, number>;
-  // Articles regroupés par bucket (pour rendu UI direct)
   by_bucket: Record<ArticleBucket, BucketedArticle[]>;
-  // Liste à plat (ordre stable = ordre d'origine)
   articles: BucketedArticle[];
-  // Action prioritaire au niveau commande
   next_action: AggregateNextAction;
   next_action_reason: string;
-  // Total financier en attente (refund + credit + extra_payment)
+  /** ★ Pourquoi cette action a été choisie (priorité métier appliquée). */
+  next_action_why: string;
+  /** ★ Article qui provoque l'action prioritaire (null si done / review). */
+  next_action_driver: NextActionDriver | null;
   pending_money: {
     refund: number;
     credit: number;
     extra_payment: number;
     total_abs: number;
   };
-  // Drapeaux pratiques
+  /** ★ Préparation IMPORT pesée (points d'entrée, pas encore alimentés). */
+  weighing: WeighingReadiness;
   flags: {
     has_blocking: boolean;
     has_ready: boolean;
     all_delivered: boolean;
     fully_cancelled: boolean;
-    can_ship_today: boolean;     // Tout ce qui peut partir est prêt, rien ne bloque
+    can_ship_today: boolean;
   };
 }
 
@@ -153,41 +177,57 @@ function emptyByBucket(): Record<ArticleBucket, BucketedArticle[]> {
 function decideNextAction(
   counters: Record<ArticleBucket, number>,
   orderStatus: string | undefined,
-): { action: AggregateNextAction; reason: string } {
-  // Ordre de priorité métier : ce qui bloque > ce qui coûte de l'argent > ce qui avance.
+): { action: AggregateNextAction; reason: string; why: string; driverBucket: ArticleBucket | null } {
+  // Ordre de priorité métier : ce qui bloque > ce qui coûte > ce qui avance.
   if (counters.blocked > 0)
-    return { action: "resolve_break", reason: `${counters.blocked} rupture(s) à traiter` };
+    return { action: "resolve_break", reason: `${counters.blocked} rupture(s) à traiter`,
+      why: "Une rupture non résolue empêche toute progression de la commande.",
+      driverBucket: "blocked" };
   if (counters.waiting_money > 0)
-    return { action: "settle_money", reason: `${counters.waiting_money} règlement(s) en attente` };
+    return { action: "settle_money", reason: `${counters.waiting_money} règlement(s) en attente`,
+      why: "Une décision de rupture résolue attend sa conséquence financière (remboursement, avoir ou complément).",
+      driverBucket: "waiting_money" };
 
   const activeCount = counters.ready + counters.blocked + counters.waiting_supplier
     + counters.waiting_restock + counters.in_progress + counters.waiting_money;
 
   if (activeCount === 0) {
-    if (counters.delivered > 0) return { action: "done", reason: "Tous les articles sont livrés" };
-    if (counters.cancelled > 0) return { action: "done", reason: "Commande entièrement annulée" };
+    if (counters.delivered > 0) return { action: "done", reason: "Tous les articles sont livrés",
+      why: "Plus aucun article n'est en circulation.", driverBucket: null };
+    if (counters.cancelled > 0) return { action: "done", reason: "Commande entièrement annulée",
+      why: "Tous les articles ont été retirés du colis.", driverBucket: null };
   }
 
-  // Tout ce qui reste peut partir ?
   const blockers = counters.blocked + counters.waiting_supplier + counters.waiting_restock + counters.waiting_money;
   if (counters.ready > 0 && blockers === 0) {
     if (orderStatus === "ready" || orderStatus === "ready_delivery") {
-      return { action: "ship", reason: "Prêt à expédier" };
+      return { action: "ship", reason: "Prêt à expédier",
+        why: "Tous les articles sont prêts et le colis est marqué prêt à partir.",
+        driverBucket: "ready" };
     }
-    return { action: "prepare_shipment", reason: `${counters.ready} article(s) prêts — peut partir aujourd'hui` };
+    return { action: "prepare_shipment", reason: `${counters.ready} article(s) prêts — peut partir aujourd'hui`,
+      why: "Rien ne bloque la commande et au moins un article est prêt.",
+      driverBucket: "ready" };
   }
 
   if (counters.waiting_supplier > 0) {
-    return { action: "receive_warehouse", reason: `${counters.waiting_supplier} article(s) en transit fournisseur` };
+    return { action: "receive_warehouse", reason: `${counters.waiting_supplier} article(s) en transit fournisseur`,
+      why: "Le ou les articles importés attendent leur arrivée à l'entrepôt.",
+      driverBucket: "waiting_supplier" };
   }
   if (counters.in_progress > 0) {
-    // Import à commander encore ?
-    return { action: "order_supplier", reason: `${counters.in_progress} article(s) à faire avancer` };
+    return { action: "order_supplier", reason: `${counters.in_progress} article(s) à faire avancer`,
+      why: "Au moins un article suit son flux normal et attend l'étape suivante.",
+      driverBucket: "in_progress" };
   }
   if (counters.waiting_restock > 0) {
-    return { action: "wait_restock", reason: `${counters.waiting_restock} article(s) en attente réappro` };
+    return { action: "wait_restock", reason: `${counters.waiting_restock} article(s) en attente réappro`,
+      why: "Toutes les autres lignes sont fermées ; il reste de l'attente fournisseur local.",
+      driverBucket: "waiting_restock" };
   }
-  return { action: "review", reason: "Cas non encore couvert par l'agrégateur v0.1" };
+  return { action: "review", reason: "Cas non encore couvert par l'agrégateur v0.1",
+    why: "Combinaison d'états non décrite par les règles actuelles — à examiner manuellement.",
+    driverBucket: null };
 }
 
 function computePendingMoney(articles: OrderArticle[]) {
@@ -213,6 +253,33 @@ function computePendingMoney(articles: OrderArticle[]) {
   return { refund, credit, extra_payment, total_abs: refund + credit + extra_payment };
 }
 
+// ─── Pesée IMPORT : structure prête, données pas encore branchées ──────────
+// Quand `actual_weight` et `estimated_weight` seront ajoutés à OrderArticle,
+// `readWeightState()` lira ces champs sans toucher au reste de l'agrégateur.
+function readWeightState(a: OrderArticle): WeightState {
+  // Lecture défensive : on ne casse rien si les champs n'existent pas encore.
+  const anyA = a as unknown as { actual_weight?: number | null; estimated_weight?: number | null };
+  if (typeof anyA.actual_weight === "number" && anyA.actual_weight > 0) return "known";
+  if (typeof anyA.estimated_weight === "number" && anyA.estimated_weight > 0) return "estimated";
+  return "unknown";
+}
+
+function computeWeighing(articles: OrderArticle[]): WeighingReadiness {
+  const imports = articles.filter(a => a.is_import);
+  const applicable = imports.length > 0;
+  const by_state: Record<WeightState, number> = { known: 0, estimated: 0, unknown: 0 };
+  const rows = imports.map(article => {
+    const weight_state = readWeightState(article);
+    by_state[weight_state]++;
+    const reason =
+      weight_state === "known"    ? "Poids réel saisi"
+    : weight_state === "estimated" ? "Poids estimé (déclaration / vendeur)"
+    :                               "Poids non encore renseigné";
+    return { article, weight_state, reason };
+  });
+  return { applicable, total_import_articles: imports.length, by_state, articles: rows };
+}
+
 // ─── API publique ─────────────────────────────────────────────────
 
 /** ★ aggregateOrder() v0.1 ★
@@ -234,8 +301,23 @@ export function aggregateOrder(
     return row;
   });
 
-  const { action, reason } = decideNextAction(counters, orderStatus);
+  const { action, reason, why, driverBucket } = decideNextAction(counters, orderStatus);
   const pending_money = computePendingMoney(list);
+  const weighing = computeWeighing(list);
+
+  // ★ Désigne l'article qui provoque l'action prioritaire.
+  let next_action_driver: NextActionDriver | null = null;
+  if (driverBucket) {
+    const first = by_bucket[driverBucket][0];
+    if (first) {
+      next_action_driver = {
+        bucket: driverBucket,
+        article_id: first.article.product_id,
+        product_name: first.article.product_name,
+        reason: first.reason,
+      };
+    }
+  }
 
   const total = list.length;
   const flags = {
@@ -250,7 +332,12 @@ export function aggregateOrder(
       && counters.waiting_money === 0,
   };
 
-  return { counters, by_bucket, articles: bucketed, next_action: action, next_action_reason: reason, pending_money, flags };
+  return {
+    counters, by_bucket, articles: bucketed,
+    next_action: action, next_action_reason: reason,
+    next_action_why: why, next_action_driver,
+    pending_money, weighing, flags,
+  };
 }
 
 // ─── Libellés UI (séparés pour rester pure côté logique) ───
