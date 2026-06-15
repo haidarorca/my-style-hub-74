@@ -804,7 +804,18 @@ export default function CockpitDashboard() {
             </div>
           );
         })() : (activeTab === "actions" || activeTab === "mixte") && viewMode === "pipeline" ? (
-          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} orderTypeMap={orderTypeMap} />
+          <PipelineView
+            orders={displayOrders}
+            totalPaidMap={totalPaidMap}
+            freightMap={freightMap}
+            onSelect={openOrder}
+            orderTypeMap={orderTypeMap}
+            subRows={subOrderRows.filter(r => displayOrders.some(o => o.order_id === r.mother_order_id))}
+            onSelectSubRow={(row) => {
+              setSelectedVendorId(row.vendor_id);
+              setSelectedOrder(row.order);
+            }}
+          />
         ) : activeTab === "archive" ? (
           <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
