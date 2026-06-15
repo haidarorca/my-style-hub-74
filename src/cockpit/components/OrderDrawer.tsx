@@ -290,10 +290,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Timeline */}
+          {/* Historique d'audit unifié */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Timeline</h3>
-            <Timeline order={order} payments={payments} audit={audit} />
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
+            <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
           </div>
 
           {/* Pesées */}
