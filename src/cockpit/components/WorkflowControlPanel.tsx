@@ -1,45 +1,45 @@
-import { CheckCircle2, Circle, ChevronRight, Home, Truck, Layers } from "lucide-react";
-import { getNextStep, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Circle, ChevronRight, ChevronDown, Home, Truck } from "lucide-react";
+import { getNextStep } from "@/cockpit/lib/workflow";
 import type { NextStep } from "@/cockpit/lib/workflow";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 
 /* ═══════════════════════════════════════════════════════════════
-   WORKFLOW CONTROL PANEL — Centre de contrôle du circuit
+   WorkflowControlPanel v3 — Option B (accordéon compact)
+   - Replié par défaut : ~140px ; affiche l'étape courante + action
+   - Tap "Voir toutes les étapes" : déplie la timeline complète
+   - Pour MIXTE : 2 accordéons indépendants (LOCAL + IMPORT)
+   - Mémoire d'ouverture par commande dans localStorage
    ═══════════════════════════════════════════════════════════════ */
 
 interface FlowStep {
-  key: string;
-  label: string;
-  description: string;
-  color: string;
-  bgColor: string;
+  key: string; label: string; description: string;
 }
 
-/** Circuit LOCAL officiel : new → confirmed → preparing → ready → shipped → delivered */
 const LOCAL_STEPS: FlowStep[] = [
-  { key: "new", label: "À confirmer", description: "Commande reçue", color: "text-purple-700", bgColor: "bg-purple-100" },
-  { key: "confirmed", label: "Confirmée", description: "Commande confirmée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
-  { key: "preparing", label: "Préparation", description: "En préparation", color: "text-orange-700", bgColor: "bg-orange-100" },
-  { key: "ready", label: "Prête", description: "Prête à expédier", color: "text-cyan-700", bgColor: "bg-cyan-100" },
-  { key: "shipped", label: "Expédiée", description: "En cours de livraison", color: "text-indigo-700", bgColor: "bg-indigo-100" },
-  { key: "delivered", label: "Livrée", description: "Commande livrée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
+  { key: "new", label: "À confirmer", description: "Commande reçue" },
+  { key: "confirmed", label: "Confirmée", description: "Commande confirmée" },
+  { key: "preparing", label: "Préparation", description: "En préparation" },
+  { key: "ready", label: "Prête", description: "Prête à expédier" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
+  { key: "delivered", label: "Livrée", description: "Commande livrée" },
 ];
 
-/** Circuit IMPORT complet */
 const IMPORT_STEPS_V2: FlowStep[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue", color: "text-purple-700", bgColor: "bg-purple-100" },
-  { key: "confirmed", label: "Confirmée", description: "Commande validée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
-  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur", color: "text-cyan-700", bgColor: "bg-cyan-100" },
-  { key: "received_warehouse", label: "Réception", description: "Reçue à l'entrepôt", color: "text-teal-700", bgColor: "bg-teal-100" },
-  { key: "awaiting_weighing", label: "Pesée", description: "En attente de pesée", color: "text-orange-700", bgColor: "bg-orange-100" },
-  { key: "fees_calculated", label: "Frais", description: "Frais calculés", color: "text-pink-700", bgColor: "bg-pink-100" },
-  { key: "payment_fees", label: "Paiement", description: "Attente paiement client", color: "text-amber-700", bgColor: "bg-amber-100" },
-  { key: "ready_delivery", label: "Prête", description: "Prête à expédier", color: "text-indigo-700", bgColor: "bg-indigo-100" },
-  { key: "shipped", label: "Expédiée", description: "En cours de livraison", color: "text-blue-700", bgColor: "bg-blue-100" },
-  { key: "delivered", label: "Livrée", description: "Commande livrée", color: "text-emerald-700", bgColor: "bg-emerald-100" },
+  { key: "new", label: "Nouvelle", description: "Commande reçue" },
+  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
+  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur" },
+  { key: "received_warehouse", label: "Réception", description: "Reçue à l'entrepôt" },
+  { key: "awaiting_weighing", label: "Pesée", description: "En attente de pesée" },
+  { key: "fees_calculated", label: "Frais", description: "Frais calculés" },
+  { key: "payment_fees", label: "Paiement", description: "Attente paiement client" },
+  { key: "ready_delivery", label: "Prête", description: "Prête à expédier" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
+  { key: "delivered", label: "Livrée", description: "Commande livrée" },
 ];
 
 interface Props {
+  orderId?: string;
   status: string;
   isImport: boolean;
   isLocal: boolean;
@@ -48,186 +48,199 @@ interface Props {
   onStatusChange: (status: string) => void;
 }
 
-/** Détermine si une étape est complétée, active ou future */
-function getStepState(stepKey: string, currentStatus: string, isImportFlow: boolean): "done" | "active" | "future" {
-  const allSteps = isImportFlow ? IMPORT_STEPS_V2.map(s => s.key) : LOCAL_STEPS.map(s => s.key);
-  const currentIdx = allSteps.indexOf(currentStatus);
-  const stepIdx = allSteps.indexOf(stepKey);
-
-  if (currentIdx === -1) {
-    // Statut inconnu — tout est future sauf si le statut correspond
-    return stepKey === currentStatus ? "active" : "future";
-  }
-  if (stepIdx < currentIdx) return "done";
-  if (stepIdx === currentIdx) return "active";
+function getStepState(stepKey: string, currentStatus: string, allKeys: string[]): "done" | "active" | "future" {
+  const curIdx = allKeys.indexOf(currentStatus);
+  const stepIdx = allKeys.indexOf(stepKey);
+  if (curIdx === -1) return stepKey === currentStatus ? "active" : "future";
+  if (stepIdx < curIdx) return "done";
+  if (stepIdx === curIdx) return "active";
   return "future";
 }
 
-/** Récupère l'action disponible pour l'étape actuelle */
-function getActiveAction(currentStatus: string, isImportFlow: boolean): NextStep | null {
-  return getNextStep(currentStatus, isImportFlow);
-}
-
-/* ─── Timeline visuelle d'un circuit ─── */
-function CircuitTimeline({
-  steps,
-  currentStatus,
-  isImportFlow,
-  onStatusChange,
-  activeAction,
-  title,
-  icon: Icon,
-  headerColor,
+/* ─── Accordéon individuel (Option B) ─── */
+function CircuitAccordion({
+  storageKey, defaultOpen, steps, currentStatus, isImportFlow,
+  title, icon: Icon, headerColor, headerBadge, action, onStatusChange,
 }: {
+  storageKey: string;
+  defaultOpen: boolean;
   steps: FlowStep[];
   currentStatus: string;
   isImportFlow: boolean;
-  onStatusChange: (s: string) => void;
-  activeAction: NextStep | null;
   title: string;
   icon: React.ElementType;
   headerColor: string;
+  headerBadge?: string;
+  action: NextStep | null;
+  onStatusChange: (s: string) => void;
 }) {
+  const allKeys = steps.map(s => s.key);
+  const curIdx = allKeys.indexOf(currentStatus);
+  const activeStep = curIdx >= 0 ? steps[curIdx] : steps[0];
+  const totalSteps = steps.length;
+  const stepNumber = Math.max(1, curIdx + 1);
+  const progressPct = Math.round((stepNumber / totalSteps) * 100);
+
+  const [open, setOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return defaultOpen;
+    const v = window.localStorage.getItem(storageKey);
+    if (v === "1") return true;
+    if (v === "0") return false;
+    return defaultOpen;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(storageKey, open ? "1" : "0");
+  }, [open, storageKey]);
+
   return (
-    <div className="rounded-xl border border-gray-200 overflow-hidden">
-      {/* Header */}
+    <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+      {/* Header compact + état actuel */}
       <div className={`px-3 py-2 ${headerColor} flex items-center gap-2`}>
         <Icon className="h-4 w-4" />
-        <span className="text-xs font-bold">{title}</span>
-        <span className="text-[10px] opacity-70 ml-auto">{steps.length} étapes</span>
+        <span className="text-xs font-bold flex-1 truncate">{title}</span>
+        <span className="text-[10px] opacity-90">{headerBadge ?? `Étape ${stepNumber}/${totalSteps}`}</span>
       </div>
 
-      {/* Timeline */}
-      <div className="p-3 space-y-1">
-        {steps.map((step, idx) => {
-          const state = getStepState(step.key, currentStatus, isImportFlow);
-          const isLast = idx === steps.length - 1;
+      {/* Barre de progression */}
+      <div className="h-1.5 bg-gray-100">
+        <div className="h-full bg-orange-500 transition-all" style={{ width: `${progressPct}%` }} />
+      </div>
 
-          return (
-            <div key={step.key} className="flex items-start gap-2">
-              {/* Ligne verticale + icône */}
-              <div className="flex flex-col items-center shrink-0">
-                {state === "done" && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-                {state === "active" && (
-                  <div className="h-5 w-5 rounded-full bg-orange-500 border-2 border-white shadow flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-white" />
-                  </div>
-                )}
-                {state === "future" && <Circle className="h-5 w-5 text-gray-300" />}
-                {!isLast && <div className={`w-0.5 h-6 ${state === "done" ? "bg-emerald-300" : "bg-gray-200"}`} />}
-              </div>
-
-              {/* Contenu */}
-              <div className={`flex-1 pb-3 ${state === "future" ? "opacity-50" : ""}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-semibold ${state === "active" ? "text-orange-700" : state === "done" ? "text-emerald-700" : "text-gray-600"}`}>
-                    {step.label}
-                  </span>
-                  {state === "done" && <span className="text-[9px] text-emerald-600 font-medium">Terminé</span>}
-                  {state === "active" && <span className="text-[9px] text-orange-600 font-bold">EN COURS</span>}
-                </div>
-                <p className="text-[10px] text-gray-500">{step.description}</p>
-
-                {/* Bouton d'action sur l'étape active */}
-                {state === "active" && activeAction && (
-                  <button
-                    onClick={() => onStatusChange(activeAction.status)}
-                    className={`mt-1.5 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white ${activeAction.color} hover:opacity-90 active:scale-[0.98] transition-all shadow-sm`}
-                  >
-                    {activeAction.actionLabel}
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+      {/* Étape courante */}
+      <div className="p-3 space-y-2">
+        <div className="flex items-start gap-2">
+          <div className="h-6 w-6 rounded-full bg-orange-500 border-2 border-white shadow grid place-items-center shrink-0">
+            <div className="h-2 w-2 rounded-full bg-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-orange-700">{activeStep?.label}</span>
+              <span className="text-[9px] font-bold text-orange-600 uppercase">En cours</span>
             </div>
-          );
-        })}
+            <p className="text-[11px] text-gray-500">{activeStep?.description}</p>
+          </div>
+        </div>
+
+        {action && (
+          <button
+            onClick={() => onStatusChange(action.status)}
+            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-white ${action.color} hover:opacity-90 active:scale-[0.98] transition-all shadow-sm min-h-[44px]`}
+          >
+            {action.actionLabel}
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
+
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-center gap-1 text-[11px] text-gray-500 hover:text-gray-700 py-1.5"
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+          {open ? "Masquer les étapes" : "Voir toutes les étapes"}
+        </button>
+
+        {/* Timeline complète dépliable */}
+        {open && (
+          <div className="pt-2 border-t border-gray-100 space-y-1">
+            {steps.map((step, idx) => {
+              const state = getStepState(step.key, currentStatus, allKeys);
+              const isLast = idx === steps.length - 1;
+              return (
+                <div key={step.key} className="flex items-start gap-2">
+                  <div className="flex flex-col items-center shrink-0">
+                    {state === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    {state === "active" && (
+                      <div className="h-4 w-4 rounded-full bg-orange-500 border-2 border-white shadow grid place-items-center">
+                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                      </div>
+                    )}
+                    {state === "future" && <Circle className="h-4 w-4 text-gray-300" />}
+                    {!isLast && <div className={`w-0.5 h-4 ${state === "done" ? "bg-emerald-300" : "bg-gray-200"}`} />}
+                  </div>
+                  <div className={`flex-1 pb-1.5 ${state === "future" ? "opacity-50" : ""}`}>
+                    <div className={`text-[11px] font-semibold ${state === "active" ? "text-orange-700" : state === "done" ? "text-emerald-700" : "text-gray-600"}`}>
+                      {step.label}
+                    </div>
+                    <p className="text-[10px] text-gray-500">{step.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ═══ Composant principal ═══ */
-export function WorkflowControlPanel({ status, isImport, isLocal, isMixte, articles, onStatusChange }: Props) {
+export function WorkflowControlPanel({ orderId, status, isImport, isLocal, isMixte, articles, onStatusChange }: Props) {
   const s = status ?? "new";
+  const keyBase = `cockpit:circuit-open:${orderId ?? "_"}`;
 
-  // ─── Commande MIXTE : les deux circuits ───
   if (isMixte && articles) {
-    const localArticles = articles.filter(a => a.is_local);
-    const importArticles = articles.filter(a => a.is_import);
-
+    const localCount = articles.filter(a => a.is_local).length;
+    const importCount = articles.filter(a => a.is_import).length;
     return (
-      <div className="space-y-3">
-        <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-3 border border-orange-200">
-          <h3 className="text-sm font-bold text-orange-800 flex items-center gap-2">
-            <Layers className="h-4 w-4" />
-            Commande MIXTE — Deux circuits
-          </h3>
-          <p className="text-[10px] text-orange-600 mt-1">
-            {localArticles.length} article{localArticles.length > 1 ? "s" : ""} local
-            {" + "}
-            {importArticles.length} article{importArticles.length > 1 ? "s" : ""} import
-          </p>
-        </div>
-
-        {/* Circuit LOCAL (pour articles locaux) */}
-        {localArticles.length > 0 && (
-          <CircuitTimeline
-            steps={LOCAL_STEPS}
-            currentStatus={s}
-            isImportFlow={false}
-            onStatusChange={onStatusChange}
-            activeAction={getActiveAction(s, false)}
-            title={`Circuit LOCAL (${localArticles.length})`}
-            icon={Home}
-            headerColor="bg-emerald-100 text-emerald-700"
-          />
-        )}
-
-        {/* Circuit IMPORT (pour articles imports) */}
-        {importArticles.length > 0 && (
-          <CircuitTimeline
-            steps={IMPORT_STEPS_V2}
-            currentStatus={s}
-            isImportFlow={true}
-            onStatusChange={onStatusChange}
-            activeAction={getActiveAction(s, true)}
-            title={`Circuit IMPORT (${importArticles.length})`}
-            icon={Truck}
-            headerColor="bg-indigo-100 text-indigo-700"
-          />
-        )}
+      <div className="space-y-2">
+        <CircuitAccordion
+          storageKey={`${keyBase}:local`}
+          defaultOpen={false}
+          steps={LOCAL_STEPS}
+          currentStatus={s}
+          isImportFlow={false}
+          title={`Circuit LOCAL (${localCount} article${localCount > 1 ? "s" : ""})`}
+          icon={Home}
+          headerColor="bg-emerald-100 text-emerald-700"
+          action={getNextStep(s, false)}
+          onStatusChange={onStatusChange}
+        />
+        <CircuitAccordion
+          storageKey={`${keyBase}:import`}
+          defaultOpen={false}
+          steps={IMPORT_STEPS_V2}
+          currentStatus={s}
+          isImportFlow={true}
+          title={`Circuit IMPORT (${importCount} article${importCount > 1 ? "s" : ""})`}
+          icon={Truck}
+          headerColor="bg-indigo-100 text-indigo-700"
+          action={getNextStep(s, true)}
+          onStatusChange={onStatusChange}
+        />
       </div>
     );
   }
 
-  // ─── Commande 100% LOCAL ───
   if (isLocal) {
     return (
-      <CircuitTimeline
+      <CircuitAccordion
+        storageKey={`${keyBase}:local`}
+        defaultOpen={false}
         steps={LOCAL_STEPS}
         currentStatus={s}
         isImportFlow={false}
-        onStatusChange={onStatusChange}
-        activeAction={getActiveAction(s, false)}
         title="Circuit LOCAL"
         icon={Home}
         headerColor="bg-emerald-100 text-emerald-700"
+        action={getNextStep(s, false)}
+        onStatusChange={onStatusChange}
       />
     );
   }
 
-  // ─── Commande 100% IMPORT (ou fallback) ───
   return (
-    <CircuitTimeline
+    <CircuitAccordion
+      storageKey={`${keyBase}:import`}
+      defaultOpen={false}
       steps={IMPORT_STEPS_V2}
       currentStatus={s}
       isImportFlow={true}
-      onStatusChange={onStatusChange}
-      activeAction={getActiveAction(s, true)}
       title="Circuit IMPORT"
       icon={Truck}
       headerColor="bg-indigo-100 text-indigo-700"
+      action={getNextStep(s, true)}
+      onStatusChange={onStatusChange}
     />
   );
 }
