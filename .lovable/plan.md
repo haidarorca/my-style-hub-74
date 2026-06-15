@@ -1,166 +1,163 @@
+# Architecture cible Kawzone — Split par boutique + Engagements ouverts
+
+> Document de référence. Toute décision de code future doit être compatible avec cette architecture.
+> Validé après analyse des cas A (livraison consolidée), B (container import), D (paiement échelonné), E (remplacement cross-boutique), G (stock partagé), H (modification post-commande), L (décisions mère vs filles).
+
+---
+
 ## Vision
 
-L'article devient l'unité métier centrale du Cockpit. La commande n'est qu'un conteneur. Chaque article a son cycle de vie, son type (LOCAL ou IMPORT), son responsable (vendeur ou fournisseur), ses verrous, ses décisions et son impact financier — affichés et actionnables directement dans sa ligne, sans changer d'écran.
-
-Aucune migration ni nouvelle colonne. Tout est dérivé du JSON existant (`metadata.articles`, `stock_break`, `stock_break.settlement`, `payments`).
+Une **commande client** est un agrégat. Les **opérations** se passent au niveau de **sous-commandes par boutique**. Les **imports** sont regroupés dans des **containers** parallèles. Tout engagement non clos (financier, logistique, fournisseur) est un **Commitment** dérivé, requêtable de façon symétrique pour clients et vendeurs.
 
 ---
 
-## 1. Séparation stricte LOCAL / IMPORT (fondation)
-
-Aujourd'hui, `ArticleStatus` mélange les deux flux. Je sépare en deux machines d'état distinctes, dérivées du même champ `status` mais interprétées selon `is_import`.
+## 3 entités de premier niveau
 
 ```text
-LOCAL:   pending → available → preparing → ready → delivered
-IMPORT:  pending → supplier_ordered → received_warehouse → weighing
-                 → fees_calculated → ready → delivered
+mother_order            (1 par commande client — lieu de LECTURE et PAIEMENT)
+  ├─ paiements (encaissements client, jamais ventilés en base)
+  ├─ adresse de livraison
+  ├─ statut consolidé (DÉRIVÉ des sub_orders)
+  └─ sub_orders[]
+        ├─ vendor_id / shop_id
+        ├─ items[]
+        ├─ statut propre (workflow indépendant)
+        ├─ stock_breaks + settlements (scopés vendeur)
+        ├─ commitments[] (engagements ouverts dérivés)
+        └─ → peut être rattachée à un import_container
+
+import_container         (3ᵉ entité, parallèle)
+  ├─ regroupe N sub_orders d'origine import (même container Taobao)
+  ├─ pesée, fret total, dédouanement, statut transit
+  └─ ventile automatiquement le fret sur ses sub_orders au prorata du poids
 ```
-
-Fichier `src/cockpit/lib/article-states.ts` :
-- Ajout `LOCAL_FLOW` / `IMPORT_FLOW` (tableaux ordonnés).
-- Helpers `getArticleFlow(article)`, `getNextArticleStep(article)`, `getAllowedArticleActions(article, orderStatus, role)`.
-- Les actions retournées dépendent strictement de `is_import` : un LOCAL ne verra jamais "commander fournisseur" / "pesée" / "réception entrepôt" ; un IMPORT ne verra jamais "lancer préparation locale".
-
-Les statuts existants (`ordered`, `received`, `shipped`) restent en DB mais sont labellisés différemment selon le flux (ex : `ready` LOCAL = "Prêt vendeur", `ready` IMPORT = "Prêt livraison").
-
-## 2. Rupture comme vrai processus métier (verrou exclusif)
-
-Aujourd'hui une rupture coexiste avec les actions normales. Nouveau comportement :
-
-- Dès `stock_break` posé et non résolu : toutes les actions normales (avancer statut, livrer, etc.) disparaissent. Seules options : `Résoudre la rupture` ou `Annuler la rupture` (Super Admin uniquement).
-- Une fois résolue : l'article entre dans un état terminal métier (`refunded`, `excluded_from_shipment`, `waiting_restock`, `replaced`) qui verrouille toute régression.
-- Garanties dans `canChangeArticleStatus` / `canPartialDeliver` / `canSignalBreak` : un article résolu ne peut plus redevenir `available` / `ready` / `delivered` sans override Super Admin tracé.
-
-Nouvelle fonction `getArticleBusinessState(article)` qui retourne l'état métier réel :
-`active | waiting_restock | excluded | refunded | credited | replaced | delivered`.
-C'est ce que l'UI affiche, pas le `status` brut.
-
-## 3. Les 5 décisions de rupture — chacune un vrai métier
-
-| Décision     | État article            | Pending financier            | Reprise workflow possible |
-|--------------|-------------------------|------------------------------|---------------------------|
-| refund       | refunded                | refund_pending               | non                       |
-| credit       | credited (trace admin)  | credit_pending               | non                       |
-| partial_ship | excluded_from_shipment  | aucun                        | non (verrouillé)          |
-| wait_restock | waiting_restock         | aucun                        | oui (retour flux normal)  |
-| replace      | replaced + sous-flux    | extra_payment / refund / credit pending selon delta | oui (nouvel article suit le flux) |
-
-Le `replace` reste un mini-workflow : choix produit + prix → calcul automatique du delta → choix admin pour différence → pending financier dérivé. (Déjà partiellement implémenté, à durcir : empêcher toute action normale tant que le replace n'est pas confirmé.)
-
-`wait_restock` : nouveau bloc dédié dans la ligne article — bouton "Stock revenu → reprendre" qui remet l'article dans son flux d'origine (`available` LOCAL ou `received_warehouse` IMPORT), avec trace d'audit. Sans ce bouton, l'article reste figé en attente.
-
-## 4. Livraison partielle comme état officiel de commande
-
-Aujourd'hui dérivée mais peu visible. Refonte :
-
-- Bandeau `PartialDeliveryBanner` enrichi en tête de drawer (déjà présent — à étoffer) :
-  - X livrés / Y restants / Z en réappro / W exclus / V à remplacer
-  - Bouton "Préparer expédition partielle" si au moins un article `ready` et au moins un bloqué.
-- Le statut commande affiche `partial_delivery_in_progress` (dérivé, non persisté) tant que des articles restent à traiter après une expédition partielle.
-- `canMarkDelivered` (commande) ne passe à `delivered` final que si TOUS les articles sont en état terminal cohérent (delivered, refunded, credited, excluded, replaced+delivered) ET aucun pending financier.
-
-## 5. Finances : séparation Produits / Fret
-
-Nouveau composant `FinanceSummaryCard` (remplace l'affichage actuel fusionné dans `OrderDrawer`) :
-
-```text
-PRODUITS
-  Total      : 45 000
-  Payé       : 30 000
-  Reste      : 15 000
-
-FRET (IMPORT uniquement)
-  Estimé     : 8 000
-  Final      : 9 200
-  Payé       : 0
-  Reste      : 9 200
-
-EN ATTENTE DE TRAITEMENT
-  Remboursements : 5 000 (1 article)
-  Avoirs         : 2 000 (1 article)
-  Compléments    : 1 500 (1 article)
-```
-
-Dérivé de `payments` (filtré par `metadata.kind === "freight"` vs reste) + `getPendingFinancialActions`. Aucune nouvelle table. Si la distinction freight/produit n'existe pas encore dans payments, on l'infère depuis le contexte de saisie (champ `kind` ajouté à `PaymentRecord` côté front uniquement, persisté dans metadata du payment).
-
-## 6. Verrous et overrides Super Admin
-
-- `canChangeArticleStatus`, `canPartialDeliver`, `canSignalBreak` durcis selon la table de la section 3.
-- Tout override passe par `DecisionOverrideDialog` (déjà créé) avec motif obligatoire, ancien état → nouvel état, écrit dans `stock_break.override_history`.
-- Nouveau : override d'un état terminal article (refunded → active, excluded → active, etc.) avec même dialog, écrit dans `article.status_history` enrichi (`{from, to, by, at, reason}`).
-
-## 7. Audit unifié exploitable
-
-`OrderAuditTimeline` (déjà créé) étendu :
-- Filtres par catégorie : Statut / Paiement / Rupture / Override / Livraison.
-- Chaque ligne affiche `qui / quand / quoi / pourquoi` (motif obligatoire pour override et annulation).
-- Export texte simple (copier dans presse-papier) pour reporting.
-
-## 8. UX article-centric dans `ArticlesPanel`
-
-Refonte de la ligne article pour que TOUT soit visible sans ouvrir d'écran :
-
-```text
-┌─────────────────────────────────────────────────┐
-│ [img] Nom produit · variant            15 000 F │
-│       🏪 Vendeur · LOCAL  |  ✈ Fournisseur · IMPORT │
-│       État métier : [badge contextuel]          │
-│       Prochaine action : [chip]   [↳ Agir]      │
-│       Impact financier : +1 500 à encaisser     │
-│       ─ verrou : 🔒 décision validée            │
-└─────────────────────────────────────────────────┘
-```
-
-- Badge décision DANS la ligne (déjà fait — statique, à conserver).
-- Bouton "Agir" unique qui ouvre le bon flow (avancer statut, résoudre rupture, traiter pending, reprendre après restock) selon `getAllowedArticleActions`.
-- Pas de boutons multiples confus : un seul appel à l'action contextuelle.
-
-## 9. Mobile-first
-
-- Toutes les listes < 80% de la hauteur viewport, scroll interne.
-- Boutons d'action toujours visibles en bas (sticky footer) du drawer, pas hors écran.
-- Timeline d'audit collapsible (collapsed par défaut).
-- Accordéons LOCAL / IMPORT déjà mémorisés en localStorage (à conserver).
-- Tester chaque écran à 384px de large (viewport actuel de l'utilisateur).
 
 ---
 
-## Fichiers touchés (aucune migration)
+## Règles non négociables
+
+### Split
+- **Le split est figé au checkout** (G), basé sur une `split_strategy` versionnée.
+- Une `sub_order` est **mutable** tant qu'aucune action irréversible (expédition, settlement, rupture validée) n'a été posée (H).
+- Le re-split d'un article entre sub_orders (cas E) est une **opération explicite et tracée**, jamais implicite.
+
+### Paiements
+- Le paiement appartient à la **commande mère** (D). Jamais ventilé physiquement.
+- La quote-part par sub_order est une **vue dérivée** au prorata du total TTC.
+- Un complément (ex : `replace_higher` chez B) crée un Commitment sur la sub_order B, mais s'encaisse sur la mère.
+
+### Décisions
+- La commande mère est **lecture + paiement uniquement** (L).
+- Toute décision destructive (annulation, refund, résolution rupture, livraison) vit sur la sub_order.
+- "Annuler la commande" au niveau mère = boucle confirmée sur chaque fille, jamais un clic magique.
+
+### Livraison
+- Frais de livraison portés par **Kawzone** par défaut (A), configurable par sub_order pour le multi-livreur futur.
+- Frais remboursés au client **uniquement si la mère est annulée intégralement**.
+
+### Imports
+- Un `import_container` est une 3ᵉ entité indépendante (B).
+- Plusieurs sub_orders (même de boutiques différentes) peuvent partager un container.
+- Pesée → ventilation automatique du fret au prorata du poids.
+
+---
+
+## Commitments (engagements ouverts)
+
+Brique transverse, **dérivée des données** au round 1. Aucun nouveau schéma SQL initial.
 
 ```text
-src/cockpit/lib/article-states.ts        ← flows LOCAL/IMPORT, business state, verrous durcis
-src/cockpit/lib/workflow.ts              ← canMarkDelivered durci (état terminal cohérent)
-src/cockpit/components/ArticlesPanel.tsx ← ligne article-centric, bouton "Agir" unique
-src/cockpit/components/StockBreakDialog.tsx  ← verrou exclusif post-rupture
-src/cockpit/components/OrderDrawer.tsx   ← intègre FinanceSummaryCard + PartialDeliveryBanner étoffé
-src/cockpit/components/PartialDeliveryBanner.tsx  ← compteurs enrichis (excluded, replaced, restock)
-src/cockpit/components/PendingFinancialActions.tsx  ← déjà OK, juste relié
-src/cockpit/components/OrderAuditTimeline.tsx  ← filtres par catégorie
-src/cockpit/components/FinanceSummaryCard.tsx  ← NOUVEAU (Produits / Fret / Pending)
-src/cockpit/components/RestockResumeButton.tsx ← NOUVEAU (wait_restock → reprise)
-src/cockpit/components/DecisionOverrideDialog.tsx  ← étendu aux états terminaux article
+Commitment {
+  id              : déterministe (sub_order_id + product_id + kind)
+  kind            : client_refund_due | client_credit_due | client_extra_payment_due
+                  | restock_followup | delivery_remainder | weighing_pending
+                  | vendor_payout_due | vendor_charge_due
+  family          : financial | logistical | supplier
+  direction       : kawzone_owes | owes_kawzone | internal
+  counterparty    : { type: client | vendor | supplier | internal, id?, name? }
+  amount?         : number     (si family=financial)
+  reason          : phrase courte
+  source          : { sub_order_id, product_id?, decision_kind, decided_at, decided_by }
+  opened_at       : ISO
+  due_by?         : ISO
+  status          : open | in_progress | closed
+  resolution?     : { kind, reference?, amount?, note? }
+}
 ```
+
+**Requêtes de pilotage** que cette structure rend triviales :
+- "Que devons-nous aux clients ?" → `family=financial AND direction=kawzone_owes AND counterparty.type=client`
+- "Que nous doivent les clients ?" → `direction=owes_kawzone AND counterparty.type=client`
+- "Que doivent / leur devons-nous aux vendeurs ?" → idem avec `counterparty.type=vendor`
+- "Actions logistiques ouvertes ?" → `family=logistical AND status=open`
+- "Dossiers bloqués depuis longtemps ?" → tri par `opened_at` ascendant
+
+---
+
+## Décisions de rupture → Commitments générés (table de routage)
+
+| Décision (sub_order) | Commitment(s) créé(s) | Ferme quand |
+|---|---|---|
+| Rupture → refund | `client_refund_due(montant)` | settlement posé |
+| Rupture → credit | `client_credit_due(montant)` | settlement posé |
+| Rupture → replace_higher | `client_extra_payment_due(delta)` | settlement posé |
+| Rupture → replace_lower | `client_refund_due(delta)` | settlement posé |
+| Rupture → wait_restock | `restock_followup(article)` | `resumed_at` posé |
+| Rupture → partial_ship | rien (article exclu, scope fermé) | immédiat |
+| Annulation sub_order avec refund | `client_refund_due(total payé sub)` | settlement posé |
+| Livraison partielle | `delivery_remainder(qté)` + éventuel `client_refund_due` | livraison finale ou refund |
+| Pesée import à faire | `weighing_pending(sub_order)` | pesée enregistrée |
+| *(futur)* Commission vendeur due | `vendor_payout_due(montant)` | virement vendeur posé |
+| *(futur)* Charge vendeur due | `vendor_charge_due(montant)` | encaissement vendeur posé |
+
+---
+
+## Ordre d'implémentation (chantier de fond)
+
+### Phase 0 — Acquis
+- Cockpit Next visible (`/admin/cockpit-next`) avec agrégateur, hero "À faire maintenant", Engagements financiers, deep-link.
+- Bug "Modifications non enregistrées" fantôme corrigé (les 5 handlers d'article ne flippent plus `hasChanges`).
+
+### Phase 1 — `sub_order` comme **vue dérivée front** (sans migration SQL)
+- Regrouper `metadata.articles` par `vendor_id` dans l'agrégateur → exposer un tableau `sub_orders` calculé.
+- Cockpit Next affiche les sub_orders dans la vue commande au lieu de l'agrégat unique.
+- Workflow control par sub_order, plus par commande.
+- **Permet de valider l'UX sans risque, sans toucher à la base.**
+
+### Phase 2 — Commitments dérivés (front uniquement)
+- `deriveCommitments(sub_order)` pure function.
+- La section "Engagements financiers" du Cockpit Next se rebranche dessus.
+- Sections "Suivi opérationnel" et "Attente externe" alimentées par le même flux.
+- **Aucune nouvelle table.**
+
+### Phase 3 — Migration SQL (réversible)
+- Tables `mother_orders`, `sub_orders`, `import_containers`.
+- Script de bascule idempotent : pour chaque `orders` actuelle → 1 mère + N filles selon `order_items.vendor_id`.
+- Bascule réversible : la table `orders` reste en place pendant la transition.
+- Vues SQL pour la rétro-compatibilité des écrans pas encore migrés.
+
+### Phase 4 — Containers d'import
+- Réutiliser ou étendre `import_batches`.
+- Logique de ventilation du fret au prorata du poids.
+
+### Phase 5 — Portail vendeur natif
+- Trivial après Phase 3 : chaque vendeur ne voit que ses `sub_orders`.
+
+---
 
 ## Hors-scope (à valider plus tard)
 
-- Persistance long terme `freight` vs `product` payment kind si pas dans metadata actuelle → on infère depuis le contexte d'abord.
-- Portefeuille / solde client réutilisable pour `credit` → reste une trace admin pure (déjà validé v3).
-- Notifications vendeur / fournisseur automatisées sur changement d'état article.
+- Notifications client/vendeur automatisées (WhatsApp).
+- Calcul auto des commissions selon `commission_rules`.
+- Portefeuille client réutilisable pour `credit`.
+- Livraison multi-livreurs (Jumia Express style).
 
 ---
 
-## Ordre d'implémentation proposé
+## Garantie d'ouverture
 
-1. Fondation article-states (flows LOCAL/IMPORT, business state, verrous durcis) — fichier `article-states.ts`.
-2. Refonte `ArticlesPanel` ligne article-centric + bouton "Agir" unique.
-3. `FinanceSummaryCard` + intégration dans `OrderDrawer`.
-4. `PartialDeliveryBanner` étoffé.
-5. `RestockResumeButton` + flow reprise wait_restock.
-6. `DecisionOverrideDialog` étendu + audit enrichi.
-7. Pass mobile (384px) sur tous les écrans touchés.
+À aucun moment une logique financière ou opérationnelle ne doit court-circuiter le modèle Commitment. Tout nouvel ajout (commissions, payouts, retours, litiges) doit produire un `Commitment` — c'est la règle.
 
-Chaque étape laisse le Cockpit utilisable (pas de big-bang).
+À aucun moment une décision destructive ne doit vivre au niveau `mother_order` — sub_order uniquement.
 
----
-
-Valides-tu ce plan global avant que je commence l'étape 1 (fondation `article-states.ts`) ?
+À aucun moment un paiement ne doit être ventilé physiquement en base — la quote-part par sub_order est toujours dérivée.
