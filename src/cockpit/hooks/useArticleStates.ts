@@ -49,7 +49,7 @@ function projectInitialStatus(orderStatus: string | undefined, isImport: boolean
   return "pending";
 }
 
-function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, orderStatus: string | undefined): OrderArticle {
+export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, orderStatus: string | undefined): OrderArticle {
   const isImport = item.is_import ?? false;
   const isLocal = item.is_local ?? false;
   const status = (row?.status as ArticleStatus | undefined) ?? projectInitialStatus(orderStatus, isImport);
