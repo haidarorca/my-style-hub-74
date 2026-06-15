@@ -561,6 +561,7 @@ function FinancialCommitments({ enriched }: { enriched: OrderWithAggregate[] }) 
           <li key={`${r.order.order.order_id}-${r.kind}-${i}`}>
             <Link
               to="/admin/cockpit"
+              search={{ orderId: r.order.order.order_id ?? undefined, focus: "money" as const }}
               className="py-2 flex items-center gap-2 hover:bg-gray-50 -mx-1 px-1 rounded"
             >
               <FinBadge kind={r.kind} />
