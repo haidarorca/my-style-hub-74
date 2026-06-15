@@ -81,34 +81,61 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
-  // Finances centralisées — SEULE source de vérité
-  const ot = financials.productTotal;
-  const sf = financials.freight;
-  const gt = financials.grandTotal;
-  const tp = financials.paid;
-  const rem = financials.remaining;
+
+  // ─── Phase 2 : SCOPE BOUTIQUE ───
+  // Toutes les sous-commandes sœurs (pour navigation et libellé).
+  const allSubs = useMemo(
+    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
+    [articles, status, order.order_id],
+  );
+  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
+  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
+  const scopedArticles = useMemo(
+    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
+    [articles, vendorId],
+  );
+  const siblings = useMemo(
+    () => allSubs.map(s => ({
+      vendor_id: s.vendor_id, vendor_name: s.vendor_name,
+      index: s.index, total: s.total, label: s.label,
+    })),
+    [allSubs],
+  );
+  const isScoped = !!vendorId && !!currentSub;
+  // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
+  const headerLabel = isScoped ? currentSub!.label : kz;
+  const headerVendor = isScoped ? currentSub!.vendor_name : null;
+
+  // Finances : pro-rata du sous-total produits quand scopé.
+  const productShare = isScoped && financials.productTotal > 0
+    ? currentSub!.financials.product_total / financials.productTotal
+    : 1;
+  const ot = isScoped ? currentSub!.financials.product_total : financials.productTotal;
+  const sf = isScoped ? Math.round(financials.freight * productShare) : financials.freight;
+  const gt = ot + sf;
+  const tp = Math.round(financials.paid * (isScoped ? productShare : 1));
+  const rem = Math.max(0, gt - tp);
   const paidFull = rem <= 0 && gt > 0;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
   const sortedP = useMemo(() => [...payments].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()), [payments]);
   const firstP = sortedP[0];
   const lastP = sortedP[sortedP.length - 1];
 
-  // ─── Type réel : déterminé par les articles (is_import / is_local).
-  // Le concept MIXTE disparaît au niveau commande — c'est par sub_order désormais.
-  const hasLocal = !!articles && articles.some(a => a.is_local);
-  const hasImport = !!articles && articles.some(a => a.is_import);
-  const isLocalOrder = !!articles && hasLocal && !hasImport;
-  const isImportOrder = !!articles && !hasLocal && hasImport;
-  const isImportFallback = !articles && isImport(order);
-  const isMultiVendor = !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
-  // `imp` = workflow import global (utile pour la légende ; les sub_orders ont leur propre type)
+  // ─── Type opérationnel du contenu affiché (scope-aware) ───
+  const hasLocal = !!scopedArticles && scopedArticles.some(a => a.is_local);
+  const hasImport = !!scopedArticles && scopedArticles.some(a => a.is_import);
+  const isLocalOrder = !!scopedArticles && hasLocal && !hasImport;
+  const isImportOrder = !!scopedArticles && !hasLocal && hasImport;
+  const isImportFallback = !scopedArticles && isImport(order);
+  // Quand scopé : pas de "multi-vendor" dans ce drawer (par définition c'est UNE boutique).
+  const isMultiVendor = !isScoped && !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
 
-  // ─── ★ Agrégateur : source unique pour next_action / banners / alertes ───
-  const agg = useMemo(() => aggregateOrder(articles, status), [articles, status]);
-  const nextActionInfo = articles ? buildNextActionBannerPayload(agg) : null;
+  // Agrégateur — sur les articles scopés.
+  const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
+  const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
