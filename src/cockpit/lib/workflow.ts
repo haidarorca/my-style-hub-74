@@ -311,14 +311,17 @@ export function canMarkShipped(articles: OrderArticle[] | undefined): Progressio
   const unresolved = list.filter(a => a.stock_break && !a.stock_break.resolved);
   if (unresolved.length > 0) reasons.push(`${unresolved.length} rupture(s) non résolue(s)`);
   const shippable = list.filter(a => ["ready", "available", "received"].includes(a.status)
-    && !(a.stock_break?.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(a.stock_break.action)));
+    && !(a.stock_break?.resolved && (
+      ["partial_ship", "refund", "credit"].includes(a.stock_break.action)
+      || (a.stock_break.action === "wait_restock" && !a.stock_break.resumed_at)
+    )));
   if (list.length > 0 && shippable.length === 0) reasons.push("Aucun article prêt à expédier");
   return { ok: reasons.length === 0, reasons };
 }
 
 /** Bloque la livraison finale tant que des articles ne sont pas livrés,
-    qu'une rupture est en cours, qu'un article attend réappro, ou qu'un
-    `*_pending` financier n'est pas traité. */
+    qu'une rupture est en cours, qu'un article attend réappro (non repris),
+    ou qu'un `*_pending` financier n'est pas traité. */
 export function canMarkDelivered(articles: OrderArticle[] | undefined): ProgressionCheck {
   const reasons: string[] = [];
   const list = articles ?? [];
@@ -326,12 +329,15 @@ export function canMarkDelivered(articles: OrderArticle[] | undefined): Progress
   const unresolved = list.filter(a => a.stock_break && !a.stock_break.resolved);
   if (unresolved.length > 0) reasons.push(`${unresolved.length} rupture(s) non résolue(s)`);
 
-  const waiting = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock");
+  const waiting = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock" && !a.stock_break.resumed_at);
   if (waiting.length > 0) reasons.push(`${waiting.length} article(s) en attente de réappro`);
 
   const undelivered = list.filter(a => {
     const sb = a.stock_break;
-    const excluded = sb?.resolved && ["partial_ship", "refund", "credit", "wait_restock"].includes(sb.action);
+    const excluded = sb?.resolved && (
+      ["partial_ship", "refund", "credit"].includes(sb.action)
+      || (sb.action === "wait_restock" && !sb.resumed_at)
+    );
     if (excluded) return false;
     return (a.delivered_qty ?? 0) < a.quantity;
   });
