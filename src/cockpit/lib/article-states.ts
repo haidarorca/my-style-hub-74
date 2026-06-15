@@ -431,7 +431,7 @@ export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): 
   const list = articles ?? [];
   const deliveredCount = list.filter(a => (a.delivered_qty ?? 0) >= a.quantity).length;
   const pendingCount = list.length - deliveredCount;
-  const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock").length;
+  const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock" && !a.stock_break.resumed_at).length;
   const excludedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "partial_ship").length;
   const replacedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "replace").length;
   const refundedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "refund").length;
