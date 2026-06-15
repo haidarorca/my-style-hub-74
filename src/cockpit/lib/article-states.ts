@@ -883,3 +883,133 @@ export function getApplicableScenarios(
 
   return keys;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS CANONIQUES — Commit 1
+//
+// Fonctions pures, sans état, qui parlent le vocabulaire cible.
+// Elles encapsulent le mapping legacy → canonique et seront LES SEULES
+// utilisées par l'agrégateur (Phase 2). Les call sites UI migreront
+// progressivement dessus au Commit 2.
+// ═══════════════════════════════════════════════════════════════
+
+/** Lit le kind canonique d'un settlement, en mappant l'ancien `type` si besoin.
+ *  Retourne null si le settlement est absent ou si aucun des deux champs n'est posé. */
+export function getSettlementKind(settlement: Settlement | null | undefined): SettlementKind | null {
+  if (!settlement) return null;
+  if (settlement.kind) return settlement.kind;
+  switch (settlement.type) {
+    case "refund": return "refund";
+    case "credit": return "credit";
+    case "complement": return "extra_payment";
+    case "none": return "no_refund";
+    default: return null;
+  }
+}
+
+/** Sous-ensemble canonique des actions de rupture (sans les legacy).
+ *  Utilisé par les nouveaux dialogs et par l'agrégateur. */
+export type CanonicalStockBreakAction =
+  | "cancel"
+  | "wait_restock"
+  | "replace_same"
+  | "replace_higher"
+  | "replace_lower"
+  | "partial_delivery";
+
+/** Convertit une action (legacy ou canonique) vers sa forme canonique.
+ *  Mapping :
+ *    refund        → cancel            (l'action métier est l'annulation, le refund est l'exécution)
+ *    credit        → cancel            (idem)
+ *    partial_ship  → cancel            (article exclu du colis = annulé sur ce colis)
+ *    replace       → replace_same      (par défaut ; le delta réel sera précisé au Commit 2)
+ *  Pour `replace` legacy avec `diff_handling`, utiliser `getCanonicalReplaceVariant`. */
+export function getCanonicalAction(
+  action: StockBreakAction | null | undefined
+): CanonicalStockBreakAction | null {
+  if (!action) return null;
+  switch (action) {
+    case "cancel":
+    case "wait_restock":
+    case "replace_same":
+    case "replace_higher":
+    case "replace_lower":
+    case "partial_delivery":
+      return action;
+    case "refund":
+    case "credit":
+    case "partial_ship":
+      return "cancel";
+    case "replace":
+      return "replace_same";
+    default:
+      return null;
+  }
+}
+
+/** Pour un legacy `replace`, déduit la variante canonique depuis le delta de prix.
+ *  Si `replacement` est absent : retombe sur `replace_same`. */
+export function getCanonicalReplaceVariant(
+  oldUnitPrice: number,
+  newUnitPrice: number | undefined
+): "replace_same" | "replace_higher" | "replace_lower" {
+  if (newUnitPrice == null) return "replace_same";
+  if (newUnitPrice > oldUnitPrice) return "replace_higher";
+  if (newUnitPrice < oldUnitPrice) return "replace_lower";
+  return "replace_same";
+}
+
+/** ★ Source de vérité métier ★
+ *  Une décision (canonique) exige-t-elle un règlement financier ?
+ *  Version pure : prend uniquement la décision, indépendamment de l'article.
+ *  Utilisé par l'agrégateur (Phase 2) et par les nouveaux dialogs (Commit 2).
+ *
+ *  Cas particuliers :
+ *  - `cancel` : requires_settlement dépend du contexte de paiement (déjà payé ?).
+ *    Cette fonction renvoie `true` par défaut ; l'agrégateur tranchera en utilisant
+ *    `requiresSettlementForCancel(decision, alreadyPaid)`.
+ *  - `partial_delivery` : idem (refund ou no_refund selon contexte). */
+export function requiresSettlementCanonical(action: CanonicalStockBreakAction): boolean {
+  switch (action) {
+    case "wait_restock":
+    case "replace_same":
+      return false;
+    case "cancel":
+    case "replace_higher":
+    case "replace_lower":
+    case "partial_delivery":
+      return true;
+  }
+}
+
+/** Variante contextuelle pour `cancel` et `partial_delivery` : si le client
+ *  n'a rien payé sur cette part, un `settlement.kind = no_refund` reste attendu
+ *  pour tracer la décision (audit complet). Donc cette fonction renvoie toujours
+ *  `true` quand l'action en réclame un — la nuance no_refund vs refund est dans
+ *  le KIND, pas dans la présence du settlement. */
+export function requiresSettlementForAction(
+  action: CanonicalStockBreakAction,
+  _ctx?: { article_already_paid?: boolean }
+): boolean {
+  return requiresSettlementCanonical(action);
+}
+
+/** Lecture canonique de la décision sur un article : retourne l'action canonique
+ *  + la variante de remplacement si applicable.
+ *  Pratique pour les composants UI qui veulent un seul accès uniforme. */
+export function readCanonicalDecision(article: OrderArticle): {
+  action: CanonicalStockBreakAction;
+  resolved: boolean;
+} | null {
+  const sb = article.stock_break;
+  if (!sb) return null;
+  let action = getCanonicalAction(sb.action);
+  if (!action) return null;
+  // legacy `replace` : on précise la variante via le delta de prix réel
+  if (sb.action === "replace") {
+    const newPrice = sb.replacement?.new_unit_price;
+    action = getCanonicalReplaceVariant(article.unit_price, newPrice);
+  }
+  return { action, resolved: sb.resolved };
+}
+
