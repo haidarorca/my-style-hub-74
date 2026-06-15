@@ -16,6 +16,7 @@ import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
 import { OrderAuditTimeline } from "./OrderAuditTimeline";
 import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
+import { RestockWaitingPanel } from "./RestockWaitingPanel";
 import { PendingFinancialActions } from "./PendingFinancialActions";
 import type { SettlementInput } from "./PendingFinancialActions";
 import { useAuth } from "@/hooks/use-auth";
