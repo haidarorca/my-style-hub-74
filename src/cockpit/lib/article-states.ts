@@ -85,23 +85,24 @@ export interface OrderArticle {
     action_label: string;
     resolved: boolean;
     created_at: string;
-    /** Sous-cas pour `replace` : produit de remplacement saisi par l'admin. */
     replacement?: { product_name: string; new_unit_price: number };
-    /** Pour `replace` quand le nouveau prix diffère, ou pour différencier refund vs credit. */
     diff_handling?: "extra_payment" | "refund" | "credit";
-    /** Historique des overrides Super Admin (en mémoire — pas de colonne DB dédiée). */
     override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
-    /** Trace du traitement financier — lève le pending. Aucun mouvement automatique : posé par action admin explicite. */
     settlement?: {
       kind: "refund" | "credit" | "extra_payment";
       amount: number;
-      payment_id?: string;   // ligne `payments` existante (refund / extra_payment)
-      method?: string;       // moyen de paiement (refund / extra_payment)
-      reference?: string;    // référence libre (avoir, virement, etc.)
+      payment_id?: string;
+      method?: string;
+      reference?: string;
       note?: string;
-      by: string;            // admin qui a validé
-      at: string;            // ISO timestamp
+      by: string;
+      at: string;
     };
+    /** Cycle wait_restock : statut au moment de la mise en attente (mémoire). */
+    last_valid_status?: ArticleStatus;
+    /** Cycle wait_restock : reprise du flux normal après retour de stock. */
+    resumed_at?: string;
+    resumed_by?: string;
   };
   // Livraison partielle
   delivered_qty?: number;
