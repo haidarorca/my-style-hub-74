@@ -26,7 +26,8 @@ import { NextActionBanner } from "./NextActionBanner";
 import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
-import { getNextActionForOrder, getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 
