@@ -184,7 +184,6 @@ async function tryLogisticsView(
     let q = supabase
       .from("logistics_order_view")
       .select("*", { count: "exact", head: false })
-      .eq("has_import_items", true)
       .order("order_created_at", { ascending: false });
 
     if (data.orderStatus) q = q.eq("order_status", data.orderStatus);

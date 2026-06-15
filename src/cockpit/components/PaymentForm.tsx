@@ -16,11 +16,13 @@ export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
   const [method, setMethod] = useState("wave");
   const [reference, setReference] = useState("");
 
+  const amt = parseFloat(amount);
+  const exceedsBalance = !isNaN(amt) && amt > balance;
+  const canSubmit = !isNaN(amt) && amt > 0 && amt <= balance;
+
   const handleSubmit = () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return;
-    const finalAmt = amt > balance ? balance : amt;
-    onPayment(orderId, finalAmt, method, reference, adminName);
+    if (!canSubmit) return;
+    onPayment(orderId, amt, method, reference, adminName);
     setAmount("");
     setReference("");
   };
@@ -35,7 +37,12 @@ export function PaymentForm({ balance, orderId, adminName, onPayment }: Props) {
         </select>
       </div>
       <Input placeholder="Référence (optionnel)" value={reference} onChange={e => setReference(e.target.value)} className="h-9 text-sm" />
-      <Button size="sm" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit} disabled={!amount || parseFloat(amount) <= 0}>
+      {exceedsBalance && (
+        <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
+          Le montant dépasse le solde restant ({fmtF(balance)}).
+        </div>
+      )}
+      <Button size="sm" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit} disabled={!canSubmit}>
         Enregistrer le paiement
       </Button>
     </div>
