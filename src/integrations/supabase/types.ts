@@ -963,6 +963,7 @@ export type Database = {
           id: string
           order_id: string
           product_id: string
+          settlement: Json | null
           status: string
           stock_break: Json | null
           updated_at: string
@@ -976,6 +977,7 @@ export type Database = {
           id?: string
           order_id: string
           product_id: string
+          settlement?: Json | null
           status?: string
           stock_break?: Json | null
           updated_at?: string
@@ -989,6 +991,7 @@ export type Database = {
           id?: string
           order_id?: string
           product_id?: string
+          settlement?: Json | null
           status?: string
           stock_break?: Json | null
           updated_at?: string
