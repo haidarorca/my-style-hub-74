@@ -382,12 +382,17 @@ export function getDecisionBadge(article: OrderArticle): DecisionBadge | null {
   return null;
 }
 
-/** Résumé livraison partielle d'une commande. */
+/** Résumé livraison partielle d'une commande (compteurs métier). */
 export interface PartialDeliveryStatus {
   active: boolean;
   deliveredCount: number;
   pendingCount: number;
   waitingRestock: number;
+  excludedCount: number;
+  replacedCount: number;
+  refundedCount: number;
+  creditedCount: number;
+  readyToShipCount: number;
 }
 
 export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): PartialDeliveryStatus {
@@ -395,12 +400,16 @@ export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): 
   const deliveredCount = list.filter(a => (a.delivered_qty ?? 0) >= a.quantity).length;
   const pendingCount = list.length - deliveredCount;
   const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock").length;
+  const excludedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "partial_ship").length;
+  const replacedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "replace").length;
+  const refundedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "refund").length;
+  const creditedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "credit").length;
+  const readyToShipCount = list.filter(a => a.status === "ready" && (a.delivered_qty ?? 0) < a.quantity && (!a.stock_break || a.stock_break.action === "replace")).length;
   const someDelivered = list.some(a => (a.delivered_qty ?? 0) > 0);
   return {
-    active: someDelivered && pendingCount > 0,
-    deliveredCount,
-    pendingCount,
-    waitingRestock,
+    active: (someDelivered && pendingCount > 0) || waitingRestock > 0 || excludedCount > 0,
+    deliveredCount, pendingCount, waitingRestock,
+    excludedCount, replacedCount, refundedCount, creditedCount, readyToShipCount,
   };
 }
 
