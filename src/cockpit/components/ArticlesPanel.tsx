@@ -27,7 +27,7 @@ interface Props {
   orderStatus?: string;
 }
 
-export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver, paidAmount = 0 }: Props) {
+export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver, paidAmount = 0, orderStatus }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
