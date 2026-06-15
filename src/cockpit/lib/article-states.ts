@@ -113,6 +113,111 @@ export interface OrderArticle {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// FLOWS LOCAL vs IMPORT — séparation stricte article-centric
+// (Le `status` brut reste le même en DB, mais l'interprétation,
+//  les transitions autorisées et les libellés dépendent du type.)
+// ═══════════════════════════════════════════════════════════════
+
+/** Cycle LOCAL : ce qu'un article LOCAL peut traverser. */
+export const LOCAL_FLOW: ArticleStatus[] = ["pending", "available", "ready", "delivered"];
+
+/** Cycle IMPORT : ce qu'un article IMPORT peut traverser.
+ *  `ordered` = commandé fournisseur, `received` = reçu entrepôt. */
+export const IMPORT_FLOW: ArticleStatus[] = ["pending", "ordered", "received", "ready", "delivered"];
+
+/** Libellés contextualisés par flux. */
+export const LOCAL_STATUS_LABELS: Partial<Record<ArticleStatus, string>> = {
+  pending: "En attente vendeur",
+  available: "Disponible vendeur",
+  ready: "Prêt vendeur",
+  delivered: "Livré",
+};
+export const IMPORT_STATUS_LABELS: Partial<Record<ArticleStatus, string>> = {
+  pending: "À commander fournisseur",
+  ordered: "Commandé fournisseur",
+  received: "Reçu entrepôt",
+  ready: "Prêt livraison",
+  delivered: "Livré",
+};
+
+/** Libellé selon le type d'article. */
+export function getArticleStatusLabel(article: OrderArticle): string {
+  const map = article.is_import ? IMPORT_STATUS_LABELS : LOCAL_STATUS_LABELS;
+  return map[article.status] ?? ARTICLE_STATUS_LABELS[article.status];
+}
+
+/** Flow ordonné applicable à cet article. */
+export function getArticleFlow(article: OrderArticle): ArticleStatus[] {
+  return article.is_import ? IMPORT_FLOW : LOCAL_FLOW;
+}
+
+/** Prochaine(s) étape(s) compatible(s) avec le TYPE de l'article.
+ *  Un LOCAL ne verra JAMAIS `ordered` / `received` ; un IMPORT ne verra
+ *  jamais une transition LOCAL-only. */
+export function getNextArticleSteps(article: OrderArticle): ArticleStatus[] {
+  const flow = getArticleFlow(article);
+  const idx = flow.indexOf(article.status);
+  if (idx < 0) {
+    // Statut hors-flow (ex: no_stock, partial_stock) → on remet sur le rail.
+    return [article.is_import ? "ordered" : "available"];
+  }
+  if (idx >= flow.length - 1) return [];
+  return [flow[idx + 1]];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ÉTAT MÉTIER (business state) — ce que l'UI doit afficher
+// ═══════════════════════════════════════════════════════════════
+
+export type ArticleBusinessState =
+  | "active"             // Suit son flux normalement
+  | "stock_break_open"   // Rupture déclarée, non résolue
+  | "waiting_restock"    // En attente réappro (décision validée)
+  | "excluded"           // Exclu du colis (partial_ship)
+  | "refunded"           // Remboursement demandé / validé
+  | "credited"           // Avoir demandé / validé
+  | "replaced"           // Remplacé (sous-flux replace)
+  | "delivered";         // Livré
+
+export function getArticleBusinessState(article: OrderArticle): ArticleBusinessState {
+  if (article.status === "delivered" || (article.delivered_qty ?? 0) >= article.quantity) return "delivered";
+  const sb = article.stock_break;
+  if (sb && !sb.resolved) return "stock_break_open";
+  if (sb && sb.resolved) {
+    switch (sb.action) {
+      case "wait_restock": return "waiting_restock";
+      case "partial_ship": return "excluded";
+      case "refund": return "refunded";
+      case "credit": return "credited";
+      case "replace": return "replaced";
+    }
+  }
+  return "active";
+}
+
+export const BUSINESS_STATE_LABELS: Record<ArticleBusinessState, string> = {
+  active: "Actif",
+  stock_break_open: "Rupture à traiter",
+  waiting_restock: "Attente réappro",
+  excluded: "Exclu du colis",
+  refunded: "Remboursement à traiter",
+  credited: "Avoir à émettre",
+  replaced: "Remplacé",
+  delivered: "Livré",
+};
+
+export const BUSINESS_STATE_COLORS: Record<ArticleBusinessState, string> = {
+  active: "bg-blue-100 text-blue-700 border border-blue-200",
+  stock_break_open: "bg-red-600 text-white",
+  waiting_restock: "bg-slate-200 text-slate-800 border border-slate-300",
+  excluded: "bg-gray-700 text-white",
+  refunded: "bg-rose-100 text-rose-800 border border-rose-300",
+  credited: "bg-amber-100 text-amber-800 border border-amber-300",
+  replaced: "bg-violet-100 text-violet-800 border border-violet-300",
+  delivered: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+};
+
+// ═══════════════════════════════════════════════════════════════
 // MATRICE v3 — Helpers de verrouillage et calculs dérivés
 // (Aucune nouvelle colonne DB. Tout est dérivé de stock_break + status.)
 // ═══════════════════════════════════════════════════════════════
@@ -227,6 +332,18 @@ export function canPartialDeliver(article: OrderArticle, orderStatus?: string): 
   return ["ready", "available", "received"].includes(article.status);
 }
 
+/** Peut-on relancer le flux après que le stock soit revenu ? */
+export function canResumeFromRestock(article: OrderArticle, orderStatus?: string): boolean {
+  if (isOrderLocked(orderStatus)) return false;
+  const sb = article.stock_break;
+  return !!(sb && sb.resolved && sb.action === "wait_restock");
+}
+
+/** Statut cible quand on reprend après réappro (selon type article). */
+export function getResumeTargetStatus(article: OrderArticle): ArticleStatus {
+  return article.is_import ? "received" : "available";
+}
+
 /** Bouton Super Admin "Modifier la décision". */
 export function canOverrideDecision(article: OrderArticle, orderStatus: string | undefined, isSuperAdmin: boolean): boolean {
   if (!isSuperAdmin) return false;
@@ -265,12 +382,17 @@ export function getDecisionBadge(article: OrderArticle): DecisionBadge | null {
   return null;
 }
 
-/** Résumé livraison partielle d'une commande. */
+/** Résumé livraison partielle d'une commande (compteurs métier). */
 export interface PartialDeliveryStatus {
   active: boolean;
   deliveredCount: number;
   pendingCount: number;
   waitingRestock: number;
+  excludedCount: number;
+  replacedCount: number;
+  refundedCount: number;
+  creditedCount: number;
+  readyToShipCount: number;
 }
 
 export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): PartialDeliveryStatus {
@@ -278,12 +400,16 @@ export function getPartialDeliveryStatus(articles: OrderArticle[] | undefined): 
   const deliveredCount = list.filter(a => (a.delivered_qty ?? 0) >= a.quantity).length;
   const pendingCount = list.length - deliveredCount;
   const waitingRestock = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "wait_restock").length;
+  const excludedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "partial_ship").length;
+  const replacedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "replace").length;
+  const refundedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "refund").length;
+  const creditedCount = list.filter(a => a.stock_break?.resolved && a.stock_break.action === "credit").length;
+  const readyToShipCount = list.filter(a => a.status === "ready" && (a.delivered_qty ?? 0) < a.quantity && (!a.stock_break || a.stock_break.action === "replace")).length;
   const someDelivered = list.some(a => (a.delivered_qty ?? 0) > 0);
   return {
-    active: someDelivered && pendingCount > 0,
-    deliveredCount,
-    pendingCount,
-    waitingRestock,
+    active: (someDelivered && pendingCount > 0) || waitingRestock > 0 || excludedCount > 0,
+    deliveredCount, pendingCount, waitingRestock,
+    excludedCount, replacedCount, refundedCount, creditedCount, readyToShipCount,
   };
 }
 
