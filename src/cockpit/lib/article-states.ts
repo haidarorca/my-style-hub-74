@@ -403,7 +403,9 @@ export function getDecisionBadge(article: OrderArticle): DecisionBadge | null {
     case "credit":
       return { label: "Crédit à traiter", className: "bg-amber-100 text-amber-800 border border-amber-300" };
     case "wait_restock":
-      return { label: "Attente réappro", className: "bg-slate-200 text-slate-800 border border-slate-300" };
+      return sb.resumed_at
+        ? { label: "Stock revenu — flux repris", className: "bg-emerald-100 text-emerald-800 border border-emerald-300" }
+        : { label: "Attente réappro", className: "bg-slate-200 text-slate-800 border border-slate-300" };
     case "replace": {
       const impact = getReplaceImpact(article);
       if (!impact || impact.variant === "replace_same") return { label: "Remplacement", className: "bg-violet-100 text-violet-800 border border-violet-300" };
