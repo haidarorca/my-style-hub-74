@@ -332,6 +332,18 @@ export function canPartialDeliver(article: OrderArticle, orderStatus?: string): 
   return ["ready", "available", "received"].includes(article.status);
 }
 
+/** Peut-on relancer le flux après que le stock soit revenu ? */
+export function canResumeFromRestock(article: OrderArticle, orderStatus?: string): boolean {
+  if (isOrderLocked(orderStatus)) return false;
+  const sb = article.stock_break;
+  return !!(sb && sb.resolved && sb.action === "wait_restock");
+}
+
+/** Statut cible quand on reprend après réappro (selon type article). */
+export function getResumeTargetStatus(article: OrderArticle): ArticleStatus {
+  return article.is_import ? "received" : "available";
+}
+
 /** Bouton Super Admin "Modifier la décision". */
 export function canOverrideDecision(article: OrderArticle, orderStatus: string | undefined, isSuperAdmin: boolean): boolean {
   if (!isSuperAdmin) return false;
