@@ -158,7 +158,7 @@ export default function CockpitDashboard() {
       audit_action: `stock_break.${data.action}`,
       expected_version: art.version,
     });
-    setHasChanges(true);
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
   }, [selectedArticles, articlesHook]);
 
   // ─── Reprise après réappro : restaure le statut mémorisé ou fallback type, marque resumed_at ───
@@ -180,7 +180,7 @@ export default function CockpitDashboard() {
       audit_action: "stock_break.resume_restock",
       expected_version: art.version,
     });
-    setHasChanges(true);
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
   }, [selectedArticles, articlesHook, adminName]);
 
   const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
@@ -193,7 +193,7 @@ export default function CockpitDashboard() {
       audit_action: `status.${status}`,
       expected_version: art.version,
     });
-    setHasChanges(true);
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
   }, [selectedArticles, articlesHook]);
 
   const handlePartialDeliver = useCallback((productId: string, qty: number) => {
@@ -211,7 +211,7 @@ export default function CockpitDashboard() {
       audit_action: "partial_deliver",
       expected_version: art.version,
     });
-    setHasChanges(true);
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
   }, [selectedArticles, articlesHook]);
 
   // ─── Settlement financier TOP-LEVEL (séparé de stock_break) ───
@@ -237,7 +237,7 @@ export default function CockpitDashboard() {
       audit_action: `settlement.${data.type}`,
       expected_version: art.version,
     });
-    setHasChanges(true);
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
   }, [selectedArticles, articlesHook, adminName]);
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
