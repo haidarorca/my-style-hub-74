@@ -187,6 +187,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
+          {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
+          {isScoped && currentSub && (
+            <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
+          )}
+
+
           {/* Agrégateur (debug) — sur les articles scopés. */}
           <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
 
