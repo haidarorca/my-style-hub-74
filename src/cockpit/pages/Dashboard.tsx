@@ -781,6 +781,7 @@ export default function CockpitDashboard() {
           onStockBreak={handleStockBreak}
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
+          onSettleFinancial={handleSettleFinancial}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
