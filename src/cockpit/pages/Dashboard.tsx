@@ -415,14 +415,15 @@ export default function CockpitDashboard() {
     cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
     setShowCancel(false);
     setSelectedOrder(null);
+    setSelectedVendorId(undefined);
   }, [selectedOrder, cancelOrder, adminName]);
 
   const handleCloseDrawer = useCallback(() => {
     setShowItemsPanel(false);
     if (hasChanges) setShowCloseConfirm(true);
-    else setSelectedOrder(null);
+    else { setSelectedOrder(null); setSelectedVendorId(undefined); }
   }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); }, []);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedVendorId(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
