@@ -186,7 +186,7 @@ export function getArticleBusinessState(article: OrderArticle): ArticleBusinessS
   if (sb && !sb.resolved) return "stock_break_open";
   if (sb && sb.resolved) {
     switch (sb.action) {
-      case "wait_restock": return "waiting_restock";
+      case "wait_restock": return sb.resumed_at ? "active" : "waiting_restock";
       case "partial_ship": return "excluded";
       case "refund": return "refunded";
       case "credit": return "credited";
@@ -194,6 +194,29 @@ export function getArticleBusinessState(article: OrderArticle): ArticleBusinessS
     }
   }
   return "active";
+}
+
+/** Article actuellement en attente de réappro (décision wait_restock NON encore reprise). */
+export function isWaitingRestock(article: OrderArticle): boolean {
+  const sb = article.stock_break;
+  return !!(sb && sb.resolved && sb.action === "wait_restock" && !sb.resumed_at);
+}
+
+/** Nombre de jours écoulés depuis la mise en attente (figé à la reprise si reprise). */
+export function getRestockWaitDays(article: OrderArticle): number {
+  const sb = article.stock_break;
+  if (!sb || sb.action !== "wait_restock" || !sb.resolved) return 0;
+  const start = new Date(sb.created_at).getTime();
+  const end = sb.resumed_at ? new Date(sb.resumed_at).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+export type RestockAlertLevel = "ok" | "orange" | "red" | "critical";
+export function getRestockAlertLevel(days: number): RestockAlertLevel {
+  if (days >= 30) return "critical";
+  if (days >= 14) return "red";
+  if (days >= 7) return "orange";
+  return "ok";
 }
 
 export const BUSINESS_STATE_LABELS: Record<ArticleBusinessState, string> = {
