@@ -21,9 +21,11 @@ interface Props {
   onStockBreak?: (productId: string, data: { reason: string; action: StockBreakAction }) => void;
   onStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
+  /** Montant déjà payé sur la commande (sert à filtrer les actions de rupture). */
+  paidAmount?: number;
 }
 
-export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver }: Props) {
+export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartialDeliver, paidAmount = 0 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
@@ -264,6 +266,7 @@ export function ArticlesPanel({ articles, onStockBreak, onStatusChange, onPartia
           open={!!stockBreakProduct}
           productName={stockBreakProduct.product_name}
           variantLabel={stockBreakProduct.variant_label}
+          paidAmount={paidAmount}
           onClose={() => setStockBreakProduct(null)}
           onConfirm={(data) => {
             onStockBreak?.(stockBreakProduct.product_id, data);
