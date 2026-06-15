@@ -74,7 +74,13 @@ export default function CockpitDashboard() {
   const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
 
   // Sub-order rows (1 ligne par vendeur de chaque commande) — alimente la pipeline.
-  const { rows: subOrderRows } = useSubOrderRows(orders);
+  // Phase 3 : par défaut on n'affiche QUE les sous-commandes qui demandent une
+  // intervention Kawzone (boutique interne ou vendeur en commission). Le toggle
+  // `showAutonomous` permet de consulter aussi les sous-commandes autonomes.
+  const { rows: managedSubRows, allRows: allSubRows } = useSubOrderRows(orders);
+  const [showAutonomous, setShowAutonomous] = useState(false);
+  const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
+  const autonomousCount = allSubRows.length - managedSubRows.length;
 
   // Helper : ouvre une commande sans scope (legacy).
   const openOrder = useCallback((o: LogisticsOrderRow) => {
@@ -489,6 +495,15 @@ export default function CockpitDashboard() {
               Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             </button>
 
+            {/* Toggle : afficher aussi les sous-commandes autonomes (hors Cockpit par défaut) */}
+            <button
+              onClick={() => setShowAutonomous(v => !v)}
+              title="Afficher aussi les sous-commandes de boutiques 100% autonomes (sans intervention Kawzone)"
+              className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ml-auto ${showAutonomous ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600"}`}
+            >
+              {showAutonomous ? "Tout afficher" : `Kawzone uniquement${autonomousCount > 0 ? ` (+${autonomousCount} masquées)` : ""}`}
+            </button>
+
             {/* Export CSV */}
             <button
               onClick={() => {
@@ -501,7 +516,7 @@ export default function CockpitDashboard() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 ml-auto"
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
             >
               <Download className="h-3 w-3" />CSV
             </button>

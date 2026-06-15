@@ -126,6 +126,14 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                     row.kind === "local" ? "LOC"
                     : row.kind === "import" ? "IMP"
                     : "MIX";
+                  const scopeClass =
+                    row.cockpit_scope === "kawzone" ? "bg-blue-600 text-white"
+                    : row.cockpit_scope === "commission" ? "bg-purple-600 text-white"
+                    : "bg-gray-400 text-white";
+                  const scopeLabel =
+                    row.cockpit_scope === "kawzone" ? "KZ"
+                    : row.cockpit_scope === "commission" ? "COM"
+                    : "EXT";
                   return (
                     <button
                       key={`${row.mother_order_id}-${row.vendor_id}`}
@@ -134,9 +142,12 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                         blocked ? "border-red-300" : money ? "border-amber-300" : ready ? "border-emerald-300" : "border-gray-200"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1 gap-1">
                         <span className="font-mono text-[10px] font-bold text-gray-800">{row.label}</span>
-                        <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${kindClass}`}>{kindLabel}</span>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${scopeClass}`}>{scopeLabel}</span>
+                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${kindClass}`}>{kindLabel}</span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold truncate">
                         <Store className="h-3 w-3 text-gray-500 shrink-0" />
