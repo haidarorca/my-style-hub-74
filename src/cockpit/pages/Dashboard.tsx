@@ -69,6 +69,32 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
+
+  // ─── Deep-link : ?orderId=…&focus=money ─────────────────────────────
+  // Permet à Cockpit Next (et à tout lien externe) d'ouvrir directement
+  // une commande sur sa section financière. La sélection se fait UNE FOIS,
+  // dès que les commandes sont chargées, puis on nettoie les search params
+  // pour ne pas re-sélectionner en boucle si l'admin ferme le drawer.
+  const search = useSearch({ from: "/admin/cockpit" });
+  const navigate = useNavigate({ from: "/admin/cockpit" });
+  useEffect(() => {
+    if (!search.orderId || orders.length === 0) return;
+    const found = orders.find(o => o.order_id === search.orderId);
+    if (!found) return;
+    setSelectedOrder(found);
+    const focus = search.focus;
+    // Nettoie l'URL avant de scroller (sinon un refresh re-déclenche).
+    navigate({ search: {}, replace: true });
+    if (focus === "money") {
+      // Laisse le drawer monter, puis scroll sur la section financière.
+      setTimeout(() => {
+        const el = document.getElementById("cockpit-financial-actions");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 250);
+    }
+  }, [search.orderId, search.focus, orders, navigate]);
+
+
   const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "mixte" | "archive">("actions");
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
