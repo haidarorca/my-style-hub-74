@@ -153,10 +153,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* Header */}
           <SheetHeader className="pb-2">
             <div className="space-y-1">
-              <SheetTitle className="text-xl">{kz}</SheetTitle>
+              <SheetTitle className="text-xl">{headerLabel}</SheetTitle>
+              {headerVendor && (
+                <div className="text-sm font-semibold text-indigo-700">{headerVendor}</div>
+              )}
               <div className="font-mono text-[11px] text-gray-400">{tech}</div>
               <div className="flex gap-2 pt-1 flex-wrap items-center">
-                {isMultiVendor ? (
+                {isScoped ? (
+                  <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
+                    Sous-commande boutique
+                  </Badge>
+                ) : isMultiVendor ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
                     Multi-boutiques
                   </Badge>
@@ -170,41 +177,49 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── ★ NOUVEAU ★ Vue agrégateur (source unique de vérité) ─── */}
-          <AggregateDebugPanel articles={articles} orderStatus={status} />
+          {/* ─── Phase 2 : Strip de navigation vers les sœurs (uniquement quand scopé) ─── */}
+          {isScoped && onVendorChange && (
+            <RelatedSubOrdersStrip
+              siblings={siblings}
+              currentVendorId={vendorId!}
+              onSelect={onVendorChange}
+            />
+          )}
 
-          {/* ─── Sous-commandes par boutique — unité opérationnelle principale ─── */}
-          <SubOrdersPanel
-            articles={articles}
-            orderStatus={status}
-            motherOrderId={order.order_id ?? undefined}
-            alwaysShow={isMultiVendor}
-          />
+          {/* Agrégateur (debug) — sur les articles scopés. */}
+          <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
 
-          {/* ─── Action suivante (legacy — sera remplacée par agg.next_action) ─── */}
+          {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
+          {!isScoped && (
+            <SubOrdersPanel
+              articles={articles}
+              orderStatus={status}
+              motherOrderId={order.order_id ?? undefined}
+              alwaysShow={isMultiVendor}
+            />
+          )}
+
+          {/* Action suivante */}
           {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* ─── Centre de contrôle du workflow ───
-              Masqué quand multi-boutiques : chaque sub_order aura son propre workflow.
-              (Phase 2 : 1 WorkflowControlPanel par sub_order.) */}
-          {!isMultiVendor && (
+          {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
+          {(isScoped || !isMultiVendor) && (
             <WorkflowControlPanel
               orderId={order.order_id ?? undefined}
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
-              articles={articles}
+              articles={scopedArticles}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}
 
-          {/* ─── Livraison partielle (visible sans ouvrir les détails) ─── */}
-          <PartialDeliveryBanner articles={articles} aggregate={agg} />
+          <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
 
-          {/* ─── Sous-processus : articles en attente de réapprovisionnement ─── */}
-          <RestockWaitingPanel articles={articles} orderStatus={status} onResumeRestock={onResumeRestock} />
+          <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
+
 
 
           {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
