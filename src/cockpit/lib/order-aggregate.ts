@@ -301,8 +301,23 @@ export function aggregateOrder(
     return row;
   });
 
-  const { action, reason } = decideNextAction(counters, orderStatus);
+  const { action, reason, why, driverBucket } = decideNextAction(counters, orderStatus);
   const pending_money = computePendingMoney(list);
+  const weighing = computeWeighing(list);
+
+  // ★ Désigne l'article qui provoque l'action prioritaire.
+  let next_action_driver: NextActionDriver | null = null;
+  if (driverBucket) {
+    const first = by_bucket[driverBucket][0];
+    if (first) {
+      next_action_driver = {
+        bucket: driverBucket,
+        article_id: first.article.product_id,
+        product_name: first.article.product_name,
+        reason: first.reason,
+      };
+    }
+  }
 
   const total = list.length;
   const flags = {
@@ -317,7 +332,12 @@ export function aggregateOrder(
       && counters.waiting_money === 0,
   };
 
-  return { counters, by_bucket, articles: bucketed, next_action: action, next_action_reason: reason, pending_money, flags };
+  return {
+    counters, by_bucket, articles: bucketed,
+    next_action: action, next_action_reason: reason,
+    next_action_why: why, next_action_driver,
+    pending_money, weighing, flags,
+  };
 }
 
 // ─── Libellés UI (séparés pour rester pure côté logique) ───
