@@ -31,11 +31,18 @@ interface Props {
 }
 
 const ACTION_ICONS: Record<StockBreakAction, React.ElementType> = {
+  // legacy (toujours affichés pendant la transition)
   refund: Wallet,
   credit: RefreshCw,
   replace: Repeat,
   wait_restock: Clock,
   partial_ship: PackageMinus,
+  // canoniques (icônes provisoires, le dialog sera refondu au Commit 2)
+  cancel: PackageMinus,
+  replace_same: Repeat,
+  replace_higher: Repeat,
+  replace_lower: Repeat,
+  partial_delivery: PackageMinus,
 };
 
 export function StockBreakDialog({

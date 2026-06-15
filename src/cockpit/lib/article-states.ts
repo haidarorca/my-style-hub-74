@@ -1,62 +1,111 @@
 // ═══════════════════════════════════════════════════════════════
 // ARTICLE STATES — Gestion article par article
+//
+// ▸ Commit 1 de la refonte agrégateur : extension non-cassante.
+//   - Nouveaux statuts canoniques : "awaiting_restock", "cancelled"
+//   - Nouvelles actions canoniques : "cancel", "replace_same",
+//     "replace_higher", "replace_lower", "partial_delivery"
+//   - Settlement.kind (canonique) ajouté à côté de Settlement.type (legacy)
+//   - Anciennes valeurs marquées @deprecated, conservées tant que les call
+//     sites ne sont pas migrés (Commit 2). Le fichier compile à l'identique.
 // ═══════════════════════════════════════════════════════════════
 
-/** État d'un article dans une commande */
+/** État d'un article dans une commande.
+ *  ★ Vocabulaire canonique (cible) ★ :
+ *    pending · ordered · received · available · awaiting_restock
+ *    · ready · shipped · delivered · cancelled
+ *
+ *  Les valeurs marquées @deprecated seront retirées au Commit 3
+ *  (partial_stock, no_stock, returned, refunded). Ne plus en créer de
+ *  nouvelles occurrences. */
 export type ArticleStatus =
-  | "pending"        // En attente de traitement
-  | "available"      // Disponible en stock
-  | "ordered"        // Commandé chez le fournisseur
-  | "partial_stock"  // Stock partiel (ex: 3/5)
-  | "no_stock"       // Rupture de stock
-  | "shipped"        // Expédié vers entrepôt
-  | "received"       // Reçu à l'entrepôt
-  | "ready"          // Prêt pour livraison
-  | "delivered"      // Livré au client
-  | "returned"       // Retourné
-  | "refunded";      // Remboursé
+  // ─── Canoniques ───
+  | "pending"           // Jamais traité, en file d'attente
+  | "ordered"           // IMPORT : commandé fournisseur
+  | "received"          // IMPORT : reçu entrepôt amont
+  | "available"         // Stock OK, peut entrer en préparation
+  | "awaiting_restock"  // ★ NOUVEAU ★ Rupture identifiée, décision wait_restock prise
+  | "ready"             // Préparé, prêt à expédier
+  | "shipped"           // Expédié
+  | "delivered"         // Livré
+  | "cancelled"         // ★ NOUVEAU ★ Article annulé (action cancel résolue)
+  // ─── @deprecated — à retirer au Commit 3 ───
+  | "partial_stock"     // @deprecated — incident, doit vivre dans stock_break
+  | "no_stock"          // @deprecated — incident, doit vivre dans stock_break
+  | "returned"          // @deprecated — hors périmètre v1
+  | "refunded";         // @deprecated — financier, doit vivre dans settlement
 
 export const ARTICLE_STATUS_LABELS: Record<ArticleStatus, string> = {
   pending: "En attente",
-  available: "Disponible",
   ordered: "Commandé fournisseur",
+  received: "Reçu entrepôt",
+  available: "Disponible",
+  awaiting_restock: "Attente réappro",
+  ready: "Prêt",
+  shipped: "Expédié",
+  delivered: "Livré",
+  cancelled: "Annulé",
+  // legacy
   partial_stock: "Stock partiel",
   no_stock: "Rupture stock",
-  shipped: "Expédié",
-  received: "Reçu entrepôt",
-  ready: "Prêt",
-  delivered: "Livré",
   returned: "Retourné",
   refunded: "Remboursé",
 };
 
 export const ARTICLE_STATUS_COLORS: Record<ArticleStatus, string> = {
   pending: "bg-gray-100 text-gray-700",
-  available: "bg-emerald-100 text-emerald-700",
   ordered: "bg-blue-100 text-blue-700",
+  received: "bg-purple-100 text-purple-700",
+  available: "bg-emerald-100 text-emerald-700",
+  awaiting_restock: "bg-slate-200 text-slate-800",
+  ready: "bg-teal-100 text-teal-700",
+  shipped: "bg-indigo-100 text-indigo-700",
+  delivered: "bg-green-100 text-green-700",
+  cancelled: "bg-gray-300 text-gray-800",
+  // legacy
   partial_stock: "bg-amber-100 text-amber-700",
   no_stock: "bg-red-100 text-red-700",
-  shipped: "bg-indigo-100 text-indigo-700",
-  received: "bg-purple-100 text-purple-700",
-  ready: "bg-teal-100 text-teal-700",
-  delivered: "bg-green-100 text-green-700",
   returned: "bg-orange-100 text-orange-700",
   refunded: "bg-rose-100 text-rose-700",
 };
 
-/** Action à prendre en cas de rupture de stock */
+/** Action admin face à un incident article.
+ *  ★ Vocabulaire canonique (cible) ★ :
+ *    cancel · wait_restock · replace_same · replace_higher · replace_lower
+ *    · partial_delivery
+ *
+ *  Les anciennes valeurs (refund, credit, replace, partial_ship) sont des
+ *  @deprecated. Elles confondaient décision (DÉCISION) et exécution financière
+ *  (SETTLEMENT). Au Commit 2 :
+ *    - refund / credit  → action devient "cancel" + settlement.kind=refund|credit
+ *    - replace          → action devient replace_same|higher|lower (figé à la décision)
+ *    - partial_ship     → fusionné avec "cancel" (l'article est exclu) */
 export type StockBreakAction =
-  | "refund"           // Remboursement
-  | "credit"           // Crédit client
-  | "replace"          // Remplacement produit
-  | "wait_restock"     // Attente réapprovisionnement
-  | "partial_ship";    // Livraison partielle sans l'article
+  // ─── Canoniques ───
+  | "cancel"             // ★ NOUVEAU ★ Annuler cet article
+  | "wait_restock"       // Attendre le réappro
+  | "replace_same"       // ★ NOUVEAU ★ Remplacer (même prix)
+  | "replace_higher"     // ★ NOUVEAU ★ Remplacer (plus cher → extra_payment)
+  | "replace_lower"      // ★ NOUVEAU ★ Remplacer (moins cher → refund/credit)
+  | "partial_delivery"   // ★ NOUVEAU ★ Livrer la quantité disponible
+  // ─── @deprecated — à retirer au Commit 3 ───
+  | "refund"             // @deprecated — devient cancel + settlement.kind=refund
+  | "credit"             // @deprecated — devient cancel + settlement.kind=credit
+  | "replace"            // @deprecated — devient replace_same|higher|lower
+  | "partial_ship";      // @deprecated — fusionné avec cancel
 
 export const STOCK_BREAK_ACTIONS: { key: StockBreakAction; label: string }[] = [
+  // canoniques (affichés en premier dans les nouveaux dialogs)
+  { key: "cancel", label: "Annuler cet article" },
+  { key: "wait_restock", label: "Attendre réapprovisionnement" },
+  { key: "replace_same", label: "Remplacer (même prix)" },
+  { key: "replace_higher", label: "Remplacer (plus cher)" },
+  { key: "replace_lower", label: "Remplacer (moins cher)" },
+  { key: "partial_delivery", label: "Livrer la quantité disponible" },
+  // legacy (conservés pour compat call sites)
   { key: "refund", label: "Rembourser le client" },
   { key: "credit", label: "Créditer le compte client" },
   { key: "replace", label: "Proposer un produit de remplacement" },
-  { key: "wait_restock", label: "Attendre réapprovisionnement" },
   { key: "partial_ship", label: "Expédier sans cet article" },
 ];
 
@@ -68,7 +117,10 @@ export interface StockBreakDecision {
   resolved: boolean;
   created_at: string;
   replacement?: { product_name: string; new_unit_price: number };
-  /** Pour replace : comment l'admin a choisi de traiter la différence (utilisé par requiresSettlement). */
+  /** ★ NOUVEAU (canonique) ★ Quantité manquante pour `partial_delivery`. */
+  short_qty?: number;
+  /** @deprecated Pour replace legacy : comment l'admin a choisi de traiter la différence.
+   *  Avec replace_same/higher/lower l'info devient implicite et ce champ disparaîtra. */
   diff_handling?: "extra_payment" | "refund" | "credit";
   override_history?: { from_action: StockBreakAction; to_action: StockBreakAction; reason: string; by: string; at: string }[];
   /** Cycle wait_restock : statut au moment de la mise en attente (mémoire). */
@@ -78,15 +130,27 @@ export interface StockBreakDecision {
   resumed_by?: string;
 }
 
+/** ★ Vocabulaire canonique cible pour Settlement.kind ★ */
+export type SettlementKind = "refund" | "credit" | "extra_payment" | "no_refund";
+
 /** Exécution financière d'une décision article — vit SÉPARÉMENT de stock_break.
- *  Mappe 1:1 sur `order_article_states.settlement` (jsonb) en DB. */
+ *  Mappe 1:1 sur `order_article_states.settlement` (jsonb) en DB.
+ *
+ *  ★ Transition Commit 1 ★ : `kind` (canonique) coexiste avec `type` (legacy).
+ *  Au Commit 2 les call sites passent à `kind`. Au Commit 3 `type` est retiré.
+ *  Utiliser `getSettlementKind(settlement)` pour lire de façon uniforme. */
 export interface Settlement {
-  /** Type d'opération réellement effectuée. */
-  type: "refund" | "credit" | "complement" | "none";
+  /** ★ NOUVEAU (canonique) ★ Type d'opération financière réelle. */
+  kind?: SettlementKind;
+  /** @deprecated Ancien nom — utiliser `kind`. Mapping :
+   *   refund=refund · credit=credit · complement=extra_payment · none=no_refund */
+  type?: "refund" | "credit" | "complement" | "none";
   amount: number;
-  /** Qui supporte le coût : choisi cas par cas AU MOMENT du règlement (pas à la rupture). */
+  /** Qui supporte le coût : choisi cas par cas AU MOMENT du règlement (pas à la rupture).
+   *  Aujourd'hui 3 valeurs ; l'enum reste fermée mais `shared_split` est extensible
+   *  pour accueillir d'autres parties prenantes (supplier, carrier, …) plus tard. */
   cost_attribution: "kawzone" | "vendor" | "shared";
-  /** Si shared : ventilation manuelle. */
+  /** Si shared : ventilation manuelle. Objet ouvert pour évolution future. */
   shared_split?: { kawzone: number; vendor: number };
   reference?: string;
   method?: string;
@@ -819,3 +883,133 @@ export function getApplicableScenarios(
 
   return keys;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS CANONIQUES — Commit 1
+//
+// Fonctions pures, sans état, qui parlent le vocabulaire cible.
+// Elles encapsulent le mapping legacy → canonique et seront LES SEULES
+// utilisées par l'agrégateur (Phase 2). Les call sites UI migreront
+// progressivement dessus au Commit 2.
+// ═══════════════════════════════════════════════════════════════
+
+/** Lit le kind canonique d'un settlement, en mappant l'ancien `type` si besoin.
+ *  Retourne null si le settlement est absent ou si aucun des deux champs n'est posé. */
+export function getSettlementKind(settlement: Settlement | null | undefined): SettlementKind | null {
+  if (!settlement) return null;
+  if (settlement.kind) return settlement.kind;
+  switch (settlement.type) {
+    case "refund": return "refund";
+    case "credit": return "credit";
+    case "complement": return "extra_payment";
+    case "none": return "no_refund";
+    default: return null;
+  }
+}
+
+/** Sous-ensemble canonique des actions de rupture (sans les legacy).
+ *  Utilisé par les nouveaux dialogs et par l'agrégateur. */
+export type CanonicalStockBreakAction =
+  | "cancel"
+  | "wait_restock"
+  | "replace_same"
+  | "replace_higher"
+  | "replace_lower"
+  | "partial_delivery";
+
+/** Convertit une action (legacy ou canonique) vers sa forme canonique.
+ *  Mapping :
+ *    refund        → cancel            (l'action métier est l'annulation, le refund est l'exécution)
+ *    credit        → cancel            (idem)
+ *    partial_ship  → cancel            (article exclu du colis = annulé sur ce colis)
+ *    replace       → replace_same      (par défaut ; le delta réel sera précisé au Commit 2)
+ *  Pour `replace` legacy avec `diff_handling`, utiliser `getCanonicalReplaceVariant`. */
+export function getCanonicalAction(
+  action: StockBreakAction | null | undefined
+): CanonicalStockBreakAction | null {
+  if (!action) return null;
+  switch (action) {
+    case "cancel":
+    case "wait_restock":
+    case "replace_same":
+    case "replace_higher":
+    case "replace_lower":
+    case "partial_delivery":
+      return action;
+    case "refund":
+    case "credit":
+    case "partial_ship":
+      return "cancel";
+    case "replace":
+      return "replace_same";
+    default:
+      return null;
+  }
+}
+
+/** Pour un legacy `replace`, déduit la variante canonique depuis le delta de prix.
+ *  Si `replacement` est absent : retombe sur `replace_same`. */
+export function getCanonicalReplaceVariant(
+  oldUnitPrice: number,
+  newUnitPrice: number | undefined
+): "replace_same" | "replace_higher" | "replace_lower" {
+  if (newUnitPrice == null) return "replace_same";
+  if (newUnitPrice > oldUnitPrice) return "replace_higher";
+  if (newUnitPrice < oldUnitPrice) return "replace_lower";
+  return "replace_same";
+}
+
+/** ★ Source de vérité métier ★
+ *  Une décision (canonique) exige-t-elle un règlement financier ?
+ *  Version pure : prend uniquement la décision, indépendamment de l'article.
+ *  Utilisé par l'agrégateur (Phase 2) et par les nouveaux dialogs (Commit 2).
+ *
+ *  Cas particuliers :
+ *  - `cancel` : requires_settlement dépend du contexte de paiement (déjà payé ?).
+ *    Cette fonction renvoie `true` par défaut ; l'agrégateur tranchera en utilisant
+ *    `requiresSettlementForCancel(decision, alreadyPaid)`.
+ *  - `partial_delivery` : idem (refund ou no_refund selon contexte). */
+export function requiresSettlementCanonical(action: CanonicalStockBreakAction): boolean {
+  switch (action) {
+    case "wait_restock":
+    case "replace_same":
+      return false;
+    case "cancel":
+    case "replace_higher":
+    case "replace_lower":
+    case "partial_delivery":
+      return true;
+  }
+}
+
+/** Variante contextuelle pour `cancel` et `partial_delivery` : si le client
+ *  n'a rien payé sur cette part, un `settlement.kind = no_refund` reste attendu
+ *  pour tracer la décision (audit complet). Donc cette fonction renvoie toujours
+ *  `true` quand l'action en réclame un — la nuance no_refund vs refund est dans
+ *  le KIND, pas dans la présence du settlement. */
+export function requiresSettlementForAction(
+  action: CanonicalStockBreakAction,
+  _ctx?: { article_already_paid?: boolean }
+): boolean {
+  return requiresSettlementCanonical(action);
+}
+
+/** Lecture canonique de la décision sur un article : retourne l'action canonique
+ *  + la variante de remplacement si applicable.
+ *  Pratique pour les composants UI qui veulent un seul accès uniforme. */
+export function readCanonicalDecision(article: OrderArticle): {
+  action: CanonicalStockBreakAction;
+  resolved: boolean;
+} | null {
+  const sb = article.stock_break;
+  if (!sb) return null;
+  let action = getCanonicalAction(sb.action);
+  if (!action) return null;
+  // legacy `replace` : on précise la variante via le delta de prix réel
+  if (sb.action === "replace") {
+    const newPrice = sb.replacement?.new_unit_price;
+    action = getCanonicalReplaceVariant(article.unit_price, newPrice);
+  }
+  return { action, resolved: sb.resolved };
+}
+
