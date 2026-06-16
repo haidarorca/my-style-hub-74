@@ -144,11 +144,3 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
     </div>
   );
 }
-          })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
