@@ -235,58 +235,29 @@ export default function CockpitDashboard() {
     return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   }, []);
 
-  // ─── Filtered & Sorted orders ───
-  const displayOrders = useMemo(() => {
-    let list = orders;
-
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase().trim();
-      list = list.filter(o =>
-        (o.order_id ?? "").toLowerCase().includes(q) ||
-        (o.customer_name ?? "").toLowerCase().includes(q) ||
-        (o.customer_phone ?? "").toLowerCase().includes(q) ||
-        getOrderNumber(o.order_id ?? "").toLowerCase().includes(q)
-      );
-    }
-
+  // ─── Tri + résolution sous-commandes → commandes mères ───
+  // Le moteur de filtres travaille sur les sous-commandes (granularité métier
+  // du Cockpit). Le pipeline a besoin de la liste des commandes mères
+  // correspondantes pour ses colonnes — on les dérive ici.
+  const tabbedSubRows = useMemo(() => {
     if (activeTab === "archive") {
-      list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
-    } else {
-      list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
+      return filteredSubRows.filter(r =>
+        r.order.logistics_status === "delivered" || r.order.logistics_status === "cancelled");
     }
+    return filteredSubRows.filter(r =>
+      r.order.logistics_status !== "delivered" && r.order.logistics_status !== "cancelled");
+  }, [filteredSubRows, activeTab]);
 
-    if (statusFilter) {
-      const statusMatch = (o: LogisticsOrderRow) => {
-        const s = o.logistics_status ?? "";
-        if (statusFilter === "new") return s === "" || s === "new";
-        return s === statusFilter;
-      };
-      list = list.filter(statusMatch);
+  const displayOrders = useMemo(() => {
+    const seen = new Set<string>();
+    const list: LogisticsOrderRow[] = [];
+    for (const r of tabbedSubRows) {
+      const oid = r.mother_order_id;
+      if (seen.has(oid)) continue;
+      seen.add(oid);
+      list.push(r.order);
     }
-    if (balanceFilter) {
-      list = list.filter(o => {
-        const { paid, remaining } = getOrderFinancials(o);
-        const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
-        if (balanceFilter === "unpaid") return paid === 0 && remaining > 0;
-        if (balanceFilter === "partial") return paid > 0 && remaining > 0;
-        if (balanceFilter === "paid") return remaining === 0 && gt > 0;
-        return true;
-      });
-    }
-    if (minDays) {
-      const days = parseInt(minDays);
-      if (!isNaN(days)) list = list.filter(o => getOrderAge(o) >= days);
-    }
-    if (dateRange?.from) {
-      const fromTime = dateRange.from.getTime();
-      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() >= fromTime);
-    }
-    if (dateRange?.to) {
-      const toTime = dateRange.to.getTime() + 24 * 60 * 60 * 1000;
-      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() <= toTime);
-    }
-
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortField) {
         case "date": return dir * (new Date(b.order_created_at ?? 0).getTime() - new Date(a.order_created_at ?? 0).getTime());
@@ -296,12 +267,10 @@ export default function CockpitDashboard() {
         default: return 0;
       }
     });
+  }, [tabbedSubRows, sortField, sortDir]);
 
-    return list;
-  }, [orders, searchTerm, activeTab, getOrderFinancials, statusFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, dateRange]);
+  const resultCount = tabbedSubRows.length;
 
-  const resultCount = displayOrders.length;
-  const activeFilterCount = [statusFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
 
   const handleStatus = (orderId: string, status: string, _admin: string) => {
     updateStatus(orderId, status, _admin || adminName);
