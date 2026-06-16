@@ -97,16 +97,24 @@ export default function CockpitDashboard() {
   const [showItemsPanel, setShowItemsPanel] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Filtres avancés
-  const [showFilters, setShowFilters] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [balanceFilter, setBalanceFilter] = useState<string>("");
-  const [minDays, setMinDays] = useState<string>("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // ─── Moteur de filtres métier multi-dimensions ───
+  const {
+    filters,
+    filteredRows: filteredSubRows,
+    options: filterOptions,
+    count: activeFilterCount,
+    update: updateFilter,
+    toggleArray: toggleArrayFilter,
+    reset: resetFilters,
+  } = useCockpitFilters({ rows: subOrderRows, vendorProfiles, historyMap });
+
+  // Synchronise la recherche du moteur de filtres avec la barre globale.
+  useEffect(() => { setSearchTerm(filters.search); }, [filters.search, setSearchTerm]);
 
   // Tri
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
 
   // ─── Article states ───
   const articlesHook = useArticleStates(
