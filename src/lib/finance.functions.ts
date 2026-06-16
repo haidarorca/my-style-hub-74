@@ -154,6 +154,7 @@ export const getFinanceSummary = createServerFn({ method: "GET" })
       summary.pending_refund_to_client += Number(a.outstanding_to_refund_client ?? 0);
       summary.pending_credit_to_client += Number(a.outstanding_credit_to_issue ?? 0);
       summary.pending_commission_to_vendor += Number(a.commission_to_remit_vendor ?? 0);
+      summary.pending_extra_from_client += Number((a as any).outstanding_extra_from_client ?? 0);
     }
     return summary;
   });
