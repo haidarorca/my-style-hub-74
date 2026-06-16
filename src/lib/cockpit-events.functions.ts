@@ -45,8 +45,9 @@ export const recordEvent = createServerFn({ method: "POST" })
     order_item_id?: string | null;
     event_type: OrderEventType;
     reason?: string | null;
-    payload?: Record<string, unknown>;
+    payload?: Json;
   }) => input)
+
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { data: row, error } = await context.supabase
