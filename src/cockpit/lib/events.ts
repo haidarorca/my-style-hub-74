@@ -340,6 +340,7 @@ export const DECISION_LABELS: Record<OrderDecisionType, string> = {
   apply_penalty: "Appliquer une pénalité",
   commercial_gesture: "Geste commercial",
   escalate_sav: "Escalader au SAV",
+  mark_dispute_resolved: "Marquer le litige comme résolu",
   override_no_action: "Aucune action (override)",
 };
 
