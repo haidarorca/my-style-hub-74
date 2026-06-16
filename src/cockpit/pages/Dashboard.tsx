@@ -36,7 +36,7 @@ export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const {
-    orders, isLoading, searchTerm, setSearchTerm,
+    orders, isLoading, setSearchTerm,
     getPayments, getTotalPaid, getAudit,
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
