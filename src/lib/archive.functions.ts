@@ -103,19 +103,13 @@ export const listArchive = createServerFn({ method: "GET" })
     const shopBy = new Map((profiles ?? []).map((p: any) => [p.id, p.shop_name]));
 
     const rows: ArchiveRow[] = [];
-    for (const o of orders) {
+    for (const o of scopedOrders) {
       if (blocked.has(o.id)) continue;
-      // Sous-commandes pour cette order
-      const subs = (acc ?? []).filter((a: any) => a.order_id === o.id);
-      if (subs.length === 0) {
-        rows.push({
-          order_id: o.id, vendor_id: "—", customer_name: o.customer_name,
-          customer_phone: o.customer_phone, status: o.status, total: Number(o.total ?? 0),
-          closed_at: o.created_at, shop_name: null,
-          gross_value: Number(o.total ?? 0), net_value: 0, loss_value: 0, refunded_value: 0,
-        });
-        continue;
-      }
+      // Sous-commandes pour cette order, restreintes au périmètre Kawzone
+      const subs = (acc ?? []).filter(
+        (a: any) => a.order_id === o.id && scope.vendorIdSet.has(a.vendor_id),
+      );
+      if (subs.length === 0) continue; // pas de sous-commande gérée → on n'archive pas
       for (const s of subs) {
         const hasPending =
           Number(s.outstanding_to_refund_client ?? 0) > 0 ||
