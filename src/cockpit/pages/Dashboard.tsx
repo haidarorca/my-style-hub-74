@@ -229,11 +229,8 @@ export default function CockpitDashboard() {
     return m;
   }, [orders, getOrderFinancials]);
 
-  const getOrderAge = useCallback((o: LogisticsOrderRow) => {
-    const created = new Date(o.order_created_at ?? Date.now());
-    const now = new Date();
-    return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  }, []);
+
+
 
   // ─── Tri + résolution sous-commandes → commandes mères ───
   // Le moteur de filtres travaille sur les sous-commandes (granularité métier
