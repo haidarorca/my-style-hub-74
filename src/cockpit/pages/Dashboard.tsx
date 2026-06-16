@@ -309,12 +309,17 @@ export default function CockpitDashboard() {
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-          <Input placeholder="Rechercher (nom, telephone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <Input
+            placeholder="Boutique, vendeur, téléphone, KZ-xxx, sous-cmd…"
+            className="pl-8 h-9 text-sm"
+            value={filters.search}
+            onChange={e => updateFilter("search", e.target.value)}
+          />
         </div>
       </div>
 
       {/* Barre outils */}
-      <div className="px-4 pt-2 pb-1 space-y-2">
+      <div className="px-4 pt-2 pb-1 space-y-2 relative">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tri */}
           <div className="relative shrink-0">
@@ -333,21 +338,17 @@ export default function CockpitDashboard() {
             <ArrowUpDown className="absolute left-2 top-1.5 h-3 w-3 text-gray-400 pointer-events-none" />
           </div>
 
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ${showFilters || activeFilterCount > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}
-          >
-            <Filter className="h-3 w-3" />
-            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-          </button>
-
-          <button
-            onClick={() => setShowAutonomous(v => !v)}
-            title="Afficher aussi les sous-commandes de boutiques 100% autonomes (sans intervention Kawzone)"
-            className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ml-auto ${showAutonomous ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600"}`}
-          >
-            {showAutonomous ? "Tout afficher" : `Kawzone uniquement${autonomousCount > 0 ? ` (+${autonomousCount} masquées)` : ""}`}
-          </button>
+          {/* Moteur de filtres métier multi-dimensions */}
+          <CockpitFilterPanel
+            filters={filters}
+            count={activeFilterCount}
+            total={subOrderRows.length}
+            filteredCount={filteredSubRows.length}
+            options={filterOptions}
+            onUpdate={updateFilter}
+            onToggleArray={toggleArrayFilter}
+            onReset={resetFilters}
+          />
 
           <button
             onClick={() => {
@@ -360,58 +361,22 @@ export default function CockpitDashboard() {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
             }}
-            className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className="ml-auto flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
           >
             <Download className="h-3 w-3" />CSV
           </button>
         </div>
 
-        {showFilters && (
-          <div className="bg-white border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
-                  className="text-[10px] text-red-500 hover:text-red-700"
-                >
-                  Tout effacer
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Statut</label>
-                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
-                  <option value="">Tous</option>
-                  {ALL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Solde</label>
-                <select value={balanceFilter} onChange={e => setBalanceFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
-                  <option value="">Tous</option>
-                  <option value="unpaid">Non paye</option>
-                  <option value="partial">Partiel</option>
-                  <option value="paid">Paye total</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Anciennete min (jours)</label>
-                <input type="number" placeholder="Ex: 7" value={minDays} onChange={e => setMinDays(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2" />
-              </div>
-              <div className="col-span-2">
-                <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">{resultCount} commande{resultCount > 1 ? "s" : ""} affichee{resultCount > 1 ? "s" : ""}</span>
-          {resultCount !== orders.length && <span className="text-[10px] text-orange-500">sur {orders.length} total</span>}
+          <span className="text-[10px] text-gray-400">
+            {resultCount} sous-commande{resultCount > 1 ? "s" : ""} affichée{resultCount > 1 ? "s" : ""}
+          </span>
+          {resultCount !== subOrderRows.length && (
+            <span className="text-[10px] text-orange-500">sur {subOrderRows.length} total</span>
+          )}
         </div>
       </div>
+
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
