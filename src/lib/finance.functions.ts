@@ -46,13 +46,16 @@ export interface SubOrderAccountingRow {
   cancelled_value: number;
   refunded_value: number;
   credited_value: number;
+  credit_used_value: number;
   extra_collected_value: number;
   penalty_value: number;
   loss_value: number;
   commission_to_remit_vendor: number;
+  commission_paid_value: number;
   net_value: number;
   outstanding_to_refund_client: number;
   outstanding_credit_to_issue: number;
+  outstanding_extra_from_client: number;
 }
 
 // ─── listJournal ───────────────────────────────────────────────
