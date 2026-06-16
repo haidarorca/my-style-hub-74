@@ -10,6 +10,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { loadKawzoneScope } from "./kawzone-scope";
 
 async function assertAdmin(supabase: any, userId: string) {
   const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
@@ -44,6 +45,8 @@ export const listArchive = createServerFn({ method: "GET" })
   } = {}) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const scope = await loadKawzoneScope(context.supabase);
+    if (scope.vendorIds.length === 0) return [] as ArchiveRow[];
 
     // 1) Orders terminales
     let oq = context.supabase
@@ -64,6 +67,17 @@ export const listArchive = createServerFn({ method: "GET" })
     if (e1) throw e1;
     if (!orders?.length) return [] as ArchiveRow[];
     const orderIds = orders.map((o: any) => o.id);
+
+    // 1.b) Périmètre Kawzone — ne garder que les orders qui contiennent ≥1 item
+    //      d'une boutique gérée (Admin / Commission).
+    const { data: scopedItems } = await context.supabase
+      .from("order_items")
+      .select("order_id, vendor_id")
+      .in("order_id", orderIds)
+      .in("vendor_id", scope.vendorIds);
+    const kawzoneOrderIds = new Set((scopedItems ?? []).map((i: any) => i.order_id));
+    const scopedOrders = orders.filter((o: any) => kawzoneOrderIds.has(o.id));
+    if (scopedOrders.length === 0) return [] as ArchiveRow[];
 
     // 2) Dossiers SAV ouverts → exclus
     const { data: openSav } = await context.supabase
