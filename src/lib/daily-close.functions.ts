@@ -147,7 +147,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
     const { data: accRaw } = await sb
       .from("v_sub_order_accounting" as any)
       .select(
-        "order_id, vendor_id, outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor, extra_collected_value, gross_value, refunded_value, credited_value",
+        "order_id, vendor_id, outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor, outstanding_extra_from_client, extra_collected_value, gross_value, refunded_value, credited_value",
       );
     const acc = inScope((accRaw ?? []) as any[], scope, false);
 
@@ -169,28 +169,20 @@ export const getDailyClose = createServerFn({ method: "GET" })
       (ordersRows ?? []).map((o: any) => [o.id, o.customer_name ?? null]),
     );
 
-    // Remboursements à effectuer (par commande)
     const refundsMap = new Map<string, RefundDue>();
-    // Vendeurs à payer (cumul par vendeur)
     const vendorAgg = new Map<string, VendorDebt>();
-    // Clients qui doivent : extra attendu — interprétation simple : si gross > refunded+credited+ extra_collected
-    // Ici on n'a pas d'« attendu » côté client supplémentaire fiable, on remonte uniquement les commandes
-    // où le client doit un complément matérialisé par un mouvement attendu (movement_type='extra_charge_client'
-    // attendu mais non encaissé). Pour rester simple et utile, on calcule
-    //   clients_owe = max(0, gross - refunded - credited - extra_collected - payés)
-    // → ce calcul nécessiterait la somme des paiements. On simplifie : on remonte les commandes avec
-    //   outstanding_credit_to_issue=0 ET extra_collected_value=0 ET refunded_value=0 ET un paiement < gross.
-    // Comme c'est coûteux, on se limite à un signal : remonter rien si non disponible.
-    // → on l'omet dans v1 et on l'affichera "à venir".
-    const clients_owe: ClientDebt[] = [];
+    // T5/T9 — Clients qui doivent : compléments attendus pour remplacement plus cher
+    const clientsOweMap = new Map<string, ClientDebt>();
 
     let refunds_due_total = 0;
     let vendors_to_pay_total = 0;
+    let clients_owe_total = 0;
 
     for (const a of acc as any[]) {
       const toRefund = Number(a.outstanding_to_refund_client ?? 0);
       const toCredit = Number(a.outstanding_credit_to_issue ?? 0);
       const commission = Number(a.commission_to_remit_vendor ?? 0);
+      const extraDue = Number(a.outstanding_extra_from_client ?? 0);
 
       if (toRefund > 0 || toCredit > 0) {
         const prev = refundsMap.get(a.order_id) ?? {
@@ -216,11 +208,22 @@ export const getDailyClose = createServerFn({ method: "GET" })
         vendorAgg.set(a.vendor_id, prev);
         vendors_to_pay_total += commission;
       }
+      if (extraDue > 0) {
+        const prev = clientsOweMap.get(a.order_id) ?? {
+          order_id: a.order_id,
+          client_name: orderClient.get(a.order_id) ?? null,
+          amount: 0,
+        };
+        prev.amount += extraDue;
+        clientsOweMap.set(a.order_id, prev);
+        clients_owe_total += extraDue;
+      }
     }
     const refunds_due = Array.from(refundsMap.values()).sort(
       (a, b) => b.amount_to_refund + b.amount_to_credit - (a.amount_to_refund + a.amount_to_credit),
     );
     const vendors_to_pay = Array.from(vendorAgg.values()).sort((a, b) => b.amount - a.amount);
+    const clients_owe = Array.from(clientsOweMap.values()).sort((a, b) => b.amount - a.amount);
 
     // ─── 8/9/10. SAV
     const { data: savRaw } = await sb
@@ -275,8 +278,8 @@ export const getDailyClose = createServerFn({ method: "GET" })
       refunds_due: refunds_due.slice(0, 50),
       vendors_to_pay_total,
       vendors_to_pay: vendors_to_pay.slice(0, 50),
-      clients_owe_total: 0,
-      clients_owe,
+      clients_owe_total,
+      clients_owe: clients_owe.slice(0, 50),
       sav_open_count: savRows.length,
       sav_open_total_impact,
       blocked_cases: blocked_cases.slice(0, 50),

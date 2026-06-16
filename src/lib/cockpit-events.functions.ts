@@ -81,6 +81,21 @@ export const recordDecision = createServerFn({ method: "POST" })
 
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    // T2 — Validation : les décisions à impact financier exigent un payload.amount > 0
+    const FINANCIAL_DECISIONS: OrderDecisionType[] = [
+      "issue_refund", "issue_credit_note", "apply_penalty",
+      "replace_higher", "replace_lower",
+    ];
+    if (FINANCIAL_DECISIONS.includes(data.decision_type)) {
+      const payload = (data.payload ?? {}) as Record<string, unknown>;
+      const raw = payload.amount;
+      const amt = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(amt) || amt <= 0) {
+        throw new Error(
+          `Decision ${data.decision_type} requires payload.amount > 0 (received: ${String(raw)})`,
+        );
+      }
+    }
     const { data: row, error } = await context.supabase
       .from("order_decisions")
       .insert({

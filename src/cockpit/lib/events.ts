@@ -19,6 +19,7 @@ export type OrderEventType =
   | "product_deleted"
   | "shop_deleted"
   | "customer_dispute"
+  | "dispute_resolved"
   | "delivery_refusal"
   | "post_delivery_return"
   | "vendor_error"
@@ -47,6 +48,7 @@ export type OrderDecisionType =
   | "apply_penalty"
   | "commercial_gesture"
   | "escalate_sav"
+  | "mark_dispute_resolved"
   | "override_no_action";
 
 export type FinancialMovementType =
@@ -57,6 +59,7 @@ export type FinancialMovementType =
   | "penalty_kept"
   | "penalty_to_vendor"
   | "commission_due_to_vendor"
+  | "commission_paid"
   | "loss_kawzone"
   | "loss_vendor"
   | "loss_shared"
@@ -144,6 +147,7 @@ const EVENT_DEFAULT_AWAITS: Record<OrderEventType, AwaitsParty> = {
   product_deleted: "awaits_admin",
   shop_deleted: "awaits_admin",
   customer_dispute: "awaits_admin",
+  dispute_resolved: "awaits_nothing",
   delivery_refusal: "awaits_admin",
   post_delivery_return: "awaits_admin",
   vendor_error: "awaits_admin",
@@ -159,9 +163,15 @@ const DECISION_DEFAULT_AWAITS: Partial<Record<OrderDecisionType, AwaitsParty>> =
   wait_restock: "awaits_vendor",
   wait_supplier: "awaits_supplier",
   wait_client: "awaits_client",
+  replace_same: "awaits_vendor",      // vendeur doit envoyer le remplacement
+  replace_higher: "awaits_client",    // client doit régler le complément
+  replace_lower: "awaits_admin",      // Kawzone doit rembourser la différence
+  partial_delivery: "awaits_admin",
   issue_refund: "awaits_admin",       // tant que cash_out n'est pas posé
   issue_credit_note: "awaits_admin",  // tant que credit_note_issued n'est pas posé
   apply_penalty: "awaits_admin",
+  escalate_sav: "awaits_admin",
+  mark_dispute_resolved: "awaits_nothing",
 };
 
 /** Liste des parties qui attendent une action sur cette sous-commande.
@@ -300,6 +310,7 @@ export const EVENT_LABELS: Record<OrderEventType, string> = {
   product_deleted: "Produit supprimé",
   shop_deleted: "Boutique supprimée",
   customer_dispute: "Litige client",
+  dispute_resolved: "Litige résolu",
   delivery_refusal: "Refus à la livraison",
   post_delivery_return: "Retour après livraison",
   vendor_error: "Erreur vendeur",
@@ -329,6 +340,7 @@ export const DECISION_LABELS: Record<OrderDecisionType, string> = {
   apply_penalty: "Appliquer une pénalité",
   commercial_gesture: "Geste commercial",
   escalate_sav: "Escalader au SAV",
+  mark_dispute_resolved: "Marquer le litige comme résolu",
   override_no_action: "Aucune action (override)",
 };
 
@@ -340,6 +352,7 @@ export const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   penalty_kept: "Pénalité Kawzone",
   penalty_to_vendor: "Pénalité vendeur",
   commission_due_to_vendor: "Commission due au vendeur",
+  commission_paid: "Commission payée au vendeur",
   loss_kawzone: "Perte Kawzone",
   loss_vendor: "Perte vendeur",
   loss_shared: "Perte partagée",

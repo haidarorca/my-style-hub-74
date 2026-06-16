@@ -46,13 +46,16 @@ export interface SubOrderAccountingRow {
   cancelled_value: number;
   refunded_value: number;
   credited_value: number;
+  credit_used_value: number;
   extra_collected_value: number;
   penalty_value: number;
   loss_value: number;
   commission_to_remit_vendor: number;
+  commission_paid_value: number;
   net_value: number;
   outstanding_to_refund_client: number;
   outstanding_credit_to_issue: number;
+  outstanding_extra_from_client: number;
 }
 
 // ─── listJournal ───────────────────────────────────────────────
@@ -154,6 +157,7 @@ export const getFinanceSummary = createServerFn({ method: "GET" })
       summary.pending_refund_to_client += Number(a.outstanding_to_refund_client ?? 0);
       summary.pending_credit_to_client += Number(a.outstanding_credit_to_issue ?? 0);
       summary.pending_commission_to_vendor += Number(a.commission_to_remit_vendor ?? 0);
+      summary.pending_extra_from_client += Number((a as any).outstanding_extra_from_client ?? 0);
     }
     return summary;
   });
@@ -167,7 +171,7 @@ export const listOutstanding = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("v_sub_order_accounting")
       .select("*")
-      .or("outstanding_to_refund_client.gt.0,outstanding_credit_to_issue.gt.0,commission_to_remit_vendor.gt.0")
+      .or("outstanding_to_refund_client.gt.0,outstanding_credit_to_issue.gt.0,commission_to_remit_vendor.gt.0,outstanding_extra_from_client.gt.0")
       .limit(1000);
     if (error) throw error;
     return inScope((data ?? []) as SubOrderAccountingRow[], scope, false);

@@ -4,13 +4,14 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { getDailyClose } from "@/lib/daily-close.functions";
+import { payAllOutstandingForVendor } from "@/lib/commission-payments.functions";
 import {
   TrendingUp, TrendingDown, ArrowDownCircle, ArrowUpCircle,
-  Wallet, Users, AlertTriangle, ShieldAlert, Lock, Calendar,
+  Wallet, Users, AlertTriangle, ShieldAlert, Lock, Calendar, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,10 +24,16 @@ export default function DailyClose() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
   const fn = useServerFn(getDailyClose);
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["daily-close", date],
     queryFn: () => fn({ data: { date } }),
     staleTime: 30_000,
+  });
+  const payFn = useServerFn(payAllOutstandingForVendor);
+  const payMut = useMutation({
+    mutationFn: (vendor_id: string) => payFn({ data: { vendor_id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["daily-close"] }),
   });
 
   return (
@@ -123,14 +130,23 @@ export default function DailyClose() {
               ) : (
                 <ul className="divide-y">
                   {data.vendors_to_pay.slice(0, 8).map((v) => (
-                    <li key={v.vendor_id} className="py-2 flex items-center justify-between text-sm">
-                      <span className="truncate">
+                    <li key={v.vendor_id} className="py-2 flex items-center justify-between text-sm gap-2">
+                      <span className="truncate flex-1">
                         {v.vendor_name ?? v.vendor_id.slice(0, 8)}
                         <span className="text-xs text-slate-500 ml-1">· {v.orders_count}</span>
                       </span>
-                      <span className="font-semibold text-blue-700 whitespace-nowrap ml-2">
+                      <span className="font-semibold text-blue-700 whitespace-nowrap">
                         {fmt(v.amount)}
                       </span>
+                      <button
+                        type="button"
+                        disabled={payMut.isPending}
+                        onClick={(e) => { e.preventDefault(); payMut.mutate(v.vendor_id); }}
+                        className="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 flex items-center gap-1"
+                        title="Marquer toutes les commissions de ce vendeur comme payées"
+                      >
+                        <CheckCircle2 className="w-3 h-3" /> Payer
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -144,8 +160,22 @@ export default function DailyClose() {
               tone="purple"
               icon={Users}
               link="/admin/cockpit/finance"
+              totalLabel="Compléments attendus (remplacement)"
             >
-              <Empty text="Détection des compléments en attente — bientôt." />
+              {data.clients_owe.length === 0 ? (
+                <Empty text="Aucun complément en attente." />
+              ) : (
+                <ul className="divide-y">
+                  {data.clients_owe.slice(0, 6).map((c) => (
+                    <li key={c.order_id} className="py-2 flex items-center justify-between text-sm gap-2">
+                      <span className="truncate">{c.client_name ?? "Client"}</span>
+                      <span className="font-semibold text-purple-700 whitespace-nowrap ml-2">
+                        {fmt(c.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
           </div>
 
