@@ -193,9 +193,21 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
+          {/* ─── Phase B : Badges métier (boutique/produit supprimé, risque, attente) ─── */}
+          {isScoped && (
+            <div className="px-1">
+              <SubOrderBadges history={subOrderHistory} />
+            </div>
+          )}
+
           {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
           {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
+          )}
+
+          {/* ─── Phase B : Historique métier (Événement → Décision → Mouvement) ─── */}
+          {isScoped && (
+            <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
           )}
 
 
