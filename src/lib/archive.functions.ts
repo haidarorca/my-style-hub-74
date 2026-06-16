@@ -10,6 +10,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { loadKawzoneScope } from "./kawzone-scope";
 
 async function assertAdmin(supabase: any, userId: string) {
   const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
@@ -44,6 +45,8 @@ export const listArchive = createServerFn({ method: "GET" })
   } = {}) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const scope = await loadKawzoneScope(context.supabase);
+    if (scope.vendorIds.length === 0) return [] as ArchiveRow[];
 
     // 1) Orders terminales
     let oq = context.supabase
@@ -64,6 +67,17 @@ export const listArchive = createServerFn({ method: "GET" })
     if (e1) throw e1;
     if (!orders?.length) return [] as ArchiveRow[];
     const orderIds = orders.map((o: any) => o.id);
+
+    // 1.b) Périmètre Kawzone — ne garder que les orders qui contiennent ≥1 item
+    //      d'une boutique gérée (Admin / Commission).
+    const { data: scopedItems } = await context.supabase
+      .from("order_items")
+      .select("order_id, vendor_id")
+      .in("order_id", orderIds)
+      .in("vendor_id", scope.vendorIds);
+    const kawzoneOrderIds = new Set((scopedItems ?? []).map((i: any) => i.order_id));
+    const scopedOrders = orders.filter((o: any) => kawzoneOrderIds.has(o.id));
+    if (scopedOrders.length === 0) return [] as ArchiveRow[];
 
     // 2) Dossiers SAV ouverts → exclus
     const { data: openSav } = await context.supabase
@@ -89,19 +103,13 @@ export const listArchive = createServerFn({ method: "GET" })
     const shopBy = new Map((profiles ?? []).map((p: any) => [p.id, p.shop_name]));
 
     const rows: ArchiveRow[] = [];
-    for (const o of orders) {
+    for (const o of scopedOrders) {
       if (blocked.has(o.id)) continue;
-      // Sous-commandes pour cette order
-      const subs = (acc ?? []).filter((a: any) => a.order_id === o.id);
-      if (subs.length === 0) {
-        rows.push({
-          order_id: o.id, vendor_id: "—", customer_name: o.customer_name,
-          customer_phone: o.customer_phone, status: o.status, total: Number(o.total ?? 0),
-          closed_at: o.created_at, shop_name: null,
-          gross_value: Number(o.total ?? 0), net_value: 0, loss_value: 0, refunded_value: 0,
-        });
-        continue;
-      }
+      // Sous-commandes pour cette order, restreintes au périmètre Kawzone
+      const subs = (acc ?? []).filter(
+        (a: any) => a.order_id === o.id && scope.vendorIdSet.has(a.vendor_id),
+      );
+      if (subs.length === 0) continue; // pas de sous-commande gérée → on n'archive pas
       for (const s of subs) {
         const hasPending =
           Number(s.outstanding_to_refund_client ?? 0) > 0 ||
