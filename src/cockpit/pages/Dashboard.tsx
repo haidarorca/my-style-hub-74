@@ -389,7 +389,9 @@ export default function CockpitDashboard() {
             freightMap={freightMap}
             onSelect={openOrder}
             orderTypeMap={orderTypeMap}
-            subRows={subOrderRows.filter(r => displayOrders.some(o => o.order_id === r.mother_order_id))}
+            subRows={tabbedSubRows}
+            historyMap={historyMap}
+
             onSelectSubRow={(row) => {
               setSelectedVendorId(row.vendor_id);
               setSelectedOrder(row.order);
