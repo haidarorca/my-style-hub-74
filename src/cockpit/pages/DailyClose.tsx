@@ -4,13 +4,14 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { getDailyClose } from "@/lib/daily-close.functions";
+import { payAllOutstandingForVendor } from "@/lib/commission-payments.functions";
 import {
   TrendingUp, TrendingDown, ArrowDownCircle, ArrowUpCircle,
-  Wallet, Users, AlertTriangle, ShieldAlert, Lock, Calendar,
+  Wallet, Users, AlertTriangle, ShieldAlert, Lock, Calendar, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
