@@ -123,7 +123,7 @@ export const listArchive = createServerFn({ method: "GET" })
           customer_phone: o.customer_phone,
           status: o.status,
           total: Number(o.total ?? 0),
-          closed_at: o.created_at,
+          closed_at: o.closed_at ?? o.created_at,
           shop_name: shopBy.get(s.vendor_id) ?? null,
           gross_value: Number(s.gross_value ?? 0),
           net_value: Number(s.net_value ?? 0),
