@@ -64,6 +64,13 @@ export default function CockpitDashboard() {
   const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
   const autonomousCount = allSubRows.length - managedSubRows.length;
 
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  const visibleOrderIds = useMemo(
+    () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
+    [subOrderRows],
+  );
+  const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
+
   const openOrder = useCallback((o: LogisticsOrderRow) => {
     setSelectedVendorId(undefined);
     setSelectedOrder(o);
