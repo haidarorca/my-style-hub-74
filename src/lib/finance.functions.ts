@@ -168,7 +168,7 @@ export const listOutstanding = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("v_sub_order_accounting")
       .select("*")
-      .or("outstanding_to_refund_client.gt.0,outstanding_credit_to_issue.gt.0,commission_to_remit_vendor.gt.0")
+      .or("outstanding_to_refund_client.gt.0,outstanding_credit_to_issue.gt.0,commission_to_remit_vendor.gt.0,outstanding_extra_from_client.gt.0")
       .limit(1000);
     if (error) throw error;
     return inScope((data ?? []) as SubOrderAccountingRow[], scope, false);
