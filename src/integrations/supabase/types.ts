@@ -1458,6 +1458,7 @@ export type Database = {
           archived_at: string | null
           buyer_id: string | null
           city: string | null
+          closed_at: string | null
           created_at: string
           customer_name: string | null
           customer_phone: string | null
@@ -1476,6 +1477,7 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
+          closed_at?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
@@ -1494,6 +1496,7 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
+          closed_at?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
@@ -2964,7 +2967,9 @@ export type Database = {
       v_sub_order_accounting: {
         Row: {
           cancelled_value: number | null
+          commission_paid_value: number | null
           commission_to_remit_vendor: number | null
+          credit_used_value: number | null
           credited_value: number | null
           extra_collected_value: number | null
           gross_value: number | null
@@ -2972,6 +2977,7 @@ export type Database = {
           net_value: number | null
           order_id: string | null
           outstanding_credit_to_issue: number | null
+          outstanding_extra_from_client: number | null
           outstanding_to_refund_client: number | null
           penalty_value: number | null
           refunded_value: number | null
