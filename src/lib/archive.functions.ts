@@ -48,14 +48,14 @@ export const listArchive = createServerFn({ method: "GET" })
     // 1) Orders terminales
     let oq = context.supabase
       .from("orders")
-      .select("id, status, total, customer_name, customer_phone, updated_at")
+      .select("id, status, total, customer_name, customer_phone, created_at")
       .in("status", data.status === "delivered" ? ["delivered"]
                   : data.status === "cancelled" ? ["cancelled"]
                   : ["delivered", "cancelled"])
-      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(Math.min(data.limit ?? 500, 2000));
-    if (data.from) oq = oq.gte("updated_at", data.from);
-    if (data.to) oq = oq.lte("updated_at", data.to);
+    if (data.from) oq = oq.gte("created_at", data.from);
+    if (data.to) oq = oq.lte("created_at", data.to);
     if (data.search) {
       const s = `%${data.search}%`;
       oq = oq.or(`customer_name.ilike.${s},customer_phone.ilike.${s}`);
@@ -97,7 +97,7 @@ export const listArchive = createServerFn({ method: "GET" })
         rows.push({
           order_id: o.id, vendor_id: "—", customer_name: o.customer_name,
           customer_phone: o.customer_phone, status: o.status, total: Number(o.total ?? 0),
-          closed_at: o.updated_at, shop_name: null,
+          closed_at: o.created_at, shop_name: null,
           gross_value: Number(o.total ?? 0), net_value: 0, loss_value: 0, refunded_value: 0,
         });
         continue;
@@ -115,7 +115,7 @@ export const listArchive = createServerFn({ method: "GET" })
           customer_phone: o.customer_phone,
           status: o.status,
           total: Number(o.total ?? 0),
-          closed_at: o.updated_at,
+          closed_at: o.created_at,
           shop_name: shopBy.get(s.vendor_id) ?? null,
           gross_value: Number(s.gross_value ?? 0),
           net_value: Number(s.net_value ?? 0),
