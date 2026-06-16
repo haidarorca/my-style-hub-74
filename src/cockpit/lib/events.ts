@@ -46,6 +46,7 @@ export type OrderDecisionType =
   | "issue_credit_note"
   | "apply_penalty"
   | "commercial_gesture"
+  | "escalate_sav"
   | "override_no_action";
 
 export type FinancialMovementType =
