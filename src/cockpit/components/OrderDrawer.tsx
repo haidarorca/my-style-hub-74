@@ -2,7 +2,7 @@
 // OrderDrawer — Fiche commande (pas de dialogs internes)
 // ═══════════════════════════════════════════════════════════════
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 import { EventTimeline } from "./EventTimeline";
 import { SubOrderBadges } from "./SubOrderBadges";
+import { EventCaptureDialog } from "./EventCaptureDialog";
 import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface OrderFinancials {
@@ -83,6 +84,7 @@ interface Props {
 export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange, subOrderHistory, subOrderHistoryLoading }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+  const [showEventCapture, setShowEventCapture] = useState(false);
   if (!order) return null;
 
   const status = order.logistics_status ?? "new";
@@ -207,7 +209,27 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── Phase B : Historique métier (Événement → Décision → Mouvement) ─── */}
           {isScoped && (
-            <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEventCapture(true)}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1"
+                >
+                  + Enregistrer un événement
+                </button>
+              </div>
+              <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
+            </div>
+          )}
+          {isScoped && vendorId && order.order_id && (
+            <EventCaptureDialog
+              open={showEventCapture}
+              onClose={() => setShowEventCapture(false)}
+              orderId={order.order_id}
+              vendorId={vendorId}
+              motherOrderIds={[order.order_id]}
+            />
           )}
 
 
