@@ -51,7 +51,7 @@ export default function CockpitDashboard() {
     getPayments, getTotalPaid, getAudit,
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
-    updateStatus, cancelOrder, getCancellation, cancellations,
+    updateStatus, cancelOrder, cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
   } = useRealOrders();
 
