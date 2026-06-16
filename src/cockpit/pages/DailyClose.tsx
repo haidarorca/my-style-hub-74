@@ -130,14 +130,23 @@ export default function DailyClose() {
               ) : (
                 <ul className="divide-y">
                   {data.vendors_to_pay.slice(0, 8).map((v) => (
-                    <li key={v.vendor_id} className="py-2 flex items-center justify-between text-sm">
-                      <span className="truncate">
+                    <li key={v.vendor_id} className="py-2 flex items-center justify-between text-sm gap-2">
+                      <span className="truncate flex-1">
                         {v.vendor_name ?? v.vendor_id.slice(0, 8)}
                         <span className="text-xs text-slate-500 ml-1">· {v.orders_count}</span>
                       </span>
-                      <span className="font-semibold text-blue-700 whitespace-nowrap ml-2">
+                      <span className="font-semibold text-blue-700 whitespace-nowrap">
                         {fmt(v.amount)}
                       </span>
+                      <button
+                        type="button"
+                        disabled={payMut.isPending}
+                        onClick={(e) => { e.preventDefault(); payMut.mutate(v.vendor_id); }}
+                        className="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 flex items-center gap-1"
+                        title="Marquer toutes les commissions de ce vendeur comme payées"
+                      >
+                        <CheckCircle2 className="w-3 h-3" /> Payer
+                      </button>
                     </li>
                   ))}
                 </ul>
