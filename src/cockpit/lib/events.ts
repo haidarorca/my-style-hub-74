@@ -310,6 +310,7 @@ export const EVENT_LABELS: Record<OrderEventType, string> = {
   product_deleted: "Produit supprimé",
   shop_deleted: "Boutique supprimée",
   customer_dispute: "Litige client",
+  dispute_resolved: "Litige résolu",
   delivery_refusal: "Refus à la livraison",
   post_delivery_return: "Retour après livraison",
   vendor_error: "Erreur vendeur",
