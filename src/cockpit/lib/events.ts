@@ -19,6 +19,7 @@ export type OrderEventType =
   | "product_deleted"
   | "shop_deleted"
   | "customer_dispute"
+  | "dispute_resolved"
   | "delivery_refusal"
   | "post_delivery_return"
   | "vendor_error"
@@ -47,6 +48,7 @@ export type OrderDecisionType =
   | "apply_penalty"
   | "commercial_gesture"
   | "escalate_sav"
+  | "mark_dispute_resolved"
   | "override_no_action";
 
 export type FinancialMovementType =
@@ -57,6 +59,7 @@ export type FinancialMovementType =
   | "penalty_kept"
   | "penalty_to_vendor"
   | "commission_due_to_vendor"
+  | "commission_paid"
   | "loss_kawzone"
   | "loss_vendor"
   | "loss_shared"
