@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MapPin, Package, Clock, AlertTriangle, Layers } from "lucide-react";
-import { STATUS_LABELS, STATUS_COLORS, fmtF, fmtDateTime, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
+import { Phone, MapPin, Package, Clock, AlertTriangle } from "lucide-react";
+import { STATUS_LABELS, STATUS_COLORS, fmtF, fmtDateTime, isImport, getImportStepIndex, IMPORT_STEPS } from "@/cockpit/lib/workflow";
+import { getOrderMixType } from "@/cockpit/lib/article-states";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
@@ -21,16 +22,12 @@ interface Props {
   grandTotal?: number;
   quickAction?: QuickAction;
   articles?: OrderArticle[];
-  /** Conservé pour compat appelants ; "mixte" est désormais traité
-   *  comme un simple signal "plusieurs boutiques" (badge dynamique). */
   orderType?: "local" | "import" | "mixte";
 }
 
 export function OrderCard({ order, index, onClick, totalPaid, freight, grandTotal: gtProp, quickAction, articles, orderType }: Props) {
-  // Multi-boutiques calculé depuis les articles (source de vérité).
-  // Fallback : `orderType === "mixte"` quand on n'a pas les articles.
-  const subCount = articles ? new Set(articles.map(a => a.vendor_id ?? "unknown")).size : 0;
-  const isMultiVendor = subCount > 1 || (subCount === 0 && orderType === "mixte");
+  // Type déterminé UNIQUEMENT par orderType (passé par le parent depuis orderTypeMap)
+  // JAMAIS par isImport(order) qui utilise shipping_service_id
   const imp = orderType === "import";
   const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
@@ -44,6 +41,7 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
 
   // Age de la commande en jours
   const ageDays = Math.floor((Date.now() - new Date(order.order_created_at ?? Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+  // Alertes: > 7 jours = warning, > 14 jours = danger (sauf si livree/annulee)
   const isBlocked = ageDays > 7 && status !== "delivered" && status !== "cancelled";
   const isUrgent = ageDays > 14 && status !== "delivered" && status !== "cancelled";
 
@@ -54,16 +52,14 @@ export function OrderCard({ order, index, onClick, totalPaid, freight, grandTota
         <div className="text-[9px] text-gray-400">{order.order_id?.slice(-4)}</div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <span className="text-sm font-semibold truncate">{order.customer_name ?? "—"}</span>
-          {isMultiVendor ? (
-            <Badge variant="outline" className="text-[8px] h-4 px-1 bg-indigo-50 text-indigo-700 border-indigo-200 font-bold inline-flex items-center gap-0.5">
-              <Layers className="h-2.5 w-2.5" />
-              {subCount > 1 ? `${subCount} boutiques` : "Multi-boutiques"}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className={`text-[8px] h-4 px-1 ${imp ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"}`}>
-              {imp ? "IMPORT" : "LOCAL"}
+          <Badge variant="outline" className="text-[8px] h-4 px-1 bg-violet-50 text-violet-700 border-violet-200 font-bold">
+            COM
+          </Badge>
+          {orderType && (
+            <Badge variant="outline" className={`text-[8px] h-4 px-1 ${orderType === "import" ? "bg-indigo-50 text-indigo-700" : orderType === "mixte" ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>
+              {orderType === "import" ? "IMP" : orderType === "mixte" ? "MIX" : "LOC"}
             </Badge>
           )}
         </div>
