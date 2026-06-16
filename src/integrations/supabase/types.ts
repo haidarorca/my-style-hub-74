@@ -559,6 +559,62 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_movements: {
+        Row: {
+          amount: number
+          cost_attribution: Database["public"]["Enums"]["cost_attribution"]
+          cost_split: Json | null
+          currency: string
+          decision_id: string
+          direction: Database["public"]["Enums"]["movement_direction"]
+          id: string
+          method: string | null
+          movement_type: Database["public"]["Enums"]["financial_movement_type"]
+          note: string | null
+          occurred_at: string
+          recorded_by: string | null
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          cost_attribution?: Database["public"]["Enums"]["cost_attribution"]
+          cost_split?: Json | null
+          currency?: string
+          decision_id: string
+          direction: Database["public"]["Enums"]["movement_direction"]
+          id?: string
+          method?: string | null
+          movement_type: Database["public"]["Enums"]["financial_movement_type"]
+          note?: string | null
+          occurred_at?: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          cost_attribution?: Database["public"]["Enums"]["cost_attribution"]
+          cost_split?: Json | null
+          currency?: string
+          decision_id?: string
+          direction?: Database["public"]["Enums"]["movement_direction"]
+          id?: string
+          method?: string | null
+          movement_type?: Database["public"]["Enums"]["financial_movement_type"]
+          note?: string | null
+          occurred_at?: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_movements_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "order_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       home_banners: {
         Row: {
           created_at: string
@@ -1005,6 +1061,126 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_decisions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          decision_type: Database["public"]["Enums"]["order_decision_type"]
+          event_id: string
+          id: string
+          payload: Json
+          rationale: string | null
+          supersedes_decision_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          decision_type: Database["public"]["Enums"]["order_decision_type"]
+          event_id: string
+          id?: string
+          payload?: Json
+          rationale?: string | null
+          supersedes_decision_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          decision_type?: Database["public"]["Enums"]["order_decision_type"]
+          event_id?: string
+          id?: string
+          payload?: Json
+          rationale?: string | null
+          supersedes_decision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_decisions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "order_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_decisions_supersedes_decision_id_fkey"
+            columns: ["supersedes_decision_id"]
+            isOneToOne: false
+            referencedRelation: "order_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_type: Database["public"]["Enums"]["order_event_type"]
+          id: string
+          order_id: string
+          order_item_id: string | null
+          payload: Json
+          reason: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_type: Database["public"]["Enums"]["order_event_type"]
+          id?: string
+          order_id: string
+          order_item_id?: string | null
+          payload?: Json
+          reason?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_type?: Database["public"]["Enums"]["order_event_type"]
+          id?: string
+          order_id?: string
+          order_item_id?: string | null
+          payload?: Json
+          reason?: string | null
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_events_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_events_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_events_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "order_events_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2654,6 +2830,32 @@ export type Database = {
           },
         ]
       }
+      v_sub_order_accounting: {
+        Row: {
+          cancelled_value: number | null
+          commission_to_remit_vendor: number | null
+          credited_value: number | null
+          extra_collected_value: number | null
+          gross_value: number | null
+          loss_value: number | null
+          net_value: number | null
+          order_id: string | null
+          outstanding_credit_to_issue: number | null
+          outstanding_to_refund_client: number | null
+          penalty_value: number | null
+          refunded_value: number | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_insert_order_item: {
@@ -2885,7 +3087,21 @@ export type Database = {
         | "commissions"
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
+      cost_attribution: "kawzone" | "vendor" | "client" | "shared"
       customization_type: "name" | "image"
+      financial_movement_type:
+        | "cash_in"
+        | "cash_out"
+        | "credit_note_issued"
+        | "credit_note_used"
+        | "penalty_kept"
+        | "penalty_to_vendor"
+        | "commission_due_to_vendor"
+        | "loss_kawzone"
+        | "loss_vendor"
+        | "loss_shared"
+        | "gain_kawzone"
+        | "gain_vendor"
       moderation_decision: "approved" | "rejected" | "changes_requested"
       moderation_step:
         | "name"
@@ -2900,6 +3116,40 @@ export type Database = {
         | "variants"
         | "countries"
         | "global"
+      movement_direction: "debit" | "credit"
+      order_decision_type:
+        | "cancel_article"
+        | "cancel_suborder"
+        | "wait_restock"
+        | "wait_supplier"
+        | "wait_client"
+        | "replace_same"
+        | "replace_higher"
+        | "replace_lower"
+        | "partial_delivery"
+        | "accept_return"
+        | "refuse_return"
+        | "accept_exchange"
+        | "issue_refund"
+        | "issue_credit_note"
+        | "apply_penalty"
+        | "commercial_gesture"
+        | "override_no_action"
+      order_event_type:
+        | "client_cancellation"
+        | "stock_break"
+        | "product_deleted"
+        | "shop_deleted"
+        | "customer_dispute"
+        | "delivery_refusal"
+        | "post_delivery_return"
+        | "vendor_error"
+        | "kawzone_error"
+        | "supplier_unavailable"
+        | "commercial_gesture"
+        | "payment_blocked"
+        | "delivery_blocked"
+        | "order_abandoned"
       product_contact_override:
         | "inherit"
         | "allowed"
@@ -3074,7 +3324,22 @@ export const Constants = {
       ],
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
+      cost_attribution: ["kawzone", "vendor", "client", "shared"],
       customization_type: ["name", "image"],
+      financial_movement_type: [
+        "cash_in",
+        "cash_out",
+        "credit_note_issued",
+        "credit_note_used",
+        "penalty_kept",
+        "penalty_to_vendor",
+        "commission_due_to_vendor",
+        "loss_kawzone",
+        "loss_vendor",
+        "loss_shared",
+        "gain_kawzone",
+        "gain_vendor",
+      ],
       moderation_decision: ["approved", "rejected", "changes_requested"],
       moderation_step: [
         "name",
@@ -3089,6 +3354,42 @@ export const Constants = {
         "variants",
         "countries",
         "global",
+      ],
+      movement_direction: ["debit", "credit"],
+      order_decision_type: [
+        "cancel_article",
+        "cancel_suborder",
+        "wait_restock",
+        "wait_supplier",
+        "wait_client",
+        "replace_same",
+        "replace_higher",
+        "replace_lower",
+        "partial_delivery",
+        "accept_return",
+        "refuse_return",
+        "accept_exchange",
+        "issue_refund",
+        "issue_credit_note",
+        "apply_penalty",
+        "commercial_gesture",
+        "override_no_action",
+      ],
+      order_event_type: [
+        "client_cancellation",
+        "stock_break",
+        "product_deleted",
+        "shop_deleted",
+        "customer_dispute",
+        "delivery_refusal",
+        "post_delivery_return",
+        "vendor_error",
+        "kawzone_error",
+        "supplier_unavailable",
+        "commercial_gesture",
+        "payment_blocked",
+        "delivery_blocked",
+        "order_abandoned",
       ],
       product_contact_override: [
         "inherit",
