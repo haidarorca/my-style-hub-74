@@ -1019,12 +1019,17 @@ export type Database = {
           created_at: string
           customization: Json | null
           id: string
+          is_admin_shop_snapshot: boolean | null
           order_id: string
           product_code: string
           product_id: string
           product_image_url: string | null
           product_name: string
+          product_origin_country_id_snapshot: string | null
           quantity: number
+          shop_country_id_snapshot: string | null
+          shop_name_snapshot: string | null
+          shop_type_snapshot: string | null
           size: string | null
           unit_price: number
           variant_id: string | null
@@ -1039,12 +1044,17 @@ export type Database = {
           created_at?: string
           customization?: Json | null
           id?: string
+          is_admin_shop_snapshot?: boolean | null
           order_id: string
           product_code: string
           product_id: string
           product_image_url?: string | null
           product_name: string
+          product_origin_country_id_snapshot?: string | null
           quantity?: number
+          shop_country_id_snapshot?: string | null
+          shop_name_snapshot?: string | null
+          shop_type_snapshot?: string | null
           size?: string | null
           unit_price?: number
           variant_id?: string | null
@@ -1059,12 +1069,17 @@ export type Database = {
           created_at?: string
           customization?: Json | null
           id?: string
+          is_admin_shop_snapshot?: boolean | null
           order_id?: string
           product_code?: string
           product_id?: string
           product_image_url?: string | null
           product_name?: string
+          product_origin_country_id_snapshot?: string | null
           quantity?: number
+          shop_country_id_snapshot?: string | null
+          shop_name_snapshot?: string | null
+          shop_type_snapshot?: string | null
           size?: string | null
           unit_price?: number
           variant_id?: string | null
@@ -1794,6 +1809,8 @@ export type Database = {
           contact_override: Database["public"]["Enums"]["product_contact_override"]
           content_hash: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           description_i18n: Json | null
           designation: string | null
@@ -1803,6 +1820,7 @@ export type Database = {
           is_edit: boolean
           name: string
           name_i18n: Json | null
+          origin_country_id: string | null
           pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
@@ -1820,6 +1838,8 @@ export type Database = {
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           description_i18n?: Json | null
           designation?: string | null
@@ -1829,6 +1849,7 @@ export type Database = {
           is_edit?: boolean
           name: string
           name_i18n?: Json | null
+          origin_country_id?: string | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -1846,6 +1867,8 @@ export type Database = {
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           description_i18n?: Json | null
           designation?: string | null
@@ -1855,6 +1878,7 @@ export type Database = {
           is_edit?: boolean
           name?: string
           name_i18n?: Json | null
+          origin_country_id?: string | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -1878,6 +1902,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_origin_country_id_fkey"
+            columns: ["origin_country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
           {
@@ -1921,6 +1952,8 @@ export type Database = {
           blocked_reason: string | null
           contact_mode: Database["public"]["Enums"]["shop_contact_mode"]
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           full_name: string | null
           hide_contact_publicly: boolean
@@ -1964,6 +1997,8 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           full_name?: string | null
           hide_contact_publicly?: boolean
@@ -2007,6 +2042,8 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           full_name?: string | null
           hide_contact_publicly?: boolean

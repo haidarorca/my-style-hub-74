@@ -1,70 +1,106 @@
-# Pivot Cockpit — 1 sous-commande boutique = 1 dossier indépendant
 
-## Vision validée
+# Cadre métier des filtres du Cockpit
 
-- Côté **admin** : une commande mère KZ-000101 contenant 3 boutiques apparaît comme **3 lignes indépendantes** dans le Cockpit (`KZ-000101 · 1/3`, `2/3`, `3/3`).
-- Cliquer sur une ligne ouvre un drawer **scopé à UNE seule boutique** (articles, workflow, ruptures, remboursements de cette boutique uniquement).
-- Une petite zone "Commandes liées" permet de naviguer vers les sœurs (`1/3`, `3/3`) sans jamais charger plusieurs boutiques dans le même conteneur.
-- Le mot **MIXTE disparaît complètement** (badge, filtre, logique, calcul).
-- Côté **client** : rien ne change. Il voit toujours `KZ-000101`, une seule commande, un seul paiement.
+Objectif : avant d'ajouter quoi que ce soit, figer **9 dimensions métier uniques**. Chaque filtre = une seule question. Aucun doublon toléré.
 
-## Architecture cible
+---
 
-```text
-Cockpit list (admin)              Drawer (admin)
-─────────────────                 ───────────────
-KZ-000101 · 1/3  Boutique A       ┌─ Header: KZ-000101 · 2/3 — Boutique B
-KZ-000101 · 2/3  Boutique B  ───► ├─ Client + finances mère (lecture seule)
-KZ-000101 · 3/3  Boutique C       ├─ Articles de B uniquement
-KZ-000102        Boutique D       ├─ Workflow de B (1 accordéon)
-                                  ├─ Ruptures / remboursements de B
-                                  └─ Commandes liées: [1/3] [3/3] ← navigation
+## 1. Audit de l'existant (Dashboard.tsx, lignes 97-103 / 247-276)
 
-Client orders page (inchangé)
-─────────────────────────────
-KZ-000101  (vue agrégée)
-```
+Filtres actuellement codés :
 
-## Décisions par défaut (modifiable)
+| Filtre actuel | Question répondue | Verdict |
+|---|---|---|
+| `searchTerm` (texte) | Texte libre (nom, tel, KZ-xxx) | Garder — hors taxonomie |
+| `activeTab` Actions / Archive | Sous-commande active ou close ? | Garder — c'est le mode du Cockpit, pas un filtre |
+| `statusFilter` (single select, 12 entrées dont `cancelled`) | Où en est la sous-commande ? | **Réduire** : retirer `delivered` / `cancelled` (gérés par Archive), passer en **multi-select** |
+| `balanceFilter` (unpaid/partial/paid) | Reste-t-il à encaisser ? | **Renommer** → sous-cas de "Situation financière" |
+| `minDays` | Âge de la commande | Garder — dimension temporelle |
+| `dateRange` | Période de création | Garder |
+| Toggle `showAutonomous` | Kawzone est-il responsable ? | **Promouvoir** → filtre "Type de boutique" (Admin / Commission / Autonome) |
+| Badges LOC/IMP, KZ/COM/EXT (visuels seulement, pas filtrables) | — | À transformer en filtres réels |
 
-1. **Tri liste** : les sous-commandes d'une même mère restent groupées (tri secondaire par index), tri primaire par priorité opérationnelle (bloquant > pending > ready).
-2. **Filtres** : suppression du filtre `type=mixed`. Nouveau filtre `multi-boutiques` (booléen) si besoin.
-3. **Recherche** : `KZ-000101` matche les 3 lignes ; `KZ-000101 2` ne matche que `2/3`.
-4. **Paiement** : reste sur la mère (un seul `PaymentForm` accessible depuis chaque drawer, en lecture+action).
-5. **Workflow** : 1 `WorkflowControlPanel` par drawer (la boutique = unité de pilotage).
+**Doublons / incohérences détectés :**
+- `statusFilter` mélange étapes logistiques *et* `cancelled` → conflit avec l'onglet Archive.
+- Aucun filtre Pays, Local/Import, Type boutique, Origine produit aujourd'hui → les badges sont décoratifs.
+- `balanceFilter` est un sous-ensemble du futur "Situation financière" — à fusionner pour ne pas avoir deux endroits qui parlent d'argent.
 
-## Phase 2 — LIVRÉE
+---
 
-### Livré
-- `useOrderAggregatesBatch` expose désormais `articles` (en plus de `aggregate`).
-- Nouveau hook `useSubOrderRows()` → produit N `SubOrderRow` par commande (1 par vendeur), avec `mother_order_id`, `siblings`, `kind` (LOCAL/IMPORT/MIX), KPI, libellé `KZ-000101 · 2/3`.
-- Nouveau `SubOrderCard` (carte d'une sous-commande dans une liste).
-- Nouveau `RelatedSubOrdersStrip` (chips de navigation vers les boutiques sœurs).
-- `PipelineView` accepte `subRows` et `onSelectSubRow` : en mode sub, chaque colonne affiche 1 carte par boutique (label `KZ-XXX · i/N`, vendeur, kind, KPI scopés).
-- `OrderDrawer` accepte `vendorId` + `onVendorChange` :
-  - Articles, workflow, agrégat, alertes et finances pro-rata scopés à la boutique sélectionnée.
-  - Header : `KZ-000101 · 2/3 — Boutique B` + badge "Sous-commande boutique".
-  - `RelatedSubOrdersStrip` en haut pour naviguer vers `1/3`, `3/3` sans fermer le drawer.
-  - L'ancien `SubOrdersPanel` interne n'apparaît plus quand on est scopé.
-- `Dashboard` :
-  - Tracks `selectedVendorId` (reset sur cancel/close).
-  - `useSubOrderRows(orders)` → injecté dans `PipelineView`.
-  - `onSelectSubRow` → ouvre le drawer scopé à la boutique cliquée.
-  - Ancien `openOrder()` (sans scope) conservé pour les vues legacy (postes, list).
+## 2. Taxonomie cible : 9 dimensions, 9 filtres
 
-### Effets pour l'admin
-- Pipeline : `KZ-000101` apparaît en 3 cartes distinctes (1 par boutique) au lieu d'une seule.
-- Clic sur une carte → drawer ne contient QUE les articles/workflow de cette boutique.
-- Navigation entre sœurs via chips, sans rechargement.
+| # | Filtre | Question unique | Type UI | Source de données |
+|---|---|---|---|---|
+| 1 | **Pays vendeur** | Où est la boutique ? | Multi-select | `shops.country` |
+| 2 | **Pays origine produit** | D'où vient l'article ? | Multi-select | `products.origin_country` (à créer) |
+| 3 | **Local / Import** | Comment l'article est-il traité logistiquement ? | Multi-select (Local, Import) | `order_items.is_import` (déjà dérivé via `kind`) |
+| 4 | **Type de boutique** | Qui est responsable ? | Multi-select (Admin, Commission, Autonome) | `order_items.is_admin_shop`, `commission_amount` (déjà calculé via `cockpit_scope`) |
+| 5 | **Statut** | Où en est la sous-commande ? | **Multi-select** (sans delivered/cancelled) | `logistics_status` |
+| 6 | **Situation financière** | Y a-t-il un engagement financier ouvert ? | Multi-select (Aucun, Remboursement dû, Avoir à créer, Complément à encaisser, Règlement vendeur à faire) | Dérivé de `payments`, `order_total`, `settlements` |
+| 7 | **Problème opérationnel** | Y a-t-il un incident ? | Multi-select (Rupture, Article supprimé, Boutique supprimée, Fournisseur indispo, Litige client, Paiement bloqué, Livraison bloquée) | Dérivé `stock_break`, `product_deleted`, `shop_deleted`, flags |
+| 8 | **Boutique supprimée** | La boutique existe-t-elle encore ? | Tri-state (Tous / Actives / Supprimées) | `shops.deleted_at` (à créer) |
+| 9 | **Produit supprimé** | Le produit existe-t-il encore ? | Tri-state (Tous / Actifs / Supprimés) | `products.deleted_at` (à créer) |
 
-## Phase 3 — à venir
-- Soft-delete vendeur + snapshots `vendor_name_snapshot`.
-- Suppression complète du concept MIXTE (badge, filtres, `getOrderTypesBatch`, onglet "Mixte").
-- Workflow 1-per-vendor également dans les vues "postes" (Confirmer, Peser, Encaisser).
+**Hors taxonomie (gardés tels quels) :** recherche texte, période (dateRange), âge (minDays), onglet Actions/Archive, tri.
 
-## Phase 4
-- Panneau rentabilité par article (coût, prix vendu, marge, commission, bénéfice).
-- Frais d'expédition multi-colis flexibles.
+**Supprimés :**
+- L'ancien `balanceFilter` (fusionné dans #6).
+- Statuts `delivered` / `cancelled` retirés du filtre #5 (couverts par Archive).
+- Toggle `showAutonomous` (remplacé par #4 avec présélection Admin+Commission par défaut).
 
-## Risque assumé
-Les vues "postes" (paiement, peser, simple station) du Dashboard restent centrées sur la commande mère (Phase 3). Le pipeline est la première vue à passer au modèle sub-order, conformément à la priorité opérationnelle exprimée.
+---
+
+## 3. Métiers nouveaux à créer côté données
+
+Avant d'ajouter les filtres en UI, on pose les fondations :
+
+### 3.1 Soft-delete boutique
+- `shops.deleted_at timestamptz null`
+- `shops.deleted_by uuid null`
+- Index partiel `where deleted_at is null` pour les listes actives.
+- Les `order_items` conservent `vendor_shop_name_snapshot` (déjà capturé dans `order_items`) → l'historique reste lisible même boutique supprimée.
+
+### 3.2 Soft-delete produit
+- `products.deleted_at timestamptz null`
+- `order_items` conservent déjà `product_name_snapshot`, `unit_price_snapshot` → ok.
+
+### 3.3 Pays origine produit
+- `products.origin_country text null` (code ISO).
+- Snapshot à la commande : `order_items.product_origin_country_snapshot`.
+
+### 3.4 Type de boutique formalisé
+- `shops.shop_type enum('admin','commission','autonomous')` au lieu de déduire à chaque fois depuis `is_admin_shop` + `commission_amount`.
+- Snapshot dans `order_items.shop_type_snapshot`.
+
+### 3.5 Situation financière (dérivé, pas stocké)
+Calcul côté `deriveSubOrders` :
+- `refund_due` = somme articles annulés payés non remboursés
+- `credit_due` = articles annulés à transformer en avoir
+- `balance_due` = remaining > 0
+- `vendor_payout_due` = sous-commande livrée, commission due au vendeur non versée
+
+### 3.6 Problème opérationnel (dérivé)
+Drapeaux calculés par sous-commande :
+- `has_stock_break`, `has_deleted_product`, `has_deleted_shop`, `supplier_unavailable`, `customer_dispute`, `payment_blocked`, `delivery_blocked`.
+
+---
+
+## 4. Ordre d'exécution proposé
+
+1. **Phase A — Données** (une migration) : ajouter `deleted_at` sur `shops` et `products`, `origin_country` sur `products`, `shop_type` sur `shops`, et les colonnes snapshot manquantes sur `order_items`.
+2. **Phase B — Dérivation** : enrichir `src/cockpit/lib/sub-orders.ts` avec `financial_situation` et `operational_issues` (drapeaux par sous-commande) + badges "Boutique supprimée" / "Produit supprimé".
+3. **Phase C — UI filtres** : un seul panneau "Filtres" avec les 9 dimensions, toutes en multi-select, compteurs en direct, bouton "Réinitialiser".
+4. **Phase D — Nettoyage** : retirer `balanceFilter`, le toggle `showAutonomous`, et `delivered`/`cancelled` du filtre Statut.
+
+---
+
+## 5. Règle de gouvernance
+
+> Tout nouveau filtre futur doit être rattaché à l'une des 9 dimensions. Si la question métier n'y figure pas, on ouvre une 10e dimension ; on n'empile pas un filtre redondant dans une dimension existante.
+
+---
+
+**À valider avant Phase A :**
+- La taxonomie à 9 dimensions est-elle complète et correcte ?
+- OK pour fusionner `balanceFilter` dans "Situation financière" ?
+- OK pour retirer `delivered`/`cancelled` du filtre Statut (toujours accessibles via l'onglet Archive) ?
