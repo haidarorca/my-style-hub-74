@@ -5,9 +5,11 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download, DollarSign } from "lucide-react";
+import { useSearch, useNavigate } from "@tanstack/react-router";
+import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
+import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
 import { useAuth } from "@/hooks/use-auth";
 import { KpiCards } from "@/cockpit/components/KpiCards";
 import { OrderCard } from "@/cockpit/components/OrderCard";
@@ -17,13 +19,13 @@ import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
 import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
+import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
 import type { DateRange } from "react-day-picker";
 import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
-import { getOrderItems } from "@/lib/cockpit-payments.functions";
-import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
+import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
 
 // ─── Config tri ───
 type SortField = "date" | "amount" | "name" | "status";
@@ -68,8 +70,50 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [selectedArticles, setSelectedArticles] = useState<OrderArticle[] | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<"actions" | "alerts" | "financial" | "archive">("actions");
+  /** Phase 2 : si défini, le drawer est scopé à cette boutique de la commande mère. */
+  const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
+
+  // Sub-order rows (1 ligne par vendeur de chaque commande) — alimente la pipeline.
+  // Phase 3 : par défaut on n'affiche QUE les sous-commandes qui demandent une
+  // intervention Kawzone (boutique interne ou vendeur en commission). Le toggle
+  // `showAutonomous` permet de consulter aussi les sous-commandes autonomes.
+  const { rows: managedSubRows, allRows: allSubRows } = useSubOrderRows(orders);
+  const [showAutonomous, setShowAutonomous] = useState(false);
+  const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
+  const autonomousCount = allSubRows.length - managedSubRows.length;
+
+  // Helper : ouvre une commande sans scope (legacy).
+  const openOrder = useCallback((o: LogisticsOrderRow) => {
+    setSelectedVendorId(undefined);
+    setSelectedOrder(o);
+  }, []);
+
+  // ─── Deep-link : ?orderId=…&focus=money ─────────────────────────────
+  // Permet à Cockpit Next (et à tout lien externe) d'ouvrir directement
+  // une commande sur sa section financière. La sélection se fait UNE FOIS,
+  // dès que les commandes sont chargées, puis on nettoie les search params
+  // pour ne pas re-sélectionner en boucle si l'admin ferme le drawer.
+  const search = useSearch({ from: "/admin/cockpit" });
+  const navigate = useNavigate({ from: "/admin/cockpit" });
+  useEffect(() => {
+    if (!search.orderId || orders.length === 0) return;
+    const found = orders.find(o => o.order_id === search.orderId);
+    if (!found) return;
+    setSelectedOrder(found);
+    const focus = search.focus;
+    // Nettoie l'URL avant de scroller (sinon un refresh re-déclenche).
+    navigate({ search: {}, replace: true });
+    if (focus === "money") {
+      // Laisse le drawer monter, puis scroll sur la section financière.
+      setTimeout(() => {
+        const el = document.getElementById("cockpit-financial-actions");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 250);
+    }
+  }, [search.orderId, search.focus, orders, navigate]);
+
+
+  const [activeTab, setActiveTab] = useState<"actions" | "local" | "import" | "mixte" | "archive">("actions");
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
@@ -83,6 +127,7 @@ export default function CockpitDashboard() {
   // ─── Filtres avancés ───
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string>(""); // "", "local", "import", "mixte"
   const [balanceFilter, setBalanceFilter] = useState<string>(""); // "", "unpaid", "partial", "paid"
   const [minDays, setMinDays] = useState<string>("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -101,74 +146,117 @@ export default function CockpitDashboard() {
   const [editingPay, setEditingPay] = useState<string | null>(null);
   const [editPayForm, setEditPayForm] = useState<{ amount: string; method: string; reference: string }>({ amount: "", method: "wave", reference: "" });
 
-  // ─── Charger les articles quand une commande est sélectionnée ───
-  useEffect(() => {
-    if (!selectedOrder) {
-      setSelectedArticles(undefined);
-      return;
-    }
-    const orderId = selectedOrder.order_id ?? "";
-    if (!orderId) return;
+  // ═══════════════════════════════════════════════════════════════
+  // ARTICLE STATES — persistance réelle (order_article_states)
+  // Article = source de vérité métier · Commande = agrégat calculé.
+  // ═══════════════════════════════════════════════════════════════
+  const articlesHook = useArticleStates(
+    selectedOrder?.order_id ?? null,
+    selectedOrder?.logistics_status ?? undefined
+  );
+  const selectedArticles = selectedOrder ? articlesHook.articles : undefined;
 
-    getOrderItems({ data: { order_id: orderId } })
-      .then((result: any) => {
-        if (result?.items && result.items.length > 0) {
-          // Convertir les items du serveur en OrderArticle
-          // Le backend DÉTERMINE is_import/is_local — on utilise SES valeurs sans fallback
-          const rawItems = result.items ?? [];
-          const arts: OrderArticle[] = rawItems.map((it: any, idx: number) => ({
-            product_id: it.product_id ?? `prod_${idx}`,
-            product_name: it.product_name ?? "Produit",
-            product_image: it.product_image ?? null,
-            variant_id: it.variant_id ?? null,
-            variant_label: it.variant_label ?? null,
-            size: it.size ?? null,
-            color: it.color ?? null,
-            quantity: it.quantity ?? 1,
-            unit_price: it.unit_price ?? 0,
-            line_total: it.line_total ?? 0,
-            status: "pending" as ArticleStatus,
-            // PAS DE FALLBACK : si le backend ne renvoie pas is_import/is_local,
-            // c'est false par défaut. Le backend est la seule source de vérité.
-            is_import: it.is_import ?? false,
-            is_local: it.is_local ?? false,
-            vendor_id: it.shop_id ?? null,
-            vendor_name: it.owner_name ?? it.shop_name ?? null,
-            shop_type_label: it.shop_type_label ?? null,
-            origin_country: it.origin_country ?? null,
-            origin_country_flag: it.origin_country_flag ?? null,
-          }));
-          setSelectedArticles(arts);
-        } else {
-          // Aucun article en base : tableau vide (pas de synthétique biaisé)
-          setSelectedArticles([]);
-        }
-      })
-      .catch(() => setSelectedArticles([]));
-  }, [selectedOrder]);
-
-  // ─── Handlers gestion article par article ───
+  // ─── Handlers article-centric (persistent en DB via upsertArticleState) ───
   const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId
-        ? { ...a, status: "no_stock" as ArticleStatus, stock_break: { reason: data.reason, action: data.action, action_label: data.action, resolved: false, created_at: new Date().toISOString() } }
-        : a
-    ));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const last_valid_status = art.status !== "no_stock" ? art.status : art.stock_break?.last_valid_status;
+    const decision: StockBreakDecision = {
+      reason: data.reason,
+      action: data.action,
+      action_label: data.action,
+      resolved: true,
+      created_at: new Date().toISOString(),
+      last_valid_status,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status: "no_stock", stock_break: decision },
+      audit_action: `stock_break.${data.action}`,
+      expected_version: art.version,
+    });
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
+  }, [selectedArticles, articlesHook]);
+
+  // ─── Reprise après réappro : restaure le statut mémorisé ou fallback type, marque resumed_at ───
+  const handleResumeRestock = useCallback((productId: string) => {
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art || !art.stock_break || art.stock_break.action !== "wait_restock") return;
+    const memorized = art.stock_break.last_valid_status;
+    const fallback: ArticleStatus = art.is_import ? "received" : "available";
+    const target: ArticleStatus = memorized ?? fallback;
+    const newSb: StockBreakDecision = {
+      ...art.stock_break,
+      resumed_at: new Date().toISOString(),
+      resumed_by: adminName,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status: target, stock_break: newSb },
+      audit_action: "stock_break.resume_restock",
+      expected_version: art.version,
+    });
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
+  }, [selectedArticles, articlesHook, adminName]);
 
   const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId ? { ...a, status } : a
-    ));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { status },
+      audit_action: `status.${status}`,
+      expected_version: art.version,
+    });
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
+  }, [selectedArticles, articlesHook]);
 
   const handlePartialDeliver = useCallback((productId: string, qty: number) => {
-    setSelectedArticles(prev => prev?.map(a =>
-      a.product_id === productId
-        ? { ...a, delivered_qty: (a.delivered_qty ?? 0) + qty, status: ((a.delivered_qty ?? 0) + qty) >= a.quantity ? "delivered" as ArticleStatus : a.status }
-        : a
-    ));
-  }, []);
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const newDelivered = (art.delivered_qty ?? 0) + qty;
+    const fullyDelivered = newDelivered >= art.quantity;
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: {
+        delivered_qty: newDelivered,
+        status: fullyDelivered ? "delivered" : art.status,
+      },
+      audit_action: "partial_deliver",
+      expected_version: art.version,
+    });
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
+  }, [selectedArticles, articlesHook]);
+
+  // ─── Settlement financier TOP-LEVEL (séparé de stock_break) ───
+  // À utiliser UNIQUEMENT si requiresSettlement(article) est vrai.
+  const handleSettleFinancial = useCallback((productId: string, data: { type: Settlement["type"]; amount: number; cost_attribution: Settlement["cost_attribution"]; method?: string; reference?: string; note?: string; shared_split?: Settlement["shared_split"] }) => {
+    const art = selectedArticles?.find(a => a.product_id === productId);
+    if (!art) return;
+    const settlement: Settlement = {
+      type: data.type,
+      amount: data.amount,
+      cost_attribution: data.cost_attribution,
+      shared_split: data.shared_split,
+      method: data.method,
+      reference: data.reference,
+      note: data.note,
+      processed_at: new Date().toISOString(),
+      processed_by: adminName,
+    };
+    void articlesHook.mutate({
+      product_id: productId,
+      variant_id: art.variant_id,
+      patch: { settlement },
+      audit_action: `settlement.${data.type}`,
+      expected_version: art.version,
+    });
+    // Pas de setHasChanges : la mutation est déjà persistée en base.
+  }, [selectedArticles, articlesHook, adminName]);
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
@@ -227,8 +315,11 @@ export default function CockpitDashboard() {
       );
     }
 
-    // 2. Tab filter (archive / actions)
+    // 2. Tab filter (local/import/mixte/archive)
     switch (activeTab) {
+      case "local": list = list.filter(o => (orderTypeMap[o.order_id ?? ""] ?? "local") === "local"); break;
+      case "import": list = list.filter(o => (orderTypeMap[o.order_id ?? ""] ?? "local") === "import"); break;
+      case "mixte": list = list.filter(o => orderTypeMap[o.order_id ?? ""] === "mixte"); break;
       case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
       default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
     }
@@ -261,7 +352,15 @@ export default function CockpitDashboard() {
       };
       list = list.filter(statusMatch);
     }
-        if (balanceFilter) {
+    if (typeFilter) {
+      list = list.filter(o => {
+        if (typeFilter === "mixte") return orderTypeMap[o.order_id ?? ""] === "mixte";
+        return typeFilter === "import"
+          ? (orderTypeMap[o.order_id ?? ""] ?? "local") === "import"
+          : (orderTypeMap[o.order_id ?? ""] ?? "local") === "local";
+      });
+    }
+    if (balanceFilter) {
       list = list.filter(o => {
         const { paid, remaining } = getOrderFinancials(o);
         const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
@@ -300,11 +399,11 @@ export default function CockpitDashboard() {
     });
 
     return list;
-  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, orderTypeMap]);
+  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, typeFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, orderTypeMap]);
 
   // ─── Compteurs de résultats ───
   const resultCount = displayOrders.length;
-  const activeFilterCount = [statusFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
+  const activeFilterCount = [statusFilter, typeFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
 
   // ─── Handlers ───
   const handleStatus = (orderId: string, status: string, _admin: string) => {
@@ -322,14 +421,15 @@ export default function CockpitDashboard() {
     cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
     setShowCancel(false);
     setSelectedOrder(null);
+    setSelectedVendorId(undefined);
   }, [selectedOrder, cancelOrder, adminName]);
 
   const handleCloseDrawer = useCallback(() => {
     setShowItemsPanel(false);
     if (hasChanges) setShowCloseConfirm(true);
-    else setSelectedOrder(null);
+    else { setSelectedOrder(null); setSelectedVendorId(undefined); }
   }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); }, []);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedVendorId(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
@@ -395,6 +495,15 @@ export default function CockpitDashboard() {
               Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             </button>
 
+            {/* Toggle : afficher aussi les sous-commandes autonomes (hors Cockpit par défaut) */}
+            <button
+              onClick={() => setShowAutonomous(v => !v)}
+              title="Afficher aussi les sous-commandes de boutiques 100% autonomes (sans intervention Kawzone)"
+              className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ml-auto ${showAutonomous ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600"}`}
+            >
+              {showAutonomous ? "Tout afficher" : `Kawzone uniquement${autonomousCount > 0 ? ` (+${autonomousCount} masquées)` : ""}`}
+            </button>
+
             {/* Export CSV */}
             <button
               onClick={() => {
@@ -407,7 +516,7 @@ export default function CockpitDashboard() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 ml-auto"
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
             >
               <Download className="h-3 w-3" />CSV
             </button>
@@ -420,7 +529,7 @@ export default function CockpitDashboard() {
                 <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
                 {activeFilterCount > 0 && (
                   <button
-                    onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
+                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
                     className="text-[10px] text-red-500 hover:text-red-700"
                   >
                     Tout effacer
@@ -436,7 +545,16 @@ export default function CockpitDashboard() {
                     {ALL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
-                {/* Type — supprime : plus de filtre Local/Import/Mixte */}
+                {/* Type */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Type</label>
+                  <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    <option value="local">Local</option>
+                    <option value="import">Import</option>
+                    <option value="mixte">Mixte</option>
+                  </select>
+                </div>
                 {/* Solde */}
                 <div>
                   <label className="text-[10px] text-gray-500 block mb-0.5">Solde</label>
@@ -582,7 +700,8 @@ export default function CockpitDashboard() {
                                 setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } }));
                                 // Auto-avancement si solde atteint
                                 if (actualAmt >= remaining) {
-                                  const nextSt = isImport(o) ? "ready_delivery" : "ready";
+                                  const t = orderTypeMap[oid];
+                                  const nextSt = (t === "import" || t === "mixte") ? "ready_delivery" : "ready";
                                   handleStatus(oid, nextSt, adminName);
                                 }
                               }
@@ -700,8 +819,19 @@ export default function CockpitDashboard() {
               })}
             </div>
           );
-        })() : activeTab === "actions" && viewMode === "pipeline" ? (
-          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} orderTypeMap={orderTypeMap} />
+        })() : (activeTab === "actions" || activeTab === "mixte") && viewMode === "pipeline" ? (
+          <PipelineView
+            orders={displayOrders}
+            totalPaidMap={totalPaidMap}
+            freightMap={freightMap}
+            onSelect={openOrder}
+            orderTypeMap={orderTypeMap}
+            subRows={subOrderRows.filter(r => displayOrders.some(o => o.order_id === r.mother_order_id))}
+            onSelectSubRow={(row) => {
+              setSelectedVendorId(row.vendor_id);
+              setSelectedOrder(row.order);
+            }}
+          />
         ) : activeTab === "archive" ? (
           <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
@@ -718,7 +848,7 @@ export default function CockpitDashboard() {
       {!ws && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
           <div className="flex justify-around items-center h-14">
-            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "alerts" as const, l: "Alertes", i: AlertTriangle }, { k: "financial" as const, l: "Financier", i: DollarSign }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
+            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "local" as const, l: "Local", i: Home }, { k: "import" as const, l: "Import", i: Package }, { k: "mixte" as const, l: "Mixte", i: Package }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
               <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); }}>
                 <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
               </button>
@@ -737,6 +867,10 @@ export default function CockpitDashboard() {
           onStockBreak={handleStockBreak}
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
+          onSettleFinancial={handleSettleFinancial}
+          onResumeRestock={handleResumeRestock}
+          vendorId={selectedVendorId}
+          onVendorChange={setSelectedVendorId}
           dialogs={
             <>
               {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
