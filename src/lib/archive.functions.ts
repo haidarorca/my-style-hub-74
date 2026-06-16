@@ -110,7 +110,7 @@ export const listArchive = createServerFn({ method: "GET" })
         if (hasPending) continue;
         rows.push({
           order_id: o.id,
-          vendor_id: s.vendor_id,
+          vendor_id: s.vendor_id ?? "—",
           customer_name: o.customer_name,
           customer_phone: o.customer_phone,
           status: o.status,
