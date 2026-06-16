@@ -28,14 +28,9 @@ export function SubOrderCard({ row, onClick }: Props) {
     : done ? "border-l-gray-300 bg-gray-50/40"
     : "border-l-slate-300 bg-white";
 
-  const kindLabel =
-    row.kind === "local" ? "LOCAL"
-    : row.kind === "import" ? "IMPORT"
-    : "LOC+IMP";
-  const kindClass =
-    row.kind === "local" ? "bg-emerald-100 text-emerald-700"
-    : row.kind === "import" ? "bg-indigo-100 text-indigo-700"
-    : "bg-slate-100 text-slate-700";
+  const hasImport = row.kind === "import" || row.kind === "local_and_import";
+  const kindLabel = hasImport ? "IMPORT" : "LOCAL";
+  const kindClass = hasImport ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700";
 
   return (
     <button
