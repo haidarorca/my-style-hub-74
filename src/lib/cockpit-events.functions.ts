@@ -12,30 +12,23 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 import type {
-  OrderEvent,
-  OrderDecision,
-  FinancialMovement,
   OrderEventType,
   OrderDecisionType,
   FinancialMovementType,
   MovementDirection,
   CostAttribution,
-  SubOrderAccounting,
 } from "@/cockpit/lib/events";
 
 // ─── Garde admin (utilisée par toutes les fns d'écriture) ──────
 
-async function assertAdmin(
-  supabase: Awaited<ReturnType<typeof requireSupabaseAuth.client>>["context"]["supabase"] extends never
-    ? never
-    : any,
-  userId: string,
-): Promise<void> {
+async function assertAdmin(supabase: any, userId: string): Promise<void> {
   const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   const { data: isSuper } = await supabase.rpc("is_super_admin", { _user_id: userId });
   if (!isAdmin && !isSuper) throw new Error("Forbidden: admin role required");
 }
+
 
 // ─── recordEvent ────────────────────────────────────────────────
 
