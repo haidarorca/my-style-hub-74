@@ -67,6 +67,8 @@ export type CostAttribution = "kawzone" | "vendor" | "client" | "shared";
 
 // ─── Lignes telles que stockées en DB ───────────────────────────
 
+import type { Json } from "@/integrations/supabase/types";
+
 export interface OrderEvent {
   id: string;
   order_id: string;
@@ -74,7 +76,7 @@ export interface OrderEvent {
   order_item_id: string | null;
   event_type: OrderEventType;
   reason: string | null;
-  payload: Record<string, unknown>;
+  payload: Json;
   created_at: string;
   created_by: string | null;
 }
@@ -84,7 +86,7 @@ export interface OrderDecision {
   event_id: string;
   decision_type: OrderDecisionType;
   rationale: string | null;
-  payload: Record<string, unknown>;
+  payload: Json;
   supersedes_decision_id: string | null;
   created_at: string;
   created_by: string | null;
@@ -98,13 +100,14 @@ export interface FinancialMovement {
   amount: number;
   currency: string;
   cost_attribution: CostAttribution;
-  cost_split: Record<string, number> | null;
+  cost_split: Json;
   method: string | null;
   reference: string | null;
   note: string | null;
   occurred_at: string;
   recorded_by: string | null;
 }
+
 
 // ─── Vue comptable agrégée (miroir de v_sub_order_accounting) ──
 
