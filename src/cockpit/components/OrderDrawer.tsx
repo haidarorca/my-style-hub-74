@@ -207,7 +207,27 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* ─── Phase B : Historique métier (Événement → Décision → Mouvement) ─── */}
           {isScoped && (
-            <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEventCapture(true)}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1"
+                >
+                  + Enregistrer un événement
+                </button>
+              </div>
+              <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
+            </div>
+          )}
+          {isScoped && vendorId && order.order_id && (
+            <EventCaptureDialog
+              open={showEventCapture}
+              onClose={() => setShowEventCapture(false)}
+              orderId={order.order_id}
+              vendorId={vendorId}
+              motherOrderIds={[order.order_id]}
+            />
           )}
 
 
