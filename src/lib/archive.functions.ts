@@ -48,17 +48,17 @@ export const listArchive = createServerFn({ method: "GET" })
     const scope = await loadKawzoneScope(context.supabase);
     if (scope.vendorIds.length === 0) return [] as ArchiveRow[];
 
-    // 1) Orders terminales
+    // 1) Orders terminales (utilise closed_at — fallback created_at si NULL hérité)
     let oq = context.supabase
       .from("orders")
-      .select("id, status, total, customer_name, customer_phone, created_at")
+      .select("id, status, total, customer_name, customer_phone, created_at, closed_at")
       .in("status", data.status === "delivered" ? ["delivered"]
                   : data.status === "cancelled" ? ["cancelled"]
                   : ["delivered", "cancelled"])
-      .order("created_at", { ascending: false })
+      .order("closed_at", { ascending: false, nullsFirst: false })
       .limit(Math.min(data.limit ?? 500, 2000));
-    if (data.from) oq = oq.gte("created_at", data.from);
-    if (data.to) oq = oq.lte("created_at", data.to);
+    if (data.from) oq = oq.gte("closed_at", data.from);
+    if (data.to) oq = oq.lte("closed_at", data.to);
     if (data.search) {
       const s = `%${data.search}%`;
       oq = oq.or(`customer_name.ilike.${s},customer_phone.ilike.${s}`);
