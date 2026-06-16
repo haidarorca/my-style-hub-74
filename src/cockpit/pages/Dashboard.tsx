@@ -354,7 +354,7 @@ export default function CockpitDashboard() {
       {/* KPI (seulement hors poste de travail) */}
       {!ws && activeTab === "actions" && (
         <div className="px-4 pt-2 pb-1">
-          <KpiCards {...kpi} activeFilter={kpiFilter} onFilter={setKpiFilter} />
+          <KpiCards newCount={kpi.new} pendingPayment={kpi.payment_pending} toWeigh={kpi.to_weigh} ready={kpi.ready} shipped={kpi.shipped} totalDebt={kpi.debt} activeFilter={kpiFilter} onFilter={setKpiFilter} />
           {kpiFilter && <button onClick={() => setKpiFilter(null)} className="mt-1 text-[10px] text-orange-600 flex items-center gap-1"><X className="h-3 w-3" />Effacer le filtre</button>}
         </div>
       )}
@@ -420,7 +420,7 @@ export default function CockpitDashboard() {
                 <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
                 {activeFilterCount > 0 && (
                   <button
-                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
+                    onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
                     className="text-[10px] text-red-500 hover:text-red-700"
                   >
                     Tout effacer
