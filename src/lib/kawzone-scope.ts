@@ -35,9 +35,9 @@ export async function loadKawzoneScope(supabase: any): Promise<KawzoneScope> {
     .select("id, is_admin_shop, vendor_mode")
     .or("is_admin_shop.eq.true,vendor_mode.eq.commission");
   if (error) throw error;
-  const vendorIds = (data ?? []).map((r: any) => r.id as string);
-  const vendorIdSet = new Set(vendorIds);
-  const inClause = `(${vendorIds.map((v) => `"${v}"`).join(",")})`;
+  const vendorIds: string[] = (data ?? []).map((r: any) => r.id as string);
+  const vendorIdSet = new Set<string>(vendorIds);
+  const inClause = `(${vendorIds.map((v: string) => `"${v}"`).join(",")})`;
   return { vendorIds, vendorIdSet, inClause };
 }
 
