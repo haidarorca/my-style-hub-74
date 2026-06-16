@@ -3,17 +3,20 @@
 // 1 carte = 1 boutique d'une commande mère = 1 dossier opérationnel.
 // ═══════════════════════════════════════════════════════════════
 
-import { Store, AlertTriangle, Wallet, CheckCircle2, Ban } from "lucide-react";
+import { Store, AlertTriangle, CheckCircle2, Ban } from "lucide-react";
 import { fmtF, fmtDateTime } from "@/cockpit/lib/workflow";
 import { NEXT_ACTION_LABELS } from "@/cockpit/lib/order-aggregate";
 import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
+import { SubOrderBadges } from "./SubOrderBadges";
+import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface Props {
   row: SubOrderRow;
   onClick: () => void;
+  history?: SubOrderHistory;
 }
 
-export function SubOrderCard({ row, onClick }: Props) {
+export function SubOrderCard({ row, onClick, history }: Props) {
   const a = row.aggregate;
   const blocked = a.counters.blocked > 0;
   const money = a.pending_money.total_abs > 0;
@@ -69,6 +72,7 @@ export function SubOrderCard({ row, onClick }: Props) {
             {NEXT_ACTION_LABELS[a.next_action]}
             {a.next_action_driver && ` — ${a.next_action_driver.product_name}`}
           </div>
+          <SubOrderBadges history={history} />
         </div>
         <div className="shrink-0 text-right">
           <div className="text-sm font-bold">{fmtF(row.financials.product_total)}</div>
