@@ -1,20 +1,25 @@
 // ═══════════════════════════════════════════════════════════════
 // SubOrderBadges — Cluster de badges métier (lecture seule).
-//   - Boutique supprimée
-//   - Produit supprimé
-//   - Action attendue (awaits_*)
+//
+// Toujours visibles sur les cartes du Cockpit (pipeline + liste +
+// drawer) afin que les administrateurs identifient instantanément :
+//   - Boutiques / produits supprimés
+//   - Problèmes opérationnels (rupture, litige, paiement bloqué…)
+//   - Action attendue (qui doit agir)
 //   - Niveau de risque
 //
-// Compact (cartes pipeline) ou normal (carte liste, drawer).
+// La liste des "problèmes opérationnels" est dérivée de OP_PROBLEMS
+// (un seul point d'extension pour en ajouter de nouveaux).
 // ═══════════════════════════════════════════════════════════════
 
-import { AlertTriangle, Ban, ShieldAlert, Clock, Store } from "lucide-react";
+import { AlertTriangle, Ban, ShieldAlert, Clock, Store, AlertOctagon } from "lucide-react";
 import {
   AWAITS_LABELS,
   type AwaitsParty,
   type RiskLevel,
   type RiskAssessment,
 } from "@/cockpit/lib/events";
+import { OP_PROBLEMS, type OpProblemKey } from "@/cockpit/lib/cockpit-filters";
 import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface Props {
@@ -46,15 +51,26 @@ const AWAITS_TONE: Partial<Record<AwaitsParty, string>> = {
   awaits_carrier: "bg-cyan-100 text-cyan-800",
 };
 
+// Style propre à chaque problème opérationnel.
+const PROBLEM_STYLE: Record<OpProblemKey, { bg: string; shortLabel: string }> = {
+  stock_break:          { bg: "bg-amber-200 text-amber-900",  shortLabel: "Rupture"  },
+  product_deleted:      { bg: "bg-gray-700  text-white",      shortLabel: "P.supp."  },
+  shop_deleted:         { bg: "bg-gray-800  text-white",      shortLabel: "B.supp."  },
+  customer_dispute:     { bg: "bg-red-600   text-white",      shortLabel: "Litige"   },
+  payment_blocked:      { bg: "bg-red-500   text-white",      shortLabel: "Paiem.✕"  },
+  delivery_blocked:     { bg: "bg-orange-600 text-white",     shortLabel: "Livr.✕"   },
+  supplier_unavailable: { bg: "bg-indigo-500 text-white",     shortLabel: "Fourn.✕"  },
+};
+
 export function SubOrderBadges({ history, compact = false }: Props) {
   if (!history) return null;
   const { events, risk, awaits } = history;
-  const shopDeleted = events.some((e) => e.event_type === "shop_deleted");
-  const productDeleted = events.some((e) => e.event_type === "product_deleted");
 
-  // Rien à afficher
+  // Détection générique des problèmes opérationnels (extensible via OP_PROBLEMS).
+  const presentProblems = OP_PROBLEMS.filter(p => events.some(e => e.event_type === p.event));
+
   const interestingAwaits = [...awaits].filter((a) => a !== "awaits_nothing");
-  if (!shopDeleted && !productDeleted && interestingAwaits.length === 0 && risk.level === "none") {
+  if (presentProblems.length === 0 && interestingAwaits.length === 0 && risk.level === "none") {
     return null;
   }
 
@@ -62,28 +78,22 @@ export function SubOrderBadges({ history, compact = false }: Props) {
   const icon = compact ? "h-2.5 w-2.5" : "h-3 w-3";
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 ${compact ? "" : "mt-1"}`}>
-      {shopDeleted && (
-        <span
-          title="La boutique a été supprimée alors qu'une sous-commande était ouverte."
-          className={`${size} font-bold rounded inline-flex items-center gap-0.5 bg-gray-800 text-white`}
-        >
-          <Store className={icon} />
-          {compact ? "B.supp." : "Boutique supprimée"}
-        </span>
-      )}
-      {productDeleted && (
-        <span
-          title="Au moins un produit de cette sous-commande a été supprimé."
-          className={`${size} font-bold rounded inline-flex items-center gap-0.5 bg-gray-700 text-white`}
-        >
-          <Ban className={icon} />
-          {compact ? "P.supp." : "Produit supprimé"}
-        </span>
-      )}
-      {risk.level !== "none" && (
-        <RiskBadge risk={risk} compact={compact} />
-      )}
+    <div className={`flex flex-wrap items-center gap-1 ${compact ? "mt-1" : "mt-1.5"}`}>
+      {presentProblems.map(p => {
+        const style = PROBLEM_STYLE[p.key];
+        const Icon = p.key === "shop_deleted" ? Store : p.key === "product_deleted" ? Ban : AlertOctagon;
+        return (
+          <span
+            key={p.key}
+            title={p.label}
+            className={`${size} font-bold rounded inline-flex items-center gap-0.5 ${style.bg}`}
+          >
+            <Icon className={icon} />
+            {compact ? style.shortLabel : p.label}
+          </span>
+        );
+      })}
+      {risk.level !== "none" && <RiskBadge risk={risk} compact={compact} />}
       {interestingAwaits.map((a) => (
         <span
           key={a}
