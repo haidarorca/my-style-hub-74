@@ -144,8 +144,22 @@ export default function DailyClose() {
               tone="purple"
               icon={Users}
               link="/admin/cockpit/finance"
+              totalLabel="Compléments attendus (remplacement)"
             >
-              <Empty text="Détection des compléments en attente — bientôt." />
+              {data.clients_owe.length === 0 ? (
+                <Empty text="Aucun complément en attente." />
+              ) : (
+                <ul className="divide-y">
+                  {data.clients_owe.slice(0, 6).map((c) => (
+                    <li key={c.order_id} className="py-2 flex items-center justify-between text-sm gap-2">
+                      <span className="truncate">{c.client_name ?? "Client"}</span>
+                      <span className="font-semibold text-purple-700 whitespace-nowrap ml-2">
+                        {fmt(c.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
           </div>
 
