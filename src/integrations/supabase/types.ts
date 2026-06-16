@@ -574,6 +574,8 @@ export type Database = {
           occurred_at: string
           recorded_by: string | null
           reference: string | null
+          validated_at: string | null
+          validated_by: string | null
         }
         Insert: {
           amount: number
@@ -589,6 +591,8 @@ export type Database = {
           occurred_at?: string
           recorded_by?: string | null
           reference?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Update: {
           amount?: number
@@ -604,6 +608,8 @@ export type Database = {
           occurred_at?: string
           recorded_by?: string | null
           reference?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Relationships: [
           {
@@ -1075,6 +1081,8 @@ export type Database = {
           payload: Json
           rationale: string | null
           supersedes_decision_id: string | null
+          validated_at: string | null
+          validated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -1085,6 +1093,8 @@ export type Database = {
           payload?: Json
           rationale?: string | null
           supersedes_decision_id?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -1095,6 +1105,8 @@ export type Database = {
           payload?: Json
           rationale?: string | null
           supersedes_decision_id?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Relationships: [
           {
@@ -2263,6 +2275,105 @@ export type Database = {
           },
         ]
       }
+      sav_cases: {
+        Row: {
+          assigned_to: string | null
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          financial_impact_amount: number
+          financial_impact_currency: string
+          id: string
+          last_activity_at: string
+          opened_at: string
+          order_id: string
+          order_item_id: string | null
+          owner_party: Database["public"]["Enums"]["sav_owner_party"]
+          problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          status: Database["public"]["Enums"]["sav_status"]
+          title: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          financial_impact_amount?: number
+          financial_impact_currency?: string
+          id?: string
+          last_activity_at?: string
+          opened_at?: string
+          order_id: string
+          order_item_id?: string | null
+          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
+          problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          status?: Database["public"]["Enums"]["sav_status"]
+          title: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          financial_impact_amount?: number
+          financial_impact_currency?: string
+          id?: string
+          last_activity_at?: string
+          opened_at?: string
+          order_id?: string
+          order_item_id?: string | null
+          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
+          problem_type?: Database["public"]["Enums"]["sav_problem_type"]
+          status?: Database["public"]["Enums"]["sav_status"]
+          title?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_cases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipping_services: {
         Row: {
           created_at: string
@@ -3157,6 +3268,17 @@ export type Database = {
         | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
+      sav_owner_party: "kawzone" | "vendor" | "supplier" | "client"
+      sav_problem_type:
+        | "stock_break"
+        | "product_deleted"
+        | "shop_deleted"
+        | "dispute"
+        | "payment_blocked"
+        | "delivery_blocked"
+        | "supplier_unavailable"
+        | "other"
+      sav_status: "open" | "in_progress" | "waiting" | "resolved" | "closed"
       shipment_assessment_status:
         | "pending_arrival"
         | "awaiting_weighing"
@@ -3399,6 +3521,18 @@ export const Constants = {
       ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
+      sav_owner_party: ["kawzone", "vendor", "supplier", "client"],
+      sav_problem_type: [
+        "stock_break",
+        "product_deleted",
+        "shop_deleted",
+        "dispute",
+        "payment_blocked",
+        "delivery_blocked",
+        "supplier_unavailable",
+        "other",
+      ],
+      sav_status: ["open", "in_progress", "waiting", "resolved", "closed"],
       shipment_assessment_status: [
         "pending_arrival",
         "awaiting_weighing",
