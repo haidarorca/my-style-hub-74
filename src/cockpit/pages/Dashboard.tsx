@@ -18,6 +18,7 @@ import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
+import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
 import type { DateRange } from "react-day-picker";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
