@@ -3233,6 +3233,7 @@ export type Database = {
         | "loss_shared"
         | "gain_kawzone"
         | "gain_vendor"
+        | "commission_paid"
       moderation_decision: "approved" | "rejected" | "changes_requested"
       moderation_step:
         | "name"
@@ -3267,6 +3268,7 @@ export type Database = {
         | "commercial_gesture"
         | "override_no_action"
         | "escalate_sav"
+        | "mark_dispute_resolved"
       order_event_type:
         | "client_cancellation"
         | "stock_break"
@@ -3282,6 +3284,7 @@ export type Database = {
         | "payment_blocked"
         | "delivery_blocked"
         | "order_abandoned"
+        | "dispute_resolved"
       product_contact_override:
         | "inherit"
         | "allowed"
@@ -3482,6 +3485,7 @@ export const Constants = {
         "loss_shared",
         "gain_kawzone",
         "gain_vendor",
+        "commission_paid",
       ],
       moderation_decision: ["approved", "rejected", "changes_requested"],
       moderation_step: [
@@ -3518,6 +3522,7 @@ export const Constants = {
         "commercial_gesture",
         "override_no_action",
         "escalate_sav",
+        "mark_dispute_resolved",
       ],
       order_event_type: [
         "client_cancellation",
@@ -3534,6 +3539,7 @@ export const Constants = {
         "payment_blocked",
         "delivery_blocked",
         "order_abandoned",
+        "dispute_resolved",
       ],
       product_contact_override: [
         "inherit",
