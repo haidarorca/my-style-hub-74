@@ -18,6 +18,7 @@ import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
+import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
 import type { DateRange } from "react-day-picker";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
@@ -62,6 +63,13 @@ export default function CockpitDashboard() {
   const [showAutonomous, setShowAutonomous] = useState(false);
   const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
   const autonomousCount = allSubRows.length - managedSubRows.length;
+
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  const visibleOrderIds = useMemo(
+    () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
+    [subOrderRows],
+  );
+  const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
 
   const openOrder = useCallback((o: LogisticsOrderRow) => {
     setSelectedVendorId(undefined);
@@ -481,6 +489,8 @@ export default function CockpitDashboard() {
           onResumeRestock={handleResumeRestock}
           vendorId={selectedVendorId}
           onVendorChange={setSelectedVendorId}
+          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedVendorId) : undefined}
+          subOrderHistoryLoading={historyLoading}
           dialogs={
             <>
               {showItemsPanel && (

@@ -34,6 +34,9 @@ import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/orde
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
+import { EventTimeline } from "./EventTimeline";
+import { SubOrderBadges } from "./SubOrderBadges";
+import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface OrderFinancials {
   productTotal: number;
@@ -72,9 +75,12 @@ interface Props {
   vendorId?: string;
   /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
   onVendorChange?: (vendorId: string) => void;
+  /** Phase B : historique métier de la sous-commande affichée. */
+  subOrderHistory?: SubOrderHistory;
+  subOrderHistoryLoading?: boolean;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange, subOrderHistory, subOrderHistoryLoading }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -187,9 +193,21 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
+          {/* ─── Phase B : Badges métier (boutique/produit supprimé, risque, attente) ─── */}
+          {isScoped && (
+            <div className="px-1">
+              <SubOrderBadges history={subOrderHistory} />
+            </div>
+          )}
+
           {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
           {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
+          )}
+
+          {/* ─── Phase B : Historique métier (Événement → Décision → Mouvement) ─── */}
+          {isScoped && (
+            <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
           )}
 
 

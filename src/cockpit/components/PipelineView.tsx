@@ -6,6 +6,9 @@ import { Store, Layers } from "lucide-react";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
+import { SubOrderBadges } from "./SubOrderBadges";
+import type { SubOrderHistoryMap } from "@/cockpit/hooks/useSubOrderHistories";
+import { getHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface Props {
   orders: LogisticsOrderRow[];
@@ -17,6 +20,8 @@ interface Props {
   /** Phase 2 : rangée par sous-commande boutique. Si fourni, prime sur `orders`. */
   subRows?: SubOrderRow[];
   onSelectSubRow?: (row: SubOrderRow) => void;
+  /** Phase B : historique métier indexé par order_id::vendor_id. */
+  historyMap?: SubOrderHistoryMap;
 }
 
 interface Column {
@@ -39,7 +44,7 @@ const COLUMNS: Column[] = [
   { key: "shipped", title: "Expediee", short: "Exped.", color: "border-t-indigo-500", bgColor: "bg-indigo-50", chipBg: "bg-indigo-100", chipText: "text-indigo-700", statuses: ["shipped"] },
 ];
 
-export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, articlesMap, orderTypeMap, subRows, onSelectSubRow }: Props) {
+export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, articlesMap, orderTypeMap, subRows, onSelectSubRow, historyMap }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const colRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -159,6 +164,10 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                           <Layers className="h-2.5 w-2.5" />{row.index}/{row.total} boutiques
                         </div>
                       )}
+                      <SubOrderBadges
+                        history={getHistory(historyMap, row.mother_order_id, row.vendor_id)}
+                        compact
+                      />
                     </button>
                   );
                 }) : col.orders.map(order => {
