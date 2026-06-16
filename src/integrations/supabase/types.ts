@@ -2291,6 +2291,8 @@ export type Database = {
           order_item_id: string | null
           owner_party: Database["public"]["Enums"]["sav_owner_party"]
           problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          source_decision_id: string | null
+          source_event_id: string | null
           status: Database["public"]["Enums"]["sav_status"]
           title: string
           updated_at: string
@@ -2311,6 +2313,8 @@ export type Database = {
           order_item_id?: string | null
           owner_party?: Database["public"]["Enums"]["sav_owner_party"]
           problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          source_decision_id?: string | null
+          source_event_id?: string | null
           status?: Database["public"]["Enums"]["sav_status"]
           title: string
           updated_at?: string
@@ -2331,6 +2335,8 @@ export type Database = {
           order_item_id?: string | null
           owner_party?: Database["public"]["Enums"]["sav_owner_party"]
           problem_type?: Database["public"]["Enums"]["sav_problem_type"]
+          source_decision_id?: string | null
+          source_event_id?: string | null
           status?: Database["public"]["Enums"]["sav_status"]
           title?: string
           updated_at?: string
@@ -2349,6 +2355,20 @@ export type Database = {
             columns: ["order_item_id"]
             isOneToOne: false
             referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_source_decision_id_fkey"
+            columns: ["source_decision_id"]
+            isOneToOne: false
+            referencedRelation: "order_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_source_event_id_fkey"
+            columns: ["source_event_id"]
+            isOneToOne: false
+            referencedRelation: "order_events"
             referencedColumns: ["id"]
           },
           {
@@ -3246,6 +3266,7 @@ export type Database = {
         | "apply_penalty"
         | "commercial_gesture"
         | "override_no_action"
+        | "escalate_sav"
       order_event_type:
         | "client_cancellation"
         | "stock_break"
@@ -3496,6 +3517,7 @@ export const Constants = {
         "apply_penalty",
         "commercial_gesture",
         "override_no_action",
+        "escalate_sav",
       ],
       order_event_type: [
         "client_cancellation",
