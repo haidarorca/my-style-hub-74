@@ -132,16 +132,14 @@ export const updateSavCase = createServerFn({ method: "POST" })
   }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const patch: Record<string, unknown> = {
+    const patch: Partial<SavCase> = {
       last_activity_at: new Date().toISOString(),
     };
     if (data.status !== undefined) {
       patch.status = data.status;
-      if (data.status === "closed" || data.status === "resolved") {
-        patch.closed_at = new Date().toISOString();
-      } else {
-        patch.closed_at = null;
-      }
+      patch.closed_at = (data.status === "closed" || data.status === "resolved")
+        ? new Date().toISOString()
+        : null;
     }
     if (data.owner_party !== undefined) patch.owner_party = data.owner_party;
     if (data.title !== undefined) patch.title = data.title;
@@ -158,3 +156,4 @@ export const updateSavCase = createServerFn({ method: "POST" })
     if (error) throw error;
     return row as SavCase;
   });
+
