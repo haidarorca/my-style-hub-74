@@ -108,7 +108,7 @@ export const recordMovement = createServerFn({ method: "POST" })
     amount: number;
     currency?: string;
     cost_attribution?: CostAttribution;
-    cost_split?: Record<string, number> | null;
+    cost_split?: Json;
     method?: string | null;
     reference?: string | null;
     note?: string | null;
