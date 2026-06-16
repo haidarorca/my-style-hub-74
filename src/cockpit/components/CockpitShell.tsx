@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSystemPulse } from "@/lib/cockpit-pulse.functions";
 import {
   LayoutDashboard, AlertTriangle, Wallet, Archive as ArchiveIcon,
-  Activity, Clock, TrendingUp, TrendingDown,
+  Activity, Clock, TrendingUp, TrendingDown, CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +30,7 @@ function fmt(n: number, currency = "XOF") {
 
 type Tab = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const TABS: Tab[] = [
+  { to: "/admin/cockpit/daily", label: "Clôture du jour", icon: CalendarCheck },
   { to: "/admin/cockpit", label: "Cockpit", icon: LayoutDashboard, exact: true },
   { to: "/admin/cockpit/sav", label: "SAV", icon: AlertTriangle },
   { to: "/admin/cockpit/finance", label: "Finance", icon: Wallet },
