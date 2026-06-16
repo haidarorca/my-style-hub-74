@@ -261,8 +261,7 @@ export default function CockpitDashboard() {
       };
       list = list.filter(statusMatch);
     }
-    // typeFilter supprime — plus de filtre Local/Import/Mixte
-    if (balanceFilter) {
+        if (balanceFilter) {
       list = list.filter(o => {
         const { paid, remaining } = getOrderFinancials(o);
         const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
@@ -795,4 +794,4 @@ function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
       </div>
     </div>
   );
-}// sync: Sun J                                                                                                                                                                                                                                                                             
+}// sync: Sun J
