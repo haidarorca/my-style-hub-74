@@ -31,20 +31,6 @@ import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } 
 type SortField = "date" | "amount" | "name" | "status";
 type SortDir = "asc" | "desc";
 
-const ALL_STATUSES = [
-  { key: "new", label: "A confirmer" },
-  { key: "confirmed", label: "Confirmee" },
-  { key: "ordered_supplier", label: "Commandee fournisseur" },
-  { key: "received_warehouse", label: "Recue entrepot" },
-  { key: "awaiting_weighing", label: "A peser" },
-  { key: "fees_calculated", label: "Calcul frais" },
-  { key: "payment_fees", label: "Paiement client" },
-  { key: "ready", label: "Prete (local)" },
-  { key: "ready_delivery", label: "Prete (import)" },
-  { key: "shipped", label: "Expediee" },
-  { key: "delivered", label: "Livree" },
-  { key: "cancelled", label: "Annulee" },
-];
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
