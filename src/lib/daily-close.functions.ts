@@ -147,7 +147,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
     const { data: accRaw } = await sb
       .from("v_sub_order_accounting" as any)
       .select(
-        "order_id, vendor_id, outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor, extra_collected_value, gross_value, refunded_value, credited_value",
+        "order_id, vendor_id, outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor, outstanding_extra_from_client, extra_collected_value, gross_value, refunded_value, credited_value",
       );
     const acc = inScope((accRaw ?? []) as any[], scope, false);
 
@@ -169,20 +169,10 @@ export const getDailyClose = createServerFn({ method: "GET" })
       (ordersRows ?? []).map((o: any) => [o.id, o.customer_name ?? null]),
     );
 
-    // Remboursements à effectuer (par commande)
     const refundsMap = new Map<string, RefundDue>();
-    // Vendeurs à payer (cumul par vendeur)
     const vendorAgg = new Map<string, VendorDebt>();
-    // Clients qui doivent : extra attendu — interprétation simple : si gross > refunded+credited+ extra_collected
-    // Ici on n'a pas d'« attendu » côté client supplémentaire fiable, on remonte uniquement les commandes
-    // où le client doit un complément matérialisé par un mouvement attendu (movement_type='extra_charge_client'
-    // attendu mais non encaissé). Pour rester simple et utile, on calcule
-    //   clients_owe = max(0, gross - refunded - credited - extra_collected - payés)
-    // → ce calcul nécessiterait la somme des paiements. On simplifie : on remonte les commandes avec
-    //   outstanding_credit_to_issue=0 ET extra_collected_value=0 ET refunded_value=0 ET un paiement < gross.
-    // Comme c'est coûteux, on se limite à un signal : remonter rien si non disponible.
-    // → on l'omet dans v1 et on l'affichera "à venir".
-    const clients_owe: ClientDebt[] = [];
+    // T5/T9 — Clients qui doivent : compléments attendus pour remplacement plus cher
+    const clientsOweMap = new Map<string, ClientDebt>();
 
     let refunds_due_total = 0;
     let vendors_to_pay_total = 0;
