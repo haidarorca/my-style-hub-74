@@ -118,14 +118,9 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                   const blocked = a.counters.blocked > 0;
                   const money = a.pending_money.total_abs > 0;
                   const ready = a.flags.can_ship_today;
-                  const kindClass =
-                    row.kind === "local" ? "bg-emerald-100 text-emerald-700"
-                    : row.kind === "import" ? "bg-indigo-100 text-indigo-700"
-                    : "bg-slate-100 text-slate-700";
-                  const kindLabel =
-                    row.kind === "local" ? "LOC"
-                    : row.kind === "import" ? "IMP"
-                    : "MIX";
+                  const hasImport = row.kind === "import" || row.kind === "local_and_import";
+                  const kindClass = hasImport ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700";
+                  const kindLabel = hasImport ? "IMP" : "LOC";
                   const scopeClass =
                     row.cockpit_scope === "kawzone" ? "bg-blue-600 text-white"
                     : row.cockpit_scope === "commission" ? "bg-purple-600 text-white"
