@@ -28,12 +28,13 @@ function fmt(n: number, currency = "XOF") {
   }
 }
 
-const TABS = [
+type Tab = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
+const TABS: Tab[] = [
   { to: "/admin/cockpit", label: "Cockpit", icon: LayoutDashboard, exact: true },
   { to: "/admin/cockpit/sav", label: "SAV", icon: AlertTriangle },
   { to: "/admin/cockpit/finance", label: "Finance", icon: Wallet },
   { to: "/admin/cockpit/archive", label: "Archive", icon: ArchiveIcon },
-] as const;
+];
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -69,7 +70,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   key={t.to}
-                  to={t.to}
+                  to={t.to as any}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
                     active
