@@ -420,7 +420,7 @@ export default function CockpitDashboard() {
                 <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
                 {activeFilterCount > 0 && (
                   <button
-                    onClick={() => { setStatusFilter(""); setTypeFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
+                    onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
                     className="text-[10px] text-red-500 hover:text-red-700"
                   >
                     Tout effacer
