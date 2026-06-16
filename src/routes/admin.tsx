@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -67,6 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", badge: "NEW" },
       { to: "/admin/cockpit/sav", label: "Centre SAV", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/cockpit/finance", label: "Centre Financier", icon: Wallet, perm: "orders" },
+      { to: "/admin/cockpit/archive", label: "Archive Cockpit", icon: Archive, perm: "orders" },
       { to: "/admin/commission-orders", label: "Cmd commission", icon: Briefcase, perm: "orders" },
       { to: "/admin/shipments", label: "Expéditions Chine", icon: PackageCheck, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
