@@ -10,6 +10,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { loadKawzoneScope, inScope } from "./kawzone-scope";
 
 export type SavStatus = "open" | "in_progress" | "waiting" | "resolved" | "closed";
 export type SavOwnerParty = "kawzone" | "vendor" | "supplier" | "client";
@@ -61,6 +62,7 @@ export const listSavCases = createServerFn({ method: "GET" })
   } = {}) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const scope = await loadKawzoneScope(context.supabase);
     let q = context.supabase
       .from("sav_cases")
       .select("*")
@@ -75,7 +77,8 @@ export const listSavCases = createServerFn({ method: "GET" })
     if (data.problem_type?.length) q = q.in("problem_type", data.problem_type);
     const { data: rows, error } = await q;
     if (error) throw error;
-    return (rows ?? []) as SavCase[];
+    // Périmètre Kawzone : Admin + Commission uniquement
+    return inScope((rows ?? []) as SavCase[], scope, /* keepNull */ true);
   });
 
 // ─── Create SAV case ───────────────────────────────────────────

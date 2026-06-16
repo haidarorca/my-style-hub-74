@@ -8,6 +8,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { loadKawzoneScope, inScope } from "./kawzone-scope";
 import type {
   FinancialMovement,
   FinancialMovementType,
@@ -67,6 +68,7 @@ export const listJournal = createServerFn({ method: "GET" })
   } = {}) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const scope = await loadKawzoneScope(context.supabase);
     // Join via decisions → events pour récupérer order_id / vendor_id / item
     let q = context.supabase
       .from("financial_movements")
@@ -86,12 +88,14 @@ export const listJournal = createServerFn({ method: "GET" })
     if (data.cost_attribution) q = q.eq("cost_attribution", data.cost_attribution);
     const { data: rows, error } = await q;
     if (error) throw error;
-    return (rows ?? []).map((r: any) => ({
+    const mapped = (rows ?? []).map((r: any) => ({
       ...r,
       order_id: r.decision?.event?.order_id ?? null,
       vendor_id: r.decision?.event?.vendor_id ?? null,
       order_item_id: r.decision?.event?.order_item_id ?? null,
     })) as JournalRow[];
+    // Périmètre Kawzone : exclure mouvements liés à boutiques externes
+    return inScope(mapped, scope, /* keepNull */ true);
   });
 
 // ─── getSummary ────────────────────────────────────────────────
@@ -100,17 +104,32 @@ export const getFinanceSummary = createServerFn({ method: "GET" })
   .inputValidator((input: { from?: string | null; to?: string | null } = {}) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    let q = context.supabase.from("financial_movements").select("movement_type, direction, amount");
+    const scope = await loadKawzoneScope(context.supabase);
+
+    // Mouvements scoppés via join → event.vendor_id
+    let q = context.supabase
+      .from("financial_movements")
+      .select(`
+        movement_type, direction, amount,
+        decision:order_decisions!inner(
+          event:order_events!inner(vendor_id)
+        )
+      `);
     if (data.from) q = q.gte("occurred_at", data.from);
     if (data.to) q = q.lte("occurred_at", data.to);
-    const { data: mvts, error } = await q;
+    const { data: mvtsRaw, error } = await q;
     if (error) throw error;
+    const mvts = (mvtsRaw ?? []).filter((m: any) => {
+      const v = m.decision?.event?.vendor_id;
+      return v == null || scope.vendorIdSet.has(v);
+    });
 
-    // Engagements en cours via la vue agrégée
+    // Engagements en cours via la vue agrégée — filtrés sur périmètre
     const { data: acc, error: e2 } = await context.supabase
       .from("v_sub_order_accounting")
-      .select("outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor");
+      .select("vendor_id, outstanding_to_refund_client, outstanding_credit_to_issue, commission_to_remit_vendor");
     if (e2) throw e2;
+    const accScoped = inScope((acc ?? []) as any[], scope, false);
 
     const summary: FinanceSummary = {
       total_in: 0, total_out: 0, net: 0,
@@ -120,7 +139,7 @@ export const getFinanceSummary = createServerFn({ method: "GET" })
       pending_extra_from_client: 0,
       by_type: {},
     };
-    for (const m of mvts ?? []) {
+    for (const m of mvts) {
       const amt = Number(m.amount ?? 0);
       const dir = m.direction as MovementDirection;
       const isIn = dir === "credit"; // credit = entrée caisse
@@ -131,7 +150,7 @@ export const getFinanceSummary = createServerFn({ method: "GET" })
       summary.by_type[key].count += 1;
     }
     summary.net = summary.total_in - summary.total_out;
-    for (const a of acc ?? []) {
+    for (const a of accScoped) {
       summary.pending_refund_to_client += Number(a.outstanding_to_refund_client ?? 0);
       summary.pending_credit_to_client += Number(a.outstanding_credit_to_issue ?? 0);
       summary.pending_commission_to_vendor += Number(a.commission_to_remit_vendor ?? 0);
@@ -144,11 +163,12 @@ export const listOutstanding = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const scope = await loadKawzoneScope(context.supabase);
     const { data, error } = await context.supabase
       .from("v_sub_order_accounting")
       .select("*")
       .or("outstanding_to_refund_client.gt.0,outstanding_credit_to_issue.gt.0,commission_to_remit_vendor.gt.0")
       .limit(1000);
     if (error) throw error;
-    return (data ?? []) as SubOrderAccountingRow[];
+    return inScope((data ?? []) as SubOrderAccountingRow[], scope, false);
   });
