@@ -24,10 +24,16 @@ export default function DailyClose() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
   const fn = useServerFn(getDailyClose);
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["daily-close", date],
     queryFn: () => fn({ data: { date } }),
     staleTime: 30_000,
+  });
+  const payFn = useServerFn(payAllOutstandingForVendor);
+  const payMut = useMutation({
+    mutationFn: (vendor_id: string) => payFn({ data: { vendor_id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["daily-close"] }),
   });
 
   return (
