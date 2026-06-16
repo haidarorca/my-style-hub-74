@@ -328,6 +328,7 @@ export const DECISION_LABELS: Record<OrderDecisionType, string> = {
   issue_credit_note: "Décider d'un avoir",
   apply_penalty: "Appliquer une pénalité",
   commercial_gesture: "Geste commercial",
+  escalate_sav: "Escalader au SAV",
   override_no_action: "Aucune action (override)",
 };
 
