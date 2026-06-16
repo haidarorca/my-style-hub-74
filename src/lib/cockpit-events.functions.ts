@@ -75,9 +75,10 @@ export const recordDecision = createServerFn({ method: "POST" })
     event_id: string;
     decision_type: OrderDecisionType;
     rationale?: string | null;
-    payload?: Record<string, unknown>;
+    payload?: Json;
     supersedes_decision_id?: string | null;
   }) => input)
+
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { data: row, error } = await context.supabase
