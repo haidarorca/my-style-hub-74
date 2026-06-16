@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
-import { Search, ClipboardList, Archive, X, Filter, ArrowUpDown, Download } from "lucide-react";
+import { Search, ClipboardList, Archive, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
@@ -14,17 +14,19 @@ import { useAuth } from "@/hooks/use-auth";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
-import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
+import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
 import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
-import type { DateRange } from "react-day-picker";
+import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
+import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { ArchiveFilter } from "@/cockpit/types";
 import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
+
 
 type SortField = "date" | "amount" | "name" | "status";
 type SortDir = "asc" | "desc";
