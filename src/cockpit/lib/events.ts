@@ -147,6 +147,7 @@ const EVENT_DEFAULT_AWAITS: Record<OrderEventType, AwaitsParty> = {
   product_deleted: "awaits_admin",
   shop_deleted: "awaits_admin",
   customer_dispute: "awaits_admin",
+  dispute_resolved: "awaits_nothing",
   delivery_refusal: "awaits_admin",
   post_delivery_return: "awaits_admin",
   vendor_error: "awaits_admin",
@@ -162,9 +163,15 @@ const DECISION_DEFAULT_AWAITS: Partial<Record<OrderDecisionType, AwaitsParty>> =
   wait_restock: "awaits_vendor",
   wait_supplier: "awaits_supplier",
   wait_client: "awaits_client",
+  replace_same: "awaits_vendor",      // vendeur doit envoyer le remplacement
+  replace_higher: "awaits_client",    // client doit régler le complément
+  replace_lower: "awaits_admin",      // Kawzone doit rembourser la différence
+  partial_delivery: "awaits_admin",
   issue_refund: "awaits_admin",       // tant que cash_out n'est pas posé
   issue_credit_note: "awaits_admin",  // tant que credit_note_issued n'est pas posé
   apply_penalty: "awaits_admin",
+  escalate_sav: "awaits_admin",
+  mark_dispute_resolved: "awaits_nothing",
 };
 
 /** Liste des parties qui attendent une action sur cette sous-commande.
