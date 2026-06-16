@@ -489,6 +489,8 @@ export default function CockpitDashboard() {
           onResumeRestock={handleResumeRestock}
           vendorId={selectedVendorId}
           onVendorChange={setSelectedVendorId}
+          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedVendorId) : undefined}
+          subOrderHistoryLoading={historyLoading}
           dialogs={
             <>
               {showItemsPanel && (
