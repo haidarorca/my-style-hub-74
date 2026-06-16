@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
-import { Search, ClipboardList, Archive, X, Filter, ArrowUpDown, Download } from "lucide-react";
+import { Search, ClipboardList, Archive, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
@@ -14,41 +14,29 @@ import { useAuth } from "@/hooks/use-auth";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
-import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
+import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
 import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
-import type { DateRange } from "react-day-picker";
+import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
+import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { ArchiveFilter } from "@/cockpit/types";
 import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
 
+
 type SortField = "date" | "amount" | "name" | "status";
 type SortDir = "asc" | "desc";
 
-const ALL_STATUSES = [
-  { key: "new", label: "A confirmer" },
-  { key: "confirmed", label: "Confirmee" },
-  { key: "ordered_supplier", label: "Commandee fournisseur" },
-  { key: "received_warehouse", label: "Recue entrepot" },
-  { key: "awaiting_weighing", label: "A peser" },
-  { key: "fees_calculated", label: "Calcul frais" },
-  { key: "payment_fees", label: "Paiement client" },
-  { key: "ready", label: "Prete (local)" },
-  { key: "ready_delivery", label: "Prete (import)" },
-  { key: "shipped", label: "Expediee" },
-  { key: "delivered", label: "Livree" },
-  { key: "cancelled", label: "Annulee" },
-];
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const {
-    orders, isLoading, searchTerm, setSearchTerm,
+    orders, isLoading, setSearchTerm,
     getPayments, getTotalPaid, getAudit,
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
@@ -59,10 +47,9 @@ export default function CockpitDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
 
-  const { rows: managedSubRows, allRows: allSubRows } = useSubOrderRows(orders);
-  const [showAutonomous, setShowAutonomous] = useState(false);
-  const subOrderRows = showAutonomous ? allSubRows : managedSubRows;
-  const autonomousCount = allSubRows.length - managedSubRows.length;
+  // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
+  // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
+  const { rows: subOrderRows } = useSubOrderRows(orders);
 
   // ─── Phase B : historique métier (événements / décisions / mouvements) ───
   const visibleOrderIds = useMemo(
@@ -70,6 +57,14 @@ export default function CockpitDashboard() {
     [subOrderRows],
   );
   const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
+
+  // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
+  const visibleVendorIds = useMemo(
+    () => [...new Set(subOrderRows.map(r => r.vendor_id))],
+    [subOrderRows],
+  );
+  const { data: vendorProfiles } = useVendorProfiles(visibleVendorIds);
+
 
   const openOrder = useCallback((o: LogisticsOrderRow) => {
     setSelectedVendorId(undefined);
@@ -102,16 +97,24 @@ export default function CockpitDashboard() {
   const [showItemsPanel, setShowItemsPanel] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Filtres avancés
-  const [showFilters, setShowFilters] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [balanceFilter, setBalanceFilter] = useState<string>("");
-  const [minDays, setMinDays] = useState<string>("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // ─── Moteur de filtres métier multi-dimensions ───
+  const {
+    filters,
+    filteredRows: filteredSubRows,
+    options: filterOptions,
+    count: activeFilterCount,
+    update: updateFilter,
+    toggleArray: toggleArrayFilter,
+    reset: resetFilters,
+  } = useCockpitFilters({ rows: subOrderRows, vendorProfiles, historyMap });
+
+  // Synchronise la recherche du moteur de filtres avec la barre globale.
+  useEffect(() => { setSearchTerm(filters.search); }, [filters.search, setSearchTerm]);
 
   // Tri
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
 
   // ─── Article states ───
   const articlesHook = useArticleStates(
@@ -226,64 +229,32 @@ export default function CockpitDashboard() {
     return m;
   }, [orders, getOrderFinancials]);
 
-  const getOrderAge = useCallback((o: LogisticsOrderRow) => {
-    const created = new Date(o.order_created_at ?? Date.now());
-    const now = new Date();
-    return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  }, []);
 
-  // ─── Filtered & Sorted orders ───
-  const displayOrders = useMemo(() => {
-    let list = orders;
 
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase().trim();
-      list = list.filter(o =>
-        (o.order_id ?? "").toLowerCase().includes(q) ||
-        (o.customer_name ?? "").toLowerCase().includes(q) ||
-        (o.customer_phone ?? "").toLowerCase().includes(q) ||
-        getOrderNumber(o.order_id ?? "").toLowerCase().includes(q)
-      );
-    }
 
+  // ─── Tri + résolution sous-commandes → commandes mères ───
+  // Le moteur de filtres travaille sur les sous-commandes (granularité métier
+  // du Cockpit). Le pipeline a besoin de la liste des commandes mères
+  // correspondantes pour ses colonnes — on les dérive ici.
+  const tabbedSubRows = useMemo(() => {
     if (activeTab === "archive") {
-      list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled");
-    } else {
-      list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled");
+      return filteredSubRows.filter(r =>
+        r.order.logistics_status === "delivered" || r.order.logistics_status === "cancelled");
     }
+    return filteredSubRows.filter(r =>
+      r.order.logistics_status !== "delivered" && r.order.logistics_status !== "cancelled");
+  }, [filteredSubRows, activeTab]);
 
-    if (statusFilter) {
-      const statusMatch = (o: LogisticsOrderRow) => {
-        const s = o.logistics_status ?? "";
-        if (statusFilter === "new") return s === "" || s === "new";
-        return s === statusFilter;
-      };
-      list = list.filter(statusMatch);
+  const displayOrders = useMemo(() => {
+    const seen = new Set<string>();
+    const list: LogisticsOrderRow[] = [];
+    for (const r of tabbedSubRows) {
+      const oid = r.mother_order_id;
+      if (seen.has(oid)) continue;
+      seen.add(oid);
+      list.push(r.order);
     }
-    if (balanceFilter) {
-      list = list.filter(o => {
-        const { paid, remaining } = getOrderFinancials(o);
-        const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
-        if (balanceFilter === "unpaid") return paid === 0 && remaining > 0;
-        if (balanceFilter === "partial") return paid > 0 && remaining > 0;
-        if (balanceFilter === "paid") return remaining === 0 && gt > 0;
-        return true;
-      });
-    }
-    if (minDays) {
-      const days = parseInt(minDays);
-      if (!isNaN(days)) list = list.filter(o => getOrderAge(o) >= days);
-    }
-    if (dateRange?.from) {
-      const fromTime = dateRange.from.getTime();
-      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() >= fromTime);
-    }
-    if (dateRange?.to) {
-      const toTime = dateRange.to.getTime() + 24 * 60 * 60 * 1000;
-      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() <= toTime);
-    }
-
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortField) {
         case "date": return dir * (new Date(b.order_created_at ?? 0).getTime() - new Date(a.order_created_at ?? 0).getTime());
@@ -293,12 +264,10 @@ export default function CockpitDashboard() {
         default: return 0;
       }
     });
+  }, [tabbedSubRows, sortField, sortDir]);
 
-    return list;
-  }, [orders, searchTerm, activeTab, getOrderFinancials, statusFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, dateRange]);
+  const resultCount = tabbedSubRows.length;
 
-  const resultCount = displayOrders.length;
-  const activeFilterCount = [statusFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
 
   const handleStatus = (orderId: string, status: string, _admin: string) => {
     updateStatus(orderId, status, _admin || adminName);
@@ -337,12 +306,17 @@ export default function CockpitDashboard() {
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-          <Input placeholder="Rechercher (nom, telephone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <Input
+            placeholder="Boutique, vendeur, téléphone, KZ-xxx, sous-cmd…"
+            className="pl-8 h-9 text-sm"
+            value={filters.search}
+            onChange={e => updateFilter("search", e.target.value)}
+          />
         </div>
       </div>
 
       {/* Barre outils */}
-      <div className="px-4 pt-2 pb-1 space-y-2">
+      <div className="px-4 pt-2 pb-1 space-y-2 relative">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tri */}
           <div className="relative shrink-0">
@@ -361,21 +335,17 @@ export default function CockpitDashboard() {
             <ArrowUpDown className="absolute left-2 top-1.5 h-3 w-3 text-gray-400 pointer-events-none" />
           </div>
 
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ${showFilters || activeFilterCount > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}
-          >
-            <Filter className="h-3 w-3" />
-            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-          </button>
-
-          <button
-            onClick={() => setShowAutonomous(v => !v)}
-            title="Afficher aussi les sous-commandes de boutiques 100% autonomes (sans intervention Kawzone)"
-            className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ml-auto ${showAutonomous ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600"}`}
-          >
-            {showAutonomous ? "Tout afficher" : `Kawzone uniquement${autonomousCount > 0 ? ` (+${autonomousCount} masquées)` : ""}`}
-          </button>
+          {/* Moteur de filtres métier multi-dimensions */}
+          <CockpitFilterPanel
+            filters={filters}
+            count={activeFilterCount}
+            total={subOrderRows.length}
+            filteredCount={filteredSubRows.length}
+            options={filterOptions}
+            onUpdate={updateFilter}
+            onToggleArray={toggleArrayFilter}
+            onReset={resetFilters}
+          />
 
           <button
             onClick={() => {
@@ -388,58 +358,22 @@ export default function CockpitDashboard() {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
             }}
-            className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className="ml-auto flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
           >
             <Download className="h-3 w-3" />CSV
           </button>
         </div>
 
-        {showFilters && (
-          <div className="bg-white border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
-                  className="text-[10px] text-red-500 hover:text-red-700"
-                >
-                  Tout effacer
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Statut</label>
-                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
-                  <option value="">Tous</option>
-                  {ALL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Solde</label>
-                <select value={balanceFilter} onChange={e => setBalanceFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
-                  <option value="">Tous</option>
-                  <option value="unpaid">Non paye</option>
-                  <option value="partial">Partiel</option>
-                  <option value="paid">Paye total</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Anciennete min (jours)</label>
-                <input type="number" placeholder="Ex: 7" value={minDays} onChange={e => setMinDays(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2" />
-              </div>
-              <div className="col-span-2">
-                <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">{resultCount} commande{resultCount > 1 ? "s" : ""} affichee{resultCount > 1 ? "s" : ""}</span>
-          {resultCount !== orders.length && <span className="text-[10px] text-orange-500">sur {orders.length} total</span>}
+          <span className="text-[10px] text-gray-400">
+            {resultCount} sous-commande{resultCount > 1 ? "s" : ""} affichée{resultCount > 1 ? "s" : ""}
+          </span>
+          {resultCount !== subOrderRows.length && (
+            <span className="text-[10px] text-orange-500">sur {subOrderRows.length} total</span>
+          )}
         </div>
       </div>
+
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
@@ -452,7 +386,9 @@ export default function CockpitDashboard() {
             freightMap={freightMap}
             onSelect={openOrder}
             orderTypeMap={orderTypeMap}
-            subRows={subOrderRows.filter(r => displayOrders.some(o => o.order_id === r.mother_order_id))}
+            subRows={tabbedSubRows}
+            historyMap={historyMap}
+
             onSelectSubRow={(row) => {
               setSelectedVendorId(row.vendor_id);
               setSelectedOrder(row.order);
