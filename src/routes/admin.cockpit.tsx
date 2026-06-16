@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { z } from "zod";
-import CockpitDashboard from "@/cockpit/pages/Dashboard";
 
 // Deep-link params : permet à Cockpit Next (et à n'importe quel lien externe)
 // d'ouvrir directement une commande sur sa section pertinente.
@@ -12,5 +11,5 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/admin/cockpit")({
   validateSearch: searchSchema,
-  component: CockpitDashboard,
+  component: () => <Outlet />,
 });

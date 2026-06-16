@@ -64,7 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
       { to: "/admin/logistics", label: "Logistique ERP", icon: Truck, perm: "orders" },
       { to: "/admin/workflow-center", label: "Workflow Center", icon: Zap, perm: "orders", badge: "BETA" },
-      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", badge: "NEW" },
+      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true, badge: "NEW" },
       { to: "/admin/cockpit/sav", label: "Centre SAV", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/cockpit/finance", label: "Centre Financier", icon: Wallet, perm: "orders" },
       { to: "/admin/cockpit/archive", label: "Archive Cockpit", icon: Archive, perm: "orders" },
