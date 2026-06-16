@@ -352,6 +352,7 @@ export const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   penalty_kept: "Pénalité Kawzone",
   penalty_to_vendor: "Pénalité vendeur",
   commission_due_to_vendor: "Commission due au vendeur",
+  commission_paid: "Commission payée au vendeur",
   loss_kawzone: "Perte Kawzone",
   loss_vendor: "Perte vendeur",
   loss_shared: "Perte partagée",
