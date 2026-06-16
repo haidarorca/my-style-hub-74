@@ -36,6 +36,7 @@ import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 import { EventTimeline } from "./EventTimeline";
 import { SubOrderBadges } from "./SubOrderBadges";
+import { EventCaptureDialog } from "./EventCaptureDialog";
 import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface OrderFinancials {
