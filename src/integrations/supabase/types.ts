@@ -14,6 +14,109 @@ export type Database = {
   }
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          address_line1: string
+          address_line2: string | null
+          city_id: string | null
+          city_text: string | null
+          country_id: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          is_default: boolean | null
+          label: string | null
+          landmark: string | null
+          latitude: number | null
+          longitude: number | null
+          neighborhood_text: string | null
+          note: string | null
+          owner_id: string
+          owner_type: string
+          phone: string | null
+          phone_alt: string | null
+          postal_code: string | null
+          region_id: string | null
+          region_text: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          address_line1: string
+          address_line2?: string | null
+          city_id?: string | null
+          city_text?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          is_default?: boolean | null
+          label?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood_text?: string | null
+          note?: string | null
+          owner_id: string
+          owner_type: string
+          phone?: string | null
+          phone_alt?: string | null
+          postal_code?: string | null
+          region_id?: string | null
+          region_text?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          address_line1?: string
+          address_line2?: string | null
+          city_id?: string | null
+          city_text?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          is_default?: boolean | null
+          label?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood_text?: string | null
+          note?: string | null
+          owner_id?: string
+          owner_type?: string
+          phone?: string | null
+          phone_alt?: string | null
+          postal_code?: string | null
+          region_id?: string | null
+          region_text?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addresses_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "geo_cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "geo_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_action_log: {
         Row: {
           action: string
@@ -617,6 +720,74 @@ export type Database = {
             columns: ["decision_id"]
             isOneToOne: false
             referencedRelation: "order_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geo_cities: {
+        Row: {
+          country_id: string
+          created_at: string | null
+          id: string
+          name: string
+          region_id: string | null
+        }
+        Insert: {
+          country_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          region_id?: string | null
+        }
+        Update: {
+          country_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          region_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geo_cities_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geo_cities_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "geo_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geo_regions: {
+        Row: {
+          country_id: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          country_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          country_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geo_regions_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
         ]
@@ -2757,6 +2928,47 @@ export type Database = {
           },
         ]
       }
+      vendor_warehouses: {
+        Row: {
+          address_id: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+          vendor_id: string
+        }
+        Insert: {
+          address_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+          vendor_id: string
+        }
+        Update: {
+          address_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_warehouses_address_id_fkey"
+            columns: ["address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       public_product_reviews: {
@@ -3128,6 +3340,7 @@ export type Database = {
         }
         Returns: string
       }
+      migrate_customer_addresses: { Args: never; Returns: number }
       product_code_exists_in_shop: {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
