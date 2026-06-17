@@ -20,6 +20,9 @@ const VerifySchema = z.object({
   phone: z.string().max(50).optional().nullable(),
   sex: z.enum(["homme", "femme"]),
   address: z.string().max(500).optional().nullable(),
+  countryId: z.string().max(50).optional().nullable(),
+  cityText: z.string().max(200).optional().nullable(),
+  regionText: z.string().max(200).optional().nullable(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
 });
@@ -275,6 +278,31 @@ export const verifySignupAndCreateAccount = createServerFn({ method: "POST" })
       .eq("id", userId);
     if (profErr) {
       console.error("profile update failed", profErr);
+    }
+
+    // Create address in new address system (if country or address provided)
+    if (data.countryId || data.address) {
+      const { error: addrErr } = await supabaseAdmin
+        .from("addresses")
+        .insert({
+          owner_type: "user",
+          owner_id: userId,
+          type: "shipping",
+          label: "Adresse principale",
+          is_default: true,
+          full_name: data.fullName,
+          phone: data.phone ?? null,
+          country_id: data.countryId ?? null,
+          region_text: data.regionText ?? null,
+          city_text: data.cityText ?? null,
+          address_line1: data.address ?? "",
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+        });
+      if (addrErr) {
+        console.error("address insert failed", addrErr);
+        // Non-blocking: don't fail signup if address creation fails
+      }
     }
 
     await supabaseAdmin.from("email_verification_codes").update({ used: true }).eq("id", row.id);

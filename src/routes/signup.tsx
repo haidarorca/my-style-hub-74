@@ -11,6 +11,7 @@ import { MapPin, Loader2, Eye, EyeOff, Home, ArrowLeft } from "lucide-react";
 import { BackButton } from "@/components/layout/BackButton";
 import { useI18n } from "@/hooks/use-i18n";
 import { EditableLabel } from "@/components/admin/EditableLabel";
+import { useCountries } from "@/hooks/use-countries";
 import {
   sendSignupVerificationCode,
   verifySignupAndCreateAccount,
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/signup")({
 function SignupPage() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { data: countries } = useCountries({ onlyEnabled: true });
   const sendCode = useServerFn(sendSignupVerificationCode);
   const verifyCode = useServerFn(verifySignupAndCreateAccount);
 
@@ -40,6 +42,9 @@ function SignupPage() {
   const [phone, setPhone] = useState("");
   const [sex, setSex] = useState<"homme" | "femme" | "">("");
   const [address, setAddress] = useState("");
+  const [countryId, setCountryId] = useState("");
+  const [cityText, setCityText] = useState("");
+  const [regionText, setRegionText] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -75,8 +80,16 @@ function SignupPage() {
       toast.error("Merci de sélectionner ton sexe.");
       return;
     }
+    if (!countryId) {
+      toast.error("Merci de sélectionner votre pays.");
+      return;
+    }
+    if (!cityText.trim()) {
+      toast.error("Merci de saisir votre ville.");
+      return;
+    }
     if (!address.trim() && !coords) {
-      toast.error("Merci de fournir une adresse ou ta position.");
+      toast.error("Merci de fournir une adresse ou votre position.");
       return;
     }
     if (password.length < 6) {
@@ -132,6 +145,9 @@ function SignupPage() {
           phone: phone || null,
           sex,
           address: address || null,
+          countryId: countryId || null,
+          cityText: cityText || null,
+          regionText: regionText || null,
           latitude: coords?.lat ?? null,
           longitude: coords?.lng ?? null,
         },
@@ -219,12 +235,41 @@ function SignupPage() {
                 </RadioGroup>
               </div>
 
+              {/* ─── Adresse structurée (nouveau système) ─── */}
               <div className="space-y-1.5">
-                <Label htmlFor="address">Adresse de livraison *</Label>
-                <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rue, quartier, ville…" />
+                <Label>Pays *</Label>
+                <select
+                  value={countryId}
+                  onChange={(e) => setCountryId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  required
+                >
+                  <option value="">Choisir votre pays...</option>
+                  {(countries ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Région / État</Label>
+                  <Input value={regionText} onChange={(e) => setRegionText(e.target.value)} placeholder="Dakar, Thiès..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Ville *</Label>
+                  <Input value={cityText} onChange={(e) => setCityText(e.target.value)} placeholder="Dakar, Mbour..." required />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="address">Adresse détaillée *</Label>
+                <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rue, quartier, point de repère..." required />
                 <Button type="button" variant="outline" size="sm" onClick={handleGeolocate} disabled={geoLoading} className="w-full">
                   {geoLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
-                  {coords ? `Position détectée (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : "Utiliser ma position"}
+                  {coords ? `Position enregistrée — actualiser` : "Détecter ma position"}
                 </Button>
               </div>
 
