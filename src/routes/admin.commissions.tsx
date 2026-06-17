@@ -1,1064 +1,972 @@
-import * as React from "react";
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  ArrowLeft, ChevronRight, Search, Save, Trash2, Plus,
-  History as HistoryIcon, ChevronDown, Globe2, ArrowRight,
-} from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { useCountries, useCountryLabel, type Country } from "@/hooks/use-countries";
-import { PermissionGate } from "@/components/admin/PermissionGate";
-import { BackButton } from "@/components/layout/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminTabs, AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+  Search,
+  Store,
+  Package,
+  Percent,
+  Banknote,
+  Calculator,
+  Check,
+  ChevronRight,
+  TrendingUp,
+  BarChart3,
+  Layers,
+  ArrowRight,
+  Eye,
+  Pencil,
+  X,
+  Filter,
+  Hash,
+} from "lucide-react";
 
-export const Route = createFileRoute("/admin/commissions")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    source: typeof s.source === "string" ? s.source : undefined,
-    destination: typeof s.destination === "string" ? s.destination : undefined,
-  }),
-  component: () => <PermissionGate superOnly><CommissionsPage /></PermissionGate>,
-});
+// ─── Types ──────────────────────────────────────────────────────
 
-type Scope = "global" | "vendor" | "category" | "product" | "country_pair";
-interface Rule {
+interface Vendor {
   id: string;
-  scope: Scope;
-  vendor_id: string | null;
-  category_id: string | null;
-  product_id: string | null;
-  source_country_id: string | null;
-  destination_country_id: string | null;
+  shop_name: string;
+  full_name: string;
+  avatar_url?: string;
+  product_count: number;
+  country: string;
+}
+
+interface Product {
+  id: string;
+  code: string;
+  name: string;
+  image_url?: string;
+  price: number; // prix de vente (sans commission)
+  vendor_id: string;
+  category: string;
+  commission_rate: number; // en %
+  commission_amount: number; // en FCFA
+  supplier_price?: number; // prix fournisseur
+  sale_price?: number; // prix de vente final
+}
+
+interface CommissionRule {
+  id: string;
+  scope: "global" | "vendor" | "category" | "product";
+  vendor_id?: string;
+  product_id?: string;
+  category_id?: string;
   rate_percent: number;
   is_enabled: boolean;
-  note: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
-const sb = supabase as any;
-const ALL = "__ALL__"; // sentinel for "all countries" (NULL)
+// ─── Donnees de demo ────────────────────────────────────────────
+
+const VENDORS: Vendor[] = [
+  { id: "v1", shop_name: "Boutique Fatou", full_name: "Fatou Ndiaye", product_count: 45, country: "Senegal" },
+  { id: "v2", shop_name: "Style Luxe", full_name: "Amadou Diallo", product_count: 32, country: "Senegal" },
+  { id: "v3", shop_name: "Chic & Moi", full_name: "Aminata Sow", product_count: 28, country: "Cote d'Ivoire" },
+  { id: "v4", shop_name: "Golden Touch", full_name: "Moussa Ba", product_count: 67, country: "Senegal" },
+  { id: "v5", shop_name: "Mode Express", full_name: "Mariama Diop", product_count: 19, country: "Mali" },
+  { id: "v6", shop_name: "Elegance Pro", full_name: "Ibrahima Fall", product_count: 54, country: "Senegal" },
+  { id: "v7", shop_name: "Trendy Shop", full_name: "Sophie Martin", product_count: 41, country: "France" },
+  { id: "v8", shop_name: "Wax Paradise", full_name: "Kadiatou Kone", product_count: 73, country: "Guinea" },
+];
+
+const PRODUCTS: Product[] = [
+  { id: "p1", code: "WZ-001", name: "Pagne Wax Authentique", image_url: "https://images.unsplash.com/photo-1590736969955-71cc94901144?w=200&h=200&fit=crop", price: 15000, vendor_id: "v1", category: "Pagnes", commission_rate: 15, commission_amount: 2250, supplier_price: 8000 },
+  { id: "p2", code: "RB-102", name: "Robe Soiree Rouge", image_url: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=200&h=200&fit=crop", price: 45000, vendor_id: "v1", category: "Robes", commission_rate: 20, commission_amount: 9000, supplier_price: 25000 },
+  { id: "p3", code: "JP-203", name: "Jupe Plissee Bleue", image_url: "https://images.unsplash.com/photo-1583496661160-fb5886a0ujj?w=200&h=200&fit=crop", price: 22000, vendor_id: "v1", category: "Jupes", commission_rate: 12, commission_amount: 2640, supplier_price: 12000 },
+  { id: "p4", code: "CH-305", name: "Chemise Homme Blanc", image_url: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&h=200&fit=crop", price: 18000, vendor_id: "v1", category: "Chemises", commission_rate: 15, commission_amount: 2700, supplier_price: 9000 },
+  { id: "p5", code: "SC-401", name: "Sac a Main Cuir", image_url: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&h=200&fit=crop", price: 35000, vendor_id: "v1", category: "Accessoires", commission_rate: 18, commission_amount: 6300, supplier_price: 18000 },
+  { id: "p6", code: "SH-502", name: "Chaussures Talons", image_url: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=200&h=200&fit=crop", price: 28000, vendor_id: "v2", category: "Chaussures", commission_rate: 15, commission_amount: 4200, supplier_price: 15000 },
+  { id: "p7", code: "MX-601", name: "Montre Luxe Or", image_url: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=200&h=200&fit=crop", price: 125000, vendor_id: "v2", category: "Montres", commission_rate: 10, commission_amount: 12500, supplier_price: 75000 },
+  { id: "p8", code: "LT-701", name: "Lunettes de Soleil", image_url: "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=200&h=200&fit=crop", price: 12000, vendor_id: "v2", category: "Accessoires", commission_rate: 20, commission_amount: 2400, supplier_price: 6000 },
+  { id: "p9", code: "EN-801", name: "Ensemble Wax 3pcs", image_url: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=200&h=200&fit=crop", price: 38000, vendor_id: "v3", category: "Ensembles", commission_rate: 18, commission_amount: 6840, supplier_price: 20000 },
+  { id: "p10", code: "PT-901", name: "Portefeuille Cuir", image_url: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=200&h=200&fit=crop", price: 9500, vendor_id: "v3", category: "Accessoires", commission_rate: 25, commission_amount: 2375, supplier_price: 4500 },
+  { id: "p11", code: "VB-112", name: "Veste Bomber", image_url: "https://images.unsplash.com/photo-1551028919-ac76c9028d1e?w=200&h=200&fit=crop", price: 32000, vendor_id: "v4", category: "Vestes", commission_rate: 15, commission_amount: 4800, supplier_price: 18000 },
+  { id: "p12", code: "TN-223", name: "T-shirt Nike Original", image_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop", price: 8500, vendor_id: "v4", category: "T-shirts", commission_rate: 12, commission_amount: 1020, supplier_price: 5000 },
+];
+
+const COMMISSION_RULES: CommissionRule[] = [
+  { id: "r1", scope: "global", rate_percent: 15, is_enabled: true },
+  { id: "r2", scope: "vendor", vendor_id: "v1", rate_percent: 18, is_enabled: true },
+  { id: "r3", scope: "vendor", vendor_id: "v2", rate_percent: 12, is_enabled: true },
+  { id: "r4", scope: "product", product_id: "p7", rate_percent: 10, is_enabled: true },
+];
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+const fmtF = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
+const fmtP = (n: number) => n.toFixed(1).replace(".0", "") + "%";
+
+// ─── Page ───────────────────────────────────────────────────────
+
+export const Route = createFileRoute("/admin/commissions")({
+  component: CommissionsPage,
+});
 
 function CommissionsPage() {
-  const { isSuperAdmin } = useAuth();
-  if (!isSuperAdmin) return null;
-  return (
-    <div className="space-y-4">
-      <BackButton fallbackTo="/admin" label="Retour admin" className="border bg-background shadow-sm" />
-      <div>
-        <h1 className="text-xl font-bold">Commissions</h1>
-        <p className="text-xs text-muted-foreground">
-          Matrice pays source → pays destination. Priorité&nbsp;: produit → sous-catégorie → catégorie → règle de la paire → règle globale.
-        </p>
-      </div>
-      <Tabs defaultValue="matrix">
-        <AdminTabList className="w-full">
-          <AdminTabTrigger value="matrix" className="flex-1">Matrice pays</AdminTabTrigger>
-          <AdminTabTrigger value="global" className="flex-1">Globale</AdminTabTrigger>
-          <AdminTabTrigger value="vendors" className="flex-1">Vendeurs</AdminTabTrigger>
-          <AdminTabTrigger value="history" className="flex-1">Historique</AdminTabTrigger>
-        </AdminTabList>
-        <TabsContent value="matrix" className="pt-3"><MatrixTab /></TabsContent>
-        <TabsContent value="global" className="pt-3"><GlobalTab /></TabsContent>
-        <TabsContent value="vendors" className="pt-3"><VendorsTab /></TabsContent>
-        <TabsContent value="history" className="pt-3"><HistoryTab /></TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
+  const [searchProduct, setSearchProduct] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState("vendors");
 
-/* ============================================================
-   RULES + HELPERS
-============================================================ */
-function useRules() {
-  return useQuery({
-    queryKey: ["commission_rules"],
-    queryFn: async () => {
-      const { data, error } = await sb.from("commission_rules").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Rule[];
-    },
-  });
-}
+  // Dialog state
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    productId?: string;
+    mode: "percent" | "amount";
+    value: string;
+    supplierPrice: string;
+    salePrice: string;
+  }>({ open: false, mode: "percent", value: "", supplierPrice: "", salePrice: "" });
 
-type SaveCommissionRuleInput = {
-  scope: Scope;
-  rate_percent: number;
-  is_enabled?: boolean;
-  vendor_id?: string | null;
-  category_id?: string | null;
-  product_id?: string | null;
-  source_country_id?: string | null;
-  destination_country_id?: string | null;
-  note?: string | null;
-};
+  const [bulkDialog, setBulkDialog] = useState<{
+    open: boolean;
+    mode: "percent" | "amount";
+    value: string;
+  }>({ open: false, mode: "percent", value: "" });
 
-async function saveCommissionRule(input: SaveCommissionRuleInput) {
-  const { data, error } = await sb.rpc("upsert_commission_rule", {
-    _scope: input.scope,
-    _rate_percent: input.rate_percent,
-    _is_enabled: input.is_enabled ?? true,
-    _vendor_id: input.vendor_id ?? null,
-    _category_id: input.category_id ?? null,
-    _product_id: input.product_id ?? null,
-    _source_country_id: input.source_country_id ?? null,
-    _destination_country_id: input.destination_country_id ?? null,
-    _note: input.note ?? null,
-  });
-  if (error) throw error;
-  return data as Rule;
-}
+  // ── Derived ──────────────────────────────────────────────────
 
-function useCategories() {
-  return useQuery({
-    queryKey: ["categories-flat"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("categories")
-        .select("id, name, parent_id, level").order("level").order("position").order("name");
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string; parent_id: string | null; level: number }[];
-    },
-  });
-}
-
-/** Count products affected by a category subtree */
-function useProductCounts() {
-  return useQuery({
-    queryKey: ["products-by-category-count"],
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("category_id");
-      const m = new Map<string, number>();
-      (data ?? []).forEach((p: any) => {
-        if (!p.category_id) return;
-        m.set(p.category_id, (m.get(p.category_id) ?? 0) + 1);
-      });
-      return m;
-    },
-  });
-}
-
-/* ============================================================
-   MATRIX TAB — 3-level navigation (source → dest → pair detail)
-============================================================ */
-function MatrixTab() {
-  const search = Route.useSearch();
-  const [source, setSource] = useState<string | null>(search.source ?? null);
-  const [destination, setDestination] = useState<string | null>(search.destination ?? null);
-
-  React.useEffect(() => {
-    if (search.source) setSource(search.source);
-    if (search.destination) setDestination(search.destination);
-  }, [search.source, search.destination]);
-
-  if (!source) return <SourcePicker onPick={setSource} />;
-  if (!destination) {
-    return <DestinationPicker sourceId={source} onPick={setDestination} onBack={() => setSource(null)} />;
-  }
-  return (
-    <PairEditor
-      sourceId={source}
-      destinationId={destination}
-      onBack={() => setDestination(null)}
-      onChangeSource={() => { setSource(null); setDestination(null); }}
-    />
-  );
-}
-
-/* ---------- Country pickers ---------- */
-function CountryCard({ country, isAll, rateLabel, onClick }: {
-  country?: Country; isAll?: boolean; rateLabel?: React.ReactNode; onClick: () => void;
-}) {
-  const labelOf = useCountryLabel();
-  return (
-    <button
-      type="button" onClick={onClick}
-      className="flex w-full items-center justify-between gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-lg">
-          {isAll ? <Globe2 className="h-4 w-4" /> : country?.flag_emoji ?? "🏳️"}
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">
-            {isAll ? "Tous les pays" : labelOf(country)}
-          </div>
-          {!isAll && country && (
-            <div className="text-[10px] uppercase text-muted-foreground">{country.code}</div>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {rateLabel}
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </div>
-    </button>
-  );
-}
-
-function SourcePicker({ onPick }: { onPick: (id: string) => void }) {
-  const { data: countries } = useCountries({ onlyEnabled: true });
-  const { data: rules } = useRules();
-  const [q, setQ] = useState("");
-  const [showAll, setShowAll] = useState(false);
-
-  const configuredSourceIds = useMemo(() => {
-    const set = new Set<string | null>();
-    (rules ?? []).forEach((r) => {
-      if (!r.is_enabled) return;
-      if (r.scope === "global") return;
-      if (r.source_country_id == null && r.destination_country_id == null) return;
-      if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
-      set.add(r.source_country_id ?? null);
-    });
-    return set;
-  }, [rules]);
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) => {
-      if (!showAll && !configuredSourceIds.has(c.id)) return false;
-      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
-    });
-  }, [countries, q, showAll, configuredSourceIds]);
-
-  const configuredCount = (countries ?? []).filter((c) => configuredSourceIds.has(c.id)).length;
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold">1. Pays source (vendeur)</h2>
-        <p className="text-xs text-muted-foreground">Seuls les pays avec des règles existantes sont listés. Cliquez « Voir tous les pays » pour en ajouter un nouveau.</p>
-      </div>
-      <div className="relative">
-        <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{showAll ? "Tous les pays affichés" : `${configuredCount} pays source configuré(s)`}</span>
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Voir uniquement configurés" : "Voir tous les pays"}
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {(showAll || configuredSourceIds.has(null)) && (
-          <CountryCard isAll onClick={() => onPick(ALL)} />
-        )}
-        {filtered.map((c) => (
-          <CountryCard key={c.id} country={c} onClick={() => onPick(c.id)} />
-        ))}
-        {!showAll && filtered.length === 0 && !configuredSourceIds.has(null) && (
-          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-            Aucun pays source configuré. Cliquez « Voir tous les pays » pour en ajouter un.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DestinationPicker({ sourceId, onPick, onBack }: {
-  sourceId: string; onPick: (id: string) => void; onBack: () => void;
-}) {
-  const { data: countries } = useCountries({ onlyEnabled: true });
-  const { data: rules } = useRules();
-  const labelOf = useCountryLabel();
-  const source = countries?.find((c) => c.id === sourceId) ?? null;
-  const isSourceAll = sourceId === ALL;
-  const [q, setQ] = useState("");
-  const [showAll, setShowAll] = useState(false);
-
-  const srcMatch = isSourceAll ? null : sourceId;
-  const configuredDestIds = useMemo(() => {
-    const set = new Set<string | null>();
-    (rules ?? []).forEach((r) => {
-      if (!r.is_enabled) return;
-      if (r.scope === "global") return;
-      if ((r.source_country_id ?? null) !== srcMatch) return;
-      if (r.rate_percent == null || Number(r.rate_percent) <= 0) return;
-      set.add(r.destination_country_id ?? null);
-    });
-    return set;
-  }, [rules, srcMatch]);
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return (countries ?? []).filter((c) => {
-      if (!showAll && !configuredDestIds.has(c.id)) return false;
-      return !s || c.name.toLowerCase().includes(s) || c.code.toLowerCase().includes(s);
-    });
-  }, [countries, q, showAll, configuredDestIds]);
-
-  // Effective pair rate display
-  const pairRate = (destId: string | null) => {
-    const r = rules?.find((x) =>
-      x.scope === "country_pair" && x.is_enabled
-      && (x.source_country_id ?? null) === srcMatch
-      && (x.destination_country_id ?? null) === destId,
+  const filteredVendors = useMemo(() => {
+    return VENDORS.filter((v) =>
+      v.shop_name.toLowerCase().includes(searchProduct.toLowerCase()) ||
+      v.full_name.toLowerCase().includes(searchProduct.toLowerCase())
     );
-    return r && Number(r.rate_percent) > 0 ? <Badge variant="secondary">{r.rate_percent}%</Badge> : <Badge variant="outline" className="text-muted-foreground">—</Badge>;
+  }, [searchProduct]);
+
+  const vendorProducts = useMemo(() => {
+    if (!selectedVendor) return [];
+    return PRODUCTS.filter(
+      (p) =>
+        p.vendor_id === selectedVendor &&
+        (p.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
+          p.code.toLowerCase().includes(searchProduct.toLowerCase()))
+    );
+  }, [selectedVendor, searchProduct]);
+
+  const selectedVendorData = useMemo(
+    () => VENDORS.find((v) => v.id === selectedVendor),
+    [selectedVendor]
+  );
+
+  const stats = useMemo(() => {
+    const prods = selectedVendor ? vendorProducts : PRODUCTS;
+    const totalProducts = prods.length;
+    const avgRate =
+      totalProducts > 0
+        ? prods.reduce((s, p) => s + p.commission_rate, 0) / totalProducts
+        : 0;
+    const totalCommission = prods.reduce((s, p) => s + p.commission_amount, 0);
+    const totalRevenue = prods.reduce((s, p) => s + p.price, 0);
+    return { totalProducts, avgRate, totalCommission, totalRevenue };
+  }, [vendorProducts, selectedVendor]);
+
+  // ── Handlers ─────────────────────────────────────────────────
+
+  const toggleProduct = (id: string) => {
+    const next = new Set(selectedProducts);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedProducts(next);
   };
 
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack} className="-ml-2 h-8 px-2">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Source
-        </Button>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          {isSourceAll ? <><Globe2 className="h-4 w-4" /> Toutes sources</> : <>{source?.flag_emoji} {labelOf(source)}</>}
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">choisir destination</span>
-        </div>
-      </div>
-      <div className="relative">
-        <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Rechercher une destination…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{showAll ? "Tous les pays affichés" : `${configuredDestIds.size} destination(s) configurée(s)`}</span>
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Voir uniquement configurées" : "Voir tous les pays"}
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {(showAll || configuredDestIds.has(null)) && (
-          <CountryCard isAll rateLabel={pairRate(null)} onClick={() => onPick(ALL)} />
-        )}
-        {filtered.map((c) => (
-          <CountryCard key={c.id} country={c} rateLabel={pairRate(c.id)} onClick={() => onPick(c.id)} />
-        ))}
-        {!showAll && filtered.length === 0 && !configuredDestIds.has(null) && (
-          <p className="col-span-full rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-            Aucune destination configurée pour ce pays. Cliquez « Voir tous les pays » pour en ajouter une.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   PAIR EDITOR — Pair rate + Category tree + Products
-============================================================ */
-function PairEditor({ sourceId, destinationId, onBack, onChangeSource }: {
-  sourceId: string; destinationId: string; onBack: () => void; onChangeSource: () => void;
-}) {
-  const { data: countries } = useCountries();
-  const labelOf = useCountryLabel();
-  const src = sourceId === ALL ? null : countries?.find((c) => c.id === sourceId) ?? null;
-  const dst = destinationId === ALL ? null : countries?.find((c) => c.id === destinationId) ?? null;
-  const srcDbId = sourceId === ALL ? null : sourceId;
-  const dstDbId = destinationId === ALL ? null : destinationId;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack} className="-ml-2 h-8 px-2">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Destinations
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onChangeSource} className="h-8 px-2 text-xs text-muted-foreground">
-          Changer source
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-3 p-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-xl">
-            {sourceId === ALL ? <Globe2 className="h-4 w-4" /> : src?.flag_emoji ?? "🏳️"}
-          </span>
-          <div className="text-sm font-semibold">{sourceId === ALL ? "Toutes sources" : labelOf(src)}</div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-xl">
-            {destinationId === ALL ? <Globe2 className="h-4 w-4" /> : dst?.flag_emoji ?? "🏳️"}
-          </span>
-          <div className="text-sm font-semibold">{destinationId === ALL ? "Toutes destinations" : labelOf(dst)}</div>
-        </CardContent>
-      </Card>
-
-      <PairGeneralRule srcId={srcDbId} dstId={dstDbId} />
-      <PairCategoryTree srcId={srcDbId} dstId={dstDbId} />
-      <PairProductRules srcId={srcDbId} dstId={dstDbId} />
-
-      <PairDeleteAllButton srcId={srcDbId} dstId={dstDbId} onDeleted={onBack} />
-    </div>
-  );
-}
-
-/* ---------- Delete all rules for a pair (password protected) ---------- */
-function PairDeleteAllButton({ srcId, dstId, onDeleted }: {
-  srcId: string | null; dstId: string | null; onDeleted: () => void;
-}) {
-  const qc = useQueryClient();
-  const { user } = useAuth();
-  const { data: rules } = useRules();
-  const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const pairRules = useMemo(() => (rules ?? []).filter((r) =>
-    (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId
-    && r.scope !== "global",
-  ), [rules, srcId, dstId]);
-
-  const count = pairRules.length;
-
-  async function confirmDelete() {
-    if (!user?.email) return toast.error("Session invalide");
-    if (!password) return toast.error("Mot de passe requis");
-    setBusy(true);
-    try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password,
-      });
-      if (authError) {
-        toast.error("Mot de passe incorrect");
-        return;
-      }
-      const ids = pairRules.map((r) => r.id);
-      if (ids.length > 0) {
-        const { error } = await sb.from("commission_rules").delete().in("id", ids);
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
-      }
-      toast.success(`${ids.length} règle(s) supprimée(s)`);
-      qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-      setOpen(false);
-      setPassword("");
-      onDeleted();
-    } finally {
-      setBusy(false);
+  const selectAll = () => {
+    const ids = vendorProducts.map((p) => p.id);
+    const allSelected = ids.every((id) => selectedProducts.has(id));
+    if (allSelected) {
+      const next = new Set(selectedProducts);
+      ids.forEach((id) => next.delete(id));
+      setSelectedProducts(next);
+    } else {
+      const next = new Set(selectedProducts);
+      ids.forEach((id) => next.add(id));
+      setSelectedProducts(next);
     }
-  }
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditDialog({
+      open: true,
+      productId: product.id,
+      mode: "percent",
+      value: String(product.commission_rate),
+      supplierPrice: String(product.supplier_price ?? product.price * 0.6),
+      salePrice: String(product.price),
+    });
+  };
+
+  const calculateFromMode = (
+    mode: "percent" | "amount",
+    value: number,
+    supplierPrice: number
+  ) => {
+    if (mode === "percent") {
+      const commissionAmount = (supplierPrice * value) / 100;
+      const salePrice = supplierPrice + commissionAmount;
+      return { salePrice, commissionAmount, ratePercent: value };
+    } else {
+      const salePrice = supplierPrice + value;
+      const ratePercent = supplierPrice > 0 ? (value / supplierPrice) * 100 : 0;
+      return { salePrice, commissionAmount: value, ratePercent };
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (!editDialog.productId) return;
+    const val = parseFloat(editDialog.value);
+    const supplierPrice = parseFloat(editDialog.supplierPrice);
+    if (isNaN(val) || val < 0) return;
+
+    const result = calculateFromMode(editDialog.mode, val, supplierPrice);
+
+    // In real app: update product commission
+    console.log("Save commission:", {
+      productId: editDialog.productId,
+      supplierPrice,
+      salePrice: result.salePrice,
+      commissionAmount: result.commissionAmount,
+      ratePercent: result.ratePercent,
+    });
+
+    setEditDialog({ ...editDialog, open: false });
+  };
+
+  const handleBulkApply = () => {
+    const val = parseFloat(bulkDialog.value);
+    if (isNaN(val) || val < 0) return;
+
+    console.log("Bulk apply:", {
+      productIds: Array.from(selectedProducts),
+      mode: bulkDialog.mode,
+      value: val,
+    });
+
+    setBulkDialog({ ...bulkDialog, open: false });
+    setSelectedProducts(new Set());
+  };
+
+  // ── Render ───────────────────────────────────────────────────
 
   return (
-    <>
-      <Card className="border-destructive/40">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
-          <div className="text-xs text-muted-foreground">
-            Supprimer toutes les règles (paire, catégories, produits) de cette combinaison source → destination.
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <header className="bg-white border-b px-6 py-4 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Percent className="h-5 w-5 text-violet-600" />
+              Espace Commissions
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gestion des commissions par boutique et par produit
+            </p>
           </div>
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={count === 0}
-            onClick={() => setOpen(true)}
-          >
-            <Trash2 className="mr-1 h-4 w-4" /> Tout supprimer ({count})
-          </Button>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">
+              {VENDORS.length} boutiques
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+              {PRODUCTS.length} produits
+            </Badge>
+          </div>
+        </div>
+      </header>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setPassword(""); }}>
-        <DialogContent>
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6">
+            <TabsTrigger value="vendors" className="text-xs">
+              <Store className="h-3.5 w-3.5 mr-1.5" />
+              Par Boutique
+            </TabsTrigger>
+            <TabsTrigger value="overview" className="text-xs">
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+              Vue d Ensemble
+            </TabsTrigger>
+            <TabsTrigger value="rules" className="text-xs">
+              <Layers className="h-3.5 w-3.5 mr-1.5" />
+              Regles Globales
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ─── ONGLET PAR BOUTIQUE ────────────────────────── */}
+          <TabsContent value="vendors" className="space-y-4">
+            {!selectedVendor ? (
+              /* Liste des boutiques */
+              <>
+                {/* Search */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Rechercher une boutique..."
+                      value={searchProduct}
+                      onChange={(e) => setSearchProduct(e.target.value)}
+                      className="pl-9 text-sm h-10"
+                    />
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {filteredVendors.length} boutiques
+                  </Badge>
+                </div>
+
+                {/* Vendor Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredVendors.map((vendor) => {
+                    const vendorProds = PRODUCTS.filter((p) => p.vendor_id === vendor.id);
+                    const avgRate =
+                      vendorProds.length > 0
+                        ? vendorProds.reduce((s, p) => s + p.commission_rate, 0) / vendorProds.length
+                        : 0;
+                    return (
+                      <Card
+                        key={vendor.id}
+                        className="cursor-pointer hover:shadow-md hover:border-violet-300 transition-all group"
+                        onClick={() => {
+                          setSelectedVendor(vendor.id);
+                          setSearchProduct("");
+                          setSelectedProducts(new Set());
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                              <Store className="h-6 w-6 text-violet-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm text-slate-900 truncate group-hover:text-violet-700 transition-colors">
+                                {vendor.shop_name}
+                              </h3>
+                              <p className="text-xs text-slate-500">{vendor.full_name}</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-[10px] h-5">
+                                  <Package className="h-3 w-3 mr-1" />
+                                  {vendor.product_count} produits
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] h-5 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  {fmtP(avgRate)}
+                                </Badge>
+                              </div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-violet-500 transition-colors flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              /* Detail boutique */
+              <>
+                {/* Back + Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedVendor(null);
+                        setSearchProduct("");
+                        setSelectedProducts(new Set());
+                      }}
+                      className="text-slate-500"
+                    >
+                      <ArrowRight className="h-4 w-4 rotate-180 mr-1" />
+                      Retour
+                    </Button>
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center">
+                      <Store className="h-5 w-5 text-violet-600" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-lg text-slate-900">
+                        {selectedVendorData?.shop_name}
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        {selectedVendorData?.full_name} · {vendorProducts.length} produits
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="text-xs bg-violet-100 text-violet-800 border-violet-200">
+                      Commission moy: {fmtP(stats.avgRate)}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Stats cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <Card className="bg-white">
+                    <CardContent className="p-3">
+                      <p className="text-[10px] text-slate-500 uppercase">Produits</p>
+                      <p className="text-xl font-bold text-slate-900">{stats.totalProducts}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white">
+                    <CardContent className="p-3">
+                      <p className="text-[10px] text-slate-500 uppercase">Commission moy</p>
+                      <p className="text-xl font-bold text-violet-700">{fmtP(stats.avgRate)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white">
+                    <CardContent className="p-3">
+                      <p className="text-[10px] text-slate-500 uppercase">Total commissions</p>
+                      <p className="text-xl font-bold text-emerald-700">{fmtF(stats.totalCommission)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white">
+                    <CardContent className="p-3">
+                      <p className="text-[10px] text-slate-500 uppercase">Chiffre d affaires</p>
+                      <p className="text-xl font-bold text-slate-900">{fmtF(stats.totalRevenue)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Search + Actions */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Rechercher un produit..."
+                      value={searchProduct}
+                      onChange={(e) => setSearchProduct(e.target.value)}
+                      className="pl-9 text-sm h-9"
+                    />
+                  </div>
+                  {selectedProducts.size > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="text-xs bg-violet-100 text-violet-800">
+                        {selectedProducts.size} selectionne
+                      </Badge>
+                      <Button
+                        size="sm"
+                        className="text-xs h-9 bg-violet-600 hover:bg-violet-700"
+                        onClick={() => setBulkDialog({ open: true, mode: "percent", value: "" })}
+                      >
+                        <Percent className="h-3.5 w-3.5 mr-1" />
+                        Appliquer en masse
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Products Table */}
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50">
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={
+                                vendorProducts.length > 0 &&
+                                vendorProducts.every((p) => selectedProducts.has(p.id))
+                              }
+                              onCheckedChange={selectAll}
+                            />
+                          </TableHead>
+                          <TableHead className="text-xs">Produit</TableHead>
+                          <TableHead className="text-xs">Code</TableHead>
+                          <TableHead className="text-xs text-right">Prix fournisseur</TableHead>
+                          <TableHead className="text-xs text-right">Prix vente</TableHead>
+                          <TableHead className="text-xs text-right">Commission %</TableHead>
+                          <TableHead className="text-xs text-right">Commission FCFA</TableHead>
+                          <TableHead className="text-xs text-center">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {vendorProducts.map((product) => (
+                          <TableRow key={product.id} className="hover:bg-slate-50">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedProducts.has(product.id)}
+                                onCheckedChange={() => toggleProduct(product.id)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  {product.image_url ? (
+                                    <img
+                                      src={product.image_url}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <Package className="h-4 w-4 text-slate-400" />
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-slate-900">{product.name}</p>
+                                  <p className="text-[10px] text-slate-500">{product.category}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-mono text-slate-500">
+                              {product.code}
+                            </TableCell>
+                            <TableCell className="text-xs text-right text-slate-600">
+                              {fmtF(product.supplier_price ?? product.price * 0.6)}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-medium text-slate-900">
+                              {fmtF(product.price)}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${
+                                  product.commission_rate >= 20
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : product.commission_rate >= 15
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-slate-50 text-slate-600 border-slate-200"
+                                }`}
+                              >
+                                {fmtP(product.commission_rate)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-medium text-emerald-700">
+                              {fmtF(product.commission_amount)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => openEditDialog(product)}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-slate-400" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* ─── ONGLET VUE D'ENSEMBLE ──────────────────────── */}
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-gradient-to-br from-violet-50 to-indigo-50 border-violet-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-violet-800 flex items-center gap-2">
+                    <Percent className="h-4 w-4" />
+                    Commission moyenne globale
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-violet-900">
+                    {fmtP(
+                      PRODUCTS.reduce((s, p) => s + p.commission_rate, 0) / PRODUCTS.length
+                    )}
+                  </p>
+                  <Progress
+                    value={
+                      (PRODUCTS.reduce((s, p) => s + p.commission_rate, 0) / PRODUCTS.length)
+                    }
+                    className="h-2 mt-2 bg-violet-200"
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-emerald-800 flex items-center gap-2">
+                    <Banknote className="h-4 w-4" />
+                    Total commissions potentielles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-emerald-900">
+                    {fmtF(PRODUCTS.reduce((s, p) => s + p.commission_amount, 0))}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-blue-50 to-sky-50 border-blue-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Chiffre d affaires total
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-blue-900">
+                    {fmtF(PRODUCTS.reduce((s, p) => s + p.price, 0))}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tableau par boutique */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Store className="h-4 w-4 text-slate-500" />
+                  Performances par boutique
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="text-xs">Boutique</TableHead>
+                      <TableHead className="text-xs text-right">Produits</TableHead>
+                      <TableHead className="text-xs text-right">Commission moy</TableHead>
+                      <TableHead className="text-xs text-right">Total commissions</TableHead>
+                      <TableHead className="text-xs text-right">CA total</TableHead>
+                      <TableHead className="text-xs text-right">Part</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {VENDORS.map((vendor) => {
+                      const vProds = PRODUCTS.filter((p) => p.vendor_id === vendor.id);
+                      const vTotal = vProds.reduce((s, p) => s + p.commission_amount, 0);
+                      const vAvg =
+                        vProds.length > 0
+                          ? vProds.reduce((s, p) => s + p.commission_rate, 0) / vProds.length
+                          : 0;
+                      const vRevenue = vProds.reduce((s, p) => s + p.price, 0);
+                      const grandTotal = PRODUCTS.reduce((s, p) => s + p.commission_amount, 0);
+                      const share = grandTotal > 0 ? (vTotal / grandTotal) * 100 : 0;
+                      return (
+                        <TableRow key={vendor.id} className="hover:bg-slate-50">
+                          <TableCell className="text-sm font-medium">{vendor.shop_name}</TableCell>
+                          <TableCell className="text-xs text-right">{vProds.length}</TableCell>
+                          <TableCell className="text-xs text-right">
+                            <Badge variant="outline" className="text-[10px]">
+                              {fmtP(vAvg)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-right font-medium text-emerald-700">
+                            {fmtF(vTotal)}
+                          </TableCell>
+                          <TableCell className="text-xs text-right">{fmtF(vRevenue)}</TableCell>
+                          <TableCell className="text-xs text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Progress value={share} className="h-1.5 w-16" />
+                              <span className="text-slate-500">{fmtP(share)}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── ONGLET REGLES GLOBALES ─────────────────────── */}
+          <TabsContent value="rules" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-slate-500" />
+                  Regles de commission actives
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="text-xs">Portee</TableHead>
+                      <TableHead className="text-xs">Cible</TableHead>
+                      <TableHead className="text-xs text-right">Taux</TableHead>
+                      <TableHead className="text-xs text-center">Actif</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {COMMISSION_RULES.map((rule) => (
+                      <TableRow key={rule.id} className="hover:bg-slate-50">
+                        <TableCell className="text-xs">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${
+                              rule.scope === "global"
+                                ? "bg-violet-50 text-violet-700 border-violet-200"
+                                : rule.scope === "vendor"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : rule.scope === "category"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
+                          >
+                            {rule.scope === "global"
+                              ? "Global"
+                              : rule.scope === "vendor"
+                              ? "Boutique"
+                              : rule.scope === "category"
+                              ? "Categorie"
+                              : "Produit"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600">
+                          {rule.scope === "global"
+                            ? "Toutes les boutiques"
+                            : rule.scope === "vendor"
+                            ? VENDORS.find((v) => v.id === rule.vendor_id)?.shop_name ?? "—"
+                            : rule.scope === "product"
+                            ? PRODUCTS.find((p) => p.id === rule.product_id)?.name ?? "—"
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium">
+                          {fmtP(rule.rate_percent)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {rule.is_enabled ? (
+                            <Check className="h-4 w-4 text-emerald-500 mx-auto" />
+                          ) : (
+                            <X className="h-4 w-4 text-red-400 mx-auto" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* ─── DIALOG EDITION COMMISSION ───────────────────── */}
+      <Dialog
+        open={editDialog.open}
+        onOpenChange={(open) => setEditDialog({ ...editDialog, open })}
+      >
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
-            <DialogDescription>
-              Vous allez supprimer <strong>{count}</strong> règle(s) de commission pour cette paire. Cette action est irréversible.
-              Saisissez votre mot de passe admin pour confirmer.
-            </DialogDescription>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-violet-600" />
+              Modifier la commission
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-xs">Mot de passe admin</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") void confirmDelete(); }}
-            />
+
+          <div className="space-y-4 py-2">
+            {/* Mode selector */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={editDialog.mode === "percent" ? "default" : "outline"}
+                size="sm"
+                className={`text-xs flex-1 ${
+                  editDialog.mode === "percent" ? "bg-violet-600" : ""
+                }`}
+                onClick={() => setEditDialog({ ...editDialog, mode: "percent" })}
+              >
+                <Percent className="h-3.5 w-3.5 mr-1.5" />
+                Commission en %
+              </Button>
+              <Button
+                variant={editDialog.mode === "amount" ? "default" : "outline"}
+                size="sm"
+                className={`text-xs flex-1 ${
+                  editDialog.mode === "amount" ? "bg-violet-600" : ""
+                }`}
+                onClick={() => setEditDialog({ ...editDialog, mode: "amount" })}
+              >
+                <Banknote className="h-3.5 w-3.5 mr-1.5" />
+                Montant fixe (FCFA)
+              </Button>
+            </div>
+
+            {/* Prix fournisseur */}
+            <div>
+              <label className="text-xs font-medium text-slate-700 mb-1 block">
+                Prix fournisseur
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={editDialog.supplierPrice}
+                  onChange={(e) =>
+                    setEditDialog({ ...editDialog, supplierPrice: e.target.value })
+                  }
+                  className="text-sm pr-16"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                  FCFA
+                </span>
+              </div>
+            </div>
+
+            {/* Commission input */}
+            <div>
+              <label className="text-xs font-medium text-slate-700 mb-1 block">
+                {editDialog.mode === "percent"
+                  ? "Commission (%)"
+                  : "Commission (FCFA)"}
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={editDialog.value}
+                  onChange={(e) => setEditDialog({ ...editDialog, value: e.target.value })}
+                  className="text-sm pr-12"
+                  placeholder={editDialog.mode === "percent" ? "15" : "1500"}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                  {editDialog.mode === "percent" ? "%" : "FCFA"}
+                </span>
+              </div>
+            </div>
+
+            {/* Auto-calculation preview */}
+            {(() => {
+              const val = parseFloat(editDialog.value);
+              const supplierPrice = parseFloat(editDialog.supplierPrice);
+              if (isNaN(val) || isNaN(supplierPrice) || supplierPrice <= 0) return null;
+              const result = calculateFromMode(editDialog.mode, val, supplierPrice);
+              return (
+                <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-slate-600">Apercu du calcul</p>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-[10px] text-slate-500">Prix fournisseur</p>
+                      <p className="text-sm font-bold text-slate-900">{fmtF(supplierPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500">Commission</p>
+                      <p className="text-sm font-bold text-violet-700">
+                        {fmtF(result.commissionAmount)}
+                      </p>
+                      <p className="text-[10px] text-violet-500">({fmtP(result.ratePercent)})</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500">Prix de vente</p>
+                      <p className="text-sm font-bold text-emerald-700">
+                        {fmtF(result.salePrice)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Annuler</Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={busy || !password}>
-              {busy ? "Suppression…" : "Supprimer définitivement"}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditDialog({ ...editDialog, open: false })}
+            >
+              Annuler
+            </Button>
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={handleSaveEdit}>
+              <Check className="h-4 w-4 mr-1.5" />
+              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
-  );
-}
 
-/* ---------- Pair general rule (all categories) ---------- */
-function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string | null }) {
-  const qc = useQueryClient();
-  const { data: rules } = useRules();
-  const existing = useMemo(() => rules?.find((r) =>
-    r.scope === "country_pair"
-    && (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId,
-  ), [rules, srcId, dstId]);
+      {/* ─── DIALOG BULK APPLY ───────────────────────────── */}
+      <Dialog
+        open={bulkDialog.open}
+        onOpenChange={(open) => setBulkDialog({ ...bulkDialog, open })}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Percent className="h-5 w-5 text-violet-600" />
+              Appliquer en masse ({selectedProducts.size} produits)
+            </DialogTitle>
+          </DialogHeader>
 
-  const [rate, setRate] = useState<string>("");
-  const [enabled, setEnabled] = useState(true);
-  const [loaded, setLoaded] = useState(false);
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={bulkDialog.mode === "percent" ? "default" : "outline"}
+                size="sm"
+                className={`text-xs flex-1 ${
+                  bulkDialog.mode === "percent" ? "bg-violet-600" : ""
+                }`}
+                onClick={() => setBulkDialog({ ...bulkDialog, mode: "percent" })}
+              >
+                <Percent className="h-3.5 w-3.5 mr-1.5" />
+                Commission en %
+              </Button>
+              <Button
+                variant={bulkDialog.mode === "amount" ? "default" : "outline"}
+                size="sm"
+                className={`text-xs flex-1 ${
+                  bulkDialog.mode === "amount" ? "bg-violet-600" : ""
+                }`}
+                onClick={() => setBulkDialog({ ...bulkDialog, mode: "amount" })}
+              >
+                <Banknote className="h-3.5 w-3.5 mr-1.5" />
+                Montant fixe (FCFA)
+              </Button>
+            </div>
 
-  React.useEffect(() => {
-    setRate(existing ? String(existing.rate_percent) : "");
-    setEnabled(existing?.is_enabled ?? true);
-    setLoaded(true);
-  }, [existing?.id]);
-
-  async function save() {
-    const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide (0-100)");
-    try {
-      await saveCommissionRule({
-        scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: v, is_enabled: enabled,
-      });
-    } catch (error: any) {
-      return toast.error(error.message);
-    }
-    toast.success("Commission de la paire enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-  async function remove() {
-    if (!existing) return;
-    if (!confirm("Supprimer la règle de cette paire ?")) return;
-    const { error } = await sb.from("commission_rules").delete().eq("id", existing.id);
-    if (error) return toast.error(error.message);
-    toast.success("Supprimée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  if (!loaded) return null;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Commission de la paire (toutes catégories)</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="text-xs">Taux (%)</label>
-            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
+            <div>
+              <label className="text-xs font-medium text-slate-700 mb-1 block">
+                {bulkDialog.mode === "percent" ? "Commission (%)" : "Montant (FCFA)"}
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={bulkDialog.value}
+                  onChange={(e) => setBulkDialog({ ...bulkDialog, value: e.target.value })}
+                  className="text-sm pr-12"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                  {bulkDialog.mode === "percent" ? "%" : "FCFA"}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <span className="text-sm">Activée</span>
-          </div>
-          <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
-          {existing && (
-            <Button onClick={remove} size="sm" variant="ghost" className="text-destructive">
-              <Trash2 className="mr-1 h-4 w-4" /> Supprimer
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setBulkDialog({ ...bulkDialog, open: false })}>
+              Annuler
             </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-muted-foreground">Préréglages :</span>
-          {[0, 1, 5, 10, 15, 20, 30, 50].map((p) => (
-            <Button key={p} size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setRate(String(p))}>
-              {p}%
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={handleBulkApply}>
+              <Check className="h-4 w-4 mr-1.5" />
+              Appliquer a {selectedProducts.size} produits
             </Button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Appliquée à tous les produits de cette paire, sauf si une règle catégorie / sous-catégorie / produit plus précise existe.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ---------- Pair category tree ---------- */
-function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: string | null }) {
-  const qc = useQueryClient();
-  const { data: cats } = useCategories();
-  const { data: rules } = useRules();
-  const { data: productCounts } = useProductCounts();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [q, setQ] = useState("");
-
-  const childrenOf = useMemo(() => {
-    const m = new Map<string | null, typeof cats>();
-    (cats ?? []).forEach((c) => {
-      const arr = m.get(c.parent_id) ?? [];
-      arr.push(c);
-      m.set(c.parent_id, arr);
-    });
-    return m;
-  }, [cats]);
-
-  const ruleFor = (categoryId: string) => rules?.find((r) =>
-    r.scope === "category" && r.category_id === categoryId
-    && (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId
-    && (r.vendor_id ?? null) === null,
-  );
-
-  // Recursive product count (subtree)
-  const subtreeCount = useMemo(() => {
-    const m = new Map<string, number>();
-    function walk(id: string): number {
-      if (m.has(id)) return m.get(id)!;
-      let n = productCounts?.get(id) ?? 0;
-      (childrenOf.get(id) ?? []).forEach((c) => { n += walk(c.id); });
-      m.set(id, n);
-      return n;
-    }
-    (cats ?? []).forEach((c) => walk(c.id));
-    return m;
-  }, [cats, childrenOf, productCounts]);
-
-  function toggle(id: string) {
-    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  }
-
-  async function saveRate(categoryId: string, value: number) {
-    if (Number.isNaN(value) || value < 0 || value > 100) return toast.error("Taux invalide");
-    try {
-      await saveCommissionRule({
-        scope: "category", category_id: categoryId,
-        source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: value, is_enabled: true,
-      });
-    } catch (error: any) {
-      return toast.error(error.message);
-    }
-    toast.success("Règle catégorie enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-  async function removeRule(categoryId: string) {
-    const existing = ruleFor(categoryId);
-    if (!existing) return;
-    if (!confirm("Supprimer cette règle ?")) return;
-    const { error } = await sb.from("commission_rules").delete().eq("id", existing.id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  // Build filtered visible set (expand path of matches)
-  const matchedIds = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return null;
-    const matched = new Set<string>();
-    (cats ?? []).forEach((c) => {
-      if (c.name.toLowerCase().includes(s)) {
-        matched.add(c.id);
-        let p = c.parent_id;
-        while (p) { matched.add(p); const par = cats?.find((x) => x.id === p); p = par?.parent_id ?? null; }
-      }
-    });
-    return matched;
-  }, [cats, q]);
-
-  function renderNode(catId: string, depth: number): React.ReactNode {
-    const cat = cats?.find((c) => c.id === catId);
-    if (!cat) return null;
-    if (matchedIds && !matchedIds.has(catId)) return null;
-    const kids = childrenOf.get(catId) ?? [];
-    const isOpen = expanded.has(catId) || !!matchedIds;
-    const rule = ruleFor(catId);
-    const count = subtreeCount.get(catId) ?? 0;
-    return (
-      <li key={catId}>
-        <div
-          className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-accent"
-          style={{ paddingInlineStart: depth * 14 + 4 }}
-        >
-          <button
-            type="button"
-            onClick={() => kids.length > 0 && toggle(catId)}
-            className={cn("flex h-5 w-5 items-center justify-center rounded text-muted-foreground", kids.length === 0 && "opacity-0")}
-            aria-label="Étendre"
-          >
-            {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-          <span className="min-w-0 flex-1 truncate text-sm">{cat.name}</span>
-          <Badge variant="outline" className="shrink-0 text-[10px]">{count} prod.</Badge>
-          <RateInline
-            defaultValue={rule?.rate_percent}
-            placeholder="—"
-            onSave={(v) => saveRate(catId, v)}
-          />
-          {rule && (
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeRule(catId)} title="Supprimer">
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
-          )}
-        </div>
-        {isOpen && kids.length > 0 && (
-          <ul>{kids.map((k) => renderNode(k.id, depth + 1))}</ul>
-        )}
-      </li>
-    );
-  }
-
-  const roots = childrenOf.get(null) ?? [];
-
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">Règles par catégorie / sous-catégorie</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Rechercher une catégorie" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" />
-        </div>
-        {!cats ? (
-          <p className="text-xs text-muted-foreground">Chargement…</p>
-        ) : roots.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Aucune catégorie.</p>
-        ) : (
-          <ul className="rounded-md border bg-background">
-            {roots.map((c) => renderNode(c.id, 0))}
-          </ul>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Saisissez un taux puis appuyez sur Entrée ou cliquez ailleurs. Vide = pas de règle (la commission de la paire s'applique).
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RateInline({ defaultValue, placeholder, onSave }: {
-  defaultValue?: number; placeholder?: string; onSave: (v: number) => void;
-}) {
-  const [val, setVal] = useState<string>(defaultValue != null ? String(defaultValue) : "");
-  const [dirty, setDirty] = useState(false);
-  React.useEffect(() => { setVal(defaultValue != null ? String(defaultValue) : ""); setDirty(false); }, [defaultValue]);
-
-  function commit() {
-    if (!dirty) return;
-    if (val.trim() === "") return;
-    const v = Number(val);
-    if (Number.isNaN(v)) return toast.error("Taux invalide");
-    onSave(v);
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <Input
-        type="number" step="0.01" inputMode="decimal"
-        placeholder={placeholder} value={val}
-        onChange={(e) => { setVal(e.target.value); setDirty(true); }}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className={cn("h-7 w-16 text-xs", defaultValue != null && "font-semibold")}
-      />
-      <span className="text-[10px] text-muted-foreground">%</span>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-/* ---------- Pair product rules ---------- */
-function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: string | null }) {
-  const qc = useQueryClient();
-  const { data: rules } = useRules();
-  const [q, setQ] = useState("");
-  const [rate, setRate] = useState("");
-
-  const productRulesForPair = useMemo(() => (rules ?? []).filter((r) =>
-    r.scope === "product"
-    && (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId,
-  ), [rules, srcId, dstId]);
-
-  const productIds = productRulesForPair.map((r) => r.product_id).filter(Boolean) as string[];
-  const { data: ruleProducts } = useQuery({
-    queryKey: ["product-names", productIds.sort().join(",")],
-    enabled: productIds.length > 0,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("id, name, code").in("id", productIds);
-      return (data ?? []) as { id: string; name: string; code: string }[];
-    },
-  });
-
-  const { data: searchResults } = useQuery({
-    queryKey: ["products-search", q],
-    enabled: q.length >= 1,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("id, name, code")
-        .or(`name.ilike.%${q}%,code.ilike.%${q}%`).limit(20);
-      return (data ?? []) as { id: string; name: string; code: string }[];
-    },
-  });
-
-  async function addRule(product_id: string) {
-    const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    try {
-      await saveCommissionRule({
-        scope: "product", product_id,
-        source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: v, is_enabled: true,
-      });
-    } catch (error: any) {
-      return toast.error(error.message);
-    }
-    toast.success("Règle produit enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-  async function updateRate(id: string, v: number) {
-    const { error } = await sb.from("commission_rules").update({ rate_percent: v }).eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-  async function remove(id: string) {
-    if (!confirm("Supprimer cette règle ?")) return;
-    const { error } = await sb.from("commission_rules").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">Règles par produit</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[120px] flex-1">
-            <label className="text-xs">Rechercher un produit (nom ou code)</label>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" placeholder="Tapez…" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs">Taux (%)</label>
-            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-24" />
-          </div>
-        </div>
-        {q.length >= 1 && (
-          <ul className="max-h-48 overflow-auto rounded-md border bg-background">
-            {(searchResults ?? []).map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-2 border-b px-2 py-1.5 text-sm last:border-0">
-                <span className="min-w-0 truncate">{p.name} <span className="text-xs text-muted-foreground">({p.code})</span></span>
-                <Button size="sm" variant="outline" onClick={() => addRule(p.id)}>
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Ajouter
-                </Button>
-              </li>
-            ))}
-            {(searchResults ?? []).length === 0 && (
-              <li className="px-2 py-2 text-xs text-muted-foreground">Aucun produit.</li>
-            )}
-          </ul>
-        )}
-        <div className="border-t pt-2">
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
-            Règles produits pour cette paire ({productRulesForPair.length})
-          </p>
-          {productRulesForPair.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Aucune règle produit spécifique.</p>
-          ) : (
-            <ul className="divide-y">
-              {productRulesForPair.map((r) => {
-                const p = ruleProducts?.find((x) => x.id === r.product_id);
-                return (
-                  <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
-                    <div className="min-w-0 flex-1 truncate text-sm">
-                      {p ? `${p.name} (${p.code})` : r.product_id}
-                    </div>
-                    <Input
-                      type="number" step="0.01" defaultValue={r.rate_percent} className="h-7 w-20 text-xs"
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (!Number.isNaN(v) && v !== Number(r.rate_percent)) updateRate(r.id, v);
-                      }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">%</span>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(r.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ============================================================
-   GLOBAL TAB — base global rule (last fallback)
-============================================================ */
-function GlobalTab() {
-  const qc = useQueryClient();
-  const { data: rules } = useRules();
-  const existing = rules?.find((r) => r.scope === "global");
-  const [rate, setRate] = useState(existing ? String(existing.rate_percent) : "0");
-  const [enabled, setEnabled] = useState(existing?.is_enabled ?? true);
-
-  React.useEffect(() => {
-    setRate(existing ? String(existing.rate_percent) : "0");
-    setEnabled(existing?.is_enabled ?? true);
-  }, [existing?.id]);
-
-  async function save() {
-    const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    try {
-      await saveCommissionRule({ scope: "global", rate_percent: v, is_enabled: enabled });
-    } catch (error: any) {
-      return toast.error(error.message);
-    }
-    toast.success("Commission globale enregistrée");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Commission globale (dernier recours)</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Appliquée uniquement si aucune règle plus précise (produit / catégorie / paire de pays) ne correspond.
-        </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="text-xs">Taux (%)</label>
-            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-28" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <span className="text-sm">Activée</span>
-          </div>
-          <Button onClick={save} size="sm"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ============================================================
-   VENDORS TAB
-============================================================ */
-function useVendors() {
-  return useQuery({
-    queryKey: ["vendors-with-profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles")
-        .select("user_id, profiles:profiles!inner(shop_name, full_name, email, vendor_mode, hide_contact_publicly)")
-        .eq("role", "vendeur");
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{
-        user_id: string;
-        profiles: { shop_name: string | null; full_name: string | null; email: string | null; vendor_mode: string; hide_contact_publicly: boolean } | null;
-      }>;
-    },
-  });
-}
-
-function VendorsTab() {
-  const { data: vendors, refetch } = useVendors();
-  async function setMode(userId: string, mode: string) {
-    const { error } = await supabase.from("profiles").update({ vendor_mode: mode } as any).eq("id", userId);
-    if (error) return toast.error(error.message);
-    toast.success("Mode mis à jour"); refetch();
-  }
-  async function setHide(userId: string, hide: boolean) {
-    const { error } = await supabase.from("profiles").update({ hide_contact_publicly: hide } as any).eq("id", userId);
-    if (error) return toast.error(error.message);
-    refetch();
-  }
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">Mode vendeur</CardTitle></CardHeader>
-      <CardContent>
-        {!vendors ? <p className="text-sm text-muted-foreground">Chargement…</p> : (
-          <ul className="divide-y">
-            {vendors.map((v) => {
-              const p = v.profiles;
-              const mode = p?.vendor_mode ?? "no_commission";
-              return (
-                <li key={v.user_id} className="flex flex-wrap items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{p?.shop_name || p?.full_name || p?.email}</div>
-                    <div className="truncate text-xs text-muted-foreground">{p?.email}</div>
-                  </div>
-                  <Select value={mode} onValueChange={(val) => setMode(v.user_id, val)}>
-                    <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no_commission">Sans commission</SelectItem>
-                      <SelectItem value="commission">Avec commission</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={p?.hide_contact_publicly ?? false}
-                      disabled={mode === "commission"}
-                      onCheckedChange={(c) => setHide(v.user_id, c)}
-                    />
-                    <span className="text-xs">Masquer contact</span>
-                  </div>
-                  {mode === "commission" && <Badge variant="secondary">Plateforme</Badge>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ============================================================
-   HISTORY
-============================================================ */
-function HistoryTab() {
-  const { data } = useQuery({
-    queryKey: ["commission_history"],
-    queryFn: async () => {
-      const { data, error } = await sb.from("commission_rule_history")
-        .select("*").order("created_at", { ascending: false }).limit(200);
-      if (error) throw error;
-      return data as Array<{
-        id: string; rule_id: string; action: string;
-        old_value: any; new_value: any;
-        actor_email: string | null; created_at: string;
-      }>;
-    },
-  });
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base"><HistoryIcon className="h-4 w-4" /> Historique</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!data || data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune action enregistrée.</p>
-        ) : (
-          <ul className="divide-y text-xs">
-            {data.map((h) => {
-              const oldRate = h.old_value?.rate_percent;
-              const newRate = h.new_value?.rate_percent;
-              const scope = h.new_value?.scope ?? h.old_value?.scope;
-              return (
-                <li key={h.id} className="py-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{h.action}</Badge>
-                    <span className="font-medium">{scope}</span>
-                    <span className="text-muted-foreground">{new Date(h.created_at).toLocaleString("fr-FR")}</span>
-                  </div>
-                  <div className="text-muted-foreground">
-                    {oldRate !== undefined && newRate !== undefined ? `${oldRate}% → ${newRate}%` : newRate !== undefined ? `${newRate}%` : oldRate !== undefined ? `(supprimée à ${oldRate}%)` : null}
-                    {h.actor_email && <> · par {h.actor_email}</>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+export default CommissionsPage;
