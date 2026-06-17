@@ -8,15 +8,12 @@ export type AddressOwnerType = "user" | "vendor" | "shop" | "order" | "guest" | 
 /** Types d'adresse */
 export type AddressType = "shipping" | "billing" | "pickup" | "warehouse";
 
-/** Configuration vendeur: pays d'origine + pays de vente + entrepôts */
-export interface VendorAddressConfig {
-  /** Pays d'origine du vendeur (source des produits) */
-  source_country_id: string;
-  /** Pays où le vendeur accepte de vendre */
-  destination_country_ids: string[];
-  /** Entrepôts du vendeur (optionnel) */
-  warehouses: Warehouse[];
-}
+/**
+ * NOTE: La logique vendeur (source_country_id, destination_country_ids,
+ * vendor_mode locale/internationale) est gérée dans la table `profiles`.
+ * Ce module ne gère que les emplacements physiques.
+ * Les entrepôts sont liés aux adresses via address_id.
+ */
 
 /** Entrepôt vendeur */
 export interface Warehouse {
