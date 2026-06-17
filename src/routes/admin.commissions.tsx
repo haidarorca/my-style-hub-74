@@ -766,15 +766,18 @@ function RateInline({ defaultValue, placeholder, onSave }: {
    Scalable, paginated, with vendor filtering and rule inheritance
 ============================================================ */
 
-/** Kawzone vendors only: admin shops OR commission mode */
-function useKawzoneVendors() {
+/** Kawzone vendors only: admin shops OR commission mode, filtered by source country */
+function useKawzoneVendors(srcId: string | null) {
   return useQuery({
-    queryKey: ["kawzone-vendors"],
+    queryKey: ["kawzone-vendors", srcId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles")
+      let q = supabase.from("profiles")
         .select("id, shop_name, full_name, shop_logo_url, source_country_id, vendor_mode, is_admin_shop")
-        .or("is_admin_shop.eq.true,vendor_mode.eq.commission")
-        .order("shop_name");
+        .or("is_admin_shop.eq.true,vendor_mode.eq.commission");
+      if (srcId) {
+        q = q.eq("source_country_id", srcId);
+      }
+      const { data, error } = await q.order("shop_name");
       if (error) throw error;
       return (data ?? []) as Array<{
         id: string; shop_name: string | null; full_name: string | null;
@@ -880,7 +883,7 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   /* ——— Kawzone vendors ——— */
-  const { data: kzVendors, isLoading: vendorsLoading } = useKawzoneVendors();
+  const { data: kzVendors, isLoading: vendorsLoading } = useKawzoneVendors(srcId);
   const vendorIds = useMemo(() => (kzVendors ?? []).map((v) => v.id), [kzVendors]);
   const { data: productCounts } = useVendorProductCounts(vendorIds);
 
@@ -1723,4 +1726,3 @@ function HistoryTab() {
     </Card>
   );
 }
-
