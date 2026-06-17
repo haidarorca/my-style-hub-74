@@ -761,23 +761,177 @@ function RateInline({ defaultValue, placeholder, onSave }: {
   );
 }
 
-/* ---------- Pair product rules (enrichi) ---------- */
+/* ---------- Pair product rules (V2 - enriched) ---------- */
 function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: string | null }) {
   const qc = useQueryClient();
   const { data: rules } = useRules();
-  const [q, setQ] = useState("");
-  const [rate, setRate] = useState("");
+  const { data: countries } = useCountries({ onlyEnabled: true });
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [showProducts, setShowProducts] = useState(false);
+  const [productQ, setProductQ] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [editDialog, setEditDialog] = useState<{
-    open: boolean; productId?: string; mode: "percent" | "amount";
-    value: string; supplierPrice: string; salePrice: string;
-  }>({ open: false, mode: "percent", value: "", supplierPrice: "", salePrice: "" });
-  const [bulkDialog, setBulkDialog] = useState<{
-    open: boolean; mode: "percent" | "amount"; value: string;
-  }>({ open: false, mode: "percent", value: "" });
+  const [commissionMode, setCommissionMode] = useState<"percent" | "final_price">("percent");
+  const [commissionValue, setCommissionValue] = useState("");
 
-  /* ——— Vendors ——— */
+  /* ——— Vendor detail with count ——— */
+  const { data: vendorDetail } = useQuery({
+    queryKey: ["vendor-detail", selectedVendorId],
+    enabled: !!selectedVendorId,
+    queryFn: async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, shop_name, full_name, shop_logo_url, source_country_id, phone")
+        .eq("id", selectedVendorId!)
+        .maybeSingle();
+      const { count } = await supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("vendor_id", selectedVendorId!);
+      return {
+        id: profile?.id ?? selectedVendorId!,
+        name: profile?.shop_name || profile?.full_name || "Sans nom",
+        logo: profile?.shop_logo_url ?? null,
+        countryId: profile?.source_country_id ?? null,
+        productCount: count ?? 0,
+      };
+    },
+  });
+
+  const vendorCountry = countries?.find((c) => c.id === vendorDetail?.countryId);
+
+  /* ——— Vendor products with images ——— */
+  const { data: vendorProducts, isLoading: productsLoading } = useQuery({
+    queryKey: ["vendor-products-full", selectedVendorId],
+    enabled: !!selectedVendorId && showProducts,
+    queryFn: async () => {
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id, name, code, price, vendor_id")
+        .eq("vendor_id", selectedVendorId!)
+        .order("name");
+      if (!prods || prods.length === 0) return [];
+
+      // Get first image for each product
+      const productIds = prods.map((p) => p.id);
+      const { data: images } = await supabase
+        .from("product_images")
+        .select("product_id, url")
+        .in("product_id", productIds)
+        .order("position", { ascending: true });
+
+      const imageMap = new Map<string, string>();
+      (images ?? []).forEach((img) => {
+        if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+      });
+
+      return prods.map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        price: p.price,
+        supplierPrice: Math.round(p.price * 0.6), // estimated
+        image: imageMap.get(p.id) ?? null,
+      }));
+    },
+  });
+
+  /* ——— Existing product rules for this pair ——— */
+  const productRulesForPair = useMemo(() => (rules ?? []).filter((r) =>
+    r.scope === "product"
+    && (r.source_country_id ?? null) === srcId
+    && (r.destination_country_id ?? null) === dstId,
+  ), [rules, srcId, dstId]);
+
+  const ruleForProduct = (productId: string) => {
+    return productRulesForPair.find((r) => r.product_id === productId);
+  };
+
+  /* ——— Filtered products (search) ——— */
+  const filteredProducts = useMemo(() => {
+    const s = productQ.trim().toLowerCase();
+    if (!s) return vendorProducts ?? [];
+    return (vendorProducts ?? []).filter((p) =>
+      p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s)
+    );
+  }, [vendorProducts, productQ]);
+
+  /* ——— Commission calculation ——— */
+  const calcCommission = (supplierPrice: number, mode: "percent" | "final_price", value: number) => {
+    if (mode === "percent") {
+      const commissionAmount = Math.round((supplierPrice * value) / 100);
+      return {
+        salePrice: supplierPrice + commissionAmount,
+        commissionAmount,
+        ratePercent: value,
+      };
+    }
+    // final_price mode: value is the desired final price
+    const commissionAmount = Math.max(0, value - supplierPrice);
+    const ratePercent = supplierPrice > 0 ? (commissionAmount / supplierPrice) * 100 : 0;
+    return { salePrice: value, commissionAmount, ratePercent };
+  };
+
+  /* ——— Actions ——— */
+  async function addRule(product_id: string, ratePercent: number) {
+    try {
+      await saveCommissionRule({
+        scope: "product", product_id,
+        source_country_id: srcId, destination_country_id: dstId,
+        rate_percent: ratePercent, is_enabled: true,
+      });
+    } catch (error: any) {
+      return toast.error(error.message);
+    }
+    toast.success("Règle produit enregistrée");
+    qc.invalidateQueries({ queryKey: ["commission_rules"] });
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+  }
+
+  async function removeRule(ruleId: string) {
+    if (!confirm("Supprimer cette règle ?")) return;
+    const { error } = await sb.from("commission_rules").delete().eq("id", ruleId);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["commission_rules"] });
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+  }
+
+  async function applyToSelected() {
+    const ids = Array.from(selectedProducts);
+    if (ids.length === 0) return toast.error("Aucun produit sélectionné");
+    const val = Number(commissionValue);
+    if (isNaN(val) || val <= 0) return toast.error("Valeur invalide");
+
+    let applied = 0;
+    for (const pid of ids) {
+      const prod = vendorProducts?.find((p) => p.id === pid);
+      if (!prod) continue;
+      const result = calcCommission(prod.supplierPrice, commissionMode, val);
+      if (result.ratePercent >= 0 && result.ratePercent <= 100) {
+        await addRule(pid, Math.round(result.ratePercent * 100) / 100);
+        applied++;
+      }
+    }
+    toast.success(`${applied} règle(s) appliquée(s)`);
+    setSelectedProducts(new Set());
+  }
+
+  const toggleProduct = (id: string) => {
+    const next = new Set(selectedProducts);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedProducts(next);
+  };
+
+  const selectAllFiltered = () => {
+    const ids = filteredProducts.map((p) => p.id);
+    const all = ids.every((id) => selectedProducts.has(id));
+    const next = new Set(selectedProducts);
+    all ? ids.forEach((id) => next.delete(id)) : ids.forEach((id) => next.add(id));
+    setSelectedProducts(next);
+  };
+
+  /* ——— Vendors list for select ——— */
   const { data: vendors } = useVendors();
   const vendorList = useMemo(() => {
     return (vendors ?? []).map((v: any) => ({
@@ -786,127 +940,37 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
     }));
   }, [vendors]);
 
-  /* ——— Commission calculation helper ——— */
-  const calcFromMode = (mode: "percent" | "amount", value: number, supplierPrice: number) => {
-    if (mode === "percent") {
-      const commissionAmount = (supplierPrice * value) / 100;
-      return { salePrice: supplierPrice + commissionAmount, commissionAmount, ratePercent: value };
-    }
-    const salePrice = supplierPrice + value;
-    const ratePercent = supplierPrice > 0 ? (value / supplierPrice) * 100 : 0;
-    return { salePrice, commissionAmount: value, ratePercent };
-  };
-
-  const productRulesForPair = useMemo(() => (rules ?? []).filter((r) =>
-    r.scope === "product"
-    && (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId,
-  ), [rules, srcId, dstId]);
-
-  const productIds = productRulesForPair.map((r) => r.product_id).filter(Boolean) as string[];
-  const { data: ruleProducts } = useQuery({
-    queryKey: ["product-names", productIds.sort().join(",")],
-    enabled: productIds.length > 0,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("id, name, code, price, owner_id").in("id", productIds);
-      return (data ?? []) as { id: string; name: string; code: string; price: number; owner_id: string }[];
-    },
-  });
-
-  /* ——— Search with vendor filter ——— */
-  const { data: searchResults } = useQuery({
-    queryKey: ["products-search", q, selectedVendorId],
-    enabled: q.length >= 1,
-    queryFn: async () => {
-      let query = supabase.from("products").select("id, name, code, price, owner_id")
-        .or(`name.ilike.%${q}%,code.ilike.%${q}%`);
-      if (selectedVendorId) query = query.eq("owner_id", selectedVendorId);
-      const { data } = await query.limit(20);
-      return (data ?? []) as { id: string; name: string; code: string; price: number; owner_id: string }[];
-    },
-  });
-
-  async function addRule(product_id: string, overrideRate?: number) {
-    const v = overrideRate ?? Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
-    try {
-      await saveCommissionRule({
-        scope: "product", product_id,
-        source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: v, is_enabled: true,
-      });
-    } catch (error: any) {
-      return toast.error(error.message);
-    }
-    toast.success("Regle produit enregistree");
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  async function addRuleWithCalc(productId: string, mode: "percent" | "amount", value: number, supplierPrice: number) {
-    const result = calcFromMode(mode, value, supplierPrice);
-    await addRule(productId, result.ratePercent);
-  }
-
-  async function applyBulk(mode: "percent" | "amount", value: number) {
-    const ids = Array.from(selectedProducts);
-    if (ids.length === 0) return;
-    for (const pid of ids) {
-      const prod = searchResults?.find((p) => p.id === pid);
-      const supplierPrice = prod ? prod.price * 0.6 : 0;
-      const result = calcFromMode(mode, value, supplierPrice);
-      await addRule(pid, result.ratePercent);
-    }
-    toast.success(`${ids.length} regles appliquees`);
-    setSelectedProducts(new Set());
-    setBulkDialog({ ...bulkDialog, open: false });
-  }
-
-  async function updateRate(id: string, v: number) {
-    const { error } = await sb.from("commission_rules").update({ rate_percent: v }).eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-  async function remove(id: string) {
-    if (!confirm("Supprimer cette regle ?")) return;
-    const { error } = await sb.from("commission_rules").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] }); qc.invalidateQueries({ queryKey: ["display-prices"] }); qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  const toggleProduct = (id: string) => {
-    const next = new Set(selectedProducts);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelectedProducts(next);
-  };
-  const selectAll = () => {
-    const ids = (searchResults ?? []).map((p) => p.id);
-    const all = ids.every((id) => selectedProducts.has(id));
-    const next = new Set(selectedProducts);
-    all ? ids.forEach((id) => next.delete(id)) : ids.forEach((id) => next.add(id));
-    setSelectedProducts(next);
-  };
-
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Package className="h-4 w-4 text-violet-600" />
-          Regles par produit
+          Règles par produit
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 1. Selection boutique */}
+        {/* ===== STEP 1: Vendor Selection ===== */}
         <div>
           <label className="text-xs font-medium text-slate-700 mb-1.5 block flex items-center gap-1.5">
             <Store className="h-3.5 w-3.5" />
-            Selectionner une boutique (optionnel)
+            Sélectionner une boutique
           </label>
-          <Select value={selectedVendorId ?? "__all__"} onValueChange={(v) => { setSelectedVendorId(v === "__all__" ? null : v); setQ(""); setSelectedProducts(new Set()); }}>
+          <Select
+            value={selectedVendorId ?? "__all__"}
+            onValueChange={(v) => {
+              const vid = v === "__all__" ? null : v;
+              setSelectedVendorId(vid);
+              setShowProducts(false);
+              setProductQ("");
+              setSelectedProducts(new Set());
+              setCommissionValue("");
+            }}
+          >
             <SelectTrigger className="text-sm h-9">
-              <SelectValue placeholder="Toutes les boutiques" />
+              <SelectValue placeholder="Choisir une boutique..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Toutes les boutiques</SelectItem>
+              <SelectItem value="__all__">Choisir une boutique...</SelectItem>
               {vendorList.map((v) => (
                 <SelectItem key={v.id} value={v.id}>{v.shop_name}</SelectItem>
               ))}
@@ -914,222 +978,419 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
           </Select>
         </div>
 
-        {/* 2. Recherche produit */}
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[120px] flex-1">
-            <label className="text-xs">Rechercher un produit (nom ou code)</label>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} className="pl-7" placeholder={selectedVendorId ? "Produits de la boutique selectionnee..." : "Toutes les boutiques..."} />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs">Taux (%)</label>
-            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="w-24" />
-          </div>
-        </div>
-
-        {/* 3. Resultats avec tableau enrichi */}
-        {q.length >= 1 && (
-          <div className="space-y-2">
-            {selectedVendorId && (
-              <div className="flex items-center justify-between">
-                <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 border-violet-200">
-                  <Store className="h-3 w-3 mr-1" />
-                  {vendorList.find((v) => v.id === selectedVendorId)?.shop_name ?? "Boutique"}
-                </Badge>
-                {selectedProducts.size > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Badge className="text-[10px] bg-violet-100 text-violet-800">{selectedProducts.size} selectionne(s)</Badge>
-                    <Button size="sm" className="text-xs h-7 bg-violet-600 hover:bg-violet-700" onClick={() => setBulkDialog({ open: true, mode: "percent", value: "" })}>
-                      <Percent className="h-3 w-3 mr-1" />
-                      Appliquer en masse
-                    </Button>
-                  </div>
+        {/* ===== STEP 2: Vendor Card ===== */}
+        {selectedVendorId && vendorDetail && (
+          <div className="rounded-lg border bg-gradient-to-br from-violet-50 to-white p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {/* Logo */}
+              <div className="h-14 w-14 rounded-lg bg-white border shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                {vendorDetail.logo ? (
+                  <img src={vendorDetail.logo} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Store className="h-6 w-6 text-slate-400" />
                 )}
               </div>
-            )}
-            <div className="rounded-md border bg-background overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="w-8 p-2">
-                      <Checkbox checked={(searchResults ?? []).length > 0 && (searchResults ?? []).every((p) => selectedProducts.has(p.id))} onCheckedChange={selectAll} />
-                    </TableHead>
-                    <TableHead className="text-[10px] p-2">Produit</TableHead>
-                    <TableHead className="text-[10px] p-2 text-right">Prix vente</TableHead>
-                    <TableHead className="text-[10px] p-2 text-center w-24">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(searchResults ?? []).map((p) => (
-                    <TableRow key={p.id} className="hover:bg-slate-50">
-                      <TableCell className="p-2">
-                        <Checkbox checked={selectedProducts.has(p.id)} onCheckedChange={() => toggleProduct(p.id)} />
-                      </TableCell>
-                      <TableCell className="p-2">
-                        <p className="text-sm font-medium truncate">{p.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{p.code}</p>
-                      </TableCell>
-                      <TableCell className="p-2 text-right text-sm">{p.price.toLocaleString("fr-FR")} FCFA</TableCell>
-                      <TableCell className="p-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => addRule(p.id)}>
-                            <Plus className="h-3 w-3 mr-0.5" /> {rate ? rate + "%" : "Ajouter"}
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditDialog({
-                            open: true, productId: p.id, mode: "percent", value: rate || "15",
-                            supplierPrice: String(Math.round(p.price * 0.6)), salePrice: String(p.price),
-                          })}>
-                            <Calculator className="h-3.5 w-3.5 text-violet-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {(searchResults ?? []).length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-4">Aucun produit trouve.</TableCell></TableRow>
+              {/* Info */}
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-sm truncate">{vendorDetail.name}</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {vendorCountry && (
+                    <span className="flex items-center gap-1">
+                      <span>{vendorCountry.flag_emoji}</span>
+                      <span>{vendorCountry.name}</span>
+                    </span>
                   )}
-                </TableBody>
-              </Table>
+                  <span>·</span>
+                  <span>{vendorDetail.productCount} produit{vendorDetail.productCount > 1 ? "s" : ""}</span>
+                </div>
+              </div>
             </div>
+            <Button
+              size="sm"
+              className="w-full bg-violet-600 hover:bg-violet-700"
+              onClick={() => setShowProducts(true)}
+            >
+              <Package className="h-4 w-4 mr-2" />
+              Voir les produits de cette boutique
+            </Button>
           </div>
         )}
 
-        {/* 4. Regles existantes */}
+        {/* ===== STEP 3: Products Table ===== */}
+        {showProducts && selectedVendorId && (
+          <div className="space-y-3 border rounded-lg p-3 bg-slate-50/50">
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={productQ}
+                  onChange={(e) => setProductQ(e.target.value)}
+                  placeholder="Rechercher un produit (nom ou code)..."
+                  className="pl-7 text-sm"
+                />
+              </div>
+              <Button size="sm" variant="outline" onClick={selectAllFiltered}>
+                <Check className="h-3.5 w-3.5 mr-1" />
+                Tout sélectionner
+              </Button>
+            </div>
+
+            {/* Selection count + Commission controls */}
+            {selectedProducts.size > 0 && (
+              <div className="flex flex-wrap items-center gap-2 p-2 bg-violet-50 rounded-lg border border-violet-200">
+                <Badge className="bg-violet-100 text-violet-800">
+                  {selectedProducts.size} sélectionné{selectedProducts.size > 1 ? "s" : ""}
+                </Badge>
+                {/* Mode toggle */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant={commissionMode === "percent" ? "default" : "outline"}
+                    className={`text-xs h-7 ${commissionMode === "percent" ? "bg-violet-600" : ""}`}
+                    onClick={() => setCommissionMode("percent")}
+                  >
+                    <Percent className="h-3 w-3 mr-1" /> %
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={commissionMode === "final_price" ? "default" : "outline"}
+                    className={`text-xs h-7 ${commissionMode === "final_price" ? "bg-violet-600" : ""}`}
+                    onClick={() => setCommissionMode("final_price")}
+                  >
+                    <Banknote className="h-3 w-3 mr-1" /> Prix final
+                  </Button>
+                </div>
+                <div className="relative w-32">
+                  <Input
+                    type="number"
+                    value={commissionValue}
+                    onChange={(e) => setCommissionValue(e.target.value)}
+                    placeholder={commissionMode === "percent" ? "15" : "6500"}
+                    className="text-xs h-7 pr-10"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                    {commissionMode === "percent" ? "%" : "FCFA"}
+                  </span>
+                </div>
+                <Button size="sm" className="h-7 bg-violet-600 hover:bg-violet-700 text-xs" onClick={applyToSelected}>
+                  <Check className="h-3 w-3 mr-1" /> Appliquer
+                </Button>
+              </div>
+            )}
+
+            {/* Products Table */}
+            {productsLoading ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Chargement des produits…</p>
+            ) : (
+              <div className="rounded-md border bg-white overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="w-8 p-2">
+                          <Checkbox
+                            checked={filteredProducts.length > 0 && filteredProducts.every((p) => selectedProducts.has(p.id))}
+                            onCheckedChange={selectAllFiltered}
+                          />
+                        </TableHead>
+                        <TableHead className="text-[10px] p-2 w-12">Image</TableHead>
+                        <TableHead className="text-[10px] p-2">Produit</TableHead>
+                        <TableHead className="text-[10px] p-2 text-right">Prix frns.</TableHead>
+                        <TableHead className="text-[10px] p-2 text-right">Prix vente</TableHead>
+                        <TableHead className="text-[10px] p-2 text-right">Commission</TableHead>
+                        <TableHead className="text-[10px] p-2 text-right">%</TableHead>
+                        <TableHead className="text-[10px] p-2 text-center w-20">Règle</TableHead>
+                        <TableHead className="text-[10px] p-2 text-center w-16">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredProducts.map((p) => {
+                        const rule = ruleForProduct(p.id);
+                        const hasRule = !!rule;
+                        const commissionAmount = hasRule
+                          ? Math.round((p.supplierPrice * rule.rate_percent) / 100)
+                          : 0;
+                        return (
+                          <TableRow key={p.id} className="hover:bg-slate-50">
+                            <TableCell className="p-2">
+                              <Checkbox
+                                checked={selectedProducts.has(p.id)}
+                                onCheckedChange={() => toggleProduct(p.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <div className="h-10 w-10 rounded border bg-slate-100 flex items-center justify-center overflow-hidden">
+                                {p.image ? (
+                                  <img src={p.image} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <Package className="h-4 w-4 text-slate-300" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <p className="text-sm font-medium truncate max-w-[150px]">{p.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{p.code}</p>
+                            </TableCell>
+                            <TableCell className="p-2 text-right text-xs font-medium">
+                              {p.supplierPrice.toLocaleString("fr-FR")}
+                            </TableCell>
+                            <TableCell className="p-2 text-right text-xs">
+                              {p.price.toLocaleString("fr-FR")}
+                            </TableCell>
+                            <TableCell className="p-2 text-right text-xs text-violet-700 font-medium">
+                              {hasRule ? `${commissionAmount.toLocaleString("fr-FR")} FCFA` : "—"}
+                            </TableCell>
+                            <TableCell className="p-2 text-right">
+                              {hasRule ? (
+                                <Badge variant="secondary" className="text-[10px]">{rule.rate_percent}%</Badge>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="p-2 text-center">
+                              {hasRule ? (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                  Aucune
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="p-2 text-center">
+                              {hasRule ? (
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeRule(rule.id)}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              ) : (
+                                <ProductQuickApply
+                                  product={p}
+                                  onApply={(mode, value) => {
+                                    const result = calcCommission(p.supplierPrice, mode, value);
+                                    addRule(p.id, Math.round(result.ratePercent * 100) / 100);
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {filteredProducts.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-xs text-muted-foreground py-6">
+                            {productQ ? "Aucun produit trouvé pour cette recherche." : "Aucun produit dans cette boutique."}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== EXISTING RULES SUMMARY ===== */}
         <div className="border-t pt-3">
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Regles produits pour cette paire ({productRulesForPair.length})
+            Règles produits existantes pour cette paire ({productRulesForPair.length})
           </p>
           {productRulesForPair.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Aucune regle produit specifique.</p>
+            <p className="text-xs text-muted-foreground">Aucune règle produit spécifique.</p>
           ) : (
-            <ul className="divide-y">
-              {productRulesForPair.map((r) => {
-                const p = ruleProducts?.find((x) => x.id === r.product_id);
-                return (
-                  <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
-                    <div className="min-w-0 flex-1 truncate text-sm">
-                      {p ? `${p.name} (${p.code})` : r.product_id}
-                      {p && <span className="text-[10px] text-muted-foreground ml-1">{p.price.toLocaleString("fr-FR")} FCFA</span>}
-                    </div>
-                    <Input type="number" step="0.01" defaultValue={r.rate_percent} className="h-7 w-20 text-xs"
-                      onBlur={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v) && v !== Number(r.rate_percent)) updateRate(r.id, v); }} />
-                    <span className="text-[10px] text-muted-foreground">%</span>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(r.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
+            <ExistingRulesList rules={productRulesForPair} />
           )}
         </div>
       </CardContent>
-
-      {/* ——— Dialog calcul % / FCFA ——— */}
-      <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ ...editDialog, open })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-violet-600" />
-              Calculer la commission
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Mode */}
-            <div className="flex items-center gap-2">
-              <Button variant={editDialog.mode === "percent" ? "default" : "outline"} size="sm" className={`text-xs flex-1 ${editDialog.mode === "percent" ? "bg-violet-600" : ""}`} onClick={() => setEditDialog({ ...editDialog, mode: "percent" })}>
-                <Percent className="h-3.5 w-3.5 mr-1" /> Commission en %
-              </Button>
-              <Button variant={editDialog.mode === "amount" ? "default" : "outline"} size="sm" className={`text-xs flex-1 ${editDialog.mode === "amount" ? "bg-violet-600" : ""}`} onClick={() => setEditDialog({ ...editDialog, mode: "amount" })}>
-                <Banknote className="h-3.5 w-3.5 mr-1" /> Montant fixe
-              </Button>
-            </div>
-            {/* Prix fournisseur */}
-            <div>
-              <label className="text-xs font-medium text-slate-700">Prix fournisseur (FCFA)</label>
-              <Input type="number" value={editDialog.supplierPrice} onChange={(e) => setEditDialog({ ...editDialog, supplierPrice: e.target.value })} className="text-sm" />
-            </div>
-            {/* Commission input */}
-            <div>
-              <label className="text-xs font-medium text-slate-700">
-                {editDialog.mode === "percent" ? "Commission (%)" : "Commission (FCFA)"}
-              </label>
-              <div className="relative">
-                <Input type="number" value={editDialog.value} onChange={(e) => setEditDialog({ ...editDialog, value: e.target.value })} className="text-sm pr-12" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{editDialog.mode === "percent" ? "%" : "FCFA"}</span>
-              </div>
-            </div>
-            {/* Preview */}
-            {(() => {
-              const val = Number(editDialog.value); const sp = Number(editDialog.supplierPrice);
-              if (isNaN(val) || isNaN(sp) || sp <= 0) return null;
-              const r = calcFromMode(editDialog.mode, val, sp);
-              return (
-                <div className="bg-slate-50 rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-medium text-slate-600">Apercu</p>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><p className="text-[10px] text-slate-500">Prix fournisseur</p><p className="text-sm font-bold">{sp.toLocaleString("fr-FR")} FCFA</p></div>
-                    <div><p className="text-[10px] text-slate-500">Commission</p><p className="text-sm font-bold text-violet-700">{r.commissionAmount.toLocaleString("fr-FR")} FCFA</p><p className="text-[10px] text-violet-500">({r.ratePercent.toFixed(1)}%)</p></div>
-                    <div><p className="text-[10px] text-slate-500">Prix de vente</p><p className="text-sm font-bold text-emerald-700">{r.salePrice.toLocaleString("fr-FR")} FCFA</p></div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setEditDialog({ ...editDialog, open: false })}>Annuler</Button>
-            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={() => {
-              const val = Number(editDialog.value); const sp = Number(editDialog.supplierPrice);
-              if (!isNaN(val) && val >= 0 && !isNaN(sp) && sp > 0 && editDialog.productId) {
-                addRuleWithCalc(editDialog.productId, editDialog.mode, val, sp);
-                setEditDialog({ ...editDialog, open: false });
-              }
-            }}>
-              <Check className="h-4 w-4 mr-1" /> Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ——— Dialog bulk apply ——— */}
-      <Dialog open={bulkDialog.open} onOpenChange={(open) => setBulkDialog({ ...bulkDialog, open })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Percent className="h-5 w-5 text-violet-600" />
-              Appliquer en masse ({selectedProducts.size} produits)
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-center gap-2">
-              <Button variant={bulkDialog.mode === "percent" ? "default" : "outline"} size="sm" className={`text-xs flex-1 ${bulkDialog.mode === "percent" ? "bg-violet-600" : ""}`} onClick={() => setBulkDialog({ ...bulkDialog, mode: "percent" })}>
-                <Percent className="h-3.5 w-3.5 mr-1" /> %
-              </Button>
-              <Button variant={bulkDialog.mode === "amount" ? "default" : "outline"} size="sm" className={`text-xs flex-1 ${bulkDialog.mode === "amount" ? "bg-violet-600" : ""}`} onClick={() => setBulkDialog({ ...bulkDialog, mode: "amount" })}>
-                <Banknote className="h-3.5 w-3.5 mr-1" /> FCFA
-              </Button>
-            </div>
-            <div>
-              <label className="text-xs font-medium">{bulkDialog.mode === "percent" ? "Commission (%)" : "Montant (FCFA)"}</label>
-              <div className="relative">
-                <Input type="number" value={bulkDialog.value} onChange={(e) => setBulkDialog({ ...bulkDialog, value: e.target.value })} className="text-sm pr-12" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{bulkDialog.mode === "percent" ? "%" : "FCFA"}</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setBulkDialog({ ...bulkDialog, open: false })}>Annuler</Button>
-            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={() => { const val = Number(bulkDialog.value); if (!isNaN(val) && val >= 0) applyBulk(bulkDialog.mode, val); }}>
-              <Check className="h-4 w-4 mr-1" /> Appliquer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
+
+/* ——— Quick apply popover for single product ——— */
+function ProductQuickApply({ product, onApply }: {
+  product: { id: string; name: string; supplierPrice: number; price: number };
+  onApply: (mode: "percent" | "final_price", value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"percent" | "final_price">("percent");
+  const [value, setValue] = useState("");
+
+  const result = useMemo(() => {
+    const val = Number(value);
+    if (isNaN(val) || val <= 0) return null;
+    if (mode === "percent") {
+      const commissionAmount = Math.round((product.supplierPrice * val) / 100);
+      return { salePrice: product.supplierPrice + commissionAmount, commissionAmount, ratePercent: val };
+    }
+    const commissionAmount = Math.max(0, val - product.supplierPrice);
+    const ratePercent = product.supplierPrice > 0 ? (commissionAmount / product.supplierPrice) * 100 : 0;
+    return { salePrice: val, commissionAmount, ratePercent };
+  }, [mode, value, product.supplierPrice]);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => setOpen(true)}>
+        <Plus className="h-3 w-3 mr-0.5" /> Règle
+      </Button>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-sm">{product.name}</DialogTitle>
+          <DialogDescription className="text-xs">
+            Prix fournisseur: <strong>{product.supplierPrice.toLocaleString("fr-FR")} FCFA</strong>
+            {" · "}Prix vente: <strong>{product.price.toLocaleString("fr-FR")} FCFA</strong>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          {/* Mode */}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={mode === "percent" ? "default" : "outline"}
+              className={`text-xs flex-1 h-8 ${mode === "percent" ? "bg-violet-600" : ""}`}
+              onClick={() => setMode("percent")}
+            >
+              <Percent className="h-3 w-3 mr-1" /> Commission %
+            </Button>
+            <Button
+              size="sm"
+              variant={mode === "final_price" ? "default" : "outline"}
+              className={`text-xs flex-1 h-8 ${mode === "final_price" ? "bg-violet-600" : ""}`}
+              onClick={() => setMode("final_price")}
+            >
+              <Banknote className="h-3 w-3 mr-1" /> Prix final
+            </Button>
+          </div>
+          {/* Input */}
+          <div>
+            <label className="text-xs font-medium text-slate-700">
+              {mode === "percent" ? "Commission (%)" : "Prix final souhaité (FCFA)"}
+            </label>
+            <div className="relative">
+              <Input
+                type="number"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="text-sm pr-12"
+                placeholder={mode === "percent" ? "ex: 15" : "ex: 6500"}
+                autoFocus
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                {mode === "percent" ? "%" : "FCFA"}
+              </span>
+            </div>
+          </div>
+          {/* Preview */}
+          {result && (
+            <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-medium text-slate-600">Aperçu</p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-500">Prix fournisseur</p>
+                  <p className="text-sm font-bold">{product.supplierPrice.toLocaleString("fr-FR")}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Commission</p>
+                  <p className="text-sm font-bold text-violet-700">{result.commissionAmount.toLocaleString("fr-FR")}</p>
+                  <p className="text-[10px] text-violet-500">({result.ratePercent.toFixed(1)}%)</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Prix final</p>
+                  <p className="text-sm font-bold text-emerald-700">{result.salePrice.toLocaleString("fr-FR")}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Annuler</Button>
+          <Button
+            size="sm"
+            className="bg-violet-600 hover:bg-violet-700"
+            disabled={!result}
+            onClick={() => {
+              const val = Number(value);
+              if (!isNaN(val) && val > 0) {
+                onApply(mode, val);
+                setOpen(false);
+                setValue("");
+              }
+            }}
+          >
+            <Check className="h-3.5 w-3.5 mr-1" /> Appliquer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ——— Existing rules list (compact) ——— */
+function ExistingRulesList({ rules }: { rules: Rule[] }) {
+  const qc = useQueryClient();
+  const productIds = rules.map((r) => r.product_id).filter(Boolean) as string[];
+  const { data: ruleProducts } = useQuery({
+    queryKey: ["product-names-existing", productIds.sort().join(",")],
+    enabled: productIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase.from("products").select("id, name, code, price").in("id", productIds);
+      return (data ?? []) as { id: string; name: string; code: string; price: number }[];
+    },
+  });
+
+  async function updateRate(id: string, v: number) {
+    const { error } = await sb.from("commission_rules").update({ rate_percent: v }).eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["commission_rules"] });
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Supprimer cette règle ?")) return;
+    const { error } = await sb.from("commission_rules").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["commission_rules"] });
+    qc.invalidateQueries({ queryKey: ["display-prices"] });
+    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+  }
+
+  return (
+    <ul className="divide-y max-h-60 overflow-y-auto rounded-md border bg-white">
+      {rules.map((r) => {
+        const p = ruleProducts?.find((x) => x.id === r.product_id);
+        const supplierPrice = p ? Math.round(p.price * 0.6) : 0;
+        const commissionAmount = Math.round((supplierPrice * r.rate_percent) / 100);
+        return (
+          <li key={r.id} className="flex flex-wrap items-center gap-2 py-2 px-2 hover:bg-slate-50">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm">{p ? `${p.name} (${p.code})` : r.product_id}</div>
+              <div className="text-[10px] text-muted-foreground">
+                Frns: {supplierPrice.toLocaleString("fr-FR")} FCFA
+                {" · "}Com: {commissionAmount.toLocaleString("fr-FR")} FCFA ({r.rate_percent}%)
+              </div>
+            </div>
+            <Input
+              type="number" step="0.01"
+              defaultValue={r.rate_percent}
+              className="h-7 w-20 text-xs"
+              onBlur={(e) => {
+                const v = Number(e.target.value);
+                if (!isNaN(v) && v !== r.rate_percent) updateRate(r.id, v);
+              }}
+            />
+            <span className="text-[10px] text-muted-foreground">%</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(r.id)}>
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 
 /* ============================================================
    GLOBAL TAB — base global rule (last fallback)
