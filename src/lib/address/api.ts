@@ -146,7 +146,7 @@ export async function setDefaultAddress(
 export async function reverseGeocode(lat: number, lng: number): Promise<DetectedLocation | null> {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr,en&addressdetails=1&extratags=1`,
       { headers: { "User-Agent": "Kawzone/1.0" } },
     );
     if (!response.ok) return null;
@@ -154,14 +154,64 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Detected
     const addr = json.address;
     if (!addr) return null;
 
+    // Extraction robuste de la région (nombreuses variantes selon les pays)
+    const region =
+      addr.state ??
+      addr.province ??
+      addr.region ??
+      addr.county ??
+      addr.state_district ??
+      addr.district ??
+      addr.department ??
+      addr.municipality ??
+      "";
+
+    // Extraction robuste de la ville
+    const city =
+      addr.city ??
+      addr.town ??
+      addr.village ??
+      addr.municipality ??
+      addr.district ??
+      addr.suburb ??
+      addr.locality ??
+      addr.hamlet ??
+      "";
+
+    // Extraction du quartier
+    const neighborhood =
+      addr.suburb ??
+      addr.neighbourhood ??
+      addr.quarter ??
+      addr.city_district ??
+      addr.residential ??
+      "";
+
+    // Extraction de l'adresse (rue)
+    const address_approx =
+      json.display_name ??
+      addr.road ??
+      addr.street ??
+      addr.pedestrian ??
+      addr.footway ??
+      addr.cycleway ??
+      addr.path ??
+      addr.address29 ??
+      "";
+
+    // Truncate display_name to reasonable length
+    const truncatedAddress = address_approx.length > 120
+      ? address_approx.substring(0, 120) + "..."
+      : address_approx;
+
     return {
       country_code: (addr.country_code ?? "").toUpperCase(),
       country_name: addr.country ?? "",
-      region: addr.state ?? addr.province ?? addr.region ?? addr.county ?? "",
-      city: addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? addr.district ?? "",
-      neighborhood: addr.suburb ?? addr.neighbourhood ?? addr.quarter ?? "",
-      postal_code: addr.postcode ?? "",
-      address_approx: addr.road ?? addr.street ?? addr.pedestrian ?? addr.address29 ?? "",
+      region,
+      city,
+      neighborhood,
+      postal_code: addr.postcode ?? addr.postal_code ?? "",
+      address_approx: truncatedAddress,
       latitude: lat,
       longitude: lng,
     };

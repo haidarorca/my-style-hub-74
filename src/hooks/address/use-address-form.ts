@@ -17,6 +17,7 @@ import {
   fuzzyMatchRegion,
   fuzzyMatchCity,
 } from "@/lib/address/api";
+import { findBestGeoMatch, normalizeGeoName } from "@/lib/address/geo-normalize";
 
 const sb = supabase as any;
 
@@ -134,74 +135,110 @@ export function useAddressForm({ ownerType, ownerId, address, onSuccess }: UseAd
   const detectLocation = useCallback(async () => {
     setIsDetecting(true);
     setError(null);
+    
+    // Rapport détaillé de détection
+    const report: { ok: boolean; field: string; value: string }[] = [];
+    
     try {
       // 1. Get GPS coordinates
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: false,
-          timeout: 10000,
-          maximumAge: 60000,
+          timeout: 15000,
+          maximumAge: 120000,
         });
       });
 
       const { latitude, longitude } = position.coords;
+      report.push({ ok: true, field: "GPS", value: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` });
 
       // 2. Reverse geocoding via Nominatim
       const detected = await reverseGeocode(latitude, longitude);
       if (!detected) {
-        toast.error("Géolocalisation impossible. Veuillez remplir manuellement.");
+        toast.error("Service de géocodage indisponible. Remplissez manuellement.");
+        setValues((prev) => ({ ...prev, latitude, longitude }));
         return;
       }
 
       // 3. Find country in our database
       const { data: countryData } = await sb
         .from("countries")
-        .select("id, code")
+        .select("id, code, name")
         .eq("code", detected.country_code)
         .maybeSingle();
 
       if (!countryData) {
-        // Country not in our system → fill text fallbacks only
+        report.push({ ok: false, field: "Pays", value: `${detected.country_name} (${detected.country_code}) — non configuré` });
+        // Fill text fallbacks
         setValues((prev) => ({
           ...prev,
           region_text: detected.region || prev.region_text,
           city_text: detected.city || prev.city_text,
           neighborhood_text: detected.neighborhood || prev.neighborhood_text,
           postal_code: detected.postal_code || prev.postal_code,
+          address_line1: detected.address_approx || prev.address_line1,
           latitude,
           longitude,
         }));
-        toast.info("Pays non supporté. Champs texte pré-remplis.");
+        toast.info(`Pays "${detected.country_name}" non configuré dans Kawzone. Champs texte pré-remplis.`);
         return;
       }
 
-      // 4. Set country
+      report.push({ ok: true, field: "Pays", value: countryData.name });
       const newCountryId = countryData.id;
 
-      // 5. Try to match region (after regions are loaded)
+      // 4. Load ALL regions/cities for this country for smart matching
+      const [allRegions, allCities] = await Promise.all([
+        fetchRegions(newCountryId),
+        (async () => {
+          const { data } = await sb.from("geo_cities").select("id, country_id, region_id, name").eq("country_id", newCountryId);
+          return (data ?? []) as GeoCity[];
+        })(),
+      ]);
+
+      // 5. Smart match region with normalization
       let matchedRegion: GeoRegion | null = null;
       if (detected.region) {
-        matchedRegion = await fuzzyMatchRegion(newCountryId, detected.region);
+        matchedRegion = findBestGeoMatch(detected.region, allRegions, 0.65);
+        report.push({
+          ok: !!matchedRegion,
+          field: countryData.code === "US" ? "State" : "Région",
+          value: matchedRegion ? matchedRegion.name : `${detected.region} (texte)`,
+        });
+      } else {
+        report.push({ ok: false, field: "Région", value: "Non détectée" });
       }
 
-      // 6. Try to match city
+      // 6. Smart match city with normalization
       let matchedCity: GeoCity | null = null;
       if (detected.city) {
-        matchedCity = await fuzzyMatchCity(
-          matchedRegion?.id ?? null,
-          newCountryId,
-          detected.city,
-        );
+        // Filter cities by matched region first, then all cities
+        const regionCities = matchedRegion
+          ? allCities.filter((c) => c.region_id === matchedRegion!.id)
+          : allCities;
+        
+        matchedCity = findBestGeoMatch(detected.city, regionCities, 0.65)
+          || findBestGeoMatch(detected.city, allCities, 0.65);
+        
+        report.push({
+          ok: !!matchedCity,
+          field: "Ville",
+          value: matchedCity ? matchedCity.name : `${detected.city} (texte)`,
+        });
+      } else {
+        report.push({ ok: false, field: "Ville", value: "Non détectée" });
       }
 
-      // 7. Build informative status
-      const foundItems: string[] = ["Pays"];
-      if (matchedRegion) foundItems.push(countryData.code === "US" ? "State" : "R\u00e9gion");
-      else if (detected.region) foundItems.push("R\u00e9gion (texte)");
-      if (matchedCity) foundItems.push("Ville");
-      else if (detected.city) foundItems.push("Ville (texte)");
-      if (detected.neighborhood) foundItems.push("Quartier");
-      if (detected.postal_code) foundItems.push("Code postal");
+      // 7. Other fields
+      if (detected.neighborhood) {
+        report.push({ ok: true, field: "Quartier", value: detected.neighborhood });
+      }
+      if (detected.postal_code) {
+        report.push({ ok: true, field: "Code postal", value: detected.postal_code });
+      }
+      if (detected.address_approx) {
+        report.push({ ok: true, field: "Adresse", value: detected.address_approx });
+      }
 
       // 8. Update form
       setValues((prev) => ({
@@ -218,14 +255,26 @@ export function useAddressForm({ ownerType, ownerId, address, onSuccess }: UseAd
         longitude,
       }));
 
-      toast.success(`D\u00e9tect\u00e9 : ${foundItems.join(", ")}. V\u00e9rifiez les informations.`);
-    } catch (err: any) {
-      if (err.code === "PERMISSION_DENIED") {
-        toast.error("Accès à la localisation refusé. Activez-la dans vos paramètres.");
-      } else if (err.code === "TIMEOUT") {
-        toast.error("Délai de géolocalisation dépassé. Réessayez.");
+      // 9. Build summary message
+      const found = report.filter((r) => r.ok).map((r) => r.field).join(", ");
+      const notFound = report.filter((r) => !r.ok);
+      
+      if (notFound.length === 0) {
+        toast.success(`Détecté : ${found}. Vérifiez les informations.`);
       } else {
-        toast.error("Géolocalisation indisponible. Remplissez manuellement.");
+        const msg = `Détecté : ${found}. ${notFound.length} champ(s) manquant(s).`;
+        toast.info(msg);
+      }
+    } catch (err: any) {
+      console.error("Geolocation error:", err);
+      if (err.code === "PERMISSION_DENIED") {
+        toast.error("Accès à la localisation refusé. Activez-la dans les paramètres de votre navigateur.");
+      } else if (err.code === "TIMEOUT") {
+        toast.error("Délai de géolocalisation dépassé. Réessayez dans un endroit dégagé.");
+      } else if (err.code === "POSITION_UNAVAILABLE") {
+        toast.error("Position indisponible. Vérifiez votre connexion GPS.");
+      } else {
+        toast.error("Géolocalisation indisponible. Remplissez le formulaire manuellement.");
       }
     } finally {
       setIsDetecting(false);
