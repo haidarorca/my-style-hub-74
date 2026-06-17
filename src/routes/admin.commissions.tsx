@@ -520,7 +520,7 @@ function PairGeneralRule({ srcId, dstId }: { srcId: string | null; dstId: string
 
   async function save() {
     const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide (0-100)");
+    if (Number.isNaN(v) || v < 0) return toast.error("Taux invalide (doit être >= 0)");
     try {
       await saveCommissionRule({
         scope: "country_pair", source_country_id: srcId, destination_country_id: dstId,
@@ -625,7 +625,7 @@ function PairCategoryTree({ srcId, dstId }: { srcId: string | null; dstId: strin
   }
 
   async function saveRate(categoryId: string, value: number) {
-    if (Number.isNaN(value) || value < 0 || value > 100) return toast.error("Taux invalide");
+    if (Number.isNaN(value) || value < 0) return toast.error("Taux invalide (doit être >= 0)");
     try {
       await saveCommissionRule({
         scope: "category", category_id: categoryId,
@@ -1033,7 +1033,7 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
       await saveCommissionRule({
         scope: "product", product_id,
         source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: Math.min(100, Math.max(0, ratePercent)), is_enabled: true,
+        rate_percent: Math.max(0, ratePercent), is_enabled: true,
       });
     } catch (error: any) {
       return toast.error(error.message);
@@ -1565,7 +1565,7 @@ function GlobalTab() {
 
   async function save() {
     const v = Number(rate);
-    if (Number.isNaN(v) || v < 0 || v > 100) return toast.error("Taux invalide");
+    if (Number.isNaN(v) || v < 0) return toast.error("Taux invalide (doit être >= 0)");
     try {
       await saveCommissionRule({ scope: "global", rate_percent: v, is_enabled: enabled });
     } catch (error: any) {
@@ -1723,3 +1723,4 @@ function HistoryTab() {
     </Card>
   );
 }
+
