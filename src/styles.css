@@ -1,0 +1,357 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-display: "Poppins", "Inter", sans-serif;
+}
+
+:root {
+  --radius: 0.5rem;
+  /* Shein-inspired: pure white background, near-black text, hot pink primary */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.18 0.01 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.01 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.01 0);
+
+  /* Hot pink primary like Shein */
+  --primary: oklch(0.55 0.22 5);
+  --primary-foreground: oklch(1 0 0);
+  --primary-glow: oklch(0.65 0.24 10);
+
+  --secondary: oklch(0.97 0.005 0);
+  --secondary-foreground: oklch(0.18 0.01 0);
+  --muted: oklch(0.96 0.005 0);
+  --muted-foreground: oklch(0.5 0.01 0);
+  --accent: oklch(0.95 0.04 5);
+  --accent-foreground: oklch(0.4 0.2 5);
+  --destructive: oklch(0.6 0.24 25);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.62 0.18 145);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.78 0.16 75);
+  --warning-foreground: oklch(0.2 0.05 75);
+
+  --border: oklch(0.92 0.005 0);
+  --input: oklch(0.94 0.005 0);
+  --ring: oklch(0.55 0.22 5);
+
+  --sidebar: oklch(0.99 0 0);
+  --sidebar-foreground: oklch(0.18 0.01 0);
+  --sidebar-primary: oklch(0.55 0.22 5);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.96 0.005 0);
+  --sidebar-accent-foreground: oklch(0.18 0.01 0);
+  --sidebar-border: oklch(0.92 0.005 0);
+  --sidebar-ring: oklch(0.55 0.22 5);
+
+  /* Gradients & shadows */
+  --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
+  --gradient-flash: linear-gradient(90deg, oklch(0.55 0.22 5), oklch(0.7 0.2 30));
+  --shadow-soft: 0 2px 8px -2px oklch(0 0 0 / 0.08);
+  --shadow-card: 0 4px 16px -4px oklch(0 0 0 / 0.1);
+  --shadow-pink: 0 6px 20px -6px oklch(0.55 0.22 5 / 0.4);
+
+  /* Safe-area aware spacing for mobile bottom nav (avoid Samsung gesture bar) */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Fluid responsive tokens — adapt to all phone widths (320px → 430px+) */
+  --page-px: clamp(0.75rem, 3.5vw, 1.25rem);
+  --section-gap: clamp(1rem, 4vw, 1.5rem);
+  --card-radius: clamp(0.875rem, 2.5vw, 1.25rem);
+  --bottom-nav-h: 3.5rem; /* 56px — Apple/Google min tappable area */
+  --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN PREMIUM UTILITIES — Garde le thème clair existant
+   ═══════════════════════════════════════════════════════════ */
+
+/* Dark theme optionnel — gardé pour compatibilité */
+.dark {
+  --background: oklch(0.15 0.01 0);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.2 0.01 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.2 0.01 0);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.65 0.24 10);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.25 0.01 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.25 0.01 0);
+  --muted-foreground: oklch(0.7 0.01 0);
+  --accent: oklch(0.3 0.05 5);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.6 0.24 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.3 0.01 0);
+  --input: oklch(0.3 0.01 0);
+  --ring: oklch(0.65 0.24 10);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Make all interactive controls comfortably tappable on mobile */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .gradient-primary { background-image: var(--gradient-primary); }
+  .gradient-flash { background-image: var(--gradient-flash); }
+  .shadow-pink { box-shadow: var(--shadow-pink); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  /* Padding that respects Samsung/iOS gesture areas + mobile bottom nav */
+  .pb-safe { padding-bottom: calc(var(--bottom-nav-total) + 1rem); }
+  @media (min-width: 768px) {
+    .pb-safe { padding-bottom: calc(1rem + var(--safe-bottom)); }
+  }
+  .pt-safe { padding-top: calc(0.5rem + var(--safe-top)); }
+  /* Bottom nav with extra clearance so phone gesture buttons don't conflict */
+  .bottom-safe { bottom: calc(1rem + var(--safe-bottom)); }
+
+  /* Unified page container — consistent paddings on every page */
+  .page-container {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 80rem;
+    padding-inline: var(--page-px);
+  }
+
+  /* Fluid product grid: auto-fits 2 cols on 320-430px phones, more on tablet+ */
+  .grid-products {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(8.5rem, 42vw, 11rem), 1fr));
+    gap: clamp(0.5rem, 2vw, 0.875rem);
+  }
+  @media (min-width: 768px) {
+    .grid-products {
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+      gap: 1rem;
+    }
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Fluid native scrolling on mobile across all pages and overlays */
+html, body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  touch-action: manipulation;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Never lock vertical scroll globally; individual overlays manage their own */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+/* Avoid accidental horizontal overflow that breaks vertical scroll on mobile */
+#root, main { max-width: 100%; overflow-x: clip; }
+
+/* Smoother page transitions */
+.animate-fade-in {
+  animation: page-fade-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduce motion preference: kill non-essential animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Arabic / RTL: use logical layout defaults so mobile UI feels native */
+html[dir="rtl"] body { text-align: right; }
+html[dir="rtl"] input,
+html[dir="rtl"] textarea { text-align: right; }
+html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+html[dir="rtl"] .mobile-bottom-nav ul { flex-direction: row-reverse; }
+/* Auto-flip chevrons, arrows, and back icons in RTL */
+html[dir="rtl"] .lucide-chevron-left,
+html[dir="rtl"] .lucide-chevron-right,
+html[dir="rtl"] .lucide-arrow-left,
+html[dir="rtl"] .lucide-arrow-right,
+html[dir="rtl"] .lucide-arrow-up-right,
+html[dir="rtl"] .lucide-arrow-down-left,
+html[dir="rtl"] .lucide-chevrons-left,
+html[dir="rtl"] .lucide-chevrons-right {
+  transform: scaleX(-1);
+}
+/* Keep search/cart/user/store icons in their natural orientation in RTL */
+html[dir="rtl"] .lucide-search,
+html[dir="rtl"] .lucide-shopping-bag,
+html[dir="rtl"] .lucide-user,
+html[dir="rtl"] .lucide-store,
+html[dir="rtl"] .lucide-home {
+  transform: none;
+}
+
+/* Very small phones (older Android < 360px): trim paddings so content fits */
+@media (max-width: 359px) {
+  .px-3 { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .gap-3 { gap: 0.5rem; }
+}
+
+/* PWA standalone: looks more like a native app */
+@media (display-mode: standalone) {
+  body { user-select: none; -webkit-user-select: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS & UTILITAIRES ADMIN (thème clair compatible)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Card hover lift */
+.card-premium {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Button micro-interactions */
+.btn-premium {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn-premium:hover {
+  transform: scale(1.02);
+}
+.btn-premium:active {
+  transform: scale(0.97);
+}
+
+/* Status dot pulse */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px transparent; }
+}
+.status-pulse {
+  animation: statusPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.status-pulse-fast {
+  animation: statusPulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Card stagger entrance */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-enter {
+  animation: fadeSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0;
+}
+
+/* Drawer slide-in */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.drawer-enter {
+  animation: slideInRight 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Alert banner slide-down */
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.alert-enter {
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Glassmorphism (subtil pour thème clair) */
+.glass {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(40px) saturate(1.2);
+  -webkit-backdrop-filter: blur(40px) saturate(1.2);
+}
+
+/* ═══ Product Detail slide-in overlay ═══ */
+@keyframes slideInOverlay {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+  animation: slideInOverlay 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Cache-bust: 4 */
