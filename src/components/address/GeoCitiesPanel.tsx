@@ -5,14 +5,14 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Search, Upload } from "lucide-react";
+import { Plus, Trash2, Search, Upload, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCountries } from "@/hooks/use-countries";
-import { fetchRegions, fetchCities, createCity, deleteCity, importCitiesFromCSV } from "@/lib/address/api";
+import { fetchRegions, fetchCities, createCity, deleteCity, importCitiesFromCSV, exportCitiesToCSV } from "@/lib/address/api";
 import type { GeoCity } from "@/lib/address/types";
 
 const sb = supabase as any;
@@ -67,6 +67,21 @@ export function GeoCitiesPanel() {
     }
   }
 
+  function handleExport() {
+    if (!cities || cities.length === 0) return;
+    const csv = exportCitiesToCSV(cities);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `villes_${selectedCountryId}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`${cities.length} ville(s) exportée(s)`);
+  }
+
   async function handleCSVImport() {
     if (!selectedCountryId || !csvText.trim()) return;
     const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -94,11 +109,12 @@ export function GeoCitiesPanel() {
       {/* Country selector */}
       <div>
         <label className="text-xs text-muted-foreground">Pays</label>
-        <Select value={selectedCountryId} onValueChange={(v) => { setSelectedCountryId(v); setSelectedRegionId(""); }}>
+        <Select value={selectedCountryId || "__none__"} onValueChange={(v) => { setSelectedCountryId(v === "__none__" ? "" : v); setSelectedRegionId(""); }}>
           <SelectTrigger className="h-9">
             <SelectValue placeholder="Choisir un pays..." />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="__none__">Choisir un pays...</SelectItem>
             {(countries ?? []).map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}
@@ -112,12 +128,12 @@ export function GeoCitiesPanel() {
       {selectedCountryId && (
         <div>
           <label className="text-xs text-muted-foreground">Région (optionnel)</label>
-          <Select value={selectedRegionId} onValueChange={setSelectedRegionId}>
+          <Select value={selectedRegionId || "__all__"} onValueChange={(v) => setSelectedRegionId(v === "__all__" ? "" : v)}>
             <SelectTrigger className="h-9">
               <SelectValue placeholder="Toutes les régions..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Toutes les régions</SelectItem>
+              <SelectItem value="__all__">Toutes les régions</SelectItem>
               {(regions ?? []).map((r) => (
                 <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
               ))}
@@ -137,7 +153,10 @@ export function GeoCitiesPanel() {
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher..." className="pl-7 h-9" />
             </div>
             <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
-              <Upload className="mr-1 h-3.5 w-3.5" /> CSV
+              <Upload className="mr-1 h-3.5 w-3.5" /> Importer
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExport} disabled={!cities || cities.length === 0}>
+              <Download className="mr-1 h-3.5 w-3.5" /> Exporter
             </Button>
           </div>
 

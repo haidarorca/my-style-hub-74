@@ -161,6 +161,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Detected
       city: addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? addr.district ?? "",
       neighborhood: addr.suburb ?? addr.neighbourhood ?? addr.quarter ?? "",
       postal_code: addr.postcode ?? "",
+      address_approx: addr.road ?? addr.street ?? addr.pedestrian ?? addr.address29 ?? "",
       latitude: lat,
       longitude: lng,
     };
@@ -201,6 +202,16 @@ export async function fuzzyMatchCity(
   const { data, error } = await q.maybeSingle();
   if (error) return null;
   return data;
+}
+
+// ─── EXPORT CSV ───
+
+export function exportRegionsToCSV(regions: GeoRegion[]): string {
+  return ["region"].concat(regions.map((r) => r.name)).join("\n");
+}
+
+export function exportCitiesToCSV(cities: GeoCity[]): string {
+  return ["region,city"].concat(cities.map((c) => `${c.region_id || ""},${c.name}`)).join("\n");
 }
 
 // ─── IMPORT CSV ───

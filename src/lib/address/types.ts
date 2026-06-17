@@ -8,6 +8,26 @@ export type AddressOwnerType = "user" | "vendor" | "shop" | "order" | "guest" | 
 /** Types d'adresse */
 export type AddressType = "shipping" | "billing" | "pickup" | "warehouse";
 
+/** Configuration vendeur: pays d'origine + pays de vente + entrepôts */
+export interface VendorAddressConfig {
+  /** Pays d'origine du vendeur (source des produits) */
+  source_country_id: string;
+  /** Pays où le vendeur accepte de vendre */
+  destination_country_ids: string[];
+  /** Entrepôts du vendeur (optionnel) */
+  warehouses: Warehouse[];
+}
+
+/** Entrepôt vendeur */
+export interface Warehouse {
+  id: string;
+  vendor_id: string;
+  name: string;                    // "Entrepôt Guangzhou"
+  address_id: string;              // FK → addresses (type='warehouse')
+  is_default: boolean;
+  created_at: string;
+}
+
 /** Entité région (ultra-légère) */
 export interface GeoRegion {
   id: string;
@@ -61,6 +81,7 @@ export interface DetectedLocation {
   city: string;              // "Dakar", "Los Angeles"...
   neighborhood: string;      // "Médina", "Downtown"...
   postal_code: string;       // "10000", "90210"...
+  address_approx: string;    // "Route de Dakar" — rue/détecté
   latitude: number;
   longitude: number;
 }

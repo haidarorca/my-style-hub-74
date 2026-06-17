@@ -5,14 +5,14 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Search, Upload } from "lucide-react";
+import { Plus, Trash2, Search, Upload, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCountries } from "@/hooks/use-countries";
-import { fetchRegions, createRegion, deleteRegion, importRegionsFromCSV } from "@/lib/address/api";
+import { fetchRegions, createRegion, deleteRegion, importRegionsFromCSV, exportRegionsToCSV } from "@/lib/address/api";
 import type { GeoRegion } from "@/lib/address/types";
 
 const sb = supabase as any;
@@ -59,6 +59,21 @@ export function GeoRegionsPanel() {
     }
   }
 
+  function handleExport() {
+    if (!regions || regions.length === 0) return;
+    const csv = exportRegionsToCSV(regions);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `regions_${selectedCountryId}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`${regions.length} région(s) exportée(s)`);
+  }
+
   async function handleCSVImport() {
     if (!selectedCountryId || !csvText.trim()) return;
     const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -82,11 +97,12 @@ export function GeoRegionsPanel() {
       {/* Country selector */}
       <div>
         <label className="text-xs text-muted-foreground">Pays</label>
-        <Select value={selectedCountryId} onValueChange={setSelectedCountryId}>
+        <Select value={selectedCountryId || "__none__"} onValueChange={(v) => setSelectedCountryId(v === "__none__" ? "" : v)}>
           <SelectTrigger className="h-9">
             <SelectValue placeholder="Choisir un pays..." />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="__none__">Choisir un pays...</SelectItem>
             {(countries ?? []).map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}
@@ -107,7 +123,10 @@ export function GeoRegionsPanel() {
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher..." className="pl-7 h-9" />
             </div>
             <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
-              <Upload className="mr-1 h-3.5 w-3.5" /> CSV
+              <Upload className="mr-1 h-3.5 w-3.5" /> Importer
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExport} disabled={!regions || regions.length === 0}>
+              <Download className="mr-1 h-3.5 w-3.5" /> Exporter
             </Button>
           </div>
 

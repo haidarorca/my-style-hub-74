@@ -134,7 +134,29 @@ $$ LANGUAGE plpgsql;
 -- Activer l'extension pg_trgm pour la recherche fuzzy (si pas déjà activée)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- 5. Table vendor_warehouses (préparation logistique future)
+-- Les vendeurs peuvent avoir 0, 1 ou plusieurs entrepôts
+CREATE TABLE IF NOT EXISTS vendor_warehouses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id TEXT NOT NULL,           -- FK vers profiles.id (vendeur)
+  name TEXT NOT NULL,                -- "Entrepôt Guangzhou", "Stock Dakar"
+  address_id UUID REFERENCES addresses(id) ON DELETE SET NULL,
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_warehouses_vendor ON vendor_warehouses(vendor_id);
+
+DROP TRIGGER IF EXISTS trigger_vendor_warehouses_updated_at ON vendor_warehouses;
+CREATE TRIGGER trigger_vendor_warehouses_updated_at
+  BEFORE UPDATE ON vendor_warehouses
+  FOR EACH ROW
+  EXECUTE FUNCTION update_addresses_updated_at();
+
 -- Commentaires pour documentation
 COMMENT ON TABLE geo_regions IS 'Régions / États / Provinces par pays. Vide au départ, peuplé via CSV ou manuellement.';
 COMMENT ON TABLE geo_cities IS 'Villes par région et pays. Vide au départ, peuplé via CSV ou manuellement.';
 COMMENT ON TABLE addresses IS 'Table polymorphe unique pour toutes les adresses du système. Remplace customer_addresses.';
+COMMENT ON TABLE vendor_warehouses IS 'Entrepôts des vendeurs. Préparation pour la logistique internationale. Vide au départ.';

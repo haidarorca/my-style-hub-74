@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import type { Address, AddressInput, GeoRegion, GeoCity } from "@/lib/address/types";
 import {
   fetchRegions,
@@ -16,6 +17,8 @@ import {
   fuzzyMatchRegion,
   fuzzyMatchCity,
 } from "@/lib/address/api";
+
+const sb = supabase as any;
 
 interface UseAddressFormOptions {
   ownerType: AddressInput["owner_type"];
@@ -151,7 +154,7 @@ export function useAddressForm({ ownerType, ownerId, address, onSuccess }: UseAd
       }
 
       // 3. Find country in our database
-      const { data: countryData } = await (supabase as any)
+      const { data: countryData } = await sb
         .from("countries")
         .select("id, code")
         .eq("code", detected.country_code)
@@ -191,7 +194,16 @@ export function useAddressForm({ ownerType, ownerId, address, onSuccess }: UseAd
         );
       }
 
-      // 7. Update form
+      // 7. Build informative status
+      const foundItems: string[] = ["Pays"];
+      if (matchedRegion) foundItems.push(countryData.code === "US" ? "State" : "R\u00e9gion");
+      else if (detected.region) foundItems.push("R\u00e9gion (texte)");
+      if (matchedCity) foundItems.push("Ville");
+      else if (detected.city) foundItems.push("Ville (texte)");
+      if (detected.neighborhood) foundItems.push("Quartier");
+      if (detected.postal_code) foundItems.push("Code postal");
+
+      // 8. Update form
       setValues((prev) => ({
         ...prev,
         country_id: newCountryId,
@@ -201,11 +213,12 @@ export function useAddressForm({ ownerType, ownerId, address, onSuccess }: UseAd
         city_text: matchedCity ? null : detected.city || prev.city_text,
         neighborhood_text: detected.neighborhood || prev.neighborhood_text,
         postal_code: detected.postal_code || prev.postal_code,
+        address_line1: detected.address_approx || prev.address_line1,
         latitude,
         longitude,
       }));
 
-      toast.success("Localisation détectée ! Vérifiez les informations.");
+      toast.success(`D\u00e9tect\u00e9 : ${foundItems.join(", ")}. V\u00e9rifiez les informations.`);
     } catch (err: any) {
       if (err.code === "PERMISSION_DENIED") {
         toast.error("Accès à la localisation refusé. Activez-la dans vos paramètres.");
