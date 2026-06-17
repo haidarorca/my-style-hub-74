@@ -117,7 +117,7 @@ function BecomeVendorPage() {
           full_name: fullName.trim(),
           phone: joinPhone(phoneCountry, phoneLocal),
           shop_whatsapp: waLocal.trim() ? joinPhone(waCountry, waLocal) : null,
-          address: address.trim() || null,
+          address: address.trim() || null,  // NOTE: profile.address = adresse publique boutique (affichée aux clients). Les adresses logistiques sont dans la table `addresses`.
           shop_description: description.trim() || null,
           shop_hours: hoursNote.trim() || null,
           shop_hours_schedule: schedule,

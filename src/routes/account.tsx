@@ -98,13 +98,32 @@ function AccountPage() {
   const refresh = async () => {
     if (!user) return;
     setLoadingList(true);
+    // NEW: Read from addresses table (polymorphic)
     const { data } = await (supabase as any)
-      .from("customer_addresses")
+      .from("addresses")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("owner_type", "user")
+      .eq("owner_id", user.id)
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true });
-    setAddresses((data ?? []) as Address[]);
+    // Map new address format to legacy Address interface for UI compatibility
+    const mapped = (data ?? []).map((a: any) => ({
+      id: a.id,
+      user_id: user.id,
+      label: a.label ?? "",
+      full_name: a.full_name ?? "",
+      phone: a.phone ?? "",
+      phone_secondary: a.phone_alt ?? null,
+      phone_alt: a.phone_alt ?? null,
+      address: a.address_line1 ?? "",
+      city: a.city_text ?? a.neighborhood_text ?? "",
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      note: a.note ?? null,
+      is_default: a.is_default ?? false,
+      destination_country_id: a.country_id ?? null,
+    }));
+    setAddresses(mapped as Address[]);
     setLoadingList(false);
   };
 
@@ -233,25 +252,32 @@ function AccountPage() {
     setErrors({});
     setSaving(true);
     try {
+      // NEW: Map to addresses table format
       const payload = {
-        ...parsed.data,
-        note: parsed.data.note || null,
-        phone_secondary: parsed.data.phone_secondary || null,
+        owner_type: "user",
+        owner_id: user.id,
+        type: "shipping",
+        label: parsed.data.label,
+        full_name: parsed.data.full_name,
+        phone: parsed.data.phone,
         phone_alt: parsed.data.phone_alt || null,
+        country_id: destinationCountryId,
+        city_text: parsed.data.city || null,
+        neighborhood_text: parsed.data.city || null,
+        address_line1: parsed.data.address,
+        note: parsed.data.note || null,
         latitude: form.latitude,
         longitude: form.longitude,
-        destination_country_id: destinationCountryId,
-        user_id: user.id,
         is_default: editing ? editing.is_default : addresses.length === 0,
       };
       if (editing) {
         const { error } = await (supabase as any)
-          .from("customer_addresses")
+          .from("addresses")
           .update(payload)
           .eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from("customer_addresses").insert(payload);
+        const { error } = await (supabase as any).from("addresses").insert(payload);
         if (error) throw error;
       }
       toast.success(t("common.saved"));
@@ -267,7 +293,7 @@ function AccountPage() {
 
   const remove = async (a: Address) => {
     if (!confirm(t("account.delete_confirm"))) return;
-    const { error } = await (supabase as any).from("customer_addresses").delete().eq("id", a.id);
+    const { error } = await (supabase as any).from("addresses").delete().eq("id", a.id);
     if (error) return toast.error(t("common.error"));
     toast.success(t("common.deleted"));
     await refresh();
@@ -276,11 +302,12 @@ function AccountPage() {
   const setDefault = async (a: Address) => {
     if (!user) return;
     await (supabase as any)
-      .from("customer_addresses")
+      .from("addresses")
       .update({ is_default: false })
-      .eq("user_id", user.id);
+      .eq("owner_type", "user")
+      .eq("owner_id", user.id);
     await (supabase as any)
-      .from("customer_addresses")
+      .from("addresses")
       .update({ is_default: true })
       .eq("id", a.id);
     toast.success(t("account.default_updated"));

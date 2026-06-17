@@ -85,11 +85,12 @@ export const listCustomers = createServerFn({ method: "POST" })
     // Optional country filter requires an inner narrowing: get matching ids first.
     if (data.country_id) {
       const { data: addrIds } = await supabaseAdmin
-        .from("customer_addresses")
-        .select("user_id")
-        .in("user_id", eligibleIds)
-        .eq("destination_country_id", data.country_id);
-      const filtered = new Set((addrIds ?? []).map((a) => (a as { user_id: string }).user_id));
+        .from("addresses")
+        .select("owner_id")
+        .eq("owner_type", "user")
+        .in("owner_id", eligibleIds)
+        .eq("country_id", data.country_id);
+      const filtered = new Set((addrIds ?? []).map((a) => (a as { owner_id: string }).owner_id));
       profQ = profQ.in("id", Array.from(filtered));
       if (filtered.size === 0) {
         return { rows: [], total: 0, page: data.page, pageSize: data.pageSize, totals: { active: 0, blocked: 0, revenue: 0 } };
@@ -105,9 +106,10 @@ export const listCustomers = createServerFn({ method: "POST" })
     const [addrRes, ordersRes] = await Promise.all([
       pageIds.length
         ? supabaseAdmin
-            .from("customer_addresses")
-            .select("user_id, destination_country_id, is_default, created_at")
-            .in("user_id", pageIds)
+            .from("addresses")
+            .select("owner_id, country_id, is_default, created_at")
+            .eq("owner_type", "user")
+            .in("owner_id", pageIds)
             .order("is_default", { ascending: false })
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] }),
@@ -116,8 +118,8 @@ export const listCustomers = createServerFn({ method: "POST" })
         : Promise.resolve({ data: [] }),
     ]);
     const countryByUser = new Map<string, string | null>();
-    for (const a of (addrRes.data ?? []) as Array<{ user_id: string; destination_country_id: string | null }>) {
-      if (!countryByUser.has(a.user_id)) countryByUser.set(a.user_id, a.destination_country_id);
+    for (const a of (addrRes.data ?? []) as Array<{ owner_id: string; country_id: string | null }>) {
+      if (!countryByUser.has(a.owner_id)) countryByUser.set(a.owner_id, a.country_id);
     }
     const ordersByUser = new Map<string, { count: number; total: number }>();
     for (const o of (ordersRes.data ?? []) as Array<{ buyer_id: string; total: number | null }>) {
@@ -214,7 +216,7 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
     const [{ data: prof }, { data: roleRow }, { data: addrs }, { data: orders }, authRes] = await Promise.all([
       supabaseAdmin.from("profiles").select("id, email, full_name, phone, sex, address, created_at").eq("id", data.user_id).maybeSingle(),
       supabaseAdmin.from("user_roles").select("is_suspended").eq("user_id", data.user_id).eq("role", "acheteur").maybeSingle(),
-      supabaseAdmin.from("customer_addresses").select("id, label, full_name, phone, address, city, destination_country_id, is_default, created_at").eq("user_id", data.user_id).order("is_default", { ascending: false }).order("created_at", { ascending: false }),
+      supabaseAdmin.from("addresses").select("id, label, full_name, phone, address_line1, city_text, country_id, is_default, created_at").eq("owner_type", "user").eq("owner_id", data.user_id).order("is_default", { ascending: false }).order("created_at", { ascending: false }),
       supabaseAdmin.from("orders").select("id, status, total, created_at").eq("buyer_id", data.user_id).order("created_at", { ascending: false }),
       supabaseAdmin.auth.admin.getUserById(data.user_id),
     ]);
@@ -243,7 +245,17 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
     });
 
     const totalSpent = ordersOut.reduce((s, o) => s + o.total, 0);
-    const addrList = (addrs ?? []).map((a) => a as CustomerDetail["addresses"][number]);
+    const addrList = (addrs ?? []).map((a: any) => ({
+      id: a.id,
+      label: a.label ?? "",
+      full_name: a.full_name ?? "",
+      phone: a.phone ?? "",
+      address: a.address_line1 ?? "",
+      city: a.city_text ?? "",
+      destination_country_id: a.country_id ?? null,
+      is_default: a.is_default ?? false,
+      created_at: a.created_at,
+    })) as CustomerDetail["addresses"][number][];
     const defaultCountry = addrList.find((a) => a.is_default)?.destination_country_id ?? addrList[0]?.destination_country_id ?? null;
 
     return {
