@@ -10,13 +10,25 @@ const sb = supabase as any;
 // ─── REGIONS ───
 
 export async function fetchRegions(countryId: string): Promise<GeoRegion[]> {
-  const { data, error } = await sb
-    .from("geo_regions")
-    .select("id, country_id, name, created_at")
-    .eq("country_id", countryId)
-    .order("name");
-  if (error) throw error;
-  return data ?? [];
+  try {
+    const { data, error } = await sb
+      .from("geo_regions")
+      .select("id, country_id, name, created_at")
+      .eq("country_id", countryId)
+      .order("name");
+    if (error?.message?.includes("does not exist") || error?.message?.includes("schema cache")) {
+      console.warn("Table geo_regions not found. Run migration: supabase/migrations/20260617_address_system.sql");
+      return [];
+    }
+    if (error) throw error;
+    return data ?? [];
+  } catch (e: any) {
+    if (e?.message?.includes("does not exist") || e?.message?.includes("schema cache")) {
+      console.warn("Table geo_regions not found. Run migration SQL.");
+      return [];
+    }
+    throw e;
+  }
 }
 
 export async function createRegion(countryId: string, name: string): Promise<GeoRegion> {
@@ -41,24 +53,35 @@ export async function deleteRegion(id: string): Promise<void> {
 
 // ─── CITIES ───
 
+function isMissingTableError(e: any): boolean {
+  const msg = e?.message || "";
+  return msg.includes("does not exist") || msg.includes("schema cache") || msg.includes("not found");
+}
+
 export async function fetchCities(regionId: string): Promise<GeoCity[]> {
-  const { data, error } = await sb
-    .from("geo_cities")
-    .select("id, country_id, region_id, name, created_at")
-    .eq("region_id", regionId)
-    .order("name");
-  if (error) throw error;
-  return data ?? [];
+  try {
+    const { data, error } = await sb
+      .from("geo_cities")
+      .select("id, country_id, region_id, name, created_at")
+      .eq("region_id", regionId)
+      .order("name");
+    if (isMissingTableError(error)) return [];
+    if (error) throw error;
+    return data ?? [];
+  } catch (e) { if (isMissingTableError(e)) return []; throw e; }
 }
 
 export async function fetchCitiesByCountry(countryId: string): Promise<GeoCity[]> {
-  const { data, error } = await sb
-    .from("geo_cities")
-    .select("id, country_id, region_id, name, created_at")
-    .eq("country_id", countryId)
-    .order("name");
-  if (error) throw error;
-  return data ?? [];
+  try {
+    const { data, error } = await sb
+      .from("geo_cities")
+      .select("id, country_id, region_id, name, created_at")
+      .eq("country_id", countryId)
+      .order("name");
+    if (isMissingTableError(error)) return [];
+    if (error) throw error;
+    return data ?? [];
+  } catch (e) { if (isMissingTableError(e)) return []; throw e; }
 }
 
 export async function createCity(countryId: string, regionId: string | null, name: string): Promise<GeoCity> {

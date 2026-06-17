@@ -32,12 +32,18 @@ export function GeoRegionsPanel() {
   const [showImport, setShowImport] = useState(false);
   const [importReport, setImportReport] = useState<string | null>(null);
 
-  const { data: regions, isLoading } = useQuery({
+  const { data: regions, isLoading, error: regionsError } = useQuery({
     queryKey: ["geo_regions", selectedCountryId],
     queryFn: () => fetchRegions(selectedCountryId),
     enabled: !!selectedCountryId,
     staleTime: Infinity,
   });
+
+  // Détecter si la table n'existe pas encore
+  const tableMissing = regionsError && (
+    (regionsError as any)?.message?.includes("schema cache") ||
+    (regionsError as any)?.message?.includes("does not exist")
+  );
 
   const filtered = (regions ?? []).filter((r) =>
     !q || r.name.toLowerCase().includes(q.toLowerCase()),
@@ -153,6 +159,20 @@ export function GeoRegionsPanel() {
           </SelectContent>
         </Select>
       </div>
+
+      {tableMissing && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-2">
+          <p className="font-semibold">⚠️ Tables manquantes dans Supabase</p>
+          <p>Les tables geo_regions, geo_cities et addresses n'ont pas été créées.</p>
+          <p className="font-medium">Pour corriger :</p>
+          <ol className="list-decimal ml-5 space-y-1 text-xs">
+            <li>Ouvrez Supabase Dashboard → SQL Editor</li>
+            <li>Copiez le script depuis : supabase/migrations/20260617_address_system.sql</li>
+            <li>Cliquez sur "Run"</li>
+            <li>Rafraîchissez cette page</li>
+          </ol>
+        </div>
+      )}
 
       {!selectedCountryId ? (
         <div className="rounded-lg border border-dashed p-6 text-center">
