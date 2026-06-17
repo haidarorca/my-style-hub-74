@@ -901,12 +901,12 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
             <Store className="h-3.5 w-3.5" />
             Selectionner une boutique (optionnel)
           </label>
-          <Select value={selectedVendorId ?? ""} onValueChange={(v) => { setSelectedVendorId(v || null); setQ(""); setSelectedProducts(new Set()); }}>
+          <Select value={selectedVendorId ?? "__all__"} onValueChange={(v) => { setSelectedVendorId(v === "__all__" ? null : v); setQ(""); setSelectedProducts(new Set()); }}>
             <SelectTrigger className="text-sm h-9">
               <SelectValue placeholder="Toutes les boutiques" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Toutes les boutiques</SelectItem>
+              <SelectItem value="__all__">Toutes les boutiques</SelectItem>
               {vendorList.map((v) => (
                 <SelectItem key={v.id} value={v.id}>{v.shop_name}</SelectItem>
               ))}
