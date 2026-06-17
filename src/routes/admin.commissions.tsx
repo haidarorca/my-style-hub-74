@@ -761,131 +761,288 @@ function RateInline({ defaultValue, placeholder, onSave }: {
   );
 }
 
-/* ---------- Pair product rules (V2 - enriched) ---------- */
+/* ============================================================
+   PAIR PRODUCT RULES V3 — Commission Management Center
+   Scalable, paginated, with vendor filtering and rule inheritance
+============================================================ */
+
+/** Kawzone vendors only: admin shops OR commission mode */
+function useKawzoneVendors() {
+  return useQuery({
+    queryKey: ["kawzone-vendors"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles")
+        .select("id, shop_name, full_name, shop_logo_url, source_country_id, vendor_mode, is_admin_shop")
+        .or("is_admin_shop.eq.true,vendor_mode.eq.commission")
+        .order("shop_name");
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; shop_name: string | null; full_name: string | null;
+        shop_logo_url: string | null; source_country_id: string | null;
+        vendor_mode: string | null; is_admin_shop: boolean;
+      }>;
+    },
+  });
+}
+
+/** Count products per vendor */
+function useVendorProductCounts(vendorIds: string[]) {
+  return useQuery({
+    queryKey: ["vendor-product-counts", vendorIds.sort().join(",")],
+    enabled: vendorIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("vendor_id")
+        .in("vendor_id", vendorIds);
+      const m = new Map<string, number>();
+      (data ?? []).forEach((p: any) => {
+        m.set(p.vendor_id, (m.get(p.vendor_id) ?? 0) + 1);
+      });
+      return m;
+    },
+  });
+}
+
+/** Resolve effective rate with inheritance chain */
+function resolveEffectiveRate(
+  productId: string,
+  categoryId: string | null,
+  vendorId: string | null,
+  srcId: string | null,
+  dstId: string | null,
+  rules: Rule[],
+): { rate: number; source: string; sourceId?: string } | null {
+  // 1. Product-specific rule (highest priority)
+  const productRule = rules.find((r) =>
+    r.scope === "product" && r.product_id === productId
+    && r.is_enabled
+    && (r.source_country_id ?? null) === srcId
+    && (r.destination_country_id ?? null) === dstId,
+  );
+  if (productRule) return { rate: productRule.rate_percent, source: "Produit", sourceId: productRule.id };
+
+  // 2. Category rule
+  if (categoryId) {
+    const catRule = rules.find((r) =>
+      r.scope === "category" && r.category_id === categoryId
+      && r.is_enabled
+      && (r.source_country_id ?? null) === srcId
+      && (r.destination_country_id ?? null) === dstId
+      && (r.vendor_id ?? null) === null,
+    );
+    if (catRule) return { rate: catRule.rate_percent, source: "Catégorie", sourceId: catRule.id };
+  }
+
+  // 3. Vendor rule
+  if (vendorId) {
+    const vendRule = rules.find((r) =>
+      r.scope === "vendor" && r.vendor_id === vendorId
+      && r.is_enabled
+      && (r.source_country_id ?? null) === srcId
+      && (r.destination_country_id ?? null) === dstId,
+    );
+    if (vendRule) return { rate: vendRule.rate_percent, source: "Boutique", sourceId: vendRule.id };
+  }
+
+  // 4. Country pair rule
+  const pairRule = rules.find((r) =>
+    r.scope === "country_pair"
+    && r.is_enabled
+    && (r.source_country_id ?? null) === srcId
+    && (r.destination_country_id ?? null) === dstId,
+  );
+  if (pairRule) return { rate: pairRule.rate_percent, source: "Pays", sourceId: pairRule.id };
+
+  // 5. Global rule (lowest priority)
+  const globalRule = rules.find((r) => r.scope === "global" && r.is_enabled);
+  if (globalRule) return { rate: globalRule.rate_percent, source: "Globale", sourceId: globalRule.id };
+
+  return null;
+}
+
+/* ---------- Main PairProductRules V3 ---------- */
 function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: string | null }) {
   const qc = useQueryClient();
   const { data: rules } = useRules();
   const { data: countries } = useCountries({ onlyEnabled: true });
+  const { data: allCategories } = useCategories();
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
-  const [showProducts, setShowProducts] = useState(false);
+  const [vendorQ, setVendorQ] = useState("");
+  const [viewMode, setViewMode] = useState<"rules" | "all">("rules");
   const [productQ, setProductQ] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [commissionMode, setCommissionMode] = useState<"percent" | "final_price">("percent");
-  const [commissionValue, setCommissionValue] = useState("");
+  const [bulkMode, setBulkMode] = useState<"percent" | "final_price">("percent");
+  const [bulkValue, setBulkValue] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  /* ——— Vendor detail with count ——— */
-  const { data: vendorDetail } = useQuery({
-    queryKey: ["vendor-detail", selectedVendorId],
-    enabled: !!selectedVendorId,
+  /* ——— Kawzone vendors ——— */
+  const { data: kzVendors, isLoading: vendorsLoading } = useKawzoneVendors();
+  const vendorIds = useMemo(() => (kzVendors ?? []).map((v) => v.id), [kzVendors]);
+  const { data: productCounts } = useVendorProductCounts(vendorIds);
+
+  // Filtered vendors
+  const filteredVendors = useMemo(() => {
+    const s = vendorQ.trim().toLowerCase();
+    return (kzVendors ?? []).filter((v) => {
+      const name = (v.shop_name || v.full_name || "").toLowerCase();
+      return !s || name.includes(s);
+    });
+  }, [kzVendors, vendorQ]);
+
+  const selectedVendor = kzVendors?.find((v) => v.id === selectedVendorId);
+  const vendorCountry = countries?.find((c) => c.id === selectedVendor?.source_country_id);
+
+  /* ——— Product rules for this vendor + pair ——— */
+  const vendorProductRules = useMemo(() => {
+    if (!selectedVendorId) return [];
+    return (rules ?? []).filter((r) =>
+      r.scope === "product"
+      && r.product_id != null
+      && (r.source_country_id ?? null) === srcId
+      && (r.destination_country_id ?? null) === dstId,
+    );
+  }, [rules, selectedVendorId, srcId, dstId]);
+
+  /* ——— Products with rules (paginated) ——— */
+  const productIdsWithRules = useMemo(() =>
+    new Set(vendorProductRules.map((r) => r.product_id).filter(Boolean) as string[]),
+  [vendorProductRules]);
+
+  const { data: ruledProducts, isLoading: ruledLoading } = useQuery({
+    queryKey: ["vendor-ruled-products", selectedVendorId, Array.from(productIdsWithRules).join(",")],
+    enabled: !!selectedVendorId && productIdsWithRules.size > 0 && viewMode === "rules",
     queryFn: async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, shop_name, full_name, shop_logo_url, source_country_id, phone")
-        .eq("id", selectedVendorId!)
-        .maybeSingle();
-      const { count } = await supabase
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("vendor_id", selectedVendorId!);
-      return {
-        id: profile?.id ?? selectedVendorId!,
-        name: profile?.shop_name || profile?.full_name || "Sans nom",
-        logo: profile?.shop_logo_url ?? null,
-        countryId: profile?.source_country_id ?? null,
-        productCount: count ?? 0,
-      };
-    },
-  });
-
-  const vendorCountry = countries?.find((c) => c.id === vendorDetail?.countryId);
-
-  /* ——— Vendor products with images ——— */
-  const { data: vendorProducts, isLoading: productsLoading } = useQuery({
-    queryKey: ["vendor-products-full", selectedVendorId],
-    enabled: !!selectedVendorId && showProducts,
-    queryFn: async () => {
+      const ids = Array.from(productIdsWithRules);
       const { data: prods } = await supabase
         .from("products")
-        .select("id, name, code, price, vendor_id")
+        .select("id, name, code, price, category_id, vendor_id")
         .eq("vendor_id", selectedVendorId!)
+        .in("id", ids)
         .order("name");
-      if (!prods || prods.length === 0) return [];
-
-      // Get first image for each product
-      const productIds = prods.map((p) => p.id);
-      const { data: images } = await supabase
+      if (!prods?.length) return [];
+      // Get images
+      const { data: imgs } = await supabase
         .from("product_images")
         .select("product_id, url")
-        .in("product_id", productIds)
+        .in("product_id", ids)
         .order("position", { ascending: true });
-
-      const imageMap = new Map<string, string>();
-      (images ?? []).forEach((img) => {
-        if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
-      });
-
+      const imgMap = new Map<string, string>();
+      (imgs ?? []).forEach((i) => { if (!imgMap.has(i.product_id)) imgMap.set(i.product_id, i.url); });
       return prods.map((p) => ({
-        id: p.id,
-        name: p.name,
-        code: p.code,
-        price: p.price,
-        supplierPrice: Math.round(p.price * 0.6), // estimated
-        image: imageMap.get(p.id) ?? null,
+        id: p.id, name: p.name, code: p.code, price: p.price,
+        categoryId: p.category_id,
+        supplierPrice: Math.round(p.price * 0.6),
+        image: imgMap.get(p.id) ?? null,
       }));
     },
   });
 
-  /* ——— Existing product rules for this pair ——— */
-  const productRulesForPair = useMemo(() => (rules ?? []).filter((r) =>
-    r.scope === "product"
-    && (r.source_country_id ?? null) === srcId
-    && (r.destination_country_id ?? null) === dstId,
-  ), [rules, srcId, dstId]);
-
-  const ruleForProduct = (productId: string) => {
-    return productRulesForPair.find((r) => r.product_id === productId);
-  };
-
-  /* ——— Filtered products (search) ——— */
-  const filteredProducts = useMemo(() => {
+  // Filter ruled products by search
+  const filteredRuledProducts = useMemo(() => {
     const s = productQ.trim().toLowerCase();
-    if (!s) return vendorProducts ?? [];
-    return (vendorProducts ?? []).filter((p) =>
-      p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s)
+    if (!s) return ruledProducts ?? [];
+    return (ruledProducts ?? []).filter((p) =>
+      p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s),
     );
-  }, [vendorProducts, productQ]);
+  }, [ruledProducts, productQ]);
 
-  /* ——— Commission calculation ——— */
+  /* ——— All vendor products (paginated) for "all" view ——— */
+  const { data: allVendorProducts, isLoading: allLoading } = useQuery({
+    queryKey: ["vendor-products-paginated", selectedVendorId, page, productQ, viewMode],
+    enabled: !!selectedVendorId && viewMode === "all",
+    queryFn: async () => {
+      let q = supabase
+        .from("products")
+        .select("id, name, code, price, category_id, vendor_id", { count: "exact" })
+        .eq("vendor_id", selectedVendorId!)
+        .order("name")
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (productQ.trim()) {
+        const s = productQ.trim();
+        q = q.or(`name.ilike.%${s}%,code.ilike.%${s}%`);
+      }
+      const { data: prods, count } = await q;
+      if (!prods?.length) return { items: [], total: 0 };
+      const ids = prods.map((p) => p.id);
+      const { data: imgs } = await supabase
+        .from("product_images")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .order("position", { ascending: true });
+      const imgMap = new Map<string, string>();
+      (imgs ?? []).forEach((i) => { if (!imgMap.has(i.product_id)) imgMap.set(i.product_id, i.url); });
+      return {
+        items: prods.map((p) => ({
+          id: p.id, name: p.name, code: p.code, price: p.price,
+          categoryId: p.category_id,
+          supplierPrice: Math.round(p.price * 0.6),
+          image: imgMap.get(p.id) ?? null,
+        })),
+        total: count ?? 0,
+      };
+    },
+  });
+
+  /* ——— Add-product search (when adding new products) ——— */
+  const [addQ, setAddQ] = useState("");
+  const { data: addSearchResults } = useQuery({
+    queryKey: ["vendor-products-search", selectedVendorId, addQ],
+    enabled: !!selectedVendorId && showAddPanel && addQ.trim().length >= 2,
+    queryFn: async () => {
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id, name, code, price, category_id")
+        .eq("vendor_id", selectedVendorId!)
+        .or(`name.ilike.%${addQ.trim()}%,code.ilike.%${addQ.trim()}%`)
+        .limit(20);
+      const ids = (prods ?? []).map((p) => p.id);
+      if (ids.length === 0) return [];
+      const { data: imgs } = await supabase
+        .from("product_images")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .order("position", { ascending: true });
+      const imgMap = new Map<string, string>();
+      (imgs ?? []).forEach((i) => { if (!imgMap.has(i.product_id)) imgMap.set(i.product_id, i.url); });
+      return (prods ?? []).map((p) => ({
+        id: p.id, name: p.name, code: p.code, price: p.price,
+        categoryId: p.category_id,
+        supplierPrice: Math.round(p.price * 0.6),
+        image: imgMap.get(p.id) ?? null,
+      }));
+    },
+  });
+
+  /* ——— Helpers ——— */
   const calcCommission = (supplierPrice: number, mode: "percent" | "final_price", value: number) => {
     if (mode === "percent") {
       const commissionAmount = Math.round((supplierPrice * value) / 100);
-      return {
-        salePrice: supplierPrice + commissionAmount,
-        commissionAmount,
-        ratePercent: value,
-      };
+      return { salePrice: supplierPrice + commissionAmount, commissionAmount, ratePercent: value };
     }
-    // final_price mode: value is the desired final price
     const commissionAmount = Math.max(0, value - supplierPrice);
     const ratePercent = supplierPrice > 0 ? (commissionAmount / supplierPrice) * 100 : 0;
     return { salePrice: value, commissionAmount, ratePercent };
   };
 
-  /* ——— Actions ——— */
   async function addRule(product_id: string, ratePercent: number) {
     try {
       await saveCommissionRule({
         scope: "product", product_id,
         source_country_id: srcId, destination_country_id: dstId,
-        rate_percent: ratePercent, is_enabled: true,
+        rate_percent: Math.min(100, Math.max(0, ratePercent)), is_enabled: true,
       });
     } catch (error: any) {
       return toast.error(error.message);
     }
-    toast.success("Règle produit enregistrée");
+    toast.success("Règle enregistrée");
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
     qc.invalidateQueries({ queryKey: ["display-prices"] });
     qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+    qc.invalidateQueries({ queryKey: ["vendor-ruled-products"] });
   }
 
   async function removeRule(ruleId: string) {
@@ -894,24 +1051,22 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["commission_rules"] });
     qc.invalidateQueries({ queryKey: ["display-prices"] });
-    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
+    qc.invalidateQueries({ queryKey: ["vendor-ruled-products"] });
   }
 
-  async function applyToSelected() {
+  async function applyBulk() {
     const ids = Array.from(selectedProducts);
     if (ids.length === 0) return toast.error("Aucun produit sélectionné");
-    const val = Number(commissionValue);
+    const val = Number(bulkValue);
     if (isNaN(val) || val <= 0) return toast.error("Valeur invalide");
-
+    const prods = viewMode === "rules" ? ruledProducts : allVendorProducts?.items;
     let applied = 0;
     for (const pid of ids) {
-      const prod = vendorProducts?.find((p) => p.id === pid);
+      const prod = prods?.find((p) => p.id === pid);
       if (!prod) continue;
-      const result = calcCommission(prod.supplierPrice, commissionMode, val);
-      if (result.ratePercent >= 0 && result.ratePercent <= 100) {
-        await addRule(pid, Math.round(result.ratePercent * 100) / 100);
-        applied++;
-      }
+      const result = calcCommission(prod.supplierPrice, bulkMode, val);
+      await addRule(pid, Math.round(result.ratePercent * 100) / 100);
+      applied++;
     }
     toast.success(`${applied} règle(s) appliquée(s)`);
     setSelectedProducts(new Set());
@@ -923,293 +1078,393 @@ function PairProductRules({ srcId, dstId }: { srcId: string | null; dstId: strin
     setSelectedProducts(next);
   };
 
-  const selectAllFiltered = () => {
-    const ids = filteredProducts.map((p) => p.id);
+  const selectAllVisible = () => {
+    const items = viewMode === "rules" ? filteredRuledProducts : (allVendorProducts?.items ?? []);
+    const ids = items.map((p) => p.id);
     const all = ids.every((id) => selectedProducts.has(id));
     const next = new Set(selectedProducts);
     all ? ids.forEach((id) => next.delete(id)) : ids.forEach((id) => next.add(id));
     setSelectedProducts(next);
   };
 
-  /* ——— Vendors list for select ——— */
-  const { data: vendors } = useVendors();
-  const vendorList = useMemo(() => {
-    return (vendors ?? []).map((v: any) => ({
-      id: v.user_id,
-      shop_name: v.profiles?.shop_name ?? v.profiles?.full_name ?? "Sans nom",
-    }));
-  }, [vendors]);
+  const totalPages = Math.ceil((allVendorProducts?.total ?? 0) / PAGE_SIZE);
 
+  /* ——— Render ——— */
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Package className="h-4 w-4 text-violet-600" />
           Règles par produit
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* ===== STEP 1: Vendor Selection ===== */}
-        <div>
-          <label className="text-xs font-medium text-slate-700 mb-1.5 block flex items-center gap-1.5">
+      <CardContent className="space-y-3">
+        {/* ===== VENDOR SELECTOR ===== */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
             <Store className="h-3.5 w-3.5" />
-            Sélectionner une boutique
+            Boutique Kawzone
           </label>
-          <Select
-            value={selectedVendorId ?? "__all__"}
-            onValueChange={(v) => {
-              const vid = v === "__all__" ? null : v;
-              setSelectedVendorId(vid);
-              setShowProducts(false);
-              setProductQ("");
-              setSelectedProducts(new Set());
-              setCommissionValue("");
-            }}
-          >
-            <SelectTrigger className="text-sm h-9">
-              <SelectValue placeholder="Choisir une boutique..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Choisir une boutique...</SelectItem>
-              {vendorList.map((v) => (
-                <SelectItem key={v.id} value={v.id}>{v.shop_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* ===== STEP 2: Vendor Card ===== */}
-        {selectedVendorId && vendorDetail && (
-          <div className="rounded-lg border bg-gradient-to-br from-violet-50 to-white p-4 space-y-3">
-            <div className="flex items-center gap-3">
-              {/* Logo */}
-              <div className="h-14 w-14 rounded-lg bg-white border shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                {vendorDetail.logo ? (
-                  <img src={vendorDetail.logo} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Store className="h-6 w-6 text-slate-400" />
-                )}
-              </div>
-              {/* Info */}
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-sm truncate">{vendorDetail.name}</p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {vendorCountry && (
-                    <span className="flex items-center gap-1">
-                      <span>{vendorCountry.flag_emoji}</span>
-                      <span>{vendorCountry.name}</span>
-                    </span>
-                  )}
-                  <span>·</span>
-                  <span>{vendorDetail.productCount} produit{vendorDetail.productCount > 1 ? "s" : ""}</span>
-                </div>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              className="w-full bg-violet-600 hover:bg-violet-700"
-              onClick={() => setShowProducts(true)}
-            >
-              <Package className="h-4 w-4 mr-2" />
-              Voir les produits de cette boutique
-            </Button>
-          </div>
-        )}
-
-        {/* ===== STEP 3: Products Table ===== */}
-        {showProducts && selectedVendorId && (
-          <div className="space-y-3 border rounded-lg p-3 bg-slate-50/50">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
+          {!selectedVendorId ? (
+            <>
+              <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  value={productQ}
-                  onChange={(e) => setProductQ(e.target.value)}
-                  placeholder="Rechercher un produit (nom ou code)..."
+                  value={vendorQ}
+                  onChange={(e) => setVendorQ(e.target.value)}
+                  placeholder="Rechercher une boutique..."
                   className="pl-7 text-sm"
                 />
               </div>
-              <Button size="sm" variant="outline" onClick={selectAllFiltered}>
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Tout sélectionner
+              {vendorsLoading ? (
+                <p className="text-xs text-muted-foreground">Chargement…</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto rounded-md border divide-y">
+                  {filteredVendors.map((v) => {
+                    const c = countries?.find((x) => x.id === v.source_country_id);
+                    const count = productCounts?.get(v.id) ?? 0;
+                    const ruleCount = vendorProductRules.filter((r) => {
+                      // Approximate: we'll count rules for products of this vendor
+                      return true;
+                    }).length;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => { setSelectedVendorId(v.id); setVendorQ(""); }}
+                        className="flex items-center gap-3 w-full text-left p-2.5 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="h-10 w-10 rounded-lg bg-white border shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                          {v.shop_logo_url ? (
+                            <img src={v.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <Store className="h-5 w-5 text-slate-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{v.shop_name || v.full_name || "Sans nom"}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {c && <span className="flex items-center gap-0.5">{c.flag_emoji} {c.name}</span>}
+                            <span>· {count} produit{count > 1 ? "s" : ""}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </button>
+                    );
+                  })}
+                  {filteredVendors.length === 0 && (
+                    <p className="p-3 text-xs text-muted-foreground text-center">Aucune boutique trouvée.</p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* ===== VENDOR CARD (selected) ===== */
+            <div className="rounded-lg border bg-gradient-to-br from-violet-50 to-white p-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-lg bg-white border shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                  {selectedVendor?.shop_logo_url ? (
+                    <img src={selectedVendor.shop_logo_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Store className="h-6 w-6 text-slate-400" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm">{selectedVendor?.shop_name || selectedVendor?.full_name || "Sans nom"}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {vendorCountry && (
+                      <span className="flex items-center gap-0.5">{vendorCountry.flag_emoji} {vendorCountry.name}</span>
+                    )}
+                    <span>· {(productCounts?.get(selectedVendorId) ?? 0)} produits</span>
+                    <span>· {vendorProductRules.length} règle(s)</span>
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => {
+                  setSelectedVendorId(null); setViewMode("rules"); setProductQ("");
+                  setShowAddPanel(false); setSelectedProducts(new Set());
+                }}>
+                  Changer
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===== PRODUCTS SECTION (when vendor selected) ===== */}
+        {selectedVendorId && (
+          <div className="space-y-2">
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={productQ}
+                  onChange={(e) => { setProductQ(e.target.value); setPage(0); }}
+                  placeholder="Rechercher un produit..."
+                  className="pl-7 text-sm h-8"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm" variant={viewMode === "rules" ? "default" : "outline"}
+                  className={`h-8 text-xs ${viewMode === "rules" ? "bg-violet-600" : ""}`}
+                  onClick={() => setViewMode("rules")}
+                >
+                  Avec règles ({vendorProductRules.length})
+                </Button>
+                <Button
+                  size="sm" variant={viewMode === "all" ? "default" : "outline"}
+                  className={`h-8 text-xs ${viewMode === "all" ? "bg-violet-600" : ""}`}
+                  onClick={() => setViewMode("all")}
+                >
+                  Tous les produits
+                </Button>
+              </div>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowAddPanel(!showAddPanel)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Ajouter
               </Button>
             </div>
 
-            {/* Selection count + Commission controls */}
+            {/* Bulk action bar */}
             {selectedProducts.size > 0 && (
               <div className="flex flex-wrap items-center gap-2 p-2 bg-violet-50 rounded-lg border border-violet-200">
-                <Badge className="bg-violet-100 text-violet-800">
-                  {selectedProducts.size} sélectionné{selectedProducts.size > 1 ? "s" : ""}
-                </Badge>
-                {/* Mode toggle */}
+                <Badge className="bg-violet-100 text-violet-800 text-xs">{selectedProducts.size} sélectionné(s)</Badge>
                 <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant={commissionMode === "percent" ? "default" : "outline"}
-                    className={`text-xs h-7 ${commissionMode === "percent" ? "bg-violet-600" : ""}`}
-                    onClick={() => setCommissionMode("percent")}
-                  >
+                  <Button size="sm" variant={bulkMode === "percent" ? "default" : "outline"}
+                    className={`h-7 text-xs ${bulkMode === "percent" ? "bg-violet-600" : ""}`}
+                    onClick={() => setBulkMode("percent")}>
                     <Percent className="h-3 w-3 mr-1" /> %
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={commissionMode === "final_price" ? "default" : "outline"}
-                    className={`text-xs h-7 ${commissionMode === "final_price" ? "bg-violet-600" : ""}`}
-                    onClick={() => setCommissionMode("final_price")}
-                  >
+                  <Button size="sm" variant={bulkMode === "final_price" ? "default" : "outline"}
+                    className={`h-7 text-xs ${bulkMode === "final_price" ? "bg-violet-600" : ""}`}
+                    onClick={() => setBulkMode("final_price")}>
                     <Banknote className="h-3 w-3 mr-1" /> Prix final
                   </Button>
                 </div>
-                <div className="relative w-32">
-                  <Input
-                    type="number"
-                    value={commissionValue}
-                    onChange={(e) => setCommissionValue(e.target.value)}
-                    placeholder={commissionMode === "percent" ? "15" : "6500"}
-                    className="text-xs h-7 pr-10"
-                  />
+                <div className="relative w-28">
+                  <Input type="number" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}
+                    placeholder={bulkMode === "percent" ? "15" : "6500"} className="text-xs h-7 pr-10" />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                    {commissionMode === "percent" ? "%" : "FCFA"}
+                    {bulkMode === "percent" ? "%" : "FCFA"}
                   </span>
                 </div>
-                <Button size="sm" className="h-7 bg-violet-600 hover:bg-violet-700 text-xs" onClick={applyToSelected}>
+                <Button size="sm" className="h-7 bg-violet-600 hover:bg-violet-700 text-xs" onClick={applyBulk}>
                   <Check className="h-3 w-3 mr-1" /> Appliquer
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedProducts(new Set())}>
+                  <X className="h-3 w-3 mr-1" /> Annuler
                 </Button>
               </div>
             )}
 
-            {/* Products Table */}
-            {productsLoading ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Chargement des produits…</p>
-            ) : (
-              <div className="rounded-md border bg-white overflow-hidden">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50">
-                        <TableHead className="w-8 p-2">
-                          <Checkbox
-                            checked={filteredProducts.length > 0 && filteredProducts.every((p) => selectedProducts.has(p.id))}
-                            onCheckedChange={selectAllFiltered}
-                          />
-                        </TableHead>
-                        <TableHead className="text-[10px] p-2 w-12">Image</TableHead>
-                        <TableHead className="text-[10px] p-2">Produit</TableHead>
-                        <TableHead className="text-[10px] p-2 text-right">Prix frns.</TableHead>
-                        <TableHead className="text-[10px] p-2 text-right">Prix vente</TableHead>
-                        <TableHead className="text-[10px] p-2 text-right">Commission</TableHead>
-                        <TableHead className="text-[10px] p-2 text-right">%</TableHead>
-                        <TableHead className="text-[10px] p-2 text-center w-20">Règle</TableHead>
-                        <TableHead className="text-[10px] p-2 text-center w-16">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProducts.map((p) => {
-                        const rule = ruleForProduct(p.id);
-                        const hasRule = !!rule;
-                        const commissionAmount = hasRule
-                          ? Math.round((p.supplierPrice * rule.rate_percent) / 100)
-                          : 0;
-                        return (
-                          <TableRow key={p.id} className="hover:bg-slate-50">
-                            <TableCell className="p-2">
-                              <Checkbox
-                                checked={selectedProducts.has(p.id)}
-                                onCheckedChange={() => toggleProduct(p.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <div className="h-10 w-10 rounded border bg-slate-100 flex items-center justify-center overflow-hidden">
-                                {p.image ? (
-                                  <img src={p.image} alt="" className="h-full w-full object-cover" />
-                                ) : (
-                                  <Package className="h-4 w-4 text-slate-300" />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <p className="text-sm font-medium truncate max-w-[150px]">{p.name}</p>
-                              <p className="text-[10px] text-muted-foreground">{p.code}</p>
-                            </TableCell>
-                            <TableCell className="p-2 text-right text-xs font-medium">
-                              {p.supplierPrice.toLocaleString("fr-FR")}
-                            </TableCell>
-                            <TableCell className="p-2 text-right text-xs">
-                              {p.price.toLocaleString("fr-FR")}
-                            </TableCell>
-                            <TableCell className="p-2 text-right text-xs text-violet-700 font-medium">
-                              {hasRule ? `${commissionAmount.toLocaleString("fr-FR")} FCFA` : "—"}
-                            </TableCell>
-                            <TableCell className="p-2 text-right">
-                              {hasRule ? (
-                                <Badge variant="secondary" className="text-[10px]">{rule.rate_percent}%</Badge>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              {hasRule ? (
-                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  Active
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                  Aucune
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              {hasRule ? (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeRule(rule.id)}>
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
-                              ) : (
-                                <ProductQuickApply
-                                  product={p}
-                                  onApply={(mode, value) => {
-                                    const result = calcCommission(p.supplierPrice, mode, value);
-                                    addRule(p.id, Math.round(result.ratePercent * 100) / 100);
-                                  }}
-                                />
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {filteredProducts.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center text-xs text-muted-foreground py-6">
-                            {productQ ? "Aucun produit trouvé pour cette recherche." : "Aucun produit dans cette boutique."}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+            {/* Add Product Panel */}
+            {showAddPanel && (
+              <div className="rounded-lg border bg-slate-50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium">Ajouter des produits</p>
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowAddPanel(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input value={addQ} onChange={(e) => setAddQ(e.target.value)}
+                    placeholder="Rechercher un produit à ajouter (min 2 caractères)..." className="pl-7 text-sm" />
+                </div>
+                {addQ.trim().length >= 2 && (
+                  <div className="max-h-64 overflow-y-auto rounded-md border bg-white divide-y">
+                    {(addSearchResults ?? []).map((p) => {
+                      const hasRule = productIdsWithRules.has(p.id);
+                      const inheritance = resolveEffectiveRate(p.id, p.categoryId, selectedVendorId, srcId, dstId, rules ?? []);
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 p-2 hover:bg-slate-50">
+                          <div className="h-8 w-8 rounded border bg-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                            {p.image ? <img src={p.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-3 w-3 text-slate-300" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium truncate">{p.name}</p>
+                            <p className="text-[10px] text-muted-foreground">Frns: {p.supplierPrice.toLocaleString("fr-FR")} FCFA</p>
+                            {inheritance && !hasRule && (
+                              <p className="text-[10px] text-amber-600">Hérité: {inheritance.source} ({inheritance.rate}%)</p>
+                            )}
+                          </div>
+                          {hasRule ? (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">Défini</Badge>
+                          ) : (
+                            <ProductQuickApplyV3 product={p} onApply={(mode, value) => {
+                              const result = calcCommission(p.supplierPrice, mode, value);
+                              addRule(p.id, result.ratePercent);
+                            }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                    {(addSearchResults ?? []).length === 0 && (
+                      <p className="p-3 text-xs text-muted-foreground text-center">Aucun produit trouvé.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Products Table */}
+            <div className="rounded-md border bg-white overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="w-6 p-1">
+                        <Checkbox
+                          checked={(() => {
+                            const items = viewMode === "rules" ? filteredRuledProducts : (allVendorProducts?.items ?? []);
+                            return items.length > 0 && items.every((p) => selectedProducts.has(p.id));
+                          })()}
+                          onCheckedChange={selectAllVisible}
+                        />
+                      </TableHead>
+                      <TableHead className="text-[10px] p-1 w-10">Img</TableHead>
+                      <TableHead className="text-[10px] p-1">Produit</TableHead>
+                      <TableHead className="text-[10px] p-1 text-right">Frns.</TableHead>
+                      <TableHead className="text-[10px] p-1 text-right">Vente</TableHead>
+                      <TableHead className="text-[10px] p-1 text-right">Com. FCFA</TableHead>
+                      <TableHead className="text-[10px] p-1 text-right">%</TableHead>
+                      <TableHead className="text-[10px] p-1 text-center">Source</TableHead>
+                      <TableHead className="text-[10px] p-1 text-center w-14">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewMode === "rules" ? (
+                      /* Rules view */
+                      ruledLoading ? (
+                        <TableRow><TableCell colSpan={9} className="text-center text-xs py-4">Chargement…</TableCell></TableRow>
+                      ) : (
+                        filteredRuledProducts.map((p) => {
+                          const rule = vendorProductRules.find((r) => r.product_id === p.id);
+                          const rate = rule?.rate_percent ?? 0;
+                          const commissionAmount = Math.round((p.supplierPrice * rate) / 100);
+                          const inheritance = resolveEffectiveRate(p.id, p.categoryId, selectedVendorId, srcId, dstId, rules ?? []);
+                          return (
+                            <TableRow key={p.id} className="hover:bg-slate-50">
+                              <TableCell className="p-1"><Checkbox checked={selectedProducts.has(p.id)} onCheckedChange={() => toggleProduct(p.id)} /></TableCell>
+                              <TableCell className="p-1">
+                                <div className="h-8 w-8 rounded border bg-slate-100 flex items-center justify-center overflow-hidden">
+                                  {p.image ? <img src={p.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-3 w-3 text-slate-300" />}
+                                </div>
+                              </TableCell>
+                              <TableCell className="p-1"><p className="text-xs font-medium truncate max-w-[120px]">{p.name}</p><p className="text-[9px] text-muted-foreground">{p.code}</p></TableCell>
+                              <TableCell className="p-1 text-right text-[10px]">{p.supplierPrice.toLocaleString("fr-FR")}</TableCell>
+                              <TableCell className="p-1 text-right text-[10px]">{p.price.toLocaleString("fr-FR")}</TableCell>
+                              <TableCell className="p-1 text-right text-[10px] text-violet-700 font-medium">{commissionAmount.toLocaleString("fr-FR")}</TableCell>
+                              <TableCell className="p-1 text-right"><Badge variant="secondary" className="text-[9px]">{rate}%</Badge></TableCell>
+                              <TableCell className="p-1 text-center">
+                                {inheritance?.sourceId === rule?.id ? (
+                                  <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">Spécifique</Badge>
+                                ) : inheritance ? (
+                                  <span className="text-[9px] text-amber-600">{inheritance.source}</span>
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="p-1 text-center">
+                                {rule ? (
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <ProductQuickApplyV3 product={p} onApply={(mode, value) => {
+                                      const result = calcCommission(p.supplierPrice, mode, value);
+                                      addRule(p.id, result.ratePercent);
+                                    }} />
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeRule(rule.id)}>
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <ProductQuickApplyV3 product={p} onApply={(mode, value) => {
+                                    const result = calcCommission(p.supplierPrice, mode, value);
+                                    addRule(p.id, result.ratePercent);
+                                  }} />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )
+                    ) : (
+                      /* All products view */
+                      allLoading ? (
+                        <TableRow><TableCell colSpan={9} className="text-center text-xs py-4">Chargement…</TableCell></TableRow>
+                      ) : (
+                        (allVendorProducts?.items ?? []).map((p) => {
+                          const rule = vendorProductRules.find((r) => r.product_id === p.id);
+                          const rate = rule?.rate_percent ?? 0;
+                          const commissionAmount = rule ? Math.round((p.supplierPrice * rate) / 100) : 0;
+                          const inheritance = resolveEffectiveRate(p.id, p.categoryId, selectedVendorId, srcId, dstId, rules ?? []);
+                          return (
+                            <TableRow key={p.id} className={rule ? "bg-emerald-50/30" : "hover:bg-slate-50"}>
+                              <TableCell className="p-1"><Checkbox checked={selectedProducts.has(p.id)} onCheckedChange={() => toggleProduct(p.id)} /></TableCell>
+                              <TableCell className="p-1">
+                                <div className="h-8 w-8 rounded border bg-slate-100 flex items-center justify-center overflow-hidden">
+                                  {p.image ? <img src={p.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-3 w-3 text-slate-300" />}
+                                </div>
+                              </TableCell>
+                              <TableCell className="p-1"><p className="text-xs font-medium truncate max-w-[120px]">{p.name}</p><p className="text-[9px] text-muted-foreground">{p.code}</p></TableCell>
+                              <TableCell className="p-1 text-right text-[10px]">{p.supplierPrice.toLocaleString("fr-FR")}</TableCell>
+                              <TableCell className="p-1 text-right text-[10px]">{p.price.toLocaleString("fr-FR")}</TableCell>
+                              <TableCell className="p-1 text-right text-[10px] text-violet-700 font-medium">{rule ? commissionAmount.toLocaleString("fr-FR") : "—"}</TableCell>
+                              <TableCell className="p-1 text-right">{rule ? <Badge variant="secondary" className="text-[9px]">{rate}%</Badge> : <span className="text-[9px] text-muted-foreground">—</span>}</TableCell>
+                              <TableCell className="p-1 text-center">
+                                {rule ? (
+                                  <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">Spécifique</Badge>
+                                ) : inheritance ? (
+                                  <span className="text-[9px] text-amber-600" title={`${inheritance.rate}% depuis ${inheritance.source}`}>{inheritance.source}</span>
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground">Aucune</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="p-1 text-center">
+                                {rule ? (
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <ProductQuickApplyV3 product={p} onApply={(mode, value) => {
+                                      const result = calcCommission(p.supplierPrice, mode, value);
+                                      addRule(p.id, result.ratePercent);
+                                    }} />
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeRule(rule.id)}>
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <ProductQuickApplyV3 product={p} onApply={(mode, value) => {
+                                    const result = calcCommission(p.supplierPrice, mode, value);
+                                    addRule(p.id, result.ratePercent);
+                                  }} />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Pagination (all view only) */}
+              {viewMode === "all" && totalPages > 1 && (
+                <div className="flex items-center justify-between p-2 border-t bg-slate-50">
+                  <span className="text-[10px] text-muted-foreground">Page {page + 1} / {totalPages} ({allVendorProducts?.total ?? 0} produits)</span>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>Précédent</Button>
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>Suivant</Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
-
-        {/* ===== EXISTING RULES SUMMARY ===== */}
-        <div className="border-t pt-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Règles produits existantes pour cette paire ({productRulesForPair.length})
-          </p>
-          {productRulesForPair.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Aucune règle produit spécifique.</p>
-          ) : (
-            <ExistingRulesList rules={productRulesForPair} />
-          )}
-        </div>
       </CardContent>
     </Card>
   );
 }
 
-/* ——— Quick apply popover for single product ——— */
-function ProductQuickApply({ product, onApply }: {
+/* ---------- Quick Apply Popover V3 ---------- */
+function ProductQuickApplyV3({ product, onApply }: {
   product: { id: string; name: string; supplierPrice: number; price: number };
   onApply: (mode: "percent" | "final_price", value: number) => void;
 }) {
@@ -1231,163 +1486,64 @@ function ProductQuickApply({ product, onApply }: {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => setOpen(true)}>
-        <Plus className="h-3 w-3 mr-0.5" /> Règle
+      <Button size="sm" variant="outline" className="h-6 text-[9px] px-1.5" onClick={() => setOpen(true)}>
+        <Plus className="h-2.5 w-2.5 mr-0.5" /> Règle
       </Button>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-sm">{product.name}</DialogTitle>
+          <DialogTitle className="text-sm flex items-center gap-2">
+            <span className="truncate">{product.name}</span>
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            Prix fournisseur: <strong>{product.supplierPrice.toLocaleString("fr-FR")} FCFA</strong>
-            {" · "}Prix vente: <strong>{product.price.toLocaleString("fr-FR")} FCFA</strong>
+            Frns: <strong>{product.supplierPrice.toLocaleString("fr-FR")} FCFA</strong>
+            {" · "}Vente: <strong>{product.price.toLocaleString("fr-FR")} FCFA</strong>
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          {/* Mode */}
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={mode === "percent" ? "default" : "outline"}
+            <Button size="sm" variant={mode === "percent" ? "default" : "outline"}
               className={`text-xs flex-1 h-8 ${mode === "percent" ? "bg-violet-600" : ""}`}
-              onClick={() => setMode("percent")}
-            >
+              onClick={() => setMode("percent")}>
               <Percent className="h-3 w-3 mr-1" /> Commission %
             </Button>
-            <Button
-              size="sm"
-              variant={mode === "final_price" ? "default" : "outline"}
+            <Button size="sm" variant={mode === "final_price" ? "default" : "outline"}
               className={`text-xs flex-1 h-8 ${mode === "final_price" ? "bg-violet-600" : ""}`}
-              onClick={() => setMode("final_price")}
-            >
+              onClick={() => setMode("final_price")}>
               <Banknote className="h-3 w-3 mr-1" /> Prix final
             </Button>
           </div>
-          {/* Input */}
           <div>
             <label className="text-xs font-medium text-slate-700">
               {mode === "percent" ? "Commission (%)" : "Prix final souhaité (FCFA)"}
             </label>
             <div className="relative">
-              <Input
-                type="number"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="text-sm pr-12"
-                placeholder={mode === "percent" ? "ex: 15" : "ex: 6500"}
-                autoFocus
-              />
+              <Input type="number" value={value} onChange={(e) => setValue(e.target.value)}
+                className="text-sm pr-12" placeholder={mode === "percent" ? "ex: 15" : "ex: 6500"} autoFocus />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                 {mode === "percent" ? "%" : "FCFA"}
               </span>
             </div>
           </div>
-          {/* Preview */}
           {result && (
-            <div className="bg-slate-50 rounded-lg p-3 space-y-2">
-              <p className="text-xs font-medium text-slate-600">Aperçu</p>
+            <div className="bg-slate-50 rounded-lg p-3">
+              <p className="text-xs font-medium text-slate-600 mb-2">Aperçu</p>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-[10px] text-slate-500">Prix fournisseur</p>
-                  <p className="text-sm font-bold">{product.supplierPrice.toLocaleString("fr-FR")}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-500">Commission</p>
-                  <p className="text-sm font-bold text-violet-700">{result.commissionAmount.toLocaleString("fr-FR")}</p>
-                  <p className="text-[10px] text-violet-500">({result.ratePercent.toFixed(1)}%)</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-500">Prix final</p>
-                  <p className="text-sm font-bold text-emerald-700">{result.salePrice.toLocaleString("fr-FR")}</p>
-                </div>
+                <div><p className="text-[10px] text-slate-500">Prix fournisseur</p><p className="text-sm font-bold">{product.supplierPrice.toLocaleString("fr-FR")}</p></div>
+                <div><p className="text-[10px] text-slate-500">Commission</p><p className="text-sm font-bold text-violet-700">{result.commissionAmount.toLocaleString("fr-FR")}</p><p className="text-[10px] text-violet-500">({result.ratePercent.toFixed(1)}%)</p></div>
+                <div><p className="text-[10px] text-slate-500">Prix final</p><p className="text-sm font-bold text-emerald-700">{result.salePrice.toLocaleString("fr-FR")}</p></div>
               </div>
             </div>
           )}
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Annuler</Button>
-          <Button
-            size="sm"
-            className="bg-violet-600 hover:bg-violet-700"
-            disabled={!result}
-            onClick={() => {
-              const val = Number(value);
-              if (!isNaN(val) && val > 0) {
-                onApply(mode, val);
-                setOpen(false);
-                setValue("");
-              }
-            }}
-          >
+          <Button size="sm" className="bg-violet-600 hover:bg-violet-700" disabled={!result}
+            onClick={() => { const val = Number(value); if (!isNaN(val) && val > 0) { onApply(mode, val); setOpen(false); setValue(""); } }}>
             <Check className="h-3.5 w-3.5 mr-1" /> Appliquer
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/* ——— Existing rules list (compact) ——— */
-function ExistingRulesList({ rules }: { rules: Rule[] }) {
-  const qc = useQueryClient();
-  const productIds = rules.map((r) => r.product_id).filter(Boolean) as string[];
-  const { data: ruleProducts } = useQuery({
-    queryKey: ["product-names-existing", productIds.sort().join(",")],
-    enabled: productIds.length > 0,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("id, name, code, price").in("id", productIds);
-      return (data ?? []) as { id: string; name: string; code: string; price: number }[];
-    },
-  });
-
-  async function updateRate(id: string, v: number) {
-    const { error } = await sb.from("commission_rules").update({ rate_percent: v }).eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] });
-    qc.invalidateQueries({ queryKey: ["display-prices"] });
-    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Supprimer cette règle ?")) return;
-    const { error } = await sb.from("commission_rules").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["commission_rules"] });
-    qc.invalidateQueries({ queryKey: ["display-prices"] });
-    qc.invalidateQueries({ queryKey: ["display-price-lines"] });
-  }
-
-  return (
-    <ul className="divide-y max-h-60 overflow-y-auto rounded-md border bg-white">
-      {rules.map((r) => {
-        const p = ruleProducts?.find((x) => x.id === r.product_id);
-        const supplierPrice = p ? Math.round(p.price * 0.6) : 0;
-        const commissionAmount = Math.round((supplierPrice * r.rate_percent) / 100);
-        return (
-          <li key={r.id} className="flex flex-wrap items-center gap-2 py-2 px-2 hover:bg-slate-50">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm">{p ? `${p.name} (${p.code})` : r.product_id}</div>
-              <div className="text-[10px] text-muted-foreground">
-                Frns: {supplierPrice.toLocaleString("fr-FR")} FCFA
-                {" · "}Com: {commissionAmount.toLocaleString("fr-FR")} FCFA ({r.rate_percent}%)
-              </div>
-            </div>
-            <Input
-              type="number" step="0.01"
-              defaultValue={r.rate_percent}
-              className="h-7 w-20 text-xs"
-              onBlur={(e) => {
-                const v = Number(e.target.value);
-                if (!isNaN(v) && v !== r.rate_percent) updateRate(r.id, v);
-              }}
-            />
-            <span className="text-[10px] text-muted-foreground">%</span>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(r.id)}>
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
