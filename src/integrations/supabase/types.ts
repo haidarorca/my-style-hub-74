@@ -14,109 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      addresses: {
-        Row: {
-          address_line1: string
-          address_line2: string | null
-          city_id: string | null
-          city_text: string | null
-          country_id: string | null
-          created_at: string | null
-          full_name: string | null
-          id: string
-          is_default: boolean | null
-          label: string | null
-          landmark: string | null
-          latitude: number | null
-          longitude: number | null
-          neighborhood_text: string | null
-          note: string | null
-          owner_id: string
-          owner_type: string
-          phone: string | null
-          phone_alt: string | null
-          postal_code: string | null
-          region_id: string | null
-          region_text: string | null
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          address_line1: string
-          address_line2?: string | null
-          city_id?: string | null
-          city_text?: string | null
-          country_id?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          id?: string
-          is_default?: boolean | null
-          label?: string | null
-          landmark?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          neighborhood_text?: string | null
-          note?: string | null
-          owner_id: string
-          owner_type: string
-          phone?: string | null
-          phone_alt?: string | null
-          postal_code?: string | null
-          region_id?: string | null
-          region_text?: string | null
-          type?: string
-          updated_at?: string | null
-        }
-        Update: {
-          address_line1?: string
-          address_line2?: string | null
-          city_id?: string | null
-          city_text?: string | null
-          country_id?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          id?: string
-          is_default?: boolean | null
-          label?: string | null
-          landmark?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          neighborhood_text?: string | null
-          note?: string | null
-          owner_id?: string
-          owner_type?: string
-          phone?: string | null
-          phone_alt?: string | null
-          postal_code?: string | null
-          region_id?: string | null
-          region_text?: string | null
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "addresses_city_id_fkey"
-            columns: ["city_id"]
-            isOneToOne: false
-            referencedRelation: "geo_cities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "addresses_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "countries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "addresses_region_id_fkey"
-            columns: ["region_id"]
-            isOneToOne: false
-            referencedRelation: "geo_regions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       admin_action_log: {
         Row: {
           action: string
@@ -567,6 +464,204 @@ export type Database = {
         }
         Relationships: []
       }
+      addresses: {
+        Row: {
+          address_line1: string
+          address_line2: string | null
+          city_id: string | null
+          city_text: string | null
+          country_id: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          is_default: boolean
+          label: string | null
+          landmark: string | null
+          latitude: number | null
+          longitude: number | null
+          neighborhood_text: string | null
+          note: string | null
+          owner_id: string
+          owner_type: string
+          phone: string | null
+          phone_alt: string | null
+          postal_code: string | null
+          region_id: string | null
+          region_text: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          address_line1?: string
+          address_line2?: string | null
+          city_id?: string | null
+          city_text?: string | null
+          country_id?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_default?: boolean
+          label?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood_text?: string | null
+          note?: string | null
+          owner_id: string
+          owner_type: string
+          phone?: string | null
+          phone_alt?: string | null
+          postal_code?: string | null
+          region_id?: string | null
+          region_text?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          address_line1?: string
+          address_line2?: string | null
+          city_id?: string | null
+          city_text?: string | null
+          country_id?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_default?: boolean
+          label?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood_text?: string | null
+          note?: string | null
+          owner_id?: string
+          owner_type?: string
+          phone?: string | null
+          phone_alt?: string | null
+          postal_code?: string | null
+          region_id?: string | null
+          region_text?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addresses_city_id_fkey"
+            columns: ["city_id"]
+            referencedRelation: "geo_cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_country_id_fkey"
+            columns: ["country_id"]
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_region_id_fkey"
+            columns: ["region_id"]
+            referencedRelation: "geo_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geo_cities: {
+        Row: {
+          country_id: string
+          created_at: string
+          id: string
+          name: string
+          region_id: string | null
+        }
+        Insert: {
+          country_id: string
+          created_at?: string
+          id?: string
+          name: string
+          region_id?: string | null
+        }
+        Update: {
+          country_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          region_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geo_cities_country_id_fkey"
+            columns: ["country_id"]
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geo_cities_region_id_fkey"
+            columns: ["region_id"]
+            referencedRelation: "geo_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geo_regions: {
+        Row: {
+          country_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          country_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          country_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geo_regions_country_id_fkey"
+            columns: ["country_id"]
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_warehouses: {
+        Row: {
+          address_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          address_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          address_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: []
+      }
       customer_addresses: {
         Row: {
           address: string
@@ -661,136 +756,6 @@ export type Database = {
           used?: boolean
         }
         Relationships: []
-      }
-      financial_movements: {
-        Row: {
-          amount: number
-          cost_attribution: Database["public"]["Enums"]["cost_attribution"]
-          cost_split: Json | null
-          currency: string
-          decision_id: string
-          direction: Database["public"]["Enums"]["movement_direction"]
-          id: string
-          method: string | null
-          movement_type: Database["public"]["Enums"]["financial_movement_type"]
-          note: string | null
-          occurred_at: string
-          recorded_by: string | null
-          reference: string | null
-          validated_at: string | null
-          validated_by: string | null
-        }
-        Insert: {
-          amount: number
-          cost_attribution?: Database["public"]["Enums"]["cost_attribution"]
-          cost_split?: Json | null
-          currency?: string
-          decision_id: string
-          direction: Database["public"]["Enums"]["movement_direction"]
-          id?: string
-          method?: string | null
-          movement_type: Database["public"]["Enums"]["financial_movement_type"]
-          note?: string | null
-          occurred_at?: string
-          recorded_by?: string | null
-          reference?: string | null
-          validated_at?: string | null
-          validated_by?: string | null
-        }
-        Update: {
-          amount?: number
-          cost_attribution?: Database["public"]["Enums"]["cost_attribution"]
-          cost_split?: Json | null
-          currency?: string
-          decision_id?: string
-          direction?: Database["public"]["Enums"]["movement_direction"]
-          id?: string
-          method?: string | null
-          movement_type?: Database["public"]["Enums"]["financial_movement_type"]
-          note?: string | null
-          occurred_at?: string
-          recorded_by?: string | null
-          reference?: string | null
-          validated_at?: string | null
-          validated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "financial_movements_decision_id_fkey"
-            columns: ["decision_id"]
-            isOneToOne: false
-            referencedRelation: "order_decisions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      geo_cities: {
-        Row: {
-          country_id: string
-          created_at: string | null
-          id: string
-          name: string
-          region_id: string | null
-        }
-        Insert: {
-          country_id: string
-          created_at?: string | null
-          id?: string
-          name: string
-          region_id?: string | null
-        }
-        Update: {
-          country_id?: string
-          created_at?: string | null
-          id?: string
-          name?: string
-          region_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "geo_cities_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "countries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "geo_cities_region_id_fkey"
-            columns: ["region_id"]
-            isOneToOne: false
-            referencedRelation: "geo_regions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      geo_regions: {
-        Row: {
-          country_id: string
-          created_at: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          country_id: string
-          created_at?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          country_id?: string
-          created_at?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "geo_regions_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "countries"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       home_banners: {
         Row: {
@@ -1242,132 +1207,6 @@ export type Database = {
           },
         ]
       }
-      order_decisions: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          decision_type: Database["public"]["Enums"]["order_decision_type"]
-          event_id: string
-          id: string
-          payload: Json
-          rationale: string | null
-          supersedes_decision_id: string | null
-          validated_at: string | null
-          validated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          decision_type: Database["public"]["Enums"]["order_decision_type"]
-          event_id: string
-          id?: string
-          payload?: Json
-          rationale?: string | null
-          supersedes_decision_id?: string | null
-          validated_at?: string | null
-          validated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          decision_type?: Database["public"]["Enums"]["order_decision_type"]
-          event_id?: string
-          id?: string
-          payload?: Json
-          rationale?: string | null
-          supersedes_decision_id?: string | null
-          validated_at?: string | null
-          validated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_decisions_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "order_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_decisions_supersedes_decision_id_fkey"
-            columns: ["supersedes_decision_id"]
-            isOneToOne: false
-            referencedRelation: "order_decisions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      order_events: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          event_type: Database["public"]["Enums"]["order_event_type"]
-          id: string
-          order_id: string
-          order_item_id: string | null
-          payload: Json
-          reason: string | null
-          vendor_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          event_type: Database["public"]["Enums"]["order_event_type"]
-          id?: string
-          order_id: string
-          order_item_id?: string | null
-          payload?: Json
-          reason?: string | null
-          vendor_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          event_type?: Database["public"]["Enums"]["order_event_type"]
-          id?: string
-          order_id?: string
-          order_item_id?: string | null
-          payload?: Json
-          reason?: string | null
-          vendor_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_events_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_events_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_events_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_events_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "order_events_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_items: {
         Row: {
           buyer_id: string | null
@@ -1378,17 +1217,12 @@ export type Database = {
           created_at: string
           customization: Json | null
           id: string
-          is_admin_shop_snapshot: boolean | null
           order_id: string
           product_code: string
           product_id: string
           product_image_url: string | null
           product_name: string
-          product_origin_country_id_snapshot: string | null
           quantity: number
-          shop_country_id_snapshot: string | null
-          shop_name_snapshot: string | null
-          shop_type_snapshot: string | null
           size: string | null
           unit_price: number
           variant_id: string | null
@@ -1403,17 +1237,12 @@ export type Database = {
           created_at?: string
           customization?: Json | null
           id?: string
-          is_admin_shop_snapshot?: boolean | null
           order_id: string
           product_code: string
           product_id: string
           product_image_url?: string | null
           product_name: string
-          product_origin_country_id_snapshot?: string | null
           quantity?: number
-          shop_country_id_snapshot?: string | null
-          shop_name_snapshot?: string | null
-          shop_type_snapshot?: string | null
           size?: string | null
           unit_price?: number
           variant_id?: string | null
@@ -1428,17 +1257,12 @@ export type Database = {
           created_at?: string
           customization?: Json | null
           id?: string
-          is_admin_shop_snapshot?: boolean | null
           order_id?: string
           product_code?: string
           product_id?: string
           product_image_url?: string | null
           product_name?: string
-          product_origin_country_id_snapshot?: string | null
           quantity?: number
-          shop_country_id_snapshot?: string | null
-          shop_name_snapshot?: string | null
-          shop_type_snapshot?: string | null
           size?: string | null
           unit_price?: number
           variant_id?: string | null
@@ -1629,7 +1453,6 @@ export type Database = {
           archived_at: string | null
           buyer_id: string | null
           city: string | null
-          closed_at: string | null
           created_at: string
           customer_name: string | null
           customer_phone: string | null
@@ -1648,7 +1471,6 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
-          closed_at?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
@@ -1667,7 +1489,6 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
-          closed_at?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
@@ -2171,8 +1992,6 @@ export type Database = {
           contact_override: Database["public"]["Enums"]["product_contact_override"]
           content_hash: string | null
           created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
           description: string | null
           description_i18n: Json | null
           designation: string | null
@@ -2182,7 +2001,6 @@ export type Database = {
           is_edit: boolean
           name: string
           name_i18n: Json | null
-          origin_country_id: string | null
           pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
@@ -2200,8 +2018,6 @@ export type Database = {
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
           description?: string | null
           description_i18n?: Json | null
           designation?: string | null
@@ -2211,7 +2027,6 @@ export type Database = {
           is_edit?: boolean
           name: string
           name_i18n?: Json | null
-          origin_country_id?: string | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -2229,8 +2044,6 @@ export type Database = {
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
           created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
           description?: string | null
           description_i18n?: Json | null
           designation?: string | null
@@ -2240,7 +2053,6 @@ export type Database = {
           is_edit?: boolean
           name?: string
           name_i18n?: Json | null
-          origin_country_id?: string | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -2264,13 +2076,6 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "products_origin_country_id_fkey"
-            columns: ["origin_country_id"]
-            isOneToOne: false
-            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
           {
@@ -2314,8 +2119,6 @@ export type Database = {
           blocked_reason: string | null
           contact_mode: Database["public"]["Enums"]["shop_contact_mode"]
           created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
           email: string | null
           full_name: string | null
           hide_contact_publicly: boolean
@@ -2359,8 +2162,6 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
           email?: string | null
           full_name?: string | null
           hide_contact_publicly?: boolean
@@ -2404,8 +2205,6 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
           email?: string | null
           full_name?: string | null
           hide_contact_publicly?: boolean
@@ -2445,125 +2244,6 @@ export type Database = {
             columns: ["source_country_id"]
             isOneToOne: false
             referencedRelation: "countries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sav_cases: {
-        Row: {
-          assigned_to: string | null
-          closed_at: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          financial_impact_amount: number
-          financial_impact_currency: string
-          id: string
-          last_activity_at: string
-          opened_at: string
-          order_id: string
-          order_item_id: string | null
-          owner_party: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type: Database["public"]["Enums"]["sav_problem_type"]
-          source_decision_id: string | null
-          source_event_id: string | null
-          status: Database["public"]["Enums"]["sav_status"]
-          title: string
-          updated_at: string
-          vendor_id: string | null
-        }
-        Insert: {
-          assigned_to?: string | null
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          financial_impact_amount?: number
-          financial_impact_currency?: string
-          id?: string
-          last_activity_at?: string
-          opened_at?: string
-          order_id: string
-          order_item_id?: string | null
-          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type: Database["public"]["Enums"]["sav_problem_type"]
-          source_decision_id?: string | null
-          source_event_id?: string | null
-          status?: Database["public"]["Enums"]["sav_status"]
-          title: string
-          updated_at?: string
-          vendor_id?: string | null
-        }
-        Update: {
-          assigned_to?: string | null
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          financial_impact_amount?: number
-          financial_impact_currency?: string
-          id?: string
-          last_activity_at?: string
-          opened_at?: string
-          order_id?: string
-          order_item_id?: string | null
-          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type?: Database["public"]["Enums"]["sav_problem_type"]
-          source_decision_id?: string | null
-          source_event_id?: string | null
-          status?: Database["public"]["Enums"]["sav_status"]
-          title?: string
-          updated_at?: string
-          vendor_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_cases_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_source_decision_id_fkey"
-            columns: ["source_decision_id"]
-            isOneToOne: false
-            referencedRelation: "order_decisions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_source_event_id_fkey"
-            columns: ["source_event_id"]
-            isOneToOne: false
-            referencedRelation: "order_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2928,47 +2608,6 @@ export type Database = {
           },
         ]
       }
-      vendor_warehouses: {
-        Row: {
-          address_id: string | null
-          created_at: string | null
-          id: string
-          is_active: boolean | null
-          is_default: boolean | null
-          name: string
-          updated_at: string | null
-          vendor_id: string
-        }
-        Insert: {
-          address_id?: string | null
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          is_default?: boolean | null
-          name: string
-          updated_at?: string | null
-          vendor_id: string
-        }
-        Update: {
-          address_id?: string | null
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          is_default?: boolean | null
-          name?: string
-          updated_at?: string | null
-          vendor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_warehouses_address_id_fkey"
-            columns: ["address_id"]
-            isOneToOne: false
-            referencedRelation: "addresses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       public_product_reviews: {
@@ -3176,35 +2815,6 @@ export type Database = {
           },
         ]
       }
-      v_sub_order_accounting: {
-        Row: {
-          cancelled_value: number | null
-          commission_paid_value: number | null
-          commission_to_remit_vendor: number | null
-          credit_used_value: number | null
-          credited_value: number | null
-          extra_collected_value: number | null
-          gross_value: number | null
-          loss_value: number | null
-          net_value: number | null
-          order_id: string | null
-          outstanding_credit_to_issue: number | null
-          outstanding_extra_from_client: number | null
-          outstanding_to_refund_client: number | null
-          penalty_value: number | null
-          refunded_value: number | null
-          vendor_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       can_insert_order_item: {
@@ -3340,7 +2950,6 @@ export type Database = {
         }
         Returns: string
       }
-      migrate_customer_addresses: { Args: never; Returns: number }
       product_code_exists_in_shop: {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
@@ -3437,22 +3046,7 @@ export type Database = {
         | "commissions"
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
-      cost_attribution: "kawzone" | "vendor" | "client" | "shared"
       customization_type: "name" | "image"
-      financial_movement_type:
-        | "cash_in"
-        | "cash_out"
-        | "credit_note_issued"
-        | "credit_note_used"
-        | "penalty_kept"
-        | "penalty_to_vendor"
-        | "commission_due_to_vendor"
-        | "loss_kawzone"
-        | "loss_vendor"
-        | "loss_shared"
-        | "gain_kawzone"
-        | "gain_vendor"
-        | "commission_paid"
       moderation_decision: "approved" | "rejected" | "changes_requested"
       moderation_step:
         | "name"
@@ -3467,43 +3061,6 @@ export type Database = {
         | "variants"
         | "countries"
         | "global"
-      movement_direction: "debit" | "credit"
-      order_decision_type:
-        | "cancel_article"
-        | "cancel_suborder"
-        | "wait_restock"
-        | "wait_supplier"
-        | "wait_client"
-        | "replace_same"
-        | "replace_higher"
-        | "replace_lower"
-        | "partial_delivery"
-        | "accept_return"
-        | "refuse_return"
-        | "accept_exchange"
-        | "issue_refund"
-        | "issue_credit_note"
-        | "apply_penalty"
-        | "commercial_gesture"
-        | "override_no_action"
-        | "escalate_sav"
-        | "mark_dispute_resolved"
-      order_event_type:
-        | "client_cancellation"
-        | "stock_break"
-        | "product_deleted"
-        | "shop_deleted"
-        | "customer_dispute"
-        | "delivery_refusal"
-        | "post_delivery_return"
-        | "vendor_error"
-        | "kawzone_error"
-        | "supplier_unavailable"
-        | "commercial_gesture"
-        | "payment_blocked"
-        | "delivery_blocked"
-        | "order_abandoned"
-        | "dispute_resolved"
       product_contact_override:
         | "inherit"
         | "allowed"
@@ -3511,17 +3068,6 @@ export type Database = {
         | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
-      sav_owner_party: "kawzone" | "vendor" | "supplier" | "client"
-      sav_problem_type:
-        | "stock_break"
-        | "product_deleted"
-        | "shop_deleted"
-        | "dispute"
-        | "payment_blocked"
-        | "delivery_blocked"
-        | "supplier_unavailable"
-        | "other"
-      sav_status: "open" | "in_progress" | "waiting" | "resolved" | "closed"
       shipment_assessment_status:
         | "pending_arrival"
         | "awaiting_weighing"
@@ -3689,23 +3235,7 @@ export const Constants = {
       ],
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
-      cost_attribution: ["kawzone", "vendor", "client", "shared"],
       customization_type: ["name", "image"],
-      financial_movement_type: [
-        "cash_in",
-        "cash_out",
-        "credit_note_issued",
-        "credit_note_used",
-        "penalty_kept",
-        "penalty_to_vendor",
-        "commission_due_to_vendor",
-        "loss_kawzone",
-        "loss_vendor",
-        "loss_shared",
-        "gain_kawzone",
-        "gain_vendor",
-        "commission_paid",
-      ],
       moderation_decision: ["approved", "rejected", "changes_requested"],
       moderation_step: [
         "name",
@@ -3721,45 +3251,6 @@ export const Constants = {
         "countries",
         "global",
       ],
-      movement_direction: ["debit", "credit"],
-      order_decision_type: [
-        "cancel_article",
-        "cancel_suborder",
-        "wait_restock",
-        "wait_supplier",
-        "wait_client",
-        "replace_same",
-        "replace_higher",
-        "replace_lower",
-        "partial_delivery",
-        "accept_return",
-        "refuse_return",
-        "accept_exchange",
-        "issue_refund",
-        "issue_credit_note",
-        "apply_penalty",
-        "commercial_gesture",
-        "override_no_action",
-        "escalate_sav",
-        "mark_dispute_resolved",
-      ],
-      order_event_type: [
-        "client_cancellation",
-        "stock_break",
-        "product_deleted",
-        "shop_deleted",
-        "customer_dispute",
-        "delivery_refusal",
-        "post_delivery_return",
-        "vendor_error",
-        "kawzone_error",
-        "supplier_unavailable",
-        "commercial_gesture",
-        "payment_blocked",
-        "delivery_blocked",
-        "order_abandoned",
-        "dispute_resolved",
-      ],
       product_contact_override: [
         "inherit",
         "allowed",
@@ -3768,18 +3259,6 @@ export const Constants = {
       ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
-      sav_owner_party: ["kawzone", "vendor", "supplier", "client"],
-      sav_problem_type: [
-        "stock_break",
-        "product_deleted",
-        "shop_deleted",
-        "dispute",
-        "payment_blocked",
-        "delivery_blocked",
-        "supplier_unavailable",
-        "other",
-      ],
-      sav_status: ["open", "in_progress", "waiting", "resolved", "closed"],
       shipment_assessment_status: [
         "pending_arrival",
         "awaiting_weighing",
