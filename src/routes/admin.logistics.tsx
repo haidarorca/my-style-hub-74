@@ -974,7 +974,12 @@ function OrderTypeBadge({ type, size = "default" }: { type?: "local" | "import" 
 }
 
 function safeOrderStatus(s: string | null | undefined) { return ORDER_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
-function safeLogStatus(s: string | null | undefined) { return LOG_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
+function safeLogStatus(s: string | null | undefined, weightStatus?: string | null) {
+  if ((weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly") && s === "fees_calculated") {
+    return { label: "Vérification", color: "bg-cyan-100 text-cyan-700 border-cyan-300" };
+  }
+  return LOG_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
+}
 function safePayStatus(s: string | null | undefined) { return PAY_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
 
 function fmtN(n: number | null | undefined): string {
