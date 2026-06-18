@@ -222,21 +222,41 @@ const IMPORT_FLOW_DECLARED: Record<string, NextStep> = {
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
 };
 
+/** Circuit IMPORT KNOWN_WEIGHT : fret figé au checkout, aucune pesée, aucun
+ *  paiement complémentaire client. Le contrôle physique en entrepôt mène
+ *  directement à l'expédition. */
+const IMPORT_FLOW_KNOWN: Record<string, NextStep> = {
+  "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
+  new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
+  ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
+  received_warehouse: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  // Court-circuit : si d'anciens statuts de pesée existent, on les saute.
+  awaiting_weighing: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  fees_calculated: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  payment_fees: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
+  shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
+};
+
 /** Retourne l'étape suivante d'une commande.
- *  @param weightStatus si "declared" / "verified" / "anomaly", on utilise le Circuit B. */
+ *  @param weightStatus si "declared" / "verified" / "anomaly", on utilise le Circuit B.
+ *  @param lineKind si "IMPORT_KNOWN_WEIGHT", on utilise IMPORT_FLOW_KNOWN (prioritaire). */
 export function getNextStep(
   currentStatus: string,
   importOrder: boolean,
   weightStatus?: string | null,
+  lineKind?: string | null,
 ): NextStep | null {
   if (!importOrder) {
     const s = (currentStatus ?? "").trim();
     return LOCAL_FLOW[s] ?? null;
   }
+  const s = (currentStatus ?? "").trim();
+  if (lineKind === "IMPORT_KNOWN_WEIGHT") return IMPORT_FLOW_KNOWN[s] ?? null;
   const isDeclared =
     weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly";
   const flow = isDeclared ? IMPORT_FLOW_DECLARED : IMPORT_FLOW;
-  const s = (currentStatus ?? "").trim();
   return flow[s] ?? null;
 }
 
