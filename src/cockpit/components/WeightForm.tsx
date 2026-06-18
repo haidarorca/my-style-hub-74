@@ -73,8 +73,8 @@ export function WeightForm({ orderId, declaredFreight = 0, onWeigh }: Props) {
       chargeableWeightKg: Math.round(perItemTotalKg * 1000) / 1000,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightPerItem,
-      // Le fret total cumule le fret figé (déclaré) + le fret pesé (inconnu)
-      finalFreight: freightPerItem + declaredFreight,
+      // finalFreight = fret pesé inconnu uniquement (le déclaré est déjà figé sur les items).
+      finalFreight: freightPerItem,
       weighedBy: "Admin",
     });
     setPerItemWeights([""]);
