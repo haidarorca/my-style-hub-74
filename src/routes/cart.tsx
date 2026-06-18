@@ -503,6 +503,11 @@ function CartPage() {
     if (c.image_url) parts.push(t("product.your_image"));
     return parts.length ? parts.join(", ") : null;
   };
+  const cleanCustomization = (c: any) => {
+    if (!c || typeof c !== "object") return null;
+    const { __shipping_service_id, ...rest } = c;
+    return Object.keys(rest).length > 0 ? rest : null;
+  };
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
     setLocating(true);
@@ -708,7 +713,7 @@ function CartPage() {
         color: it.product_variants?.color ?? null,
         unit_price: unitPrice(it),
         quantity: it.quantity,
-        customization: it.customization ?? null,
+        customization: cleanCustomization(it.customization),
       }));
 
       let savedOrderId = orderId;
@@ -728,7 +733,7 @@ function CartPage() {
               productId: it.products.id,
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
-              customization: it.customization ?? null,
+              customization: cleanCustomization(it.customization),
             })),
           },
         });
