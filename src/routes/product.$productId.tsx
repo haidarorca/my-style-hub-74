@@ -262,7 +262,7 @@ function ProductPage() {
   }) : null, [data]);
   const shippingEst = useEstimatedShipping(shippingEstProduct);
   const selectedShippingOption = useMemo(
-    () => shippingEst.options.find((o) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
+    () => shippingEst.options.find((o: any) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
     [shippingEst, selectedShippingServiceId],
   );
   // Prix consolidé affiché au client : produit + transport choisi si poids connu intl.
