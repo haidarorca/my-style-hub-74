@@ -45,6 +45,7 @@ import {
   FileText, ArrowDownToLine, History, Plus, PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WeightAnomalyPanel } from "@/components/admin/WeightAnomalyPanel";
 
 export const Route = createFileRoute("/admin/logistics")({
   component: LogisticsControlCenter,
