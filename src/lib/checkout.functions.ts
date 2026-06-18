@@ -43,7 +43,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const [{ data: products, error: productsError }, { data: variants, error: variantsError }] = await Promise.all([
         supabaseAdmin
           .from("products")
-          .select("id, name, code, price, vendor_id, status, is_active, product_images(url), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop)")
+          .select("id, name, code, price, vendor_id, status, is_active, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop, source_country_id)")
           .in("id", productIds),
         variantIds.length
           ? supabaseAdmin
@@ -96,6 +96,43 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           customization: item.customization ?? null,
         };
       }));
+
+      // ── Frais de transport (Circuit B "poids déclaré") ────────────
+      // Si le client a choisi un service ET tous les items ont un poids
+      // déclaré > 0, on calcule le fret côté serveur et on l'ajoute au
+      // total payé immédiatement. Le client n'aura PAS de paiement
+      // complémentaire après pesée — la vérification interne est faite
+      // par l'agent logistique.
+      let freightFee = 0;
+      let chargeableKg = 0;
+      let allHaveDeclaredWeight = false;
+      let svcPricePerKg: number | null = null;
+      if (data.shippingServiceId) {
+        const { data: svc } = await (supabaseAdmin as any)
+          .from("shipping_services")
+          .select("price_per_kg")
+          .eq("id", data.shippingServiceId)
+          .maybeSingle();
+        svcPricePerKg = svc?.price_per_kg != null ? Number(svc.price_per_kg) : null;
+
+        allHaveDeclaredWeight = data.items.every((it) => {
+          const p = productMap.get(it.productId) as any;
+          return p && Number(p.weight_kg ?? 0) > 0;
+        });
+        if (allHaveDeclaredWeight && svcPricePerKg != null && svcPricePerKg > 0) {
+          for (const it of data.items) {
+            const p = productMap.get(it.productId) as any;
+            const real = Number(p.weight_kg ?? 0);
+            const l = Number(p.length_cm ?? 0);
+            const w = Number(p.width_cm ?? 0);
+            const h = Number(p.height_cm ?? 0);
+            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+            chargeableKg += Math.max(real, vol) * it.quantity;
+          }
+          freightFee = Math.round(chargeableKg * svcPricePerKg);
+          total += freightFee;
+        }
+      }
 
       const orderId = crypto.randomUUID();
       const { error: orderError } = await supabaseAdmin.from("orders").insert({
