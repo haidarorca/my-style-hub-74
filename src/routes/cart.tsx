@@ -333,6 +333,13 @@ function CartPage() {
           if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
             setShippingServiceId(null);
           }
+          // Auto-sélection du transport le moins cher si rien n'est encore choisi.
+          if (!shippingServiceId && services.length > 0) {
+            const cheapest = [...services].sort(
+              (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
+            )[0];
+            if (cheapest) setShippingServiceId(cheapest.id);
+          }
         }
       } catch (e) {
         console.error("[cart] load shipping services failed", e);

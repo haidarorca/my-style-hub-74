@@ -20,7 +20,11 @@
 // Cas local (source = destination) → JAMAIS de circuit pesée, JAMAIS d'import.
 // ═══════════════════════════════════════════════════════════════
 
-export type WeightStatus = "unknown" | "declared" | "verified";
+export type WeightStatus = "unknown" | "declared" | "verified" | "anomaly";
+
+/** Tolérance par défaut entre poids déclaré et poids réel mesuré. */
+export const WEIGHT_TOLERANCE_PCT = 0.10;
+export const WEIGHT_TOLERANCE_KG = 0.5;
 
 export interface LogisticsProduct {
   weight_kg?: number | null;
@@ -122,9 +126,12 @@ export interface WeightStatusInput {
 }
 
 export function getWeightStatus(input: WeightStatusInput): WeightStatus {
-  if (!input.isInternational) return "verified"; // local : pas applicable, on traite comme "rien à faire"
-  if (input.realWeightKg != null && input.realWeightKg > 0) return "verified";
-  if (input.declaredWeightKg != null && input.declaredWeightKg > 0) return "declared";
+  if (!input.isInternational) return "verified";
+  const real = Number(input.realWeightKg ?? 0);
+  const declared = Number(input.declaredWeightKg ?? 0);
+  if (real > 0 && declared > 0 && !isWeightConsistent(declared, real)) return "anomaly";
+  if (real > 0) return "verified";
+  if (declared > 0) return "declared";
   return "unknown";
 }
 
@@ -133,6 +140,8 @@ export function weightStatusLabel(s: WeightStatus): string {
     case "verified": return "Poids vérifié";
     case "declared": return "Poids déclaré";
     case "unknown":  return "Poids inconnu";
+    case "anomaly":  return "Anomalie poids";
+    default:         return "Poids";
   }
 }
 
@@ -142,6 +151,8 @@ export function weightStatusBadgeClass(s: WeightStatus): string {
     case "verified": return "bg-emerald-100 text-emerald-700 border-emerald-200";
     case "declared": return "bg-blue-100 text-blue-700 border-blue-200";
     case "unknown":  return "bg-amber-100 text-amber-700 border-amber-200";
+    case "anomaly":  return "bg-red-100 text-red-700 border-red-300";
+    default:         return "bg-gray-100 text-gray-700 border-gray-200";
   }
 }
 
@@ -151,5 +162,25 @@ export function isWeightConsistent(declaredKg: number | null | undefined, realKg
   const r = Number(realKg ?? 0);
   if (d <= 0 || r <= 0) return false;
   const diff = Math.abs(d - r);
-  return diff <= Math.max(0.5, d * 0.1);
+  return diff <= Math.max(WEIGHT_TOLERANCE_KG, d * WEIGHT_TOLERANCE_PCT);
 }
+
+/** Détails d'anomalie pour affichage UI (banner agent + cockpit). */
+export interface WeightAnomalyInfo {
+  isAnomaly: boolean;
+  diffKg: number;
+  diffPct: number; // signé : positif = réel > déclaré
+}
+
+export function getWeightAnomaly(
+  declaredKg: number | null | undefined,
+  realKg: number | null | undefined,
+): WeightAnomalyInfo {
+  const d = Number(declaredKg ?? 0);
+  const r = Number(realKg ?? 0);
+  if (d <= 0 || r <= 0) return { isAnomaly: false, diffKg: 0, diffPct: 0 };
+  const diffKg = r - d;
+  const diffPct = diffKg / d;
+  return { isAnomaly: !isWeightConsistent(d, r), diffKg, diffPct };
+}
+

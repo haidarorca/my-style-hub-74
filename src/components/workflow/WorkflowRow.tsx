@@ -196,7 +196,7 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
               )}
               title={weightStatusLabel(row.weight_status)}
             >
-              {row.weight_status === "verified" ? "✓ Pesé" : row.weight_status === "declared" ? "≈ Déclaré" : "? Inconnu"}
+              {row.weight_status === "anomaly" ? "⚠ Anomalie" : row.weight_status === "verified" ? "✓ Pesé" : row.weight_status === "declared" ? "≈ Déclaré" : "? Inconnu"}
             </span>
           )}
           {row.days_pending > 0 && (
@@ -255,7 +255,7 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
                 )}
                 title={weightStatusLabel(row.weight_status)}
               >
-                {row.weight_status === "verified" ? "✓" : row.weight_status === "declared" ? "≈" : "?"}
+                {row.weight_status === "anomaly" ? "⚠" : row.weight_status === "verified" ? "✓" : row.weight_status === "declared" ? "≈" : "?"}
               </span>
             )}
             {row.days_pending > 0 && (

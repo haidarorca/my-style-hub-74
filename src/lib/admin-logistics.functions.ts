@@ -57,7 +57,7 @@ export type LogisticsOrderRow = {
   /** Somme des poids déclarés par les vendeurs (kg). null si au moins un produit n'a pas de poids. */
   declared_weight_kg: number | null;
   /** "unknown" | "declared" | "verified" — voir lib/logistics-rules. */
-  weight_status: "unknown" | "declared" | "verified";
+  weight_status: "unknown" | "declared" | "verified" | "anomaly";
   air_freight_fee: number | null;
   service_fee: number | null;
   extra_fees: number | null;
@@ -454,13 +454,20 @@ async function fallbackLogisticsQuery(
       weight_status: (() => {
         if (orderType === "local") return "verified" as const;
         const real = Number((assessment.real_weight_kg as number) ?? 0);
-        if (real > 0) return "verified" as const;
         // déclaré ?
+        let declaredSum = 0;
         let hasAll = items.length > 0;
         for (const it of items) {
           const w = productWeightMap.get(it.product_id);
           if (w == null || w <= 0) { hasAll = false; break; }
+          declaredSum += w * (it.quantity ?? 1);
         }
+        // Anomalie : déclaré ET réel disponibles ET écart > tolérance (10% ou 0.5 kg)
+        if (real > 0 && hasAll && declaredSum > 0) {
+          const diff = Math.abs(real - declaredSum);
+          if (diff > Math.max(0.5, declaredSum * 0.10)) return "anomaly" as const;
+        }
+        if (real > 0) return "verified" as const;
         return hasAll ? ("declared" as const) : ("unknown" as const);
       })(),
       air_freight_fee: (assessment.air_freight_fee as number) ?? null,

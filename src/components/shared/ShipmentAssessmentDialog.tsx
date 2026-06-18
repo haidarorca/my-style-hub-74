@@ -43,6 +43,7 @@ import {
   type ShipmentAssessment,
 } from "@/lib/shipment-assessments.functions";
 import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
+import { getWeightAnomaly, WEIGHT_TOLERANCE_PCT } from "@/lib/logistics-rules";
 
 /* ── Types ── */
 
@@ -381,6 +382,34 @@ export function ShipmentAssessmentDialog({
                   Volumétrique = (L × W × H) / 5000 · Poids chargeable = MAX(réel, volumétrique) · Frais = poids × {Number(selectedService.price_per_kg).toLocaleString("fr-FR")} FCFA/kg
                 </p>
               )}
+              {(() => {
+                // Anomalie : comparer le poids saisi par l'agent au poids déclaré
+                // (pré-rempli dans data.real_weight_kg lors du mode vérification).
+                if (!isVerificationMode) return null;
+                const declared = Number(data?.real_weight_kg ?? 0);
+                const real = Number(form.real_weight_kg ?? 0);
+                if (declared <= 0 || real <= 0) return null;
+                const a = getWeightAnomaly(declared, real);
+                if (!a.isAnomaly) return null;
+                const sign = a.diffPct > 0 ? "+" : "";
+                return (
+                  <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-2.5 text-[11px] text-red-800">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold">⚠ Anomalie de poids détectée</p>
+                      <p className="mt-0.5">
+                        Déclaré : <b>{declared.toFixed(2)} kg</b> · Réel : <b>{real.toFixed(2)} kg</b> ·
+                        Écart : <b>{sign}{(a.diffPct * 100).toFixed(0)}%</b> ({sign}{a.diffKg.toFixed(2)} kg)
+                      </p>
+                      <p className="mt-1 opacity-90">
+                        Tolérance configurée : ±{(WEIGHT_TOLERANCE_PCT * 100).toFixed(0)}%. Ne pas expédier
+                        automatiquement — recalculez les frais et renvoyez au client pour validation,
+                        ou contactez l'administrateur.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Section 4: Photo du colis */}
