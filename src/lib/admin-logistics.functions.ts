@@ -271,7 +271,7 @@ async function fallbackLogisticsQuery(
 
   const [countriesResult, itemsResult, assessmentsResult] = await Promise.allSettled([
     /* 1b */ countryIds.length > 0
-      ? supabase.from("countries").select("id, name").in("id", countryIds)
+      ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
     /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
@@ -282,11 +282,13 @@ async function fallbackLogisticsQuery(
     ).in("order_id", orderIds),
   ]);
 
-  // ── Countries
+  // ── Countries (name + flag)
   let countryNameMap = new Map<string, string>();
+  let countryFlagMap = new Map<string, string>();
   if (countriesResult.status === "fulfilled" && countriesResult.value.data) {
     for (const c of countriesResult.value.data) {
       if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+      if (c.id && c.flag_emoji) countryFlagMap.set(c.id as string, c.flag_emoji as string);
     }
   }
 
