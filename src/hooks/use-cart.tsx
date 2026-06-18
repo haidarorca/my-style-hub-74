@@ -99,6 +99,7 @@ export function useCart() {
   const { data: items } = useQuery<any[]>({
     queryKey,
     queryFn: async () => {
+      let raw: any[] = [];
       if (user) {
         const { data, error } = await supabase
           .from("cart_items")
@@ -109,9 +110,29 @@ export function useCart() {
           )
           .order("created_at", { ascending: false });
         if (error) throw error;
-        return (data ?? []) as any[];
+        raw = (data ?? []) as any[];
+      } else {
+        raw = (await hydrateGuestLines(readGuestCart())) as any[];
       }
-      return (await hydrateGuestLines(readGuestCart())) as any[];
+      // Render-side dedupe : merge duplicate rows by (product_id, variant_id, clean customization).
+      // Le `__shipping_service_id` historique est ignoré dans la signature.
+      const stripShipping = (c: any) => {
+        if (!c || typeof c !== "object") return null;
+        const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
+        return Object.keys(rest).length > 0 ? rest : null;
+      };
+      const byKey = new Map<string, any>();
+      for (const it of raw) {
+        const sig = `${it.product_id}::${it.variant_id ?? ""}::${JSON.stringify(stripShipping(it.customization))}`;
+        const existing = byKey.get(sig);
+        if (existing) {
+          existing.quantity = (existing.quantity ?? 0) + (it.quantity ?? 0);
+          existing.__duplicate_ids = [...(existing.__duplicate_ids ?? []), it.id];
+        } else {
+          byKey.set(sig, { ...it, __duplicate_ids: [] });
+        }
+      }
+      return Array.from(byKey.values());
     },
   });
 
@@ -140,12 +161,13 @@ export function useCart() {
 
   const addToCart = async (input: AddToCartInput) => {
     const qty = input.quantity ?? 1;
+    // Customization client UNIQUEMENT (text/image/font/color…). __shipping_service_id
+    // n'est plus stocké ici : le choix de transport est fait au panier (par section)
+    // et au checkout (par ligne). Cela garantit que les ajouts identiques se mergent.
     const baseCustomization = input.customization && Object.keys(input.customization).length > 0
       ? input.customization
       : null;
-    const customization = input.shippingServiceId
-      ? { ...(input.customization ?? {}), __shipping_service_id: input.shippingServiceId }
-      : baseCustomization;
+    const customization = baseCustomization;
 
     if (!user) {
       // Guest cart
@@ -154,12 +176,10 @@ export function useCart() {
         (l) =>
           l.product_id === input.productId &&
           (l.variant_id ?? null) === (input.variantId ?? null) &&
-          !baseCustomization && (l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null) === (input.shippingServiceId ?? null),
+          !baseCustomization && !l.customization,
       );
-      if (idx >= 0 && !baseCustomization) {
+      if (idx >= 0) {
         lines[idx].quantity += qty;
-        lines[idx].shipping_service_id = input.shippingServiceId ?? lines[idx].shipping_service_id ?? null;
-        lines[idx].customization = customization;
       } else {
         lines.unshift({
           id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -167,7 +187,7 @@ export function useCart() {
           variant_id: input.variantId ?? null,
           quantity: qty,
           customization,
-          shipping_service_id: input.shippingServiceId ?? null,
+          shipping_service_id: null,
           created_at: new Date().toISOString(),
         });
       }
@@ -177,25 +197,41 @@ export function useCart() {
       return true;
     }
 
-    // Look for an existing identical line
+    // Look for ALL existing rows (product + variant). Multiple rows can exist
+    // due to legacy data — we collapse them into a single row.
     let existingQuery = supabase
       .from("cart_items")
-      .select("id, quantity")
+      .select("id, quantity, customization")
       .eq("user_id", user.id)
       .eq("product_id", input.productId);
     existingQuery = input.variantId
       ? existingQuery.eq("variant_id", input.variantId)
       : existingQuery.is("variant_id", null);
-    const { data: existing } = await existingQuery.maybeSingle();
+    const { data: existingRows } = await existingQuery;
 
-    if (existing && !baseCustomization) {
+    // Mergeable rows = rows whose meaningful customization matches new input.
+    const stripShipping = (c: any) => {
+      if (!c || typeof c !== "object") return null;
+      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
+      return Object.keys(rest).length > 0 ? rest : null;
+    };
+    const targetSig = JSON.stringify(stripShipping(baseCustomization));
+    const mergeable = (existingRows ?? []).filter(
+      (r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig,
+    );
+
+    if (mergeable.length > 0) {
+      // Sum all matching rows + new qty, keep the first row, delete the rest.
+      const totalQty = mergeable.reduce((s: number, r: any) => s + (r.quantity ?? 0), 0) + qty;
+      const keep = mergeable[0];
+      const dropIds = mergeable.slice(1).map((r: any) => r.id);
       const { error } = await supabase
         .from("cart_items")
-        .update({ quantity: existing.quantity + qty, customization: customization as never })
-        .eq("id", existing.id);
-      if (error) {
-        toast.error(error.message);
-        return false;
+        .update({ quantity: totalQty, customization: customization as never })
+        .eq("id", keep.id);
+      if (error) { toast.error(error.message); return false; }
+      if (dropIds.length > 0) {
+        await supabase.from("cart_items").delete().in("id", dropIds);
       }
     } else {
       const { error } = await supabase.from("cart_items").insert({
@@ -215,6 +251,36 @@ export function useCart() {
     return true;
   };
 
+  // Helper : trouve toutes les lignes DB correspondant à la "même" ligne logique
+  // que `id` (même product+variant+customization client). Utilisé pour propager
+  // remove/update aux doublons hérités.
+  const findSiblingIds = async (id: string): Promise<string[]> => {
+    if (!user) return [id];
+    const { data: anchor } = await supabase
+      .from("cart_items")
+      .select("product_id, variant_id, customization")
+      .eq("id", id)
+      .maybeSingle();
+    if (!anchor) return [id];
+    const stripShipping = (c: any) => {
+      if (!c || typeof c !== "object") return null;
+      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
+      return Object.keys(rest).length > 0 ? rest : null;
+    };
+    const targetSig = JSON.stringify(stripShipping(anchor.customization));
+    let q = supabase
+      .from("cart_items")
+      .select("id, customization")
+      .eq("user_id", user.id)
+      .eq("product_id", anchor.product_id);
+    q = anchor.variant_id ? q.eq("variant_id", anchor.variant_id) : q.is("variant_id", null);
+    const { data: rows } = await q;
+    const ids = (rows ?? [])
+      .filter((r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig)
+      .map((r: any) => r.id as string);
+    return ids.length > 0 ? ids : [id];
+  };
+
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
     if (!user) {
@@ -223,9 +289,15 @@ export function useCart() {
       refresh();
       return;
     }
-    const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", id);
-    if (error) toast.error(error.message);
-    else refresh();
+    // Si des doublons hérités existent, on en garde un et on supprime les autres
+    // pour que la quantité affichée reste cohérente.
+    const ids = await findSiblingIds(id);
+    const keep = ids[0];
+    const drop = ids.slice(1);
+    const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", keep);
+    if (error) { toast.error(error.message); return; }
+    if (drop.length > 0) await supabase.from("cart_items").delete().in("id", drop);
+    refresh();
   };
 
   const removeItem = async (id: string) => {
@@ -234,7 +306,8 @@ export function useCart() {
       refresh();
       return;
     }
-    const { error } = await supabase.from("cart_items").delete().eq("id", id);
+    const ids = await findSiblingIds(id);
+    const { error } = await supabase.from("cart_items").delete().in("id", ids);
     if (error) toast.error(error.message);
     else refresh();
   };

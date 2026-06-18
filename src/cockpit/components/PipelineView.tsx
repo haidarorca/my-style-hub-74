@@ -136,7 +136,7 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                     : "EXT";
                   return (
                     <button
-                      key={`${row.mother_order_id}-${row.vendor_id}`}
+                      key={`${row.mother_order_id}::${row.sub_order_key}`}
                       onClick={() => onSelectSubRow?.(row)}
                       className={`w-full bg-white rounded-md p-2.5 text-left shadow-sm hover:shadow-md transition-shadow border ${
                         blocked ? "border-red-300" : money ? "border-amber-300" : ready ? "border-emerald-300" : "border-gray-200"
