@@ -450,7 +450,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* Pesée */}
           {imp && status === "awaiting_weighing" && (
-            <div onClick={onFormInteraction}><WeightForm orderId={order.order_id ?? ""} onWeigh={onWeigh} /></div>
+            <div onClick={onFormInteraction}><WeightForm orderId={order.order_id ?? ""} declaredFreight={Number((order as any).declared_freight_from_items ?? 0)} onWeigh={onWeigh} /></div>
           )}
 
           {/* Paiement */}
