@@ -326,18 +326,21 @@ function CartPage() {
     return { hasIntlItems: has, sourceCountryId: sourceId };
   }, [selectedItems, isItemInternational]);
 
-  const selectedShippingService = useMemo(
-    () => shippingServices.find((service) => service.id === shippingServiceId) ?? null,
-    [shippingServices, shippingServiceId],
+  const selectedKnownService = useMemo(
+    () => shippingServices.find((service) => service.id === knownShippingServiceId) ?? null,
+    [shippingServices, knownShippingServiceId],
+  );
+  const selectedUnknownService = useMemo(
+    () => shippingServices.find((service) => service.id === unknownShippingServiceId) ?? null,
+    [shippingServices, unknownShippingServiceId],
   );
 
-  // Load shipping services filtered by source (vendor country) + destination (client country).
-  // This prevents showing a "Senegal → China" route when the client in Senegal
-  // is ordering from a Chinese vendor.
+  // Charge la liste des services (source vendeur → destination client) une seule fois.
   useEffect(() => {
     if (!hasIntlItems || !destinationCountryId) {
       setShippingServices([]);
-      setShippingServiceId(null);
+      setKnownShippingServiceId(null);
+      setUnknownShippingServiceId(null);
       return;
     }
     let cancelled = false;
@@ -350,22 +353,23 @@ function CartPage() {
             only_enabled: true,
           },
         });
-        if (!cancelled) {
-          setShippingServices(services);
-          if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
-            setShippingServiceId(null);
-          }
-          // Reprendre le choix fait sur la fiche produit, sinon auto-sélection du moins cher.
-          if (!shippingServiceId && services.length > 0) {
-            const preferred = preferredShippingServiceId
-              ? services.find((service) => service.id === preferredShippingServiceId)
-              : null;
-            const cheapest = preferred ?? [...services].sort(
-              (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
-            )[0];
-            if (cheapest) setShippingServiceId(cheapest.id);
-          }
-        }
+        if (cancelled) return;
+        setShippingServices(services);
+        const cheapest = [...services].sort(
+          (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
+        )[0] ?? null;
+        const preferred = preferredShippingServiceId
+          ? services.find((s) => s.id === preferredShippingServiceId)
+          : null;
+        // KNOWN : auto-sélection du moins cher (le client peut changer ensuite).
+        setKnownShippingServiceId((prev) => {
+          if (prev && services.some((s) => s.id === prev)) return prev;
+          return (preferred ?? cheapest)?.id ?? null;
+        });
+        // UNKNOWN : pas d'auto-sélection (force le choix conscient). Garde celui d'avant si valide.
+        setUnknownShippingServiceId((prev) =>
+          prev && services.some((s) => s.id === prev) ? prev : (preferred?.id ?? null),
+        );
       } catch (e) {
         console.error("[cart] load shipping services failed", e);
       }
@@ -384,84 +388,39 @@ function CartPage() {
   };
   const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
-  // Items internationaux sélectionnés (utilisé pour l'estimation transport).
-  const intlSelectedItems = useMemo(
-    () => selectedItems.filter(isItemInternational),
-    [selectedItems, isItemInternational],
+  // ── Détection des sections présentes dans la sélection ──
+  const selectedHasKnown = useMemo(
+    () => selectedItems.some((it: any) => getItemLogisticsType(it) === "IMPORT_KNOWN_WEIGHT"),
+    [selectedItems, destinationCountryId],
   );
-  // Tous les items internationaux ont un poids déclaré ?
-  const allIntlHaveDeclaredWeight = useMemo(() => {
-    if (intlSelectedItems.length === 0) return false;
-    return intlSelectedItems.every((it: any) => Number(it?.products?.weight_kg ?? 0) > 0);
-  }, [intlSelectedItems]);
+  const selectedHasUnknown = useMemo(
+    () => selectedItems.some((it: any) => getItemLogisticsType(it) === "IMPORT_UNKNOWN_WEIGHT"),
+    [selectedItems, destinationCountryId],
+  );
 
-  // Poids facturable cumulé du panier intl (réutilisable pour chaque service).
-  const cartChargeableKg = useMemo(() => {
-    if (!allIntlHaveDeclaredWeight) return 0;
-    let totalKg = 0;
-    for (const it of intlSelectedItems) {
-      const p = it.products ?? {};
-      const real = Number(p.weight_kg ?? 0);
-      const l = Number(p.length_cm ?? 0);
-      const w = Number(p.width_cm ?? 0);
-      const h = Number(p.height_cm ?? 0);
-      const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
-      totalKg += Math.max(real, vol) * (it.quantity ?? 1);
-    }
-    return totalKg;
-  }, [allIntlHaveDeclaredWeight, intlSelectedItems]);
-
-  // Estimation par service (pour le panier complet).
-  const serviceEstimates = useMemo(() => {
-    if (!allIntlHaveDeclaredWeight || cartChargeableKg <= 0) return new Map<string, number>();
-    const m = new Map<string, number>();
-    for (const s of shippingServices) {
-      const rate = Number(s.price_per_kg ?? 0);
-      if (rate > 0) m.set(s.id, Math.round(cartChargeableKg * rate));
-    }
-    return m;
-  }, [allIntlHaveDeclaredWeight, cartChargeableKg, shippingServices]);
-
-  const shippingEstimate = useMemo(() => {
-    if (!selectedShippingService) return null;
-    return serviceEstimates.get(selectedShippingService.id) ?? null;
-  }, [selectedShippingService, serviceEstimates]);
-
-  // Fret par ligne pour les items à poids DÉCLARÉ uniquement.
-  // ⚠️ Indépendance stricte : on n'utilise QUE le service enregistré sur la ligne
-  // (it.shipping_service_id / customization.__shipping_service_id). À défaut, on prend
-  // automatiquement le service le moins cher disponible pour cette ligne — JAMAIS le
-  // sélecteur global, pour qu'un changement sur un article inconnu n'affecte pas un
-  // article à poids déclaré.
-  const cheapestServiceId = useMemo(() => {
-    if (shippingServices.length === 0) return null;
-    return [...shippingServices].sort(
-      (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
-    )[0]?.id ?? null;
-  }, [shippingServices]);
-
+  // Fret par ligne — UNIQUEMENT pour IMPORT_KNOWN_WEIGHT, avec le service KNOWN choisi.
+  // UNKNOWN n'engendre AUCUN fret avant pesée (règle stricte).
   const lineFreight = useCallback((it: any): number => {
-    if (!isItemInternational(it)) return 0;
-    const w = Number(it?.products?.weight_kg ?? 0);
-    if (w <= 0) return 0; // poids inconnu → AUCUN fret avant pesée
-    const svcId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? cheapestServiceId;
-    const svc = shippingServices.find((s) => s.id === svcId);
+    if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") return 0;
+    const svc = selectedKnownService;
     const rate = Number(svc?.price_per_kg ?? 0);
     if (rate <= 0) return 0;
     const p = it.products ?? {};
+    const w = Number(p.weight_kg ?? 0);
     const l = Number(p.length_cm ?? 0);
     const wd = Number(p.width_cm ?? 0);
     const h = Number(p.height_cm ?? 0);
     const vol = l > 0 && wd > 0 && h > 0 ? (l * wd * h) / 5000 : 0;
     const kg = Math.max(w, vol) * (it.quantity ?? 1);
     return Math.round(kg * rate);
-  }, [isItemInternational, cheapestServiceId, shippingServices]);
+  }, [selectedKnownService, destinationCountryId]);
 
-  // Coût transport cumulé du panier (somme des frets par ligne — UNIQUEMENT déclarés)
+  // Coût transport cumulé du panier (KNOWN uniquement — UNKNOWN n'est JAMAIS facturé ici).
   const cartFreightTotal = useMemo(
     () => selectedItems.reduce((s, it: any) => s + lineFreight(it), 0),
     [selectedItems, lineFreight],
   );
+
 
   const renderShippingServiceSelector = () => {
     if (!hasIntlItems) return null;
