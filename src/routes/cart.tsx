@@ -412,13 +412,24 @@ function CartPage() {
     return serviceEstimates.get(selectedShippingService.id) ?? null;
   }, [selectedShippingService, serviceEstimates]);
 
-  // Fret par ligne pour les items à poids déclaré : utilise le service choisi sur la ligne
-  // (customization.__shipping_service_id) en fallback du service global.
+  // Fret par ligne pour les items à poids DÉCLARÉ uniquement.
+  // ⚠️ Indépendance stricte : on n'utilise QUE le service enregistré sur la ligne
+  // (it.shipping_service_id / customization.__shipping_service_id). À défaut, on prend
+  // automatiquement le service le moins cher disponible pour cette ligne — JAMAIS le
+  // sélecteur global, pour qu'un changement sur un article inconnu n'affecte pas un
+  // article à poids déclaré.
+  const cheapestServiceId = useMemo(() => {
+    if (shippingServices.length === 0) return null;
+    return [...shippingServices].sort(
+      (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
+    )[0]?.id ?? null;
+  }, [shippingServices]);
+
   const lineFreight = useCallback((it: any): number => {
     if (!isItemInternational(it)) return 0;
     const w = Number(it?.products?.weight_kg ?? 0);
-    if (w <= 0) return 0;
-    const svcId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+    if (w <= 0) return 0; // poids inconnu → AUCUN fret avant pesée
+    const svcId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? cheapestServiceId;
     const svc = shippingServices.find((s) => s.id === svcId);
     const rate = Number(svc?.price_per_kg ?? 0);
     if (rate <= 0) return 0;
@@ -429,9 +440,9 @@ function CartPage() {
     const vol = l > 0 && wd > 0 && h > 0 ? (l * wd * h) / 5000 : 0;
     const kg = Math.max(w, vol) * (it.quantity ?? 1);
     return Math.round(kg * rate);
-  }, [isItemInternational, shippingServiceId, shippingServices]);
+  }, [isItemInternational, cheapestServiceId, shippingServices]);
 
-  // Coût transport cumulé du panier (somme des frets par ligne)
+  // Coût transport cumulé du panier (somme des frets par ligne — UNIQUEMENT déclarés)
   const cartFreightTotal = useMemo(
     () => selectedItems.reduce((s, it: any) => s + lineFreight(it), 0),
     [selectedItems, lineFreight],
