@@ -278,7 +278,7 @@ async function fallbackLogisticsQuery(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
       warehouse_location, agent_name, shipping_service_id, client_response_note,
-      anomaly_resolution`
+      anomaly_resolution, weight_mode`
     ).in("order_id", orderIds),
   ]);
 
