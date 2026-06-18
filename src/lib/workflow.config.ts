@@ -86,13 +86,18 @@ export function applyWorkflowFilter(
   rows: WorkflowRow[],
   filter: WorkflowFilterKey
 ): WorkflowRow[] {
+  // Workflow B (poids déclaré/vérifié) : "to_weigh" et "waiting_client"
+  // n'ont aucun sens, on les exclut explicitement de ces filtres.
+  const isDeclared = (r: WorkflowRow) =>
+    r.weight_status === "declared" || r.weight_status === "verified";
   switch (filter) {
     case "actions":
       return rows.filter(
         (r) =>
-          r.logistics_status === "awaiting_weighing" ||
+          (r.logistics_status === "awaiting_weighing" && !isDeclared(r)) ||
           r.logistics_status === "rejected" ||
-          r.logistics_status === "fees_calculated" ||
+          (r.logistics_status === "fees_calculated" && !isDeclared(r)) ||
+          r.weight_status === "anomaly" ||
           (r.logistics_status === "validated" && (r.amount_remaining ?? 0) > 0) ||
           (r.logistics_status === "ready_to_ship" && !r.tracking_number) ||
           (r.order_type === "local" &&
@@ -101,24 +106,31 @@ export function applyWorkflowFilter(
               r.logistics_status === undefined))
       );
     case "to_weigh":
-      return rows.filter((r) => r.logistics_status === "awaiting_weighing");
+      // Seules les commandes à poids inconnu apparaissent ici.
+      return rows.filter(
+        (r) => r.logistics_status === "awaiting_weighing" && !isDeclared(r),
+      );
     case "waiting_client":
       return rows.filter(
-        (r) => r.logistics_status === "awaiting_client_validation"
+        (r) => r.logistics_status === "awaiting_client_validation" && !isDeclared(r),
       );
     case "to_ship":
       return rows.filter((r) =>
-        ["validated", "ready_to_ship"].includes(r.logistics_status ?? "")
+        ["validated", "ready_to_ship"].includes(r.logistics_status ?? ""),
       );
     case "payment":
+      // Pas de paiement complémentaire pour le workflow B.
       return rows.filter(
         (r) =>
           (r.payment_status === "pending" || r.payment_status === "partial") &&
-          (r.amount_remaining ?? 0) > 0
+          (r.amount_remaining ?? 0) > 0 &&
+          !isDeclared(r),
       );
     case "urgent":
       return rows.filter(
-        (r) => r.logistics_status === "awaiting_weighing" && r.days_pending > 7
+        (r) =>
+          (r.logistics_status === "awaiting_weighing" && r.days_pending > 7 && !isDeclared(r)) ||
+          r.weight_status === "anomaly",
       );
     default:
       return rows;
@@ -128,12 +140,15 @@ export function applyWorkflowFilter(
 export function computeFilterCounts(
   rows: WorkflowRow[]
 ): Record<WorkflowFilterKey, number> {
+  const isDeclared = (r: WorkflowRow) =>
+    r.weight_status === "declared" || r.weight_status === "verified";
   return {
     actions: rows.filter(
       (r) =>
-        r.logistics_status === "awaiting_weighing" ||
+        (r.logistics_status === "awaiting_weighing" && !isDeclared(r)) ||
         r.logistics_status === "rejected" ||
-        r.logistics_status === "fees_calculated" ||
+        (r.logistics_status === "fees_calculated" && !isDeclared(r)) ||
+        r.weight_status === "anomaly" ||
         (r.logistics_status === "validated" && (r.amount_remaining ?? 0) > 0) ||
         (r.logistics_status === "ready_to_ship" && !r.tracking_number) ||
         (r.order_type === "local" &&
@@ -142,10 +157,11 @@ export function computeFilterCounts(
             r.logistics_status === undefined))
     ).length,
     all: rows.length,
-    to_weigh: rows.filter((r) => r.logistics_status === "awaiting_weighing")
-      .length,
+    to_weigh: rows.filter(
+      (r) => r.logistics_status === "awaiting_weighing" && !isDeclared(r),
+    ).length,
     waiting_client: rows.filter(
-      (r) => r.logistics_status === "awaiting_client_validation"
+      (r) => r.logistics_status === "awaiting_client_validation" && !isDeclared(r),
     ).length,
     to_ship: rows.filter((r) =>
       ["validated", "ready_to_ship"].includes(r.logistics_status ?? "")
@@ -153,10 +169,13 @@ export function computeFilterCounts(
     payment: rows.filter(
       (r) =>
         (r.payment_status === "pending" || r.payment_status === "partial") &&
-        (r.amount_remaining ?? 0) > 0
+        (r.amount_remaining ?? 0) > 0 &&
+        !isDeclared(r),
     ).length,
     urgent: rows.filter(
-      (r) => r.logistics_status === "awaiting_weighing" && r.days_pending > 7
+      (r) =>
+        (r.logistics_status === "awaiting_weighing" && r.days_pending > 7 && !isDeclared(r)) ||
+        r.weight_status === "anomaly",
     ).length,
   };
 }
