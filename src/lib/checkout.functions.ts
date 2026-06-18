@@ -19,6 +19,7 @@ const CheckoutSchema = z.object({
     variantId: z.string().uuid().nullable().optional(),
     quantity: z.number().int().min(1).max(99),
     customization: z.unknown().nullable().optional(),
+    shippingServiceId: z.string().uuid().nullable().optional(),
   })).min(1).max(100),
 });
 
