@@ -33,6 +33,7 @@ import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
 import { getPublicVendorContacts } from "@/lib/support.functions";
 import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
+import { getCartItemLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plane } from "lucide-react";
 
@@ -162,7 +163,7 @@ function CartPage() {
   // can be added as new groups without changing the UI structure.
   type VendorGroup = { shopName: string; vendorId: string; items: any[] };
   // 3 catégories STRICTES — alignées avec line-kind.ts.
-  type LogisticsType = "LOCAL" | "IMPORT_KNOWN_WEIGHT" | "IMPORT_UNKNOWN_WEIGHT";
+  type LogisticsType = LineKind;
   type LogisticsSection = {
     type: LogisticsType;
     label: string;
@@ -179,12 +180,7 @@ function CartPage() {
   //   LOCAL                  : pas d'import (destination = source ou info absente).
   //   IMPORT_KNOWN_WEIGHT    : import + poids produit > 0 → fret figé immédiatement.
   //   IMPORT_UNKNOWN_WEIGHT  : import + pas de poids → fret après pesée uniquement.
-  const getItemLogisticsType = (it: any): LogisticsType => {
-    const src = it?.products?.profiles?.source_country_id ?? null;
-    if (!destinationCountryId || !src || src === destinationCountryId) return "LOCAL";
-    const w = Number(it?.products?.weight_kg ?? 0);
-    return w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
-  };
+  const getItemLogisticsType = (it: any): LogisticsType => getCartItemLineKind(it, destinationCountryId);
 
   const logisticsGroups = useMemo(() => {
     const sections = new Map<LogisticsType, LogisticsSection>();
@@ -237,15 +233,6 @@ function CartPage() {
     }
     return sections;
   }, [items, destinationCountryId, t]);
-
-  // Flat vendor groups (backward compat for existing logic)
-  const groups = new Map<string, VendorGroup>();
-  for (const section of logisticsGroups.values()) {
-    for (const [key, vg] of section.vendorGroups) {
-      if (!groups.has(key)) groups.set(key, vg);
-      else groups.get(key)!.items.push(...vg.items);
-    }
-  }
 
   // === Selection state (defaults: tout coché) ===
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
