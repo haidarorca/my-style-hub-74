@@ -459,15 +459,15 @@ async function fallbackLogisticsQuery(
 
     const amountPaid = Number(payment.amount_paid ?? 0);
     // Règle stricte (ne JAMAIS inventer) :
-    //   freight = SUM(order_items.__freight_fee non-nul)       — fret figé au checkout (poids déclaré)
-    //           + SUM(assessment.air_freight_fee non-nul)       — fret pesé (poids inconnu)
+    //   freight = SUM(order_items.__freight_fee non-nul)        — fret figé au checkout (poids déclaré)
+    //           + SUM(toutes assessments.air_freight_fee non-nul) — fret pesé (poids inconnu)
     // assessment.air_freight_fee est NULL tant qu'aucune pesée n'est saisie.
     // Le KNOWN assessment n'a JAMAIS d'air_freight_fee → pas de double-comptage.
-    const rawAirFreight = assessment.air_freight_fee;
-    const assessmentAirFreight = rawAirFreight == null ? 0 : Number(rawAirFreight);
+    const assessmentAirFreight = assessmentAirSumMap.get(orderId) ?? 0;
     const declaredFreightFromItems = declaredFreightFromItemsMap.get(orderId) ?? 0;
     const freightCombined = assessmentAirFreight + declaredFreightFromItems;
     const totalFees = freightCombined + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
+
 
     const amountRequested = Number(payment.amount_requested ?? totalFees);
     const storedTotal = Number(order.total ?? 0);
