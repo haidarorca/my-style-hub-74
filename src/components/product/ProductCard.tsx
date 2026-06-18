@@ -4,6 +4,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
+import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 
 export interface ProductCardProduct {
   id: string;
@@ -12,6 +13,13 @@ export interface ProductCardProduct {
   code: string;
   name_i18n?: unknown;
   product_images: { url: string }[] | null;
+  // Optionnels — quand fournis par le fetcher, permettent d'afficher
+  // un "Total estimé" (produit + transport) sur la carte.
+  weight_kg?: number | null;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
+  profiles?: { source_country_id?: string | null } | null;
 }
 
 interface Props {
@@ -24,6 +32,18 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
+  const est = useEstimatedShipping({
+    weight_kg: product.weight_kg,
+    length_cm: product.length_cm,
+    width_cm: product.width_cm,
+    height_cm: product.height_cm,
+    vendor_source_country_id: product.profiles?.source_country_id ?? null,
+  });
+
+  // Total estimé = prix affiché + transport le moins cher (si calculable).
+  const showTotal = !!dp && est.isIntl && est.canEstimate && !!est.cheapest;
+  const total = showTotal ? Number(dp!.final_price) + est.cheapest!.price : null;
+
   return (
     <div className="group relative overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
       <Link
@@ -50,9 +70,23 @@ export function ProductCard({ product, onQuickAdd }: Props) {
             {displayName}
           </p>
           {dp ? (
-            <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-              {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
-            </p>
+            showTotal ? (
+              <div className="mt-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/80 leading-none">
+                  Total estimé
+                </p>
+                <p className="mt-0.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
+                  {total!.toLocaleString("fr-FR")} {t("misc.currency")}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
+                  produit + transport
+                </p>
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
+                {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
+              </p>
+            )
           ) : (
             <Skeleton className="mt-1.5 h-4 w-1/2" />
           )}
