@@ -399,10 +399,17 @@ function ProductPage() {
 
         <div className="space-y-4 px-4 py-3">
           <div>
-            {resolvedFinalPrice !== null ? (
-              <p className="text-xl font-extrabold text-primary">
-                {Number(resolvedFinalPrice).toLocaleString("fr-FR")} FCFA
-              </p>
+            {displayPrice !== null ? (
+              <>
+                <p className="text-xl font-extrabold text-primary">
+                  {Number(displayPrice).toLocaleString("fr-FR")} FCFA
+                </p>
+                {transportIncluded && (
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                    Transport inclus — modifiable au panier
+                  </p>
+                )}
+              </>
             ) : (
               <Skeleton className="h-7 w-32" />
             )}
