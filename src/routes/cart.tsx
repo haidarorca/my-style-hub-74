@@ -729,7 +729,7 @@ function CartPage() {
           .insert({
             id: orderId,
             buyer_id: null,
-            total: grandTotal,
+            total: grandTotal + (shippingEstimate ?? 0),
             status: "new",
             customer_name: addr.full_name,
             customer_phone: addr.phone,
