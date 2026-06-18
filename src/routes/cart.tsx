@@ -1078,7 +1078,7 @@ function CartPage() {
             <Button
               className="h-12 rounded-full px-5 text-sm font-semibold"
               onClick={() => setCheckoutOpen(true)}
-              disabled={!pricesReady || selectedItems.length === 0 || (hasIntlItems && !shippingServiceId)}
+              disabled={!pricesReady || selectedItems.length === 0 || (selectedHasKnown && !knownShippingServiceId) || (selectedHasUnknown && !unknownShippingServiceId)}
             >
               {selectedItems.length === 0
                 ? t("cart.checkout")
@@ -1170,7 +1170,8 @@ function CartPage() {
             />
           </div>
 
-          {renderShippingServiceSelector()}
+          {renderKnownShippingSelector()}
+          {renderUnknownShippingSelector()}
 
 
 
