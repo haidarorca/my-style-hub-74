@@ -62,8 +62,8 @@ interface Props {
   onPayment: (orderId: string, amount: number, method: string, reference: string, adminName: string) => void;
   onEditPayment?: (id: string, u: { amount?: number; method?: string; reference?: string }) => void;
   onDeletePayment?: (id: string) => void;
-  onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp">) => void;
-  onStatusChange: (orderId: string, status: string, adminName: string) => void;
+  onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp"> & { assessmentId?: string | null; subOrderKey?: string | null }) => void;
+  onStatusChange: (orderId: string, status: string, adminName: string, subOrderKey?: string | null) => void;
   onRequestCancel?: () => void;
   onViewItems?: () => void;
   onFormInteraction?: () => void;
@@ -75,10 +75,12 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
-  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
-  vendorId?: string;
-  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
-  onVendorChange?: (vendorId: string) => void;
+  /** Scope du drawer à UNE sous-commande (vendor_id + line_kind). */
+  subOrderKey?: string | null;
+  /** Navigation vers une autre sous-commande de la même commande mère. */
+  onSubOrderChange?: (subOrderKey: string) => void;
+  /** Assessment scopé à la sous-commande affichée (uniquement IMPORT_UNKNOWN_WEIGHT). */
+  subAssessment?: { id: string; air_freight_fee: number | null; status: string | null } | null;
   /** Phase B : historique métier de la sous-commande affichée. */
   subOrderHistory?: SubOrderHistory;
   subOrderHistoryLoading?: boolean;
