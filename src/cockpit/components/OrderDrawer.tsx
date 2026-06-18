@@ -81,18 +81,24 @@ interface Props {
   onSubOrderChange?: (subOrderKey: string) => void;
   /** Assessment scopé à la sous-commande affichée (uniquement IMPORT_UNKNOWN_WEIGHT). */
   subAssessment?: { id: string; air_freight_fee: number | null; status: string | null } | null;
+  /** Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère). */
+  effectiveSubStatus?: string | null;
   /** Phase B : historique métier de la sous-commande affichée. */
   subOrderHistory?: SubOrderHistory;
   subOrderHistoryLoading?: boolean;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, subOrderHistory, subOrderHistoryLoading }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, effectiveSubStatus, subOrderHistory, subOrderHistoryLoading }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
   if (!order) return null;
 
-  const status = order.logistics_status ?? "new";
+  // Statut affiché : si on est scopé sur une sous-commande, on lit son statut
+  // RÉEL (sub_order_states) au lieu du statut de la commande mère. Sans cela,
+  // cliquer "Confirmer" écrirait bien sub_order_states mais l'UI continuerait
+  // d'afficher l'ancien statut de la mère.
+  const status = (subOrderKey ? (effectiveSubStatus ?? order.logistics_status) : order.logistics_status) ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
 
