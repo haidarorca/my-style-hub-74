@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyVendorNewOrder } from "@/lib/notifications.functions";
+import { getLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
+
 
 const CheckoutSchema = z.object({
   destinationCountryId: z.string().uuid(),
@@ -73,15 +75,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         return v;
       };
 
-      let freightTotal = 0;
-      let allIntlDeclared = true;
-      let intlCount = 0;
       let firstShippingServiceId: string | null = data.shippingServiceId ?? null;
+      // Buckets par sous-commande (vendor_id × line_kind) — un assessment par bucket.
+      type Bucket = { vendorId: string; kind: LineKind; key: string; declaredFreightSum: number; serviceId: string | null };
+      const buckets = new Map<string, Bucket>();
 
       const orderRows = await Promise.all(data.items.map(async (item) => {
         const product = productMap.get(item.productId) as any;
         if (!product) throw new Error("Un produit du panier est introuvable ou indisponible.");
         if (!product.is_active || product.status !== "approved") throw new Error(`Produit indisponible: ${product.name}`);
+        if (!product.vendor_id) throw new Error(`Produit sans boutique associée: ${product.name}`);
 
         const variant = item.variantId ? variantMap.get(item.variantId) as any : null;
         if (item.variantId && (!variant || variant.product_id !== item.productId)) {
@@ -99,46 +102,65 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const unitPrice = Number(price?.final_price ?? variant?.price_override ?? product.price ?? 0);
         total += unitPrice * item.quantity;
 
-        // ── Fret PAR LIGNE pour les articles internationaux à poids déclaré ──
-        // ⚠️ Indépendance stricte par ligne : on n'utilise QUE item.shippingServiceId
-        // (préférence enregistrée sur la ligne). Le sélecteur global éventuel n'est
-        // PAS appliqué ici — il sert uniquement de filtre à la sélection au panier.
+        // ── Catégorie figée par ligne ──
         const sourceId = product.profiles?.source_country_id ?? null;
-        const isIntl = !!sourceId && sourceId !== data.destinationCountryId;
+        const kind = getLineKind({
+          destinationCountryId: data.destinationCountryId,
+          vendorSourceCountryId: sourceId,
+          productWeightKg: product.weight_kg,
+        });
+        const subKey = subOrderKey(product.vendor_id, kind);
+
+        // ── Fret : UNIQUEMENT IMPORT_KNOWN_WEIGHT, figé à la ligne ──
+        //   - sélecteur par ligne (item.shippingServiceId) prioritaire ;
+        //   - sinon repli sur le sélecteur global (data.shippingServiceId) si présent.
+        //   IMPORT_UNKNOWN_WEIGHT : NULL — calcul après pesée ; le choix de
+        //   service global est néanmoins stampé sur la ligne pour l'agent.
         let lineFreight = 0;
         let lineServiceId: string | null = null;
-        if (isIntl) {
-          intlCount += 1;
-          const weight = Number(product.weight_kg ?? 0);
-          if (weight > 0) {
-            const svcId = item.shippingServiceId ?? null;
-            const svc = await resolveService(svcId);
-            const rate = svc?.price_per_kg ?? null;
-            if (svc && rate != null && rate > 0) {
-              const l = Number(product.length_cm ?? 0);
-              const w = Number(product.width_cm ?? 0);
-              const h = Number(product.height_cm ?? 0);
-              const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
-              const kg = Math.max(weight, vol) * item.quantity;
-              lineFreight = Math.round(kg * rate);
-              lineServiceId = svc.id;
-              firstShippingServiceId = firstShippingServiceId ?? svc.id;
-            } else {
-              allIntlDeclared = false; // poids OK mais pas de service applicable
-            }
-          } else {
-            allIntlDeclared = false; // poids inconnu → AUCUN fret au checkout
+        if (kind === "IMPORT_KNOWN_WEIGHT") {
+          const svcId = item.shippingServiceId ?? data.shippingServiceId ?? null;
+          const svc = await resolveService(svcId);
+          const rate = svc?.price_per_kg ?? null;
+          if (svc && rate != null && rate > 0) {
+            const l = Number(product.length_cm ?? 0);
+            const w = Number(product.width_cm ?? 0);
+            const h = Number(product.height_cm ?? 0);
+            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+            const kg = Math.max(Number(product.weight_kg ?? 0), vol) * item.quantity;
+            lineFreight = Math.round(kg * rate);
+            lineServiceId = svc.id;
+            firstShippingServiceId = firstShippingServiceId ?? svc.id;
           }
+        } else if (kind === "IMPORT_UNKNOWN_WEIGHT") {
+          // Stamp préférence client (sélecteur global) pour traçabilité de l'opérateur.
+          lineServiceId = item.shippingServiceId ?? data.shippingServiceId ?? null;
         }
         if (lineFreight > 0) total += lineFreight;
 
-        // Stamp __freight_fee + __shipping_service_id pour traçabilité
+        // Bucket pour les sous-commandes IMPORT
+        if (kind !== "LOCAL") {
+          const b = buckets.get(subKey) ?? {
+            vendorId: product.vendor_id,
+            kind,
+            key: subKey,
+            declaredFreightSum: 0,
+            serviceId: lineServiceId,
+          };
+          b.declaredFreightSum += lineFreight;
+          b.serviceId = b.serviceId ?? lineServiceId;
+          buckets.set(subKey, b);
+        }
+
+        // Stamp __line_kind + __sub_order_key + __freight_fee + __shipping_service_id
         const baseCust = (item.customization && typeof item.customization === "object")
           ? { ...(item.customization as Record<string, unknown>) }
           : {};
+        baseCust.__line_kind = kind;
+        baseCust.__sub_order_key = subKey;
         if (lineFreight > 0) baseCust.__freight_fee = lineFreight;
         if (lineServiceId) baseCust.__shipping_service_id = lineServiceId;
-        const finalCust = Object.keys(baseCust).length > 0 ? baseCust : null;
+        const finalCust = baseCust;
 
         return {
           product_id: item.productId,
@@ -156,10 +178,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         };
       }));
 
-      const weightMode: "declared" | "unknown" =
-        intlCount > 0 && allIntlDeclared ? "declared" : "unknown";
-      freightTotal = orderRows.reduce((s, r) => s + Number((r.customization as any)?.__freight_fee ?? 0), 0);
-      const allHaveDeclaredWeight = weightMode === "declared" && freightTotal > 0;
+      const freightTotal = orderRows.reduce((s, r) => s + Number((r.customization as any)?.__freight_fee ?? 0), 0);
+      const hasIntl = buckets.size > 0;
+      const hasUnknown = Array.from(buckets.values()).some(b => b.kind === "IMPORT_UNKNOWN_WEIGHT");
 
       const orderId = crypto.randomUUID();
       const { error: orderError } = await supabaseAdmin.from("orders").insert({
@@ -174,10 +195,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         note: data.address.note ?? null,
         destination_country_id: data.destinationCountryId,
         shipping_service_id: firstShippingServiceId,
-        shipping_estimate_note: intlCount > 0
-          ? (allHaveDeclaredWeight
-              ? `Fret inclus (${freightTotal.toLocaleString("fr-FR")} FCFA) — vérifié à la réception`
-              : "Estimé — sera recalculé après pesée")
+        shipping_estimate_note: hasIntl
+          ? (hasUnknown
+              ? (freightTotal > 0
+                  ? `Fret partiel inclus (${freightTotal.toLocaleString("fr-FR")} FCFA pour articles à poids déclaré). Articles à poids inconnu : fret calculé après pesée.`
+                  : "Articles à poids inconnu : fret calculé après pesée.")
+              : `Fret inclus (${freightTotal.toLocaleString("fr-FR")} FCFA) — vérifié à la réception`)
           : null,
       } as any);
       if (orderError) throw new Error(`Création commande: ${orderError.message}`);
@@ -191,26 +214,30 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         throw new Error(`Création articles commande: ${itemsError.message}`);
       }
 
-      // Pré-créer l'évaluation logistique avec weight_mode pour activer le circuit B/A explicitement.
-      if (intlCount > 0) {
+      // Un assessment par sous-commande import. air_freight_fee TOUJOURS NULL
+      // initialement — la "vérité" du fret figé vit sur order_items.__freight_fee,
+      // et le fret pesé (UNKNOWN) sera écrit ici plus tard. Aucune valeur inventée.
+      if (buckets.size > 0) {
+        const rows = Array.from(buckets.values()).map((b) => ({
+          order_id: orderId,
+          created_by: context.userId,
+          sub_order_key: b.key,
+          status: b.kind === "IMPORT_KNOWN_WEIGHT" ? "fees_calculated" : "pending_arrival",
+          weight_mode: b.kind === "IMPORT_KNOWN_WEIGHT" ? "declared" : "unknown",
+          shipping_service_id: b.serviceId,
+          air_freight_fee: null,
+          admin_comment: b.kind === "IMPORT_KNOWN_WEIGHT"
+            ? "Poids déclaré — fret figé sur les lignes. Vérification interne à la réception."
+            : "Poids inconnu — pesée requise pour calculer le fret.",
+        }));
         try {
-          await (supabaseAdmin as any)
-            .from("order_shipment_assessments")
-            .insert({
-              order_id: orderId,
-              created_by: context.userId,
-              status: allHaveDeclaredWeight ? "fees_calculated" : "pending_arrival",
-              weight_mode: weightMode,
-              shipping_service_id: firstShippingServiceId,
-              air_freight_fee: allHaveDeclaredWeight ? freightTotal : 0,
-              admin_comment: allHaveDeclaredWeight
-                ? "Fret payé à la commande (poids déclaré). À vérifier à la réception."
-                : "Poids inconnu — circuit pesée requis.",
-            });
+          const { error: aErr } = await (supabaseAdmin as any).from("order_shipment_assessments").insert(rows);
+          if (aErr) console.error("[checkout.server] assessments insert failed", { orderId, error: aErr });
         } catch (assessmentError) {
           console.error("[checkout.server] prefill assessment failed", { orderId, error: assessmentError });
         }
       }
+
 
       // NOTIFIER les vendeurs concernes par la commande
       try {
