@@ -177,6 +177,13 @@ export function ShipmentAssessmentDialog({
   const isValidated = status === "validated" || status === "ready_to_ship" || status === "shipped";
   const isRejected = status === "rejected";
   const canSend = (status === "awaiting_weighing" || status === "fees_calculated") && feesTotal > 0;
+  // Mode VÉRIFICATION : l'évaluation a été pré-remplie avec un poids déclaré
+  // par le vendeur (statut initial = fees_calculated et un poids existe).
+  // L'agent doit uniquement vérifier / corriger, pas peser à partir de zéro.
+  const isVerificationMode =
+    status === "fees_calculated" &&
+    Number(data?.real_weight_kg ?? 0) > 0 &&
+    (data?.admin_comment ?? "").toLowerCase().includes("pré-rempli");
 
   /* ── Handlers ── */
 
@@ -270,13 +277,19 @@ export function ShipmentAssessmentDialog({
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Scale className="h-5 w-5 text-primary" />
-              Pesée & Évaluation
+              {isVerificationMode ? "Vérification du poids déclaré" : "Pesée & Évaluation"}
             </DialogTitle>
             <Badge className={cn(statusCfg.color)}>{statusCfg.label}</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
             Commande #{orderId.slice(0, 8)} · {customerName ?? "—"} · {customerPhone ?? "—"}
           </p>
+          {isVerificationMode && (
+            <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] text-blue-800">
+              Le vendeur a déclaré un poids. Vérifiez à la balance : si conforme, validez et passez à l'expédition.
+              En cas d'écart, ajustez les valeurs ci-dessous puis renvoyez les frais au client.
+            </div>
+          )}
         </DialogHeader>
 
         {isLoading ? (
