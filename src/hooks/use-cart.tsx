@@ -140,9 +140,12 @@ export function useCart() {
 
   const addToCart = async (input: AddToCartInput) => {
     const qty = input.quantity ?? 1;
+    const baseCustomization = input.customization && Object.keys(input.customization).length > 0
+      ? input.customization
+      : null;
     const customization = input.shippingServiceId
       ? { ...(input.customization ?? {}), __shipping_service_id: input.shippingServiceId }
-      : (input.customization ?? null);
+      : baseCustomization;
 
     if (!user) {
       // Guest cart
@@ -151,10 +154,12 @@ export function useCart() {
         (l) =>
           l.product_id === input.productId &&
           (l.variant_id ?? null) === (input.variantId ?? null) &&
-          !customization,
+          !baseCustomization && (l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null) === (input.shippingServiceId ?? null),
       );
-      if (idx >= 0 && !customization) {
+      if (idx >= 0 && !baseCustomization) {
         lines[idx].quantity += qty;
+        lines[idx].shipping_service_id = input.shippingServiceId ?? lines[idx].shipping_service_id ?? null;
+        lines[idx].customization = customization;
       } else {
         lines.unshift({
           id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -183,10 +188,10 @@ export function useCart() {
       : existingQuery.is("variant_id", null);
     const { data: existing } = await existingQuery.maybeSingle();
 
-    if (existing && !customization) {
+    if (existing && !baseCustomization) {
       const { error } = await supabase
         .from("cart_items")
-        .update({ quantity: existing.quantity + qty })
+        .update({ quantity: existing.quantity + qty, customization: customization as never })
         .eq("id", existing.id);
       if (error) {
         toast.error(error.message);
