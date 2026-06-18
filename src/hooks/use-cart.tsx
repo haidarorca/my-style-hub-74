@@ -177,11 +177,9 @@ export function useCart() {
     if (!user) {
       // Guest cart
       const lines = readGuestCart();
+      const targetSig = cartLineSignature(input.productId, input.variantId, baseCustomization);
       const idx = lines.findIndex(
-        (l) =>
-          l.product_id === input.productId &&
-          (l.variant_id ?? null) === (input.variantId ?? null) &&
-          !baseCustomization && !l.customization,
+        (l) => cartLineSignature(l.product_id, l.variant_id, l.customization) === targetSig,
       );
       if (idx >= 0) {
         lines[idx].quantity += qty;
@@ -215,14 +213,9 @@ export function useCart() {
     const { data: existingRows } = await existingQuery;
 
     // Mergeable rows = rows whose meaningful customization matches new input.
-    const stripShipping = (c: any) => {
-      if (!c || typeof c !== "object") return null;
-      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-      return Object.keys(rest).length > 0 ? rest : null;
-    };
-    const targetSig = JSON.stringify(stripShipping(baseCustomization));
+    const targetSig = JSON.stringify(stripCartInternalMetadata(baseCustomization));
     const mergeable = (existingRows ?? []).filter(
-      (r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig,
+      (r: any) => JSON.stringify(stripCartInternalMetadata(r.customization)) === targetSig,
     );
 
     if (mergeable.length > 0) {
@@ -267,12 +260,7 @@ export function useCart() {
       .eq("id", id)
       .maybeSingle();
     if (!anchor) return [id];
-    const stripShipping = (c: any) => {
-      if (!c || typeof c !== "object") return null;
-      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-      return Object.keys(rest).length > 0 ? rest : null;
-    };
-    const targetSig = JSON.stringify(stripShipping(anchor.customization));
+    const targetSig = JSON.stringify(stripCartInternalMetadata(anchor.customization));
     let q = supabase
       .from("cart_items")
       .select("id, customization")
@@ -281,7 +269,7 @@ export function useCart() {
     q = anchor.variant_id ? q.eq("variant_id", anchor.variant_id) : q.is("variant_id", null);
     const { data: rows } = await q;
     const ids = (rows ?? [])
-      .filter((r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig)
+      .filter((r: any) => JSON.stringify(stripCartInternalMetadata(r.customization)) === targetSig)
       .map((r: any) => r.id as string);
     return ids.length > 0 ? ids : [id];
   };
