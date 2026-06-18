@@ -449,7 +449,8 @@ export default function CockpitDashboard() {
             </>
           }
         />
-      )}
+        );
+      })()}
     </div>
   );
 }
