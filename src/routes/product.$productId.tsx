@@ -26,6 +26,7 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
+import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { ProductGallery } from "@/components/images/ProductGallery";
 
 export const Route = createFileRoute("/product/$productId")({
@@ -160,10 +161,11 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
+           weight_kg, length_cm, width_cm, height_cm,
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
-           profiles:vendor_id(full_name, shop_name)`,
+           profiles:vendor_id(full_name, shop_name, source_country_id)`,
         )
         .eq("id", productId)
         .maybeSingle();
@@ -388,6 +390,22 @@ function ProductPage() {
           </div>
 
           <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
+
+          <EstimatedShippingPanel
+            product={{
+              weight_kg: (data as any).weight_kg,
+              length_cm: (data as any).length_cm,
+              width_cm: (data as any).width_cm,
+              height_cm: (data as any).height_cm,
+              vendor_source_country_id:
+                ((data as any).profiles?.source_country_id ??
+                  (Array.isArray((data as any).profiles)
+                    ? (data as any).profiles[0]?.source_country_id
+                    : null)) ?? null,
+            }}
+            productPrice={resolvedFinalPrice}
+          />
+
 
           {sizes.length > 0 && (
             <div>

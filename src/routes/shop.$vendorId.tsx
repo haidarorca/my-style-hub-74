@@ -80,7 +80,7 @@ function ShopPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, name_i18n, price, code, category_id, created_at, product_images(url), product_variants(id, size, color, color_hex, stock, price_override)",
+          "id, name, name_i18n, price, code, weight_kg, length_cm, width_cm, height_cm, profiles!products_vendor_id_fkey(source_country_id), category_id, created_at, product_images(url), product_variants(id, size, color, color_hex, stock, price_override)",
         )
         .eq("vendor_id", vendorId)
         .eq("status", "approved")

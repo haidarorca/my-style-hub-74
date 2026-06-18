@@ -1525,6 +1525,10 @@ export type Database = {
         Row: {
           admin_comment: string | null
           air_freight_fee: number | null
+          anomaly_note: string | null
+          anomaly_resolution: string | null
+          anomaly_resolved_at: string | null
+          anomaly_resolved_by: string | null
           client_rejected_at: string | null
           client_response_note: string | null
           client_validated_at: string | null
@@ -1549,6 +1553,10 @@ export type Database = {
         Insert: {
           admin_comment?: string | null
           air_freight_fee?: number | null
+          anomaly_note?: string | null
+          anomaly_resolution?: string | null
+          anomaly_resolved_at?: string | null
+          anomaly_resolved_by?: string | null
           client_rejected_at?: string | null
           client_response_note?: string | null
           client_validated_at?: string | null
@@ -1573,6 +1581,10 @@ export type Database = {
         Update: {
           admin_comment?: string | null
           air_freight_fee?: number | null
+          anomaly_note?: string | null
+          anomaly_resolution?: string | null
+          anomaly_resolved_at?: string | null
+          anomaly_resolved_by?: string | null
           client_rejected_at?: string | null
           client_response_note?: string | null
           client_validated_at?: string | null

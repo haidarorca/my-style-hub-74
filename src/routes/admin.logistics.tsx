@@ -45,6 +45,7 @@ import {
   FileText, ArrowDownToLine, History, Plus, PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WeightAnomalyPanel } from "@/components/admin/WeightAnomalyPanel";
 
 export const Route = createFileRoute("/admin/logistics")({
   component: LogisticsControlCenter,
@@ -353,6 +354,8 @@ function LogisticsControlCenter() {
 
   return (
     <div className="space-y-4">
+      {/* Anomalies poids — file prioritaire */}
+      <WeightAnomalyPanel />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

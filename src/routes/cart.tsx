@@ -370,12 +370,9 @@ function CartPage() {
     return intlSelectedItems.every((it: any) => Number(it?.products?.weight_kg ?? 0) > 0);
   }, [intlSelectedItems]);
 
-  // Estimation transport quand poids déclaré + service choisi.
-  const shippingEstimate = useMemo(() => {
-    if (!allIntlHaveDeclaredWeight) return null;
-    if (!selectedShippingService) return null;
-    const ratePerKg = Number(selectedShippingService.price_per_kg ?? 0);
-    if (ratePerKg <= 0) return null;
+  // Poids facturable cumulé du panier intl (réutilisable pour chaque service).
+  const cartChargeableKg = useMemo(() => {
+    if (!allIntlHaveDeclaredWeight) return 0;
     let totalKg = 0;
     for (const it of intlSelectedItems) {
       const p = it.products ?? {};
@@ -386,16 +383,38 @@ function CartPage() {
       const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
       totalKg += Math.max(real, vol) * (it.quantity ?? 1);
     }
-    return Math.round(totalKg * ratePerKg);
-  }, [allIntlHaveDeclaredWeight, intlSelectedItems, selectedShippingService]);
+    return totalKg;
+  }, [allIntlHaveDeclaredWeight, intlSelectedItems]);
+
+  // Estimation par service (pour le panier complet).
+  const serviceEstimates = useMemo(() => {
+    if (!allIntlHaveDeclaredWeight || cartChargeableKg <= 0) return new Map<string, number>();
+    const m = new Map<string, number>();
+    for (const s of shippingServices) {
+      const rate = Number(s.price_per_kg ?? 0);
+      if (rate > 0) m.set(s.id, Math.round(cartChargeableKg * rate));
+    }
+    return m;
+  }, [allIntlHaveDeclaredWeight, cartChargeableKg, shippingServices]);
+
+  const shippingEstimate = useMemo(() => {
+    if (!selectedShippingService) return null;
+    return serviceEstimates.get(selectedShippingService.id) ?? null;
+  }, [selectedShippingService, serviceEstimates]);
 
   const renderShippingServiceSelector = () => {
     if (!hasIntlItems) return null;
     // Cas A : au moins un article sans poids → message "après pesée"
     // Cas B : tous les articles ont un poids déclaré → message "estimation, vérifié à réception"
     const message = allIntlHaveDeclaredWeight
-      ? "Le coût du transport est estimé à partir des informations fournies par le vendeur. Le poids réel sera vérifié à la réception par notre agent logistique."
-      : "Le prix de transport sera calculé après réception et pesée réelle du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.";
+      ? "Le coût du transport affiché est calculé à partir des informations fournies par le vendeur et sera vérifié par notre équipe logistique à la réception."
+      : "Le coût du transport sera calculé après réception et pesée du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.";
+    const fmtDelay = (s: ShippingService) =>
+      s.delay_min_days && s.delay_max_days
+        ? `${s.delay_min_days}-${s.delay_max_days} jours`
+        : s.delay_max_days
+          ? `~${s.delay_max_days} jours`
+          : "délai variable";
     return (
       <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <Label className="flex items-center gap-2 text-sm font-semibold">
@@ -404,48 +423,60 @@ function CartPage() {
         </Label>
         <p className="text-[11px] text-muted-foreground">{message}</p>
         {!destinationCountryId ? (
-          <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>
+          <p className="text-xs text-destructive">Choisissez d'abord le pays de livraison.</p>
         ) : shippingServices.length === 0 ? (
           <p className="text-xs text-destructive">
             Aucun service actif disponible pour cette destination. Contactez le support.
           </p>
         ) : (
-          <Select value={shippingServiceId ?? ""} onValueChange={(v) => setShippingServiceId(v || null)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choisir un service" />
-            </SelectTrigger>
-            <SelectContent>
-              {shippingServices.map((s) => {
-                const delay = s.delay_min_days && s.delay_max_days
-                  ? `${s.delay_min_days}-${s.delay_max_days} j`
-                  : s.delay_max_days ? `~${s.delay_max_days} j` : "délai variable";
-                return (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{s.name}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA/{s.pricing_unit} · {delay}
-                      </span>
+          <div className="space-y-1.5">
+            {shippingServices.map((s) => {
+              const est = serviceEstimates.get(s.id);
+              const isSel = shippingServiceId === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setShippingServiceId(s.id)}
+                  className={cn(
+                    "w-full text-left rounded-lg border p-2.5 transition-colors",
+                    isSel
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-background hover:bg-accent",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold truncate">{s.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
                     </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        )}
-        {selectedShippingService && (
-          <p className="text-[11px] text-muted-foreground">
-            Service sélectionné : <span className="font-medium text-foreground">{selectedShippingService.name}</span>
-          </p>
+                    <div className="text-right shrink-0">
+                      {est != null ? (
+                        <div className="text-sm font-bold text-primary">
+                          {est.toLocaleString("fr-FR")} FCFA
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground">
+                          calculé après pesée
+                        </div>
+                      )}
+                      {isSel && (
+                        <div className="text-[10px] text-emerald-700 font-medium mt-0.5 flex items-center justify-end gap-0.5">
+                          <Check className="h-3 w-3" /> Sélectionné
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
         {shippingEstimate != null && (
           <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-800">
             <div className="flex items-center justify-between">
-              <span>Estimation transport</span>
-              <span className="font-semibold">~ {shippingEstimate.toLocaleString("fr-FR")} FCFA</span>
-            </div>
-            <div className="text-[10px] text-emerald-700/80 mt-0.5">
-              Estimation basée sur le poids déclaré par le vendeur · ajustée après vérification à la réception.
+              <span>Transport estimé</span>
+              <span className="font-semibold">{shippingEstimate.toLocaleString("fr-FR")} FCFA</span>
             </div>
           </div>
         )}

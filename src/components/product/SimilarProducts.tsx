@@ -22,7 +22,7 @@ export function SimilarProducts({
     queryFn: async () => {
       let q = supabase
         .from("products")
-        .select("id, name, price, code, product_images(url)")
+        .select("id, name, price, code, weight_kg, length_cm, width_cm, height_cm, profiles!products_vendor_id_fkey(source_country_id), product_images(url)")
         .eq("status", "approved")
         .neq("id", productId)
         .limit(10);

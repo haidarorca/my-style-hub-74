@@ -3,10 +3,12 @@ import { getSteps, getStepIndex } from "@/lib/workflow.config";
 interface Props {
   orderType: string | null;
   logisticsStatus: string | null;
+  /** "declared" / "verified" / "anomaly" → workflow B (sans pesée client). */
+  weightStatus?: string | null;
 }
 
-export function WorkflowStepBar({ orderType, logisticsStatus }: Props) {
-  const steps = getSteps(orderType ?? "import");
+export function WorkflowStepBar({ orderType, logisticsStatus, weightStatus }: Props) {
+  const steps = getSteps(orderType ?? "import", weightStatus);
   const currentIndex = getStepIndex(steps, logisticsStatus);
 
   return (
