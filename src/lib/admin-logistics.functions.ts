@@ -72,6 +72,8 @@ export type LogisticsOrderRow = {
   service_fee: number | null;
   extra_fees: number | null;
   total_shipping_fees: number | null;
+  /** Fret figé au checkout pour les articles à poids déclaré (somme des __freight_fee). */
+  declared_freight_from_items?: number | null;
   warehouse_location: string | null;
   agent_name: string | null;
   parcel_photo_url: string | null;
@@ -273,7 +275,7 @@ async function fallbackLogisticsQuery(
     /* 1b */ countryIds.length > 0
       ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
-    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price").in("order_id", orderIds),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price, customization").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
@@ -292,18 +294,23 @@ async function fallbackLogisticsQuery(
     }
   }
 
-  // ── Order items (avec unit_price pour calculer le total)
-  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number }>>();
+  // ── Order items (avec unit_price + customization pour calculer total et fret déclaré)
+  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number; customization: any }>>();
   let orderTotalFromItems = new Map<string, number>();
+  let declaredFreightFromItemsMap = new Map<string, number>();
   if (itemsResult.status === "fulfilled" && itemsResult.value.data) {
     for (const it of itemsResult.value.data) {
       const arr = orderItemsMap.get(it.order_id) ?? [];
       const qty = it.quantity ?? 1;
       const price = it.unit_price ?? 0;
-      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price });
+      const cust = (it as any).customization ?? null;
+      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price, customization: cust });
       orderItemsMap.set(it.order_id, arr);
-      // Calculer le total depuis les items
       orderTotalFromItems.set(it.order_id, (orderTotalFromItems.get(it.order_id) ?? 0) + (qty * price));
+      const lineFreight = Number((cust && typeof cust === "object" ? (cust as any).__freight_fee : 0) ?? 0);
+      if (lineFreight > 0) {
+        declaredFreightFromItemsMap.set(it.order_id, (declaredFreightFromItemsMap.get(it.order_id) ?? 0) + lineFreight);
+      }
     }
   }
 
@@ -441,7 +448,17 @@ async function fallbackLogisticsQuery(
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
 
     const amountPaid = Number(payment.amount_paid ?? 0);
-    const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
+    const assessmentAirFreight = Number(assessment.air_freight_fee ?? 0);
+    const declaredFreightFromItems = declaredFreightFromItemsMap.get(orderId) ?? 0;
+    const wm = (assessment as any).weight_mode as string | null | undefined;
+    // Circuit B (poids déclaré complet) : air_freight_fee de l'évaluation couvre déjà
+    // tous les articles → on ne ré-additionne pas le fret figé des items.
+    // Sinon (mixte ou inconnu) : on cumule le fret figé déclaré + le fret pesé.
+    const isFullyDeclaredAssessment = wm === "declared" && assessmentAirFreight > 0;
+    const freightCombined = isFullyDeclaredAssessment
+      ? assessmentAirFreight
+      : Math.max(assessmentAirFreight, 0) + declaredFreightFromItems;
+    const totalFees = freightCombined + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
     const storedTotal = Number(order.total ?? 0);
     const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
@@ -551,6 +568,7 @@ async function fallbackLogisticsQuery(
       service_fee: (assessment.service_fee as number) ?? null,
       extra_fees: (assessment.extra_fees as number) ?? null,
       total_shipping_fees: totalFees,
+      declared_freight_from_items: declaredFreightFromItems > 0 ? declaredFreightFromItems : null,
       warehouse_location: (assessment.warehouse_location as string) ?? null,
       agent_name: (assessment.agent_name as string) ?? null,
       parcel_photo_url: (assessment.parcel_photo_url as string) ?? null,
