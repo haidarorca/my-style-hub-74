@@ -3,6 +3,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { UnknownItem } from "./WeightForm";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -450,7 +453,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* Pesée */}
           {imp && status === "awaiting_weighing" && (
-            <div onClick={onFormInteraction}><WeightForm orderId={order.order_id ?? ""} declaredFreight={Number((order as any).declared_freight_from_items ?? 0)} onWeigh={onWeigh} /></div>
+            <WeightFormWithUnknownItems
+              orderId={order.order_id ?? ""}
+              assessmentId={order.assessment_id}
+              declaredFreight={Number((order as any).declared_freight_from_items ?? 0)}
+              onWeigh={onWeigh}
+              onFormInteraction={onFormInteraction}
+            />
           )}
 
           {/* Paiement */}
