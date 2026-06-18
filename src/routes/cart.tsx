@@ -422,87 +422,154 @@ function CartPage() {
   );
 
 
-  const renderShippingServiceSelector = () => {
-    if (!hasIntlItems) return null;
-    // Cas A : au moins un article sans poids → message "après pesée"
-    // Cas B : tous les articles ont un poids déclaré → message "estimation, vérifié à réception"
-    const message = allIntlHaveDeclaredWeight
-      ? "Le coût du transport affiché est calculé à partir des informations fournies par le vendeur et sera vérifié par notre équipe logistique à la réception."
-      : "Le coût du transport sera calculé après réception et pesée du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.";
-    const fmtDelay = (s: ShippingService) =>
-      s.delay_min_days && s.delay_max_days
-        ? `${s.delay_min_days}-${s.delay_max_days} jours`
-        : s.delay_max_days
-          ? `~${s.delay_max_days} jours`
-          : "délai variable";
+  const fmtDelay = (s: ShippingService) =>
+    s.delay_min_days && s.delay_max_days
+      ? `${s.delay_min_days}-${s.delay_max_days} jours`
+      : s.delay_max_days
+        ? `~${s.delay_max_days} jours`
+        : "délai variable";
+
+  // Estimation par service pour les SEULS articles KNOWN (poids déclaré).
+  const knownServiceEstimates = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!selectedHasKnown) return m;
+    let kg = 0;
+    for (const it of selectedItems) {
+      if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") continue;
+      const p = it.products ?? {};
+      const real = Number(p.weight_kg ?? 0);
+      const l = Number(p.length_cm ?? 0);
+      const w = Number(p.width_cm ?? 0);
+      const h = Number(p.height_cm ?? 0);
+      const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+      kg += Math.max(real, vol) * (it.quantity ?? 1);
+    }
+    if (kg <= 0) return m;
+    for (const s of shippingServices) {
+      const rate = Number(s.price_per_kg ?? 0);
+      if (rate > 0) m.set(s.id, Math.round(kg * rate));
+    }
+    return m;
+  }, [selectedHasKnown, selectedItems, shippingServices, destinationCountryId]);
+
+  /** Sélecteur KNOWN — affiche un prix figé total par service. */
+  const renderKnownShippingSelector = () => {
+    if (!selectedHasKnown) return null;
+    if (!destinationCountryId) {
+      return <p className="text-xs text-destructive">Choisissez d'abord le pays de livraison.</p>;
+    }
+    if (shippingServices.length === 0) {
+      return <p className="text-xs text-destructive">Aucun service de transport disponible.</p>;
+    }
     return (
-      <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <Label className="flex items-center gap-2 text-sm font-semibold">
-          <Plane className="h-4 w-4 text-primary" />
-          Choisissez votre service de transport *
+      <div className="space-y-2 rounded-xl border border-blue-300 bg-blue-50/40 p-3">
+        <Label className="flex items-center gap-2 text-sm font-semibold text-blue-800">
+          <Plane className="h-4 w-4" />
+          Mode de transport (poids déclaré) *
         </Label>
-        <p className="text-[11px] text-muted-foreground">{message}</p>
-        {!destinationCountryId ? (
-          <p className="text-xs text-destructive">Choisissez d'abord le pays de livraison.</p>
-        ) : shippingServices.length === 0 ? (
-          <p className="text-xs text-destructive">
-            Aucun service actif disponible pour cette destination. Contactez le support.
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {shippingServices.map((s) => {
-              const est = serviceEstimates.get(s.id);
-              const isSel = shippingServiceId === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setShippingServiceId(s.id)}
-                  className={cn(
-                    "w-full text-left rounded-lg border p-2.5 transition-colors",
-                    isSel
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-background hover:bg-accent",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{s.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {est != null ? (
-                        <div className="text-sm font-bold text-primary">
-                          {est.toLocaleString("fr-FR")} FCFA
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-muted-foreground">
-                          calculé après pesée
-                        </div>
-                      )}
-                      {isSel && (
-                        <div className="text-[10px] text-emerald-700 font-medium mt-0.5 flex items-center justify-end gap-0.5">
-                          <Check className="h-3 w-3" /> Sélectionné
-                        </div>
-                      )}
-                    </div>
+        <p className="text-[11px] text-muted-foreground">
+          Coût figé immédiatement et payé avec la commande.
+        </p>
+        <div className="space-y-1.5">
+          {shippingServices.map((s) => {
+            const est = knownServiceEstimates.get(s.id);
+            const isSel = knownShippingServiceId === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setKnownShippingServiceId(s.id)}
+                className={cn(
+                  "w-full text-left rounded-lg border p-2.5 transition-colors",
+                  isSel ? "border-blue-500 bg-blue-100/60" : "border-border bg-background hover:bg-accent",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{s.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {shippingEstimate != null && (
-          <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-800">
-            <div className="flex items-center justify-between">
-              <span>Transport estimé</span>
-              <span className="font-semibold">{shippingEstimate.toLocaleString("fr-FR")} FCFA</span>
-            </div>
-          </div>
-        )}
+                  <div className="text-right shrink-0">
+                    {est != null ? (
+                      <div className="text-sm font-bold text-blue-700">{est.toLocaleString("fr-FR")} FCFA</div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground">—</div>
+                    )}
+                    {isSel && (
+                      <div className="text-[10px] text-emerald-700 font-medium mt-0.5 flex items-center justify-end gap-0.5">
+                        <Check className="h-3 w-3" /> Sélectionné
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   };
+
+  /** Sélecteur UNKNOWN — UN SEUL choix, affiche FCFA/kg, JAMAIS de montant total. */
+  const renderUnknownShippingSelector = () => {
+    if (!selectedHasUnknown) return null;
+    if (!destinationCountryId) {
+      return <p className="text-xs text-destructive">Choisissez d'abord le pays de livraison.</p>;
+    }
+    if (shippingServices.length === 0) {
+      return <p className="text-xs text-destructive">Aucun service de transport disponible.</p>;
+    }
+    return (
+      <div className="space-y-2 rounded-xl border border-orange-300 bg-orange-50/40 p-3">
+        <Label className="flex items-center gap-2 text-sm font-semibold text-orange-800">
+          <Plane className="h-4 w-4" />
+          Mode de transport (poids inconnu) *
+        </Label>
+        <p className="text-[11px] text-muted-foreground">
+          Le coût sera calculé après pesée du colis. Aucun montant n'est facturé maintenant.
+        </p>
+        <div className="space-y-1.5">
+          {shippingServices.map((s) => {
+            const rate = Number(s.price_per_kg ?? 0);
+            const isSel = unknownShippingServiceId === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setUnknownShippingServiceId(s.id)}
+                className={cn(
+                  "w-full text-left rounded-lg border p-2.5 transition-colors",
+                  isSel ? "border-orange-500 bg-orange-100/60" : "border-border bg-background hover:bg-accent",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{s.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {rate > 0 ? (
+                      <div className="text-sm font-bold text-orange-700">
+                        {rate.toLocaleString("fr-FR")} FCFA/kg
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground">tarif sur devis</div>
+                    )}
+                    {isSel && (
+                      <div className="text-[10px] text-emerald-700 font-medium mt-0.5 flex items-center justify-end gap-0.5">
+                        <Check className="h-3 w-3" /> Sélectionné
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
 
   const customizationSummary = (c: any): string | null => {
     if (!c) return null;
