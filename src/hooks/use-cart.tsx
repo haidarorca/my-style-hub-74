@@ -47,6 +47,16 @@ export function clearGuestCart() {
   writeGuestCart([]);
 }
 
+function stripCartInternalMetadata(c: any) {
+  if (!c || typeof c !== "object") return null;
+  const { __shipping_service_id, __line_kind, __sub_order_key, __freight_fee, ...rest } = c as Record<string, unknown>;
+  return Object.keys(rest).length > 0 ? rest : null;
+}
+
+function cartLineSignature(productId: string, variantId: string | null | undefined, customization: any) {
+  return `${productId}::${variantId ?? ""}::${JSON.stringify(stripCartInternalMetadata(customization))}`;
+}
+
 async function hydrateGuestLines(lines: GuestCartLine[]) {
   if (lines.length === 0) return [];
   const productIds = Array.from(new Set(lines.map((l) => l.product_id)));
@@ -115,15 +125,10 @@ export function useCart() {
         raw = (await hydrateGuestLines(readGuestCart())) as any[];
       }
       // Render-side dedupe : merge duplicate rows by (product_id, variant_id, clean customization).
-      // Le `__shipping_service_id` historique est ignoré dans la signature.
-      const stripShipping = (c: any) => {
-        if (!c || typeof c !== "object") return null;
-        const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-        return Object.keys(rest).length > 0 ? rest : null;
-      };
+      // Les métadonnées logistiques historiques sont ignorées dans la signature.
       const byKey = new Map<string, any>();
       for (const it of raw) {
-        const sig = `${it.product_id}::${it.variant_id ?? ""}::${JSON.stringify(stripShipping(it.customization))}`;
+        const sig = cartLineSignature(it.product_id, it.variant_id, it.customization);
         const existing = byKey.get(sig);
         if (existing) {
           existing.quantity = (existing.quantity ?? 0) + (it.quantity ?? 0);

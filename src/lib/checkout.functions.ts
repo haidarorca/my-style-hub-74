@@ -156,6 +156,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const baseCust = (item.customization && typeof item.customization === "object")
           ? { ...(item.customization as Record<string, unknown>) }
           : {};
+        // Le client peut porter d'anciennes métadonnées logistiques dans le panier.
+        // Elles ne sont jamais fiables : le checkout serveur recalcule une catégorie unique.
+        delete baseCust.__line_kind;
+        delete baseCust.__sub_order_key;
+        delete baseCust.__freight_fee;
+        delete baseCust.__shipping_service_id;
         baseCust.__line_kind = kind;
         baseCust.__sub_order_key = subKey;
         if (lineFreight > 0) baseCust.__freight_fee = lineFreight;
