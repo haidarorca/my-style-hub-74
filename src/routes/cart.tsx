@@ -87,7 +87,9 @@ function CartPage() {
   const [dispatch, setDispatch] = useState<{ groups: DispatchGroup[]; orderId: string } | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [shippingServiceId, setShippingServiceId] = useState<string | null>(null);
+  // Choix transport séparés : KNOWN figé immédiatement / UNKNOWN seulement préférence client.
+  const [knownShippingServiceId, setKnownShippingServiceId] = useState<string | null>(null);
+  const [unknownShippingServiceId, setUnknownShippingServiceId] = useState<string | null>(null);
   const [shippingServices, setShippingServices] = useState<ShippingService[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -159,7 +161,8 @@ function CartPage() {
   // Scalable architecture: future logistics types (turkey, express, maritime)
   // can be added as new groups without changing the UI structure.
   type VendorGroup = { shopName: string; vendorId: string; items: any[] };
-  type LogisticsType = "import" | "local";
+  // 3 catégories STRICTES — alignées avec line-kind.ts.
+  type LogisticsType = "LOCAL" | "IMPORT_KNOWN_WEIGHT" | "IMPORT_UNKNOWN_WEIGHT";
   type LogisticsSection = {
     type: LogisticsType;
     label: string;
@@ -172,21 +175,23 @@ function CartPage() {
     vendorGroups: Map<string, VendorGroup>;
   };
 
-  // RÈGLE UNIQUE : international ssi destination ≠ source vendeur.
-  // Si destination inconnue, on traite comme local (groupage par défaut).
+  // Catégorie figée :
+  //   LOCAL                  : pas d'import (destination = source ou info absente).
+  //   IMPORT_KNOWN_WEIGHT    : import + poids produit > 0 → fret figé immédiatement.
+  //   IMPORT_UNKNOWN_WEIGHT  : import + pas de poids → fret après pesée uniquement.
   const getItemLogisticsType = (it: any): LogisticsType => {
     const src = it?.products?.profiles?.source_country_id ?? null;
-    if (!destinationCountryId || !src) return "local";
-    return src !== destinationCountryId ? "import" : "local";
+    if (!destinationCountryId || !src || src === destinationCountryId) return "LOCAL";
+    const w = Number(it?.products?.weight_kg ?? 0);
+    return w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
   };
 
   const logisticsGroups = useMemo(() => {
     const sections = new Map<LogisticsType, LogisticsSection>();
-    // Import section
-    sections.set("import", {
-      type: "import",
-      label: "Produits import / logistique internationale",
-      sublabel: "Nécessitent pesée, validation frais et transport international",
+    sections.set("IMPORT_KNOWN_WEIGHT", {
+      type: "IMPORT_KNOWN_WEIGHT",
+      label: "Import — poids déclaré",
+      sublabel: "Fret international figé maintenant, payé avec la commande.",
       icon: Plane,
       color: "text-blue-700",
       borderColor: "border-blue-200",
@@ -194,11 +199,21 @@ function CartPage() {
       headerBg: "bg-blue-100/60",
       vendorGroups: new Map(),
     });
-    // Local section
-    sections.set("local", {
-      type: "local",
+    sections.set("IMPORT_UNKNOWN_WEIGHT", {
+      type: "IMPORT_UNKNOWN_WEIGHT",
+      label: "Import — poids inconnu",
+      sublabel: "Fret calculé après pesée du colis. Aucun montant facturé maintenant.",
+      icon: Plane,
+      color: "text-orange-700",
+      borderColor: "border-orange-200",
+      bgColor: "bg-orange-50/50",
+      headerBg: "bg-orange-100/60",
+      vendorGroups: new Map(),
+    });
+    sections.set("LOCAL", {
+      type: "LOCAL",
       label: "Produits locaux",
-      sublabel: "Livraison simple sans logistique internationale",
+      sublabel: "Livraison simple — aucun fret international.",
       icon: Store,
       color: "text-emerald-700",
       borderColor: "border-emerald-200",
@@ -221,7 +236,7 @@ function CartPage() {
       section.vendorGroups.get(vendorKey)!.items.push(it);
     }
     return sections;
-  }, [items, t]);
+  }, [items, destinationCountryId, t]);
 
   // Flat vendor groups (backward compat for existing logic)
   const groups = new Map<string, VendorGroup>();
