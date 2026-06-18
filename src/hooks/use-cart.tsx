@@ -99,6 +99,7 @@ export function useCart() {
   const { data: items } = useQuery<any[]>({
     queryKey,
     queryFn: async () => {
+      let raw: any[] = [];
       if (user) {
         const { data, error } = await supabase
           .from("cart_items")
@@ -109,9 +110,29 @@ export function useCart() {
           )
           .order("created_at", { ascending: false });
         if (error) throw error;
-        return (data ?? []) as any[];
+        raw = (data ?? []) as any[];
+      } else {
+        raw = (await hydrateGuestLines(readGuestCart())) as any[];
       }
-      return (await hydrateGuestLines(readGuestCart())) as any[];
+      // Render-side dedupe : merge duplicate rows by (product_id, variant_id, clean customization).
+      // Le `__shipping_service_id` historique est ignoré dans la signature.
+      const stripShipping = (c: any) => {
+        if (!c || typeof c !== "object") return null;
+        const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
+        return Object.keys(rest).length > 0 ? rest : null;
+      };
+      const byKey = new Map<string, any>();
+      for (const it of raw) {
+        const sig = `${it.product_id}::${it.variant_id ?? ""}::${JSON.stringify(stripShipping(it.customization))}`;
+        const existing = byKey.get(sig);
+        if (existing) {
+          existing.quantity = (existing.quantity ?? 0) + (it.quantity ?? 0);
+          existing.__duplicate_ids = [...(existing.__duplicate_ids ?? []), it.id];
+        } else {
+          byKey.set(sig, { ...it, __duplicate_ids: [] });
+        }
+      }
+      return Array.from(byKey.values());
     },
   });
 
