@@ -1052,9 +1052,10 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
       const next = data.status;
 
       // Transitions autorisées IMPORT
+      // fees_calculated → ready_to_ship : court-circuit Circuit B (poids déclaré vérifié)
       const IMPORT_ALLOWED: Record<string, string[]> = {
         awaiting_weighing: ["fees_calculated"],
-        fees_calculated: ["awaiting_client_validation", "rejected"],
+        fees_calculated: ["awaiting_client_validation", "ready_to_ship", "rejected"],
         rejected: ["awaiting_weighing"],
         awaiting_client_validation: ["validated", "rejected"],
         validated: ["ready_to_ship"],
