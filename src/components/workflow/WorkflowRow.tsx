@@ -231,22 +231,16 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
             >
               {typeLabel.icon}
             </span>
+            {row.order_type !== "local" && row.source_country_flag && (
+              <span className="text-[11px] leading-none shrink-0" title={row.source_country_name ?? ""}>
+                {row.source_country_flag}
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground font-mono truncate">
               {position > 0 ? `#${String(position).padStart(3, "0")}` : "#---"} · {row.order_id?.slice(0, 8)}…
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {(row.order_type === "import" || row.order_type === "mixed") && row.weight_status && (
-              <span
-                className={cn(
-                  "text-[9px] px-1.5 py-0 rounded border font-medium",
-                  weightStatusBadgeClass(row.weight_status)
-                )}
-                title={weightStatusLabel(row.weight_status)}
-              >
-                {row.weight_status === "anomaly" ? "⚠" : row.weight_status === "verified" ? "✓" : row.weight_status === "declared" ? "≈" : "?"}
-              </span>
-            )}
             {row.days_pending > 0 && (
               <span
                 className={cn(
