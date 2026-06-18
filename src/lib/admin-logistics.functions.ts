@@ -446,7 +446,17 @@ async function fallbackLogisticsQuery(
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
 
     const amountPaid = Number(payment.amount_paid ?? 0);
-    const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
+    const assessmentAirFreight = Number(assessment.air_freight_fee ?? 0);
+    const declaredFreightFromItems = declaredFreightFromItemsMap.get(orderId) ?? 0;
+    const wm = (assessment as any).weight_mode as string | null | undefined;
+    // Circuit B (poids déclaré complet) : air_freight_fee de l'évaluation couvre déjà
+    // tous les articles → on ne ré-additionne pas le fret figé des items.
+    // Sinon (mixte ou inconnu) : on cumule le fret figé déclaré + le fret pesé.
+    const isFullyDeclaredAssessment = wm === "declared" && assessmentAirFreight > 0;
+    const freightCombined = isFullyDeclaredAssessment
+      ? assessmentAirFreight
+      : Math.max(assessmentAirFreight, 0) + declaredFreightFromItems;
+    const totalFees = freightCombined + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
     const storedTotal = Number(order.total ?? 0);
     const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
