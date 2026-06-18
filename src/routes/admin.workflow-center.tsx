@@ -111,16 +111,17 @@ function WorkflowCenter() {
     for (const row of rows) {
       const ls = row.logistics_status;
       const rem = row.amount_remaining ?? 0;
+      const declaredCircuit = row.weight_status === "declared" || row.weight_status === "verified" || row.weight_status === "anomaly";
 
-      if ((ls === "awaiting_weighing" && row.days_pending > 7) || ls === "rejected") {
+      if ((ls === "awaiting_weighing" && row.days_pending > 7 && !declaredCircuit) || ls === "rejected") {
         groups.urgent.rows.push(row);
-      } else if (rem > 0 && ls !== "delivered" && ls !== "cancelled") {
+      } else if (rem > 0 && ls !== "delivered" && ls !== "cancelled" && !declaredCircuit) {
         groups.payment.rows.push(row);
-      } else if (ls === "awaiting_weighing") {
+      } else if (ls === "awaiting_weighing" && !declaredCircuit) {
         groups.to_weigh.rows.push(row);
       } else if (row.order_type === "local" && (ls === "new" || ls === null)) {
         groups.to_confirm.rows.push(row);
-      } else if (ls === "awaiting_client_validation") {
+      } else if (ls === "awaiting_client_validation" && !declaredCircuit) {
         groups.waiting_client.rows.push(row);
       } else if (ls === "validated" || ls === "ready_to_ship") {
         groups.ready_to_ship.rows.push(row);
