@@ -40,6 +40,9 @@ interface CatalogItem {
   is_admin_shop?: boolean;
   commission_rate?: number | null;
   commission_amount?: number | null;
+  line_kind?: import("@/lib/line-kind").LineKind;
+  freight_fee?: number;
+  sub_order_key?: string;
 }
 
 /** Projette un statut initial cohérent avec le statut commande (pour les articles sans row DB). */
