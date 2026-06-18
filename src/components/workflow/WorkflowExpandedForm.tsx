@@ -565,8 +565,13 @@ function VerifyWeightForm({ row }: { row: WorkflowRow }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Pré-remplissage avec la moyenne déclarée par article (référence rapide).
+  const perItemDeclared =
+    totalDeclared > 0 && lines.length > 0
+      ? totalDeclared / lines.reduce((s, l) => s + l.quantity, 0)
+      : 0;
   const fillWithDeclared = () => {
-    setLines((ls) => ls.map((l) => ({ ...l, real: l.declared > 0 ? String(l.declared) : "" })));
+    setLines((ls) => ls.map((l) => ({ ...l, real: perItemDeclared > 0 ? perItemDeclared.toFixed(2) : "" })));
   };
 
   return (
