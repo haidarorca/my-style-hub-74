@@ -886,6 +886,7 @@ function DesktopRow({ row, onView, onCreateAssessment }: { row: LogisticsOrderRo
   const isUrgent = row.days_pending > 14;
   const isBlocked = row.days_pending > 7 && row.logistics_status !== "shipped" && row.logistics_status !== "validated";
   const isArch = isArchived(row);
+  const logStatusConfig = safeLogStatus(row.logistics_status, row.weight_status);
 
   return (
     <tr className={cn("border-b hover:bg-muted/20 transition-colors", isUrgent && "bg-red-50/50", isBlocked && !isUrgent && "bg-orange-50/30", isArch && "opacity-50")}>
@@ -893,7 +894,7 @@ function DesktopRow({ row, onView, onCreateAssessment }: { row: LogisticsOrderRo
       <td className="px-2 py-1.5"><span className="font-mono">#{row.order_id.slice(0, 8)}</span>{isArch && <History className="h-3 w-3 inline ml-1 text-muted-foreground" />}</td>
       <td className="px-2 py-1.5"><p className="font-medium truncate max-w-[120px]">{row.customer_name ?? "—"}</p><p className="text-[9px] text-muted-foreground">{row.customer_phone ?? "—"}</p></td>
       <td className="px-2 py-1.5">{row.order_status && <SB config={safeOrderStatus(row.order_status)} />}</td>
-      <td className="px-2 py-1.5">{row.assessment_id ? (row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />) : <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">À créer</span>}</td>
+      <td className="px-2 py-1.5">{row.assessment_id ? (row.logistics_status && <SB config={logStatusConfig} />) : <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">À créer</span>}</td>
       <td className="px-2 py-1.5">{row.payment_status && row.total_shipping_fees ? <SB config={safePayStatus(row.payment_status)} /> : <span className="text-gray-400">—</span>}</td>
       <td className="px-2 py-1.5 text-right font-medium">{fmtN(row.order_total)}</td>
       <td className="px-2 py-1.5 text-right">{row.total_shipping_fees ? fmtN(row.total_shipping_fees) : "—"}</td>
@@ -919,6 +920,7 @@ function MobileLogisticsCard({ row, onView, onCreateAssessment }: { row: Logisti
   const hasRemaining = (row.amount_remaining ?? 0) > 0;
   const isUrgent = row.days_pending > 14;
   const isArch = isArchived(row);
+  const logStatusConfig = safeLogStatus(row.logistics_status, row.weight_status);
 
   return (
     <div className={cn("rounded-xl border bg-card p-3 space-y-2", isUrgent && "border-red-300 bg-red-50/30", isArch && "opacity-50")}>
@@ -934,7 +936,7 @@ function MobileLogisticsCard({ row, onView, onCreateAssessment }: { row: Logisti
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {row.order_status && <SB config={safeOrderStatus(row.order_status)} />}
-          {row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />}
+          {row.logistics_status && <SB config={logStatusConfig} />}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs">
