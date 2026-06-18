@@ -288,15 +288,15 @@ export default function CockpitDashboard() {
     cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
     setShowCancel(false);
     setSelectedOrder(null);
-    setSelectedVendorId(undefined);
+    setSelectedSubKey(undefined);
   }, [selectedOrder, cancelOrder, adminName]);
 
   const handleCloseDrawer = useCallback(() => {
     setShowItemsPanel(false);
     if (hasChanges) setShowCloseConfirm(true);
-    else { setSelectedOrder(null); setSelectedVendorId(undefined); }
+    else { setSelectedOrder(null); setSelectedSubKey(undefined); }
   }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedVendorId(undefined); }, []);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubKey(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
@@ -394,7 +394,7 @@ export default function CockpitDashboard() {
             historyMap={historyMap}
 
             onSelectSubRow={(row) => {
-              setSelectedVendorId(row.vendor_id);
+              setSelectedSubKey(row.vendor_id);
               setSelectedOrder(row.order);
             }}
           />
@@ -427,9 +427,9 @@ export default function CockpitDashboard() {
           onPartialDeliver={handlePartialDeliver}
           onSettleFinancial={handleSettleFinancial}
           onResumeRestock={handleResumeRestock}
-          vendorId={selectedVendorId}
-          onVendorChange={setSelectedVendorId}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedVendorId) : undefined}
+          vendorId={selectedSubKey}
+          onVendorChange={setSelectedSubKey}
+          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedSubKey) : undefined}
           subOrderHistoryLoading={historyLoading}
           dialogs={
             <>
