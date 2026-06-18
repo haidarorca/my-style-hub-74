@@ -64,17 +64,11 @@ export function SubOrdersPanel({ articles, orderStatus, motherOrderId, alwaysSho
             : done ? "border-gray-200 bg-gray-50"
             : "border-slate-200 bg-white";
 
-          const kindLabel =
-            s.kind === "local" ? "LOCAL"
-            : s.kind === "import" ? "IMPORT"
-            : "LOCAL + IMPORT";
-          const kindClass =
-            s.kind === "local" ? "bg-emerald-100 text-emerald-700"
-            : s.kind === "import" ? "bg-indigo-100 text-indigo-700"
-            : "bg-slate-100 text-slate-700";
+          const kindLabel = LINE_KIND_SHORT[s.line_kind];
+          const kindClass = LINE_KIND_BADGE[s.line_kind];
 
           return (
-            <div key={s.vendor_id} className={`border rounded-lg p-2.5 ${toneBorder}`}>
+            <div key={s.sub_order_key} className={`border rounded-lg p-2.5 ${toneBorder}`}>
               {/* Header sub_order : KZ-XXX · i/N + nom boutique */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-1.5 min-w-0">
