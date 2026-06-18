@@ -62,16 +62,18 @@ function WorkflowCenter() {
 
   /* ── KPI cockpit : des ACTIONS, pas juste des chiffres ── */
   const kpi = useMemo(() => {
+    const isDeclared = (r: WorkflowRow) => r.weight_status === "declared" || r.weight_status === "verified" || r.weight_status === "anomaly";
     const urgents = rows.filter(r =>
-      (r.logistics_status === "awaiting_weighing" && r.days_pending > 7) ||
+      (r.logistics_status === "awaiting_weighing" && r.days_pending > 7 && !isDeclared(r)) ||
       r.logistics_status === "rejected"
     );
     const unpaid = rows.filter(r =>
       (r.amount_remaining ?? 0) > 0 &&
       r.logistics_status !== "delivered" &&
-      r.logistics_status !== "cancelled"
+      r.logistics_status !== "cancelled" &&
+      !isDeclared(r)
     );
-    const toWeigh = rows.filter(r => r.logistics_status === "awaiting_weighing");
+    const toWeigh = rows.filter(r => r.logistics_status === "awaiting_weighing" && !isDeclared(r));
     const toConfirm = rows.filter(r =>
       r.order_type === "local" && (r.logistics_status === "new" || r.logistics_status === null)
     );
@@ -79,8 +81,8 @@ function WorkflowCenter() {
     const readyToShip = rows.filter(r =>
       r.logistics_status === "validated" || r.logistics_status === "ready_to_ship"
     );
-    const totalDebt = rows.reduce((s, r) => s + (r.amount_remaining ?? 0), 0);
-    const debtors = new Set(rows.filter(r => (r.amount_remaining ?? 0) > 0).map(r => r.customer_phone)).size;
+    const totalDebt = rows.reduce((s, r) => s + (isDeclared(r) ? 0 : (r.amount_remaining ?? 0)), 0);
+    const debtors = new Set(rows.filter(r => (r.amount_remaining ?? 0) > 0 && !isDeclared(r)).map(r => r.customer_phone)).size;
 
     return {
       urgentCount: urgents.length,
