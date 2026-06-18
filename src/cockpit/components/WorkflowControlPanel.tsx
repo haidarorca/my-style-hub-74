@@ -40,6 +40,17 @@ const IMPORT_STEPS_V2: FlowStep[] = [
   { key: "delivered", label: "Livrée", description: "Commande livrée" },
 ];
 
+// Circuit B — poids déclaré : vérification interne, pas de paiement client supplémentaire.
+const IMPORT_STEPS_DECLARED: FlowStep[] = [
+  { key: "new", label: "Nouvelle", description: "Commande reçue" },
+  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
+  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur" },
+  { key: "received_warehouse", label: "Vérif. interne", description: "Reçue — poids vérifié par l'agent" },
+  { key: "ready_delivery", label: "Prête", description: "Prête à expédier" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
+  { key: "delivered", label: "Livrée", description: "Commande livrée" },
+];
+
 interface Props {
   orderId?: string;
   status: string;
