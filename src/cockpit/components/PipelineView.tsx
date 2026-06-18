@@ -56,7 +56,7 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
     if (useSubMode) {
       return {
         ...col,
-        subs: subRows!.filter(r => col.statuses.includes((r.order.logistics_status ?? "").trim())),
+        subs: subRows!.filter(r => col.statuses.includes(((r.effective_status ?? r.order.logistics_status) ?? "").trim())),
         orders: [] as LogisticsOrderRow[],
       };
     }

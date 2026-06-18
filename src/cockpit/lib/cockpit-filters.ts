@@ -155,7 +155,7 @@ export function matchSubOrder(
 
   // 2. Statut logistique (multi)
   if (f.statuses.length > 0) {
-    const s = (row.order.logistics_status ?? "new").trim() || "new";
+    const s = (row.effective_status ?? row.order.logistics_status ?? "new").trim() || "new";
     if (!f.statuses.includes(s)) return false;
   }
 
