@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, ChevronRight, Phone, Eye } from "lucide-react";
 import { WorkflowStepBar } from "./WorkflowStepBar";
-import { WorkflowExpandedForm } from "./WorkflowExpandedForm";
+import { WorkflowExpandedForm, LogisticsInfoBlock } from "./WorkflowExpandedForm";
 import { CustomerBadge } from "./CustomerBadge";
 import { WorkflowActionButton } from "./WorkflowActionButton";
 import { cn } from "@/lib/utils";
