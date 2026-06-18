@@ -15,6 +15,7 @@ export const WORKFLOW_VIRTUALIZATION_THRESHOLD = 300;
 
 // ── STEPS ────────────────────────────────────────────────────────
 
+// Workflow A — Poids inconnu : passe par la pesée et le paiement complémentaire.
 export const IMPORT_STEPS: WorkflowStep[] = [
   { key: "pending_arrival", label: "Réception" },
   { key: "awaiting_weighing", label: "Pesée" },
@@ -26,14 +27,28 @@ export const IMPORT_STEPS: WorkflowStep[] = [
   { key: "delivered", label: "Livrée" },
 ];
 
+// Workflow B — Poids connu : pas de pesée client, pas de paiement complémentaire.
+// La "Vérification" est interne (agent) et ne passe pas par le client.
+export const IMPORT_STEPS_DECLARED: WorkflowStep[] = [
+  { key: "pending_arrival", label: "Réception" },
+  { key: "fees_calculated", label: "Vérification" },
+  { key: "ready_to_ship", label: "Prêt" },
+  { key: "shipped", label: "Expédié" },
+  { key: "delivered", label: "Livrée" },
+];
+
 export const LOCAL_STEPS: WorkflowStep[] = [
   { key: "new", label: "Nouvelle" },
   { key: "confirmed", label: "Confirmée" },
   { key: "delivered", label: "Livrée" },
 ];
 
-export function getSteps(orderType: string): WorkflowStep[] {
+export function getSteps(orderType: string, weightStatus?: string | null): WorkflowStep[] {
   if (orderType === "local") return LOCAL_STEPS;
+  // Poids déjà déclaré/vérifié/anomalie → workflow B (sans pesée client).
+  if (weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly") {
+    return IMPORT_STEPS_DECLARED;
+  }
   return IMPORT_STEPS;
 }
 
