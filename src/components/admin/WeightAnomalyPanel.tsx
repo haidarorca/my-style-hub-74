@@ -30,6 +30,9 @@ export function WeightAnomalyPanel() {
   const resolve = useServerFn(resolveWeightAnomaly);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [airFee, setAirFee] = useState("");
+  const [svcFee, setSvcFee] = useState("");
+  const [showFeeForm, setShowFeeForm] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["weight-anomalies"],
