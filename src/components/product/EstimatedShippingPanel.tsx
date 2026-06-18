@@ -22,6 +22,11 @@ interface Props {
 export function EstimatedShippingPanel({ product, productPrice, selectedServiceId, onSelectService }: Props) {
   const est = useEstimatedShipping(product);
 
+  useEffect(() => {
+    const cheapestId = est.cheapest?.service.id;
+    if (!selectedServiceId && cheapestId) onSelectService?.(cheapestId);
+  }, [selectedServiceId, est.cheapest?.service.id, onSelectService]);
+
   if (!est.isIntl) return null;
 
   // Cas A : article international SANS poids déclaré → message "après pesée".
@@ -36,9 +41,6 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
   // Cas B : poids déclaré → on affiche le total estimé + la grille des modes.
   const cheapest = est.cheapest!;
   const selected = est.options.find((opt) => opt.service.id === selectedServiceId) ?? cheapest;
-  useEffect(() => {
-    if (!selectedServiceId && cheapest?.service.id) onSelectService?.(cheapest.service.id);
-  }, [selectedServiceId, cheapest?.service.id, onSelectService]);
   const total =
     productPrice != null ? Math.round(Number(productPrice) + selected.price) : null;
 
