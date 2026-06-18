@@ -38,7 +38,10 @@ export type ShopProduct = {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
-  profiles?: { source_country_id?: string | null } | null;
+  profiles?:
+    | { source_country_id?: string | null }
+    | Array<{ source_country_id?: string | null }>
+    | null;
 };
 
 type Cat = {

@@ -19,7 +19,11 @@ export interface ProductCardProduct {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
-  profiles?: { source_country_id?: string | null } | null;
+  // PostgREST renvoie un objet ou un tableau selon le type de relation.
+  profiles?:
+    | { source_country_id?: string | null }
+    | Array<{ source_country_id?: string | null }>
+    | null;
 }
 
 interface Props {
@@ -32,12 +36,13 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
+  const profile = Array.isArray(product.profiles) ? product.profiles[0] : product.profiles;
   const est = useEstimatedShipping({
     weight_kg: product.weight_kg,
     length_cm: product.length_cm,
     width_cm: product.width_cm,
     height_cm: product.height_cm,
-    vendor_source_country_id: product.profiles?.source_country_id ?? null,
+    vendor_source_country_id: profile?.source_country_id ?? null,
   });
 
   // Total estimé = prix affiché + transport le moins cher (si calculable).
