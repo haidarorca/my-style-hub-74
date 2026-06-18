@@ -412,6 +412,31 @@ function CartPage() {
     return serviceEstimates.get(selectedShippingService.id) ?? null;
   }, [selectedShippingService, serviceEstimates]);
 
+  // Fret par ligne pour les items à poids déclaré : utilise le service choisi sur la ligne
+  // (customization.__shipping_service_id) en fallback du service global.
+  const lineFreight = useCallback((it: any): number => {
+    if (!isItemInternational(it)) return 0;
+    const w = Number(it?.products?.weight_kg ?? 0);
+    if (w <= 0) return 0;
+    const svcId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+    const svc = shippingServices.find((s) => s.id === svcId);
+    const rate = Number(svc?.price_per_kg ?? 0);
+    if (rate <= 0) return 0;
+    const p = it.products ?? {};
+    const l = Number(p.length_cm ?? 0);
+    const wd = Number(p.width_cm ?? 0);
+    const h = Number(p.height_cm ?? 0);
+    const vol = l > 0 && wd > 0 && h > 0 ? (l * wd * h) / 5000 : 0;
+    const kg = Math.max(w, vol) * (it.quantity ?? 1);
+    return Math.round(kg * rate);
+  }, [isItemInternational, shippingServiceId, shippingServices]);
+
+  // Coût transport cumulé du panier (somme des frets par ligne)
+  const cartFreightTotal = useMemo(
+    () => selectedItems.reduce((s, it: any) => s + lineFreight(it), 0),
+    [selectedItems, lineFreight],
+  );
+
   const renderShippingServiceSelector = () => {
     if (!hasIntlItems) return null;
     // Cas A : au moins un article sans poids → message "après pesée"
