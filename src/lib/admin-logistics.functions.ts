@@ -337,6 +337,22 @@ async function fallbackLogisticsQuery(
         const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
         for (const s of shops ?? []) { shopSourceMap.set(s.id, s.source_country_id ?? null); }
       }
+      // Fetch name + flag pour les pays d'origine (shops + champ direct sur la commande)
+      const sourceCountryIds = new Set<string>();
+      for (const v of shopSourceMap.values()) if (v) sourceCountryIds.add(v);
+      for (const o of rawOrders) if (o.source_country_id) sourceCountryIds.add(o.source_country_id as string);
+      // Exclure ceux déjà chargés via destination
+      const missingSrc = Array.from(sourceCountryIds).filter((id) => !countryNameMap.has(id));
+      if (missingSrc.length > 0) {
+        const { data: srcCountries } = await supabase
+          .from("countries")
+          .select("id, name, flag_emoji")
+          .in("id", missingSrc);
+        for (const c of srcCountries ?? []) {
+          if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+          if (c.id && c.flag_emoji) countryFlagMap.set(c.id as string, c.flag_emoji as string);
+        }
+      }
     } catch { /* ignorer */ }
   }
 
