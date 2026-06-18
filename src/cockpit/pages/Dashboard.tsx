@@ -43,6 +43,7 @@ export default function CockpitDashboard() {
     getWeighings, addWeighing,
     updateStatus, cancelOrder, cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
+    getSubOrderStatus,
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
@@ -50,7 +51,8 @@ export default function CockpitDashboard() {
 
   // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
   // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
-  const { rows: subOrderRows } = useSubOrderRows(orders);
+  // Chaque row reçoit `effective_status` (sub_order_states ?? mother).
+  const { rows: subOrderRows } = useSubOrderRows(orders, getSubOrderStatus);
 
   // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
   const visibleOrderIdsAll = useMemo(
