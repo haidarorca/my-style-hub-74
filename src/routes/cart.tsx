@@ -75,7 +75,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { user, profile } = useAuth();
-  const { items, updateQuantity, removeItem, updateLineShipping, refresh } = useCart();
+  const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
