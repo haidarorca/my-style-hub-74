@@ -56,7 +56,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     supabase
       .from("products")
       .select(
-        `id, name, name_i18n, code, price, vendor_id, requires_international_shipping, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id, ships_internationally)`,
+        `id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)`,
       )
       .in("id", productIds),
     variantIds.length
@@ -101,7 +101,7 @@ export function useCart() {
           .from("cart_items")
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
-             products!inner(id, name, name_i18n, code, price, vendor_id, requires_international_shipping, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id, ships_internationally)),
+             products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
              product_variants(id, size, color, color_hex, price_override)`,
           )
           .order("created_at", { ascending: false });
@@ -127,10 +127,9 @@ export function useCart() {
   const count = (items ?? []).reduce((s: number, i: any) => s + (i.quantity ?? 0), 0);
 
   const refresh = async () => {
-    // Force a refetch (not just invalidate) so the cart selector — including
-    // ships_internationally / requires_international_shipping flags — updates
-    // immediately after add/update/remove, even when the cart query has no
-    // active observer yet (e.g. user is still on the product page).
+    // Force a refetch so the cart selector (incl. weight_kg / source_country_id
+    // used by the logistics rules) updates immediately after add/update/remove,
+    // even when the cart query has no active observer yet.
     await qc.refetchQueries({ queryKey: ["cart"], type: "all" });
     // Display prices depend on cart line composition; refresh them too.
     qc.invalidateQueries({ queryKey: ["display-prices"] });
