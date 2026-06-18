@@ -927,14 +927,49 @@ function CartPage() {
                                       </p>
                                     )}
                                     {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
+                                    {/* Sélecteur de transport par ligne (intl + poids déclaré) */}
+                                    {(() => {
+                                      const intl = isItemInternational(it);
+                                      const w = Number(it?.products?.weight_kg ?? 0);
+                                      if (!intl) return null;
+                                      if (w <= 0) {
+                                        return (
+                                          <p className="mt-1 text-[11px] text-amber-700">
+                                            Transport calculé après pesée
+                                          </p>
+                                        );
+                                      }
+                                      const currentId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+                                      if (shippingServices.length === 0) return null;
+                                      return (
+                                        <div className="mt-1 flex items-center gap-1.5">
+                                          <Plane className="h-3 w-3 text-primary" />
+                                          <select
+                                            value={currentId ?? ""}
+                                            onChange={(e) => updateLineShipping(it.id, e.target.value || null)}
+                                            className="text-[11px] rounded border border-border bg-background px-1.5 py-0.5"
+                                          >
+                                            {shippingServices.map((s) => (
+                                              <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="mt-auto flex items-end justify-between pt-2">
-                                      <p className="text-sm font-bold text-primary min-h-5">
-                                        {pricesReady ? (
-                                          <>{price.toLocaleString("fr-FR")} FCFA</>
-                                        ) : (
+                                      <div className="min-h-5">
+                                        {pricesReady ? (() => {
+                                          const lf = lineFreight(it);
+                                          const lineTotal = price * it.quantity + lf;
+                                          return (
+                                            <p className="text-sm font-bold text-primary">
+                                              {lineTotal.toLocaleString("fr-FR")} FCFA
+                                            </p>
+                                          );
+                                        })() : (
                                           <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
                                         )}
-                                      </p>
+                                      </div>
                                       <div className="flex items-center gap-2">
                                         <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
                                           <Trash2 className="h-4 w-4" />
