@@ -45,7 +45,17 @@ export type LogisticsOrderRow = {
   order_created_at: string;
   destination_country_id: string | null;
   destination_country_name: string | null;
+  /** Pays d'origine (vendeur) — premier non-vide rencontré sur les items import. */
+  source_country_id: string | null;
+  source_country_name: string | null;
+  source_country_flag: string | null;
   item_count: number;
+  /** Nombre d'articles avec poids déclaré > 0 (déclaration vendeur). */
+  declared_items_count: number;
+  /** Nombre d'articles sans poids déclaré. */
+  unknown_items_count: number;
+  /** Total d'articles (= declared + unknown). */
+  total_items_count: number;
   days_pending: number;
 
   // Logistique
