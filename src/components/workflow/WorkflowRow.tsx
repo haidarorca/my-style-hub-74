@@ -332,6 +332,8 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
             </div>
           </div>
 
+          <LogisticsInfoBlock row={row} />
+
           <WorkflowExpandedForm row={row} />
 
           <div className="flex gap-2 pt-1 border-t">
