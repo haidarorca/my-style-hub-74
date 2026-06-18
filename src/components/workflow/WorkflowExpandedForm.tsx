@@ -593,22 +593,18 @@ function VerifyWeightForm({ row }: { row: WorkflowRow }) {
         <p className="text-xs text-muted-foreground">Aucun article trouvé.</p>
       ) : (
         <div className="space-y-1.5">
-          <div className="grid grid-cols-[1fr_50px_70px_70px] gap-1.5 text-[9px] uppercase tracking-wider text-muted-foreground px-1">
+          <div className="grid grid-cols-[1fr_50px_80px] gap-1.5 text-[9px] uppercase tracking-wider text-muted-foreground px-1">
             <span>Article</span>
             <span className="text-right">Qté</span>
-            <span className="text-right">Déclaré</span>
             <span className="text-right">Réel (kg)</span>
           </div>
           {lines.map((l, i) => (
             <div
-              key={l.order_item_id ?? i}
-              className="grid grid-cols-[1fr_50px_70px_70px] gap-1.5 items-center"
+              key={l.product_id ?? i}
+              className="grid grid-cols-[1fr_50px_80px] gap-1.5 items-center"
             >
               <span className="text-xs truncate" title={l.name}>{l.name}</span>
               <span className="text-[11px] text-right text-muted-foreground">×{l.quantity}</span>
-              <span className="text-[11px] text-right">
-                {l.declared > 0 ? `${l.declared.toFixed(2)} kg` : "—"}
-              </span>
               <Input
                 type="number"
                 step="0.01"
