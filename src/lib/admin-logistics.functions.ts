@@ -54,6 +54,10 @@ export type LogisticsOrderRow = {
   real_weight_kg: number | null;
   volumetric_weight_kg: number | null;
   chargeable_weight_kg: number | null;
+  /** Somme des poids déclarés par les vendeurs (kg). null si au moins un produit n'a pas de poids. */
+  declared_weight_kg: number | null;
+  /** "unknown" | "declared" | "verified" — voir lib/logistics-rules. */
+  weight_status: "unknown" | "declared" | "verified";
   air_freight_fee: number | null;
   service_fee: number | null;
   extra_fees: number | null;
