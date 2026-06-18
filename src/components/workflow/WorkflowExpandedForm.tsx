@@ -315,6 +315,11 @@ export function WorkflowExpandedForm({ row }: Props) {
 
   // ─── FRAIS CALCULÉS ──────────────────────────────
   if (ls === "fees_calculated") {
+    // Circuit B — poids déclaré : vérification interne (saisie article par article).
+    if (row.weight_status === "declared" || row.weight_status === "anomaly") {
+      return <VerifyWeightForm row={row} />;
+    }
+    // Circuit A — poids inconnu : envoi au client.
     return (
       <div className="pt-2 space-y-2">
         <p className="text-xs text-muted-foreground">
