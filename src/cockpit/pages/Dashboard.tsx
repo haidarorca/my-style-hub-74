@@ -18,6 +18,7 @@ import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
+import { useSubAssessments } from "@/cockpit/hooks/useSubAssessments";
 import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
 import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
 import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
