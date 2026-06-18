@@ -267,7 +267,8 @@ async function fallbackLogisticsQuery(
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
-      warehouse_location, agent_name, shipping_service_id, client_response_note`
+      warehouse_location, agent_name, shipping_service_id, client_response_note,
+      anomaly_resolution`
     ).in("order_id", orderIds),
   ]);
 
@@ -453,6 +454,8 @@ async function fallbackLogisticsQuery(
       })(),
       weight_status: (() => {
         if (orderType === "local") return "verified" as const;
+        // Si l'admin a résolu l'anomalie (perte acceptée), on considère vérifié.
+        if ((assessment as any).anomaly_resolution === "accept_loss") return "verified" as const;
         const real = Number((assessment.real_weight_kg as number) ?? 0);
         // déclaré ?
         let declaredSum = 0;
