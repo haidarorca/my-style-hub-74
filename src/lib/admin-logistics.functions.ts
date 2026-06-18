@@ -448,7 +448,7 @@ async function fallbackLogisticsQuery(
     const orderTotal = productSubtotal > 0 ? productSubtotal : Math.max(0, storedTotal - totalFees);
     // amount_remaining = complément logistique uniquement. Si le fret est déjà inclus
     // dans orders.total (Circuit B), aucune demande client supplémentaire ne doit apparaître.
-    const amountRemaining = Math.max(0, totalFees - amountPaid);
+    let amountRemaining = Math.max(0, totalFees - amountPaid);
 
     // ── Comptage déclaré / inconnu + détection du pays d'origine
     let declaredCount = 0;
@@ -467,6 +467,8 @@ async function fallbackLogisticsQuery(
       }
     }
     const totalItemsCount = items.length;
+    const isDeclaredCircuit = orderType !== "local" && totalItemsCount > 0 && unknownCount === 0;
+    if (isDeclaredCircuit) amountRemaining = 0;
 
     return {
       order_id: orderId,
@@ -536,9 +538,9 @@ async function fallbackLogisticsQuery(
       admin_comment: (assessment.admin_comment as string) ?? null,
       client_response_note: (assessment.client_response_note as string) ?? null,
 
-      payment_status: (payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null),
+      payment_status: isDeclaredCircuit ? ((payment.payment_status as string) ?? "paid") : ((payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null)),
       amount_requested: amountRequested,
-      amount_paid: amountPaid,
+      amount_paid: isDeclaredCircuit && amountPaid <= 0 ? totalFees : amountPaid,
       amount_remaining: amountRemaining,
       payment_method: (payment.payment_method as string) ?? null,
       payment_reference: (payment.payment_reference as string) ?? null,
