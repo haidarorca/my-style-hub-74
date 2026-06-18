@@ -251,6 +251,36 @@ export function useCart() {
     return true;
   };
 
+  // Helper : trouve toutes les lignes DB correspondant à la "même" ligne logique
+  // que `id` (même product+variant+customization client). Utilisé pour propager
+  // remove/update aux doublons hérités.
+  const findSiblingIds = async (id: string): Promise<string[]> => {
+    if (!user) return [id];
+    const { data: anchor } = await supabase
+      .from("cart_items")
+      .select("product_id, variant_id, customization")
+      .eq("id", id)
+      .maybeSingle();
+    if (!anchor) return [id];
+    const stripShipping = (c: any) => {
+      if (!c || typeof c !== "object") return null;
+      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
+      return Object.keys(rest).length > 0 ? rest : null;
+    };
+    const targetSig = JSON.stringify(stripShipping(anchor.customization));
+    let q = supabase
+      .from("cart_items")
+      .select("id, customization")
+      .eq("user_id", user.id)
+      .eq("product_id", anchor.product_id);
+    q = anchor.variant_id ? q.eq("variant_id", anchor.variant_id) : q.is("variant_id", null);
+    const { data: rows } = await q;
+    const ids = (rows ?? [])
+      .filter((r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig)
+      .map((r: any) => r.id as string);
+    return ids.length > 0 ? ids : [id];
+  };
+
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
     if (!user) {
@@ -259,9 +289,15 @@ export function useCart() {
       refresh();
       return;
     }
-    const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", id);
-    if (error) toast.error(error.message);
-    else refresh();
+    // Si des doublons hérités existent, on en garde un et on supprime les autres
+    // pour que la quantité affichée reste cohérente.
+    const ids = await findSiblingIds(id);
+    const keep = ids[0];
+    const drop = ids.slice(1);
+    const { error } = await supabase.from("cart_items").update({ quantity }).eq("id", keep);
+    if (error) { toast.error(error.message); return; }
+    if (drop.length > 0) await supabase.from("cart_items").delete().in("id", drop);
+    refresh();
   };
 
   const removeItem = async (id: string) => {
@@ -270,7 +306,8 @@ export function useCart() {
       refresh();
       return;
     }
-    const { error } = await supabase.from("cart_items").delete().eq("id", id);
+    const ids = await findSiblingIds(id);
+    const { error } = await supabase.from("cart_items").delete().in("id", ids);
     if (error) toast.error(error.message);
     else refresh();
   };
