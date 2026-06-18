@@ -54,21 +54,31 @@ export function WeightAnomalyPanel() {
   const mut = useMutation({
     mutationFn: async ({ orderId, action }: { orderId: string; action: Action }) => {
       const assessment = await getOrCreate({ data: { order_id: orderId } });
-      await resolve({
-        data: {
-          assessment_id: (assessment as any).id,
-          order_id: orderId,
-          action,
-          note: note || null,
-        },
-      });
+      const payload: any = {
+        assessment_id: (assessment as any).id,
+        order_id: orderId,
+        action,
+        note: note || null,
+      };
+      if (action === "modify_fees") {
+        const air = parseFloat(airFee);
+        const svc = parseFloat(svcFee);
+        if (!Number.isFinite(air) || air < 0) throw new Error("Frais avion invalides");
+        payload.air_freight_fee = air;
+        if (Number.isFinite(svc) && svc >= 0) payload.service_fee = svc;
+      }
+      await resolve({ data: payload });
     },
     onSuccess: () => {
       toast.success("Anomalie résolue");
       qc.invalidateQueries({ queryKey: ["weight-anomalies"] });
       qc.invalidateQueries({ queryKey: ["admin-logistics"] });
+      qc.invalidateQueries({ queryKey: ["workflow-orders"] });
       setExpandedId(null);
       setNote("");
+      setAirFee("");
+      setSvcFee("");
+      setShowFeeForm(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
