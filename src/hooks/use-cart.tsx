@@ -239,5 +239,29 @@ export function useCart() {
     else refresh();
   };
 
-  return { items: items ?? [], count, addToCart, updateQuantity, removeItem, refresh };
+  /** Met à jour le service de transport choisi pour UNE ligne du panier. */
+  const updateLineShipping = async (id: string, serviceId: string | null) => {
+    if (!user) {
+      const lines = readGuestCart().map((l) => {
+        if (l.id !== id) return l;
+        const cust = { ...(l.customization ?? {}) } as Record<string, unknown>;
+        if (serviceId) cust.__shipping_service_id = serviceId;
+        else delete cust.__shipping_service_id;
+        return { ...l, shipping_service_id: serviceId, customization: cust };
+      });
+      writeGuestCart(lines);
+      refresh();
+      return;
+    }
+    // Lire la customization existante puis fusionner
+    const { data: row } = await supabase.from("cart_items").select("customization").eq("id", id).maybeSingle();
+    const cust = { ...((row?.customization as Record<string, unknown>) ?? {}) };
+    if (serviceId) cust.__shipping_service_id = serviceId;
+    else delete cust.__shipping_service_id;
+    const { error } = await supabase.from("cart_items").update({ customization: cust as never }).eq("id", id);
+    if (error) toast.error(error.message);
+    else refresh();
+  };
+
+  return { items: items ?? [], count, addToCart, updateQuantity, removeItem, updateLineShipping, refresh };
 }

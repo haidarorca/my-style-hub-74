@@ -74,7 +74,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { user, profile } = useAuth();
-  const { items, updateQuantity, removeItem, refresh } = useCart();
+  const { items, updateQuantity, removeItem, updateLineShipping, refresh } = useCart();
   const { lang, t } = useI18n();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
@@ -412,6 +412,31 @@ function CartPage() {
     return serviceEstimates.get(selectedShippingService.id) ?? null;
   }, [selectedShippingService, serviceEstimates]);
 
+  // Fret par ligne pour les items à poids déclaré : utilise le service choisi sur la ligne
+  // (customization.__shipping_service_id) en fallback du service global.
+  const lineFreight = useCallback((it: any): number => {
+    if (!isItemInternational(it)) return 0;
+    const w = Number(it?.products?.weight_kg ?? 0);
+    if (w <= 0) return 0;
+    const svcId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+    const svc = shippingServices.find((s) => s.id === svcId);
+    const rate = Number(svc?.price_per_kg ?? 0);
+    if (rate <= 0) return 0;
+    const p = it.products ?? {};
+    const l = Number(p.length_cm ?? 0);
+    const wd = Number(p.width_cm ?? 0);
+    const h = Number(p.height_cm ?? 0);
+    const vol = l > 0 && wd > 0 && h > 0 ? (l * wd * h) / 5000 : 0;
+    const kg = Math.max(w, vol) * (it.quantity ?? 1);
+    return Math.round(kg * rate);
+  }, [isItemInternational, shippingServiceId, shippingServices]);
+
+  // Coût transport cumulé du panier (somme des frets par ligne)
+  const cartFreightTotal = useMemo(
+    () => selectedItems.reduce((s, it: any) => s + lineFreight(it), 0),
+    [selectedItems, lineFreight],
+  );
+
   const renderShippingServiceSelector = () => {
     if (!hasIntlItems) return null;
     // Cas A : au moins un article sans poids → message "après pesée"
@@ -734,6 +759,7 @@ function CartPage() {
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
               customization: cleanCustomization(it.customization),
+              shippingServiceId: (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? (hasIntlItems ? shippingServiceId : null),
             })),
           },
         });
@@ -744,7 +770,7 @@ function CartPage() {
           .insert({
             id: orderId,
             buyer_id: null,
-            total: grandTotal + (shippingEstimate ?? 0),
+            total: grandTotal + cartFreightTotal,
             status: "new",
             customer_name: addr.full_name,
             customer_phone: addr.phone,
@@ -902,14 +928,49 @@ function CartPage() {
                                       </p>
                                     )}
                                     {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
+                                    {/* Sélecteur de transport par ligne (intl + poids déclaré) */}
+                                    {(() => {
+                                      const intl = isItemInternational(it);
+                                      const w = Number(it?.products?.weight_kg ?? 0);
+                                      if (!intl) return null;
+                                      if (w <= 0) {
+                                        return (
+                                          <p className="mt-1 text-[11px] text-amber-700">
+                                            Transport calculé après pesée
+                                          </p>
+                                        );
+                                      }
+                                      const currentId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+                                      if (shippingServices.length === 0) return null;
+                                      return (
+                                        <div className="mt-1 flex items-center gap-1.5">
+                                          <Plane className="h-3 w-3 text-primary" />
+                                          <select
+                                            value={currentId ?? ""}
+                                            onChange={(e) => updateLineShipping(it.id, e.target.value || null)}
+                                            className="text-[11px] rounded border border-border bg-background px-1.5 py-0.5"
+                                          >
+                                            {shippingServices.map((s) => (
+                                              <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="mt-auto flex items-end justify-between pt-2">
-                                      <p className="text-sm font-bold text-primary min-h-5">
-                                        {pricesReady ? (
-                                          <>{price.toLocaleString("fr-FR")} FCFA</>
-                                        ) : (
+                                      <div className="min-h-5">
+                                        {pricesReady ? (() => {
+                                          const lf = lineFreight(it);
+                                          const lineTotal = price * it.quantity + lf;
+                                          return (
+                                            <p className="text-sm font-bold text-primary">
+                                              {lineTotal.toLocaleString("fr-FR")} FCFA
+                                            </p>
+                                          );
+                                        })() : (
                                           <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
                                         )}
-                                      </p>
+                                      </div>
                                       <div className="flex items-center gap-2">
                                         <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
                                           <Trash2 className="h-4 w-4" />
@@ -969,15 +1030,10 @@ function CartPage() {
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">
                 {t("cart.total")} · {selectedCount} {t("cart.title")}
-                {shippingEstimate != null && (
-                  <span className="ms-1">
-                    (produit {grandTotal.toLocaleString("fr-FR")} + transport {shippingEstimate.toLocaleString("fr-FR")})
-                  </span>
-                )}
               </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
-                  <>{(grandTotal + (shippingEstimate ?? 0)).toLocaleString("fr-FR")} FCFA</>
+                  <>{(grandTotal + cartFreightTotal).toLocaleString("fr-FR")} FCFA</>
                 ) : (
                   <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
                 )}

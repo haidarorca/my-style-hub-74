@@ -27,6 +27,7 @@ import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
+import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
 
 export const Route = createFileRoute("/product/$productId")({
@@ -250,6 +251,29 @@ function ProductPage() {
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
+
+  // Estimation transport pour la fiche (mode poids connu)
+  const shippingEstProduct = useMemo(() => data ? ({
+    weight_kg: (data as any).weight_kg,
+    length_cm: (data as any).length_cm,
+    width_cm: (data as any).width_cm,
+    height_cm: (data as any).height_cm,
+    vendor_source_country_id: ((data as any).profiles?.source_country_id ?? null) as string | null,
+  }) : null, [data]);
+  const shippingEst = useEstimatedShipping(shippingEstProduct);
+  const selectedShippingOption = useMemo(
+    () => shippingEst.options.find((o: any) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
+    [shippingEst, selectedShippingServiceId],
+  );
+  // Prix consolidé affiché au client : produit + transport choisi si poids connu intl.
+  const displayPrice = useMemo(() => {
+    if (resolvedFinalPrice == null) return null;
+    if (shippingEst.isIntl && shippingEst.canEstimate && selectedShippingOption) {
+      return Math.round(Number(resolvedFinalPrice) + selectedShippingOption.price);
+    }
+    return Number(resolvedFinalPrice);
+  }, [resolvedFinalPrice, shippingEst, selectedShippingOption]);
+  const transportIncluded = shippingEst.isIntl && shippingEst.canEstimate && !!selectedShippingOption;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;
@@ -375,10 +399,17 @@ function ProductPage() {
 
         <div className="space-y-4 px-4 py-3">
           <div>
-            {resolvedFinalPrice !== null ? (
-              <p className="text-xl font-extrabold text-primary">
-                {Number(resolvedFinalPrice).toLocaleString("fr-FR")} FCFA
-              </p>
+            {displayPrice !== null ? (
+              <>
+                <p className="text-xl font-extrabold text-primary">
+                  {Number(displayPrice).toLocaleString("fr-FR")} FCFA
+                </p>
+                {transportIncluded && (
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                    Transport inclus — modifiable au panier
+                  </p>
+                )}
+              </>
             ) : (
               <Skeleton className="h-7 w-32" />
             )}

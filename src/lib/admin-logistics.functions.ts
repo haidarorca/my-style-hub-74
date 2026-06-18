@@ -278,7 +278,7 @@ async function fallbackLogisticsQuery(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
       warehouse_location, agent_name, shipping_service_id, client_response_note,
-      anomaly_resolution`
+      anomaly_resolution, weight_mode`
     ).in("order_id", orderIds),
   ]);
 
@@ -508,10 +508,30 @@ async function fallbackLogisticsQuery(
       })(),
       weight_status: (() => {
         if (orderType === "local") return "verified" as const;
-        // Si l'admin a résolu l'anomalie (perte acceptée), on considère vérifié.
+        // Source de vérité prioritaire : la colonne weight_mode posée au checkout.
+        const wm = (assessment as any).weight_mode as string | null | undefined;
+        if (wm === "declared") {
+          const real = Number((assessment.real_weight_kg as number) ?? 0);
+          if (real > 0) {
+            // Comparer au poids déclaré pour détecter une anomalie
+            let declaredSum = 0;
+            for (const it of items) {
+              const w = productWeightMap.get(it.product_id);
+              if (w == null || w <= 0) { declaredSum = 0; break; }
+              declaredSum += w * (it.quantity ?? 1);
+            }
+            if (declaredSum > 0) {
+              const diff = Math.abs(real - declaredSum);
+              if (diff > Math.max(0.5, declaredSum * 0.10)) return "anomaly" as const;
+            }
+            return "verified" as const;
+          }
+          return "declared" as const;
+        }
+        if (wm === "unknown") return "unknown" as const;
+        // Fallback (anciennes commandes sans weight_mode) : détection legacy
         if ((assessment as any).anomaly_resolution === "accept_loss") return "verified" as const;
         const real = Number((assessment.real_weight_kg as number) ?? 0);
-        // déclaré ?
         let declaredSum = 0;
         let hasAll = items.length > 0;
         for (const it of items) {
@@ -519,7 +539,6 @@ async function fallbackLogisticsQuery(
           if (w == null || w <= 0) { hasAll = false; break; }
           declaredSum += w * (it.quantity ?? 1);
         }
-        // Anomalie : déclaré ET réel disponibles ET écart > tolérance (10% ou 0.5 kg)
         if (real > 0 && hasAll && declaredSum > 0) {
           const diff = Math.abs(real - declaredSum);
           if (diff > Math.max(0.5, declaredSum * 0.10)) return "anomaly" as const;
