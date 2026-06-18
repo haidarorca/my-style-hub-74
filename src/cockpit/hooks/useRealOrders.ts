@@ -9,9 +9,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
 import { updateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { createOrderPayment, listAllOrderPayments, getOrderTypesBatch } from "@/lib/cockpit-payments.functions";
+import { upsertSubOrderStatus, listSubOrderStates } from "@/lib/sub-order-states.functions";
 import { preloadOrderNumbers } from "@/cockpit/lib/orderNumbers";
 import type { PaymentRecord, AuditEntry, CancellationRecord, WeighingRecord, PaymentMethod, RefundType } from "@/cockpit/types";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+
 
 const LS_PAYMENTS = "kz_payments_v2";
 const LS_AUDIT = "kz_audit_v2";
@@ -193,11 +195,42 @@ export function useRealOrders() {
     setLocalAudit(prev => [{ id: `audit_${Date.now()}`, orderId, action, adminName, timestamp: new Date().toISOString(), details }, ...prev]);
   }, []);
 
-  const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string) => {
+  // ─── Statuts par sous-commande (sub_order_states) ───
+  const { data: subStates = [] } = useQuery({
+    queryKey: ["sub-order-states", orders.map(o => o.order_id).join(",")],
+    enabled: orders.length > 0,
+    queryFn: async () => {
+      const ids = orders.map(o => o.order_id ?? "").filter(Boolean);
+      if (ids.length === 0) return [];
+      try { return await listSubOrderStates({ data: { order_ids: ids } }); } catch { return []; }
+    },
+    refetchInterval: 20000,
+  });
+
+  const subStateMap = useMemo(() => {
+    const m = new Map<string, { status: string; updated_at: string }>();
+    for (const s of subStates) m.set(`${s.order_id}::${s.sub_order_key}`, { status: s.status, updated_at: s.updated_at });
+    return m;
+  }, [subStates]);
+
+  const getSubOrderStatus = useCallback((orderId: string, subOrderKey: string, fallback?: string | null) => {
+    return subStateMap.get(`${orderId}::${subOrderKey}`)?.status ?? fallback ?? null;
+  }, [subStateMap]);
+
+  const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string, subOrderKey?: string | null) => {
+    if (subOrderKey) {
+      // Persistance par sous-commande : aucune propagation au statut mère.
+      upsertSubOrderStatus({ data: { order_id: orderId, sub_order_key: subOrderKey, status: newStatus } })
+        .then(() => qc.invalidateQueries({ queryKey: ["sub-order-states"] }))
+        .catch(err => console.error("[useRealOrders] upsertSubOrderStatus failed", err));
+      addAuditEntry(orderId, `[${subOrderKey}] Statut → ${newStatus}`, adminName);
+      return;
+    }
+    // Compat : ancien chemin (statut mère, local override).
     setStatusOverrides(prev => ({ ...prev, [orderId]: newStatus }));
-    // ⚠️ Plus de propagation dans freightMap : le fret est lu uniquement depuis le serveur.
     addAuditEntry(orderId, `Statut → ${newStatus}`, adminName);
-  }, [addAuditEntry]);
+  }, [addAuditEntry, qc]);
+
 
   return {
     orders: ordersWithStatus,
@@ -210,7 +243,10 @@ export function useRealOrders() {
     getWeighings, addWeighing,
     freightMap, setFreight, getOrderFinancials,
     orderTypeMap,
+    // Statuts par sous-commande
+    getSubOrderStatus, subStateMap,
   };
 }
+
 
 function fmtF(n: number): string { return n.toLocaleString("fr-FR") + " FCFA"; }

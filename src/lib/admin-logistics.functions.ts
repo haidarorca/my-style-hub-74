@@ -314,13 +314,23 @@ async function fallbackLogisticsQuery(
     }
   }
 
-  // ── Assessments
+  // ── Assessments : peut y en avoir N par commande (un par sous-commande import).
+  //    On garde le « principal » pour les champs scalaires affichés en liste,
+  //    et on agrège séparément la somme des air_freight_fee (jamais d'invention).
   let assessmentMap = new Map<string, Record<string, unknown>>();
+  let assessmentAirSumMap = new Map<string, number>();
+  let assessmentHasUnknownMap = new Map<string, boolean>();
   if (assessmentsResult.status === "fulfilled" && assessmentsResult.value.data) {
     for (const a of assessmentsResult.value.data) {
-      assessmentMap.set(a.order_id as string, a as SafeRow);
+      const oid = a.order_id as string;
+      // Priorité au statut le plus « avancé » côté UI ; à défaut, premier rencontré.
+      if (!assessmentMap.has(oid)) assessmentMap.set(oid, a as SafeRow);
+      const air = (a as any).air_freight_fee;
+      if (air != null) assessmentAirSumMap.set(oid, (assessmentAirSumMap.get(oid) ?? 0) + Number(air));
+      if ((a as any).weight_mode === "unknown") assessmentHasUnknownMap.set(oid, true);
     }
   }
+
 
   // ═════ ÉTAPE 3 : Produits + Shops (dépend de l'étape 2)
   const allProductIds = Array.from(
@@ -448,17 +458,17 @@ async function fallbackLogisticsQuery(
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
 
     const amountPaid = Number(payment.amount_paid ?? 0);
-    const assessmentAirFreight = Number(assessment.air_freight_fee ?? 0);
+    // Règle stricte (ne JAMAIS inventer) :
+    //   freight = SUM(order_items.__freight_fee non-nul)        — fret figé au checkout (poids déclaré)
+    //           + SUM(toutes assessments.air_freight_fee non-nul) — fret pesé (poids inconnu)
+    // assessment.air_freight_fee est NULL tant qu'aucune pesée n'est saisie.
+    // Le KNOWN assessment n'a JAMAIS d'air_freight_fee → pas de double-comptage.
+    const assessmentAirFreight = assessmentAirSumMap.get(orderId) ?? 0;
     const declaredFreightFromItems = declaredFreightFromItemsMap.get(orderId) ?? 0;
-    const wm = (assessment as any).weight_mode as string | null | undefined;
-    // Circuit B (poids déclaré complet) : air_freight_fee de l'évaluation couvre déjà
-    // tous les articles → on ne ré-additionne pas le fret figé des items.
-    // Sinon (mixte ou inconnu) : on cumule le fret figé déclaré + le fret pesé.
-    const isFullyDeclaredAssessment = wm === "declared" && assessmentAirFreight > 0;
-    const freightCombined = isFullyDeclaredAssessment
-      ? assessmentAirFreight
-      : Math.max(assessmentAirFreight, 0) + declaredFreightFromItems;
+    const freightCombined = assessmentAirFreight + declaredFreightFromItems;
     const totalFees = freightCombined + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
+
+
     const amountRequested = Number(payment.amount_requested ?? totalFees);
     const storedTotal = Number(order.total ?? 0);
     const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
