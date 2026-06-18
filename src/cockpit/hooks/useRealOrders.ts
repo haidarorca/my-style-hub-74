@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
 // useRealOrders — State management complet du Cockpit
-// Supabase prioritaire + localStorage fallback
+// Supabase = source de vérité unique pour le fret.
+// Le localStorage ne sert plus qu'aux paiements/audit locaux.
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
+import { updateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { createOrderPayment, listAllOrderPayments, getOrderTypesBatch } from "@/lib/cockpit-payments.functions";
 import { preloadOrderNumbers } from "@/cockpit/lib/orderNumbers";
 import type { PaymentRecord, AuditEntry, CancellationRecord, WeighingRecord, PaymentMethod, RefundType } from "@/cockpit/types";
@@ -15,8 +17,8 @@ const LS_PAYMENTS = "kz_payments_v2";
 const LS_AUDIT = "kz_audit_v2";
 const LS_CANCEL = "kz_cancel_v2";
 const LS_WEIGHT = "kz_weight_v2";
-const LS_STATUS = "kz_status_v2"; // Overrides de statut (annulations, etc)
-const LS_FREIGHT = "kz_freight_v2"; // Fret calculé par commande (persiste le montant du transport)
+const LS_STATUS = "kz_status_v2";
+const LS_FREIGHT_LEGACY = "kz_freight_v2"; // ⚠️ déprécié — purgé au montage
 
 function load<T>(key: string, fallback: T): T {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
@@ -29,7 +31,11 @@ export function useRealOrders() {
   const qc = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
-  /* ── Commandes Supabase ── */
+  // Purge unique du cache fret historique (source de fret fantôme).
+  useEffect(() => {
+    try { localStorage.removeItem(LS_FREIGHT_LEGACY); } catch { /* ignore */ }
+  }, []);
+
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ["cockpit-orders"],
     queryFn: async () => { const r = await listLogisticsOrders({ data: { page: 1, pageSize: 100 } }); return r.rows ?? []; },
@@ -38,12 +44,10 @@ export function useRealOrders() {
 
   const orders: LogisticsOrderRow[] = ordersData ?? [];
 
-  /* ── Preload KZ numbers ── */
   useEffect(() => {
     if (orders.length > 0) preloadOrderNumbers(orders.map(o => o.order_id ?? "").filter(Boolean));
   }, [orders]);
 
-  /* ── Types mixte par commande (batch) ── */
   const [orderTypeMap, setOrderTypeMap] = useState<Record<string, "local" | "import" | "mixte">>({});
   useEffect(() => {
     if (orders.length === 0) return;
@@ -51,38 +55,27 @@ export function useRealOrders() {
     if (ids.length === 0) return;
     getOrderTypesBatch({ data: { order_ids: ids } })
       .then(map => setOrderTypeMap(map as Record<string, "local" | "import" | "mixte">))
-      .catch(() => {}); // Silencieux: fallback sur isImport()
+      .catch(() => {});
   }, [ordersData]);
 
-  /* ── Paiements locaux ── */
   const [localPayments, setLocalPayments] = useState<PaymentRecord[]>(() => load(LS_PAYMENTS, []));
   useEffect(() => save(LS_PAYMENTS, localPayments), [localPayments]);
 
-  /* ── Audit local ── */
   const [localAudit, setLocalAudit] = useState<AuditEntry[]>(() => load(LS_AUDIT, []));
   useEffect(() => save(LS_AUDIT, localAudit), [localAudit]);
 
-  /* ── Annulations ── */
   const [cancellations, setCancellations] = useState<CancellationRecord[]>(() => load(LS_CANCEL, []));
   useEffect(() => save(LS_CANCEL, cancellations), [cancellations]);
 
-  /* ── Pesées ── */
   const [weighings, setWeighings] = useState<WeighingRecord[]>(() => load(LS_WEIGHT, []));
   useEffect(() => save(LS_WEIGHT, weighings), [weighings]);
 
-  /* ── Fret calculé par commande (persisté après pesée) ── 
-     Clé: orderId, Valeur: montant du fret en FCFA
-     Permet d'afficher Prix produit + Fret = Total dans les KPI */
-  const [freightMap, setFreightMap] = useState<Record<string, number>>(() => load(LS_FREIGHT, {}));
-  useEffect(() => save(LS_FREIGHT, freightMap), [freightMap]);
-
-  /* ── Overrides de statut (annulations, etc) ── 
-     Clé: orderId, Valeur: statut forcé
-     Permet de refléter les changements locaux sans attendre Supabase */
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>(() => load(LS_STATUS, {}));
   useEffect(() => save(LS_STATUS, statusOverrides), [statusOverrides]);
 
-  /* ── Commandes avec statuts overridés ── */
+  // Compat : freightMap est désormais TOUJOURS vide (le fret vient du serveur).
+  const freightMap = useMemo<Record<string, number>>(() => ({}), []);
+
   const ordersWithStatus = useMemo<LogisticsOrderRow[]>(() => {
     return orders.map(o => {
       const override = statusOverrides[o.order_id ?? ""];
@@ -91,7 +84,6 @@ export function useRealOrders() {
     });
   }, [orders, statusOverrides]);
 
-  /* ── Paiements Supabase ── */
   const { data: sbPayments } = useQuery({
     queryKey: ["cockpit-payments"],
     queryFn: async () => { try { return await listAllOrderPayments({ data: undefined }); } catch { return []; } },
@@ -99,7 +91,6 @@ export function useRealOrders() {
     retry: 2,
   });
 
-  /* ── Fusion Supabase + local ── */
   const allPayments = useMemo(() => {
     const sb = (sbPayments ?? []) as unknown as PaymentRecord[];
     const merged = [...sb];
@@ -107,35 +98,28 @@ export function useRealOrders() {
     return merged;
   }, [sbPayments, localPayments]);
 
-  /* ── Helpers ── */
   const getPayments = useCallback((orderId: string) => allPayments.filter(p => p.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [allPayments]);
   const getTotalPaid = useCallback((orderId: string) => allPayments.filter(p => p.orderId === orderId).reduce((s, p) => s + p.amount, 0), [allPayments]);
   const getAudit = useCallback((orderId: string) => localAudit.filter(a => a.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [localAudit]);
   const getCancellation = useCallback((orderId: string) => cancellations.find(c => c.orderId === orderId) ?? null, [cancellations]);
   const getWeighings = useCallback((orderId: string) => weighings.filter(w => w.orderId === orderId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [weighings]);
 
-  // ─── SEULE SOURCE DE VÉRITÉ pour les finances d'une commande ───
-  // Tous les composants doivent utiliser cette fonction.
+  // ─── SOURCE DE VÉRITÉ UNIQUE pour les finances ───
+  //   Produits = order.order_total
+  //   Fret     = order.total_shipping_fees   (= déclaré figé + pesé persisté serveur)
+  //   Total    = Produits + Fret
   const getOrderFinancials = useCallback((order: LogisticsOrderRow) => {
     const oid = order.order_id ?? "";
-    const productTotal = order.order_total ?? 0;
-    // Fret figé au checkout pour les articles à poids déclaré (toujours additionné, jamais écrasé)
-    const declaredFreight = Number((order as any).declared_freight_from_items ?? 0);
-    // Fret pesé en local (saisie agent pour articles à poids inconnu)
-    const weighedFreight = Number(freightMap[oid] ?? 0);
-    // Fret depuis l'évaluation logistique (totalShippingFees inclut déjà declared + air_freight_fee côté serveur)
-    const serverFreight = Number(order.total_shipping_fees ?? 0);
-    // On prend le maximum entre serveur et (declared + weighed local) pour ne jamais perdre un fret connu.
-    const freight = Math.max(serverFreight, declaredFreight + weighedFreight);
+    const productTotal = Number(order.order_total ?? 0);
+    const freight = Number(order.total_shipping_fees ?? 0);
     const grandTotal = productTotal + freight;
     const declaredCircuit = order.weight_status === "declared" || order.weight_status === "verified" || order.weight_status === "anomaly";
     const recordedPaid = getTotalPaid(oid);
     const paid = declaredCircuit && freight > 0 ? Math.max(recordedPaid, grandTotal) : recordedPaid;
     const remaining = Math.max(0, grandTotal - paid);
     return { productTotal, freight, grandTotal, paid, remaining };
-  }, [freightMap, getTotalPaid]);
+  }, [getTotalPaid]);
 
-  /* ── MUTATION : Ajouter paiement ── */
   const payMut = useMutation({
     mutationFn: async (p: { orderId: string; amount: number; method: PaymentMethod; reference: string; adminName: string }) => {
       try { await createOrderPayment({ data: { order_id: p.orderId, amount: p.amount, method: p.method, reference: p.reference, admin_name: p.adminName } }); } catch { /* fallback local */ }
@@ -165,53 +149,57 @@ export function useRealOrders() {
     setLocalPayments(prev => prev.filter(p => p.id !== paymentId));
   }, [allPayments]);
 
-  /* ── Annulation ── */
   const cancelOrder = useCallback((orderId: string, reason: string, refundType: RefundType, adminName: string) => {
     const paid = getTotalPaid(orderId);
-    // 1. Enregistrer l'annulation
     setCancellations(prev => [{ orderId, reason, refundType, paidAmount: paid, cancelledBy: adminName, cancelledAt: new Date().toISOString() }, ...prev]);
-    // 2. FORCER le statut à "cancelled" (sort des listes actives, va dans Archive)
     setStatusOverrides(prev => ({ ...prev, [orderId]: "cancelled" }));
-    // 3. Audit
     addAuditEntry(orderId, `Annulation — ${reason} — remboursement: ${refundType} — ${fmtF(paid)}`, adminName);
   }, [getTotalPaid]);
 
-  /* ── Pesée ── */
-  const addWeighing = useCallback((w: Omit<WeighingRecord, "id" | "timestamp">) => {
-    const record: WeighingRecord = { ...w, id: `wgh_${Date.now()}`, timestamp: new Date().toISOString() };
+  // Persistance serveur du fret pesé (assessment.air_freight_fee).
+  const weighMut = useMutation({
+    mutationFn: async (p: { assessmentId: string; airFreightFee: number; realKg: number; volKg: number }) => {
+      await updateShipmentAssessment({
+        data: {
+          id: p.assessmentId,
+          air_freight_fee: p.airFreightFee,
+          real_weight_kg: p.realKg,
+          volumetric_weight_kg: p.volKg,
+        },
+      });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cockpit-orders"] }); refetch(); },
+  });
+
+  const addWeighing = useCallback((w: Omit<WeighingRecord, "id" | "timestamp"> & { assessmentId?: string | null }) => {
+    const { assessmentId, ...rest } = w as any;
+    const record: WeighingRecord = { ...rest, id: `wgh_${Date.now()}`, timestamp: new Date().toISOString() };
     setWeighings(prev => [record, ...prev]);
-    // Stocker le fret calculé dans freightMap pour l'affichage dans les KPI
-    setFreightMap(prev => ({ ...prev, [w.orderId]: w.finalFreight }));
+    if (assessmentId) {
+      weighMut.mutate({
+        assessmentId,
+        airFreightFee: Math.round(w.finalFreight),
+        realKg: Number(w.realWeightKg) || 0,
+        volKg: Number(w.volumetricWeightKg) || 0,
+      });
+    }
     addAuditEntry(w.orderId, `Pesée — ${w.realWeightKg}kg réel, ${w.volumetricWeightKg.toFixed(2)}kg vol, Fret ${fmtF(w.finalFreight)}`, w.weighedBy);
-  }, []);
+  }, [weighMut]);
 
-  /* ── Définir le fret manuellement (pour corrections) ── */
-  const setFreight = useCallback((orderId: string, amount: number) => {
-    setFreightMap(prev => ({ ...prev, [orderId]: amount }));
-  }, []);
+  // Compat (PipelineView lit encore freightMap[oid] ?? total_shipping_fees).
+  const setFreight = useCallback((_orderId: string, _amount: number) => { /* no-op */ }, []);
 
-  /* ── Audit helper ── */
   const addAuditEntry = useCallback((orderId: string, action: string, adminName: string, details?: string) => {
     setLocalAudit(prev => [{ id: `audit_${Date.now()}`, orderId, action, adminName, timestamp: new Date().toISOString(), details }, ...prev]);
   }, []);
 
   const updateStatus = useCallback((orderId: string, newStatus: string, adminName: string) => {
-    // 1. Forcer le statut via override (appliqué immédiatement dans ordersWithStatus)
     setStatusOverrides(prev => ({ ...prev, [orderId]: newStatus }));
-    // 2. Si le statut est une étape intermédiaire import sans fret défini,
-    //    propager le shipping_fees existant dans freightMap pour cohérence
-    if (["ordered_supplier", "received_warehouse", "fees_calculated", "payment_fees", "ready_delivery", "shipped"].includes(newStatus)) {
-      const order = orders.find(o => o.order_id === orderId);
-      if (order && (order.total_shipping_fees ?? 0) > 0 && !freightMap[orderId]) {
-        setFreightMap(prev => ({ ...prev, [orderId]: order.total_shipping_fees! }));
-      }
-    }
-    // 3. Audit
+    // ⚠️ Plus de propagation dans freightMap : le fret est lu uniquement depuis le serveur.
     addAuditEntry(orderId, `Statut → ${newStatus}`, adminName);
-  }, [addAuditEntry, orders, freightMap]);
+  }, [addAuditEntry]);
 
   return {
-    // Commandes avec statuts overridés (annulations, etc.)
     orders: ordersWithStatus,
     rawOrders: orders,
     isLoading, searchTerm, setSearchTerm, refetch,
