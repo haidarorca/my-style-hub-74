@@ -278,13 +278,6 @@ function CartPage() {
     () => items.filter((it: any) => selectedIds.has(it.id)),
     [items, selectedIds],
   );
-  const preferredShippingServiceId = useMemo(() => {
-    for (const it of selectedItems as any[]) {
-      const saved = it.shipping_service_id ?? it.customization?.__shipping_service_id;
-      if (saved) return String(saved);
-    }
-    return null;
-  }, [selectedItems]);
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
   // RÈGLE UNIQUE : un article est international si destination ≠ source vendeur.
@@ -345,17 +338,14 @@ function CartPage() {
         const cheapest = [...services].sort(
           (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
         )[0] ?? null;
-        const preferred = preferredShippingServiceId
-          ? services.find((s) => s.id === preferredShippingServiceId)
-          : null;
         // KNOWN : auto-sélection du moins cher (le client peut changer ensuite).
         setKnownShippingServiceId((prev) => {
           if (prev && services.some((s) => s.id === prev)) return prev;
-          return (preferred ?? cheapest)?.id ?? null;
+          return cheapest?.id ?? null;
         });
         // UNKNOWN : pas d'auto-sélection (force le choix conscient). Garde celui d'avant si valide.
         setUnknownShippingServiceId((prev) =>
-          prev && services.some((s) => s.id === prev) ? prev : (preferred?.id ?? null),
+          prev && services.some((s) => s.id === prev) ? prev : null,
         );
       } catch (e) {
         console.error("[cart] load shipping services failed", e);
@@ -363,7 +353,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasIntlItems, destinationCountryId, sourceCountryId, preferredShippingServiceId]);
+  }, [hasIntlItems, destinationCountryId, sourceCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
