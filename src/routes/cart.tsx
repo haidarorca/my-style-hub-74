@@ -172,11 +172,13 @@ function CartPage() {
     vendorGroups: Map<string, VendorGroup>;
   };
 
-  const getItemLogisticsType = (it: any): LogisticsType =>
-    it.products?.requires_international_shipping === true ||
-    it.products?.profiles?.vendor_mode === "commission"
-      ? "import"
-      : "local";
+  // RÈGLE UNIQUE : international ssi destination ≠ source vendeur.
+  // Si destination inconnue, on traite comme local (groupage par défaut).
+  const getItemLogisticsType = (it: any): LogisticsType => {
+    const src = it?.products?.profiles?.source_country_id ?? null;
+    if (!destinationCountryId || !src) return "local";
+    return src !== destinationCountryId ? "import" : "local";
+  };
 
   const logisticsGroups = useMemo(() => {
     const sections = new Map<LogisticsType, LogisticsSection>();
@@ -276,18 +278,20 @@ function CartPage() {
   );
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
-  // Per-item international classification — determines which items need the
-  // international logistics pipeline (weighing, shipping service, etc.)
+  // RÈGLE UNIQUE : un article est international si destination ≠ source vendeur.
+  // Cas Chine → Chine = local (pas de circuit pesée). Cas Chine → Sénégal = international.
   const isItemInternational = useCallback((it: any): boolean => {
-    // A product is international ONLY if it explicitly requires international shipping
-    // OR if the vendor is in commission mode (import products)
-    // ships_internationally on the vendor profile is NOT enough — a vendor can sell
-    // both local and international products.
-    return (
-      it.products?.requires_international_shipping === true ||
-      it.products?.profiles?.vendor_mode === "commission"
-    );
-  }, []);
+    const src = it?.products?.profiles?.source_country_id ?? null;
+    if (!destinationCountryId || !src) return false;
+    return src !== destinationCountryId;
+  }, [destinationCountryId]);
+
+  /** Article international SANS poids déclaré → calcul après pesée (pas d'estimation). */
+  const itemNeedsWeighing = useCallback((it: any): boolean => {
+    if (!isItemInternational(it)) return false;
+    const w = Number(it?.products?.weight_kg ?? 0);
+    return !w || w <= 0;
+  }, [isItemInternational]);
 
   // Global flag: does the selected cart contain ANY international items?
   const { hasIntlItems, sourceCountryId } = useMemo(() => {
@@ -357,7 +361,7 @@ function CartPage() {
           Choisissez votre service de transport *
         </Label>
         <p className="text-[11px] text-muted-foreground">
-          Obligatoire uniquement pour les produits import (marqués "Import"). Les frais seront calculés après pesée réelle. Les produits locaux ne nécessitent pas ce service.
+          Le prix de transport sera calculé après réception et pesée réelle du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.
         </p>
         {!destinationCountryId ? (
           <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>

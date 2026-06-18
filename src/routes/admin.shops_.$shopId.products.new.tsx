@@ -188,7 +188,10 @@ function NewAdminShopProductPage() {
   const [description, setDescription] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
   const [price, setPrice] = useState<string>("");
-  const [requiresIntlShipping, setRequiresIntlShipping] = useState(false);
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [lengthCm, setLengthCm] = useState<string>("");
+  const [widthCm, setWidthCm] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("");
 
   // Admin-only
   const [sourceUrl, setSourceUrl] = useState("");
@@ -763,6 +766,10 @@ function NewAdminShopProductPage() {
       }
 
       currentStep = "création du produit";
+      const w = weightKg.trim() ? Number(weightKg) : null;
+      const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
+      const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
+      const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -774,9 +781,13 @@ function NewAdminShopProductPage() {
           price: priceNum,
           category_id,
           pending_category_request_id,
-          requires_international_shipping: requiresIntlShipping,
+          weight_kg: w && w > 0 ? w : null,
+          length_cm: l && l > 0 ? l : null,
+          width_cm: wi && wi > 0 ? wi : null,
+          height_cm: h && h > 0 ? h : null,
+          weight_source: w && w > 0 ? "vendor_declared" : null,
           status: "approved",
-        })
+        } as any)
         .select("id")
         .single();
       if (prodErr) {
@@ -1044,14 +1055,31 @@ function NewAdminShopProductPage() {
               categoryId={deepestPick && !isReq(deepestPick) ? idOf(deepestPick) : null}
             />
           </div>
-          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="min-w-0 flex-1">
-              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div>
+              <Label className="text-sm font-medium">Poids et dimensions (optionnel)</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Activez si ce produit doit afficher le choix Express, Fret ou Bateau dans le panier.
+                Si le poids est renseigné, une estimation transport sera proposée au client pour les commandes internationales. Sinon : "Transport calculé après réception et pesée".
               </p>
             </div>
-            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <Label className="text-[10px]">Poids (kg)</Label>
+                <Input className="h-8" type="number" min={0} step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="2" />
+              </div>
+              <div>
+                <Label className="text-[10px]">L (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">l (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">H (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="—" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

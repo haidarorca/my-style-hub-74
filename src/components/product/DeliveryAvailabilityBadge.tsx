@@ -8,7 +8,6 @@ import { pickI18n } from "@/lib/i18n/localized";
 
 interface VendorShipping {
   source_country_id: string | null;
-  ships_internationally: boolean | null;
   allowed_destination_country_ids: string[] | null;
 }
 
@@ -23,7 +22,7 @@ export function DeliveryAvailabilityBadge({ vendorId }: { vendorId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("public_vendor_profiles")
-        .select("source_country_id, ships_internationally, allowed_destination_country_ids")
+        .select("source_country_id, allowed_destination_country_ids")
         .eq("id", vendorId)
         .maybeSingle();
       if (error) throw error;
@@ -37,9 +36,10 @@ export function DeliveryAvailabilityBadge({ vendorId }: { vendorId: string }) {
   const source = vendor.source_country_id ? countries.find((c) => c.id === vendor.source_country_id) : null;
   const allowedIds = vendor.allowed_destination_country_ids ?? [];
 
+  // Règle unique : disponible si la destination = pays vendeur OU figure dans la liste autorisée.
   const matchesSource = vendor.source_country_id === countryId;
-  const matchesIntl = vendor.ships_internationally === true && allowedIds.includes(countryId);
-  const available = matchesSource || matchesIntl;
+  const matchesAllowed = allowedIds.includes(countryId);
+  const available = matchesSource || matchesAllowed;
 
   const selectedLabel = selected
     ? `${selected.flag_emoji ?? ""} ${pickI18n(selected.name, selected.name_i18n ?? {}, lang)}`.trim()
@@ -52,15 +52,11 @@ export function DeliveryAvailabilityBadge({ vendorId }: { vendorId: string }) {
   if (available) {
     reason = matchesSource
       ? `Le vendeur est basé dans votre pays (${selectedLabel}).`
-      : `Le vendeur livre à l'international vers ${selectedLabel}.`;
+      : `Le vendeur livre vers ${selectedLabel}.`;
+  } else if (sourceLabel) {
+    reason = `Ce vendeur est basé au ${sourceLabel} et ne livre pas vers ${selectedLabel}.`;
   } else {
-    if (sourceLabel && !vendor.ships_internationally) {
-      reason = `Ce vendeur est basé au ${sourceLabel} et ne livre pas à l'international.`;
-    } else if (vendor.ships_internationally) {
-      reason = `Ce vendeur livre à l'international, mais pas vers ${selectedLabel}.`;
-    } else {
-      reason = `Ce vendeur ne livre pas vers ${selectedLabel}.`;
-    }
+    reason = `Ce vendeur ne livre pas vers ${selectedLabel}.`;
   }
 
   return (
@@ -81,7 +77,7 @@ export function DeliveryAvailabilityBadge({ vendorId }: { vendorId: string }) {
             : `Non disponible pour ${selectedLabel}`}
         </p>
         <p className="mt-0.5 opacity-90">{reason}</p>
-        {vendor.ships_internationally && allowedIds.length > 0 && (
+        {allowedIds.length > 0 && (
           <p className="mt-1 flex items-center gap-1 opacity-75">
             <Globe className="h-3 w-3" />
             Livre vers {allowedIds.length} pays

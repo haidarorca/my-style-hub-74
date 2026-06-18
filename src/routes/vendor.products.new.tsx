@@ -87,7 +87,11 @@ function NewProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
-  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
+  // Logistique : poids + dimensions (tous optionnels)
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [lengthCm, setLengthCm] = useState<string>("");
+  const [widthCm, setWidthCm] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("");
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
   const [pick1, setPick1] = useState<Pick>("");
@@ -419,6 +423,10 @@ function NewProductPage() {
         throw new Error("Ce code-barres existe déjà dans votre boutique.");
       }
 
+      const w = weightKg.trim() ? Number(weightKg) : null;
+      const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
+      const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
+      const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -430,9 +438,13 @@ function NewProductPage() {
           price: priceNum,
           category_id,
           pending_category_request_id,
-          requires_international_shipping: requiresIntlShipping,
+          weight_kg: w && w > 0 ? w : null,
+          length_cm: l && l > 0 ? l : null,
+          width_cm: wi && wi > 0 ? wi : null,
+          height_cm: h && h > 0 ? h : null,
+          weight_source: w && w > 0 ? "vendor_declared" : null,
           status: "pending",
-        })
+        } as any)
         .select("id")
         .single();
       if (prodErr) {
@@ -601,14 +613,31 @@ function NewProductPage() {
               Ce prix sera affiché tel quel au client (FCFA).
             </p>
           </div>
-          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="min-w-0 flex-1">
-              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div>
+              <Label className="text-sm font-medium">Poids et dimensions (optionnel)</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Activez si le colis doit être pesé à l'arrivée (ex : Chine → Sénégal). Le client choisira un service de transport et les frais réels seront calculés après pesée.
+                Si vous renseignez le poids, le client verra une estimation du transport pour les commandes internationales. Si vous laissez vide, le système indiquera "Transport calculé après réception et pesée".
               </p>
             </div>
-            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <Label className="text-[10px]">Poids (kg)</Label>
+                <Input className="h-8" type="number" min={0} step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="2" />
+              </div>
+              <div>
+                <Label className="text-[10px]">L (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">l (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">H (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="—" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
