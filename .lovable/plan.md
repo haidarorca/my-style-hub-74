@@ -1,70 +1,131 @@
+# Refonte moteur logistique — Deux circuits import distincts
 
-# Implémentation finale — Circuit Import Poids Connu
+Objectif : séparer réellement le circuit **Import poids inconnu** (workflow actuel) et **Import poids déclaré** (workflow simplifié), avec contrôle interne agent, saisie article par article, gestion mixte, anomalies bloquantes et badge pays.
 
-## 1. Affichage client — Prix total estimé (produit + transport)
+---
 
-**Fichiers** : `src/components/product/ProductCard.tsx`, `src/routes/product.$productId.tsx`, `src/components/product/DeliveryAvailabilityBadge.tsx`, nouveau hook `src/hooks/use-estimated-total.tsx`.
+## 1. Statut initial dépendant du poids déclaré
 
-- Créer `useEstimatedTotal(product)` : combine `useProductDisplayPrice` + le mode de transport le moins cher disponible pour la destination courante (via `useShippingServices` + `useDeliveryCountry`).
-- Sur `ProductCard` : si `is_international && weight_kg > 0` → afficher `TOTAL ESTIMÉ : X FCFA` à la place du prix produit seul, avec petite mention "produit + transport".
-- Sur la page produit : bloc "Coût total estimé" listant les modes (Maritime / Avion / Express) avec **prix final + délai uniquement** (jamais FCFA/kg, CBM, poids facturable).
-- Cas local ou poids inconnu → on garde le comportement actuel (prix produit seul + badge existant).
+Aujourd'hui, `getOrCreateShipmentAssessment` crée systématiquement un assessment et bascule en `awaiting_weighing` dès qu'au moins un item n'a pas de poids déclaré. Résultat : tout passe par la pesée client.
 
-## 2. Panier / Checkout — Modes de transport épurés
+**Nouveau comportement (`src/lib/shipment-assessments.functions.ts`)** :
+- Calculer `declared_count` / `unknown_count` / `total_count` sur les items de la sous-commande.
+- Si **tous les items** ont un poids déclaré > 0 → statut initial `pending_verification` (Circuit B), `weight_status='declared'`, frais pré-remplis depuis l'estimation produit + service choisi par le client (transport déjà sélectionné en checkout).
+- Sinon → statut initial `awaiting_weighing` (Circuit A inchangé), `weight_status='unknown'`.
+- Persister `declared_items_count`, `unknown_items_count`, `total_items_count` sur `order_shipment_assessments`.
 
-**Fichier** : `src/routes/cart.tsx`.
+## 2. Workflow Circuit B (poids déclaré)
 
-- Remplacer l'affichage actuel `price_per_kg` par : nom du mode + prix final estimé pour le panier + délai.
-- Garder l'auto-sélection du moins cher (déjà faite), bouton "Changer" pour ouvrir la liste.
-- Message client adaptatif selon le statut :
-  - inconnu : "Le coût du transport sera calculé après réception et pesée du colis."
-  - déclaré : "Le coût du transport affiché est calculé à partir des informations fournies par le vendeur et sera vérifié par notre équipe logistique."
-  - vérifié : "Le coût du transport a été confirmé par notre équipe logistique."
+Étapes :  
+`new → confirmed → ordered_supplier → received_warehouse → pending_verification → ready_delivery → shipped → delivered`
 
-## 3. Workflow cockpit — Deux pistes distinctes
+Supprimer pour ce circuit : `awaiting_weighing`, `fees_calculated`, `awaiting_client_validation`, `payment_fees`.
 
-**Fichiers** : `src/cockpit/lib/workflow.ts`, `src/components/workflow/WorkflowStepBar.tsx`, `src/lib/admin-logistics.functions.ts`.
+- `IMPORT_STEPS_DECLARED` mis à jour dans `src/lib/workflow.config.ts` et `src/cockpit/lib/workflow.ts`.
+- `getSteps()` choisit le bon set en fonction de `weight_status`.
+- Transitions admin (`admin-logistics.functions.ts` ALLOWED) : ajouter `pending_verification → ready_delivery` (cas OK) et `pending_verification → anomaly` (cas écart).
 
-- Ajouter dans `workflow.ts` : `getImportFlow(weightStatus)` qui retourne :
-  - **Poids inconnu** (workflow A) : `new → confirmed → ordered_supplier → received_warehouse → awaiting_weighing → fees_calculated → payment_fees → ready_delivery → shipped → delivered`.
-  - **Poids déclaré/vérifié** (workflow B) : `new → confirmed → ordered_supplier → in_transit → received_warehouse → weight_check → ready_delivery → shipped → delivered` (pas d'étapes pesée / calcul frais / paiement complémentaire).
-- `WorkflowStepBar` lit `order.weight_status` pour rendre la bonne séquence.
-- Côté serveur (`admin-logistics.functions.ts`), masquer les filtres "À peser / Calculer frais / Attente paiement transport" pour les commandes à poids connu (filtrage côté requête + côté UI dans `QuickFilterBar`).
+## 3. Saisie article par article
 
-## 4. Vérification agent (interne)
+Création table **`order_shipment_item_weights`** :
 
-**Fichier** : `src/components/shared/ShipmentAssessmentDialog.tsx` (déjà en mode vérification).
+```text
+id uuid pk
+assessment_id uuid fk → order_shipment_assessments (cascade)
+order_item_id uuid fk → order_items
+declared_weight_kg numeric null
+real_weight_kg numeric null
+length_cm / width_cm / height_cm numeric null
+volumetric_weight_kg numeric (calculé)
+verified_at timestamptz null
+verified_by uuid null
+created_at / updated_at
+unique(assessment_id, order_item_id)
+```
 
-- À la validation :
-  - Si écart ≤ tolérance → statut `verified`, on continue automatiquement vers `ready_delivery`.
-  - Si écart > tolérance → statut `anomaly`, blocage expédition + création dossier (voir §5).
-- Le client ne voit jamais cette étape (déjà masquée côté `WorkflowStepBar` public).
+GRANT + RLS (admin + service_role read/write ; client jamais).
 
-## 5. File d'anomalies admin
+- Nouveau serveur fn `upsertItemWeights` : reçoit la liste, recalcule `total_real_weight`, `chargeable_weight`, `weight_gap_pct` au niveau assessment et met à jour `order_shipment_assessments`.
+- Vérification déclenche automatiquement :
+  - écart global ≤ tolérance (10 % ou 0.5 kg) → `weight_status='verified'`, statut → `ready_delivery`.
+  - sinon → `weight_status='anomaly'`, statut figé sur `pending_verification`, expédition bloquée.
 
-**Fichiers** : nouveau composant `src/components/admin/WeightAnomalyPanel.tsx`, intégré dans `src/routes/admin.logistics.tsx`.
+## 4. UI agent — formulaire article par article
 
-- Liste des commandes `weight_status = 'anomaly'` avec : poids déclaré, poids réel, écart kg, écart %, vendeur, transport choisi initialement.
-- Trois actions par dossier :
-  1. **Accepter la perte** → passe en `verified` + déverrouille expédition (RPC `resolve_weight_anomaly` avec action `accept_loss`).
-  2. **Contacter le client** → ouvre `support_conversations` pré-rempli (complément à payer / changer de mode).
-  3. **Annuler la commande** → cancel + remboursement standard.
-- Côté serveur : `src/lib/weight-anomalies.functions.ts` (server fn `resolveWeightAnomaly` avec `requireSupabaseAuth` + check `support` permission).
+`src/components/shared/ShipmentAssessmentDialog.tsx` :  
+- Mode Circuit B → afficher tableau des items (libellé, poids déclaré pré-rempli, champs L×l×h + poids réel par ligne).  
+- Totaux calculés en bas (poids déclaré total, poids vérifié total, écart, statut).  
+- Bouton « Valider la vérification » → `upsertItemWeights` + transition statut.  
+- Mode Circuit A → comportement actuel (saisie globale) conservé.
 
-## 6. Migration BDD (légère)
+## 5. Commandes mixtes
 
-**Nouvelle migration** : colonne `anomaly_resolution` (text nullable) + `anomaly_resolved_by` (uuid) + `anomaly_resolved_at` (timestamptz) sur `order_shipment_assessments`. Aucune nouvelle table.
+Une sous-commande est en Circuit B **seulement si 100 % des items ont un poids déclaré**. Sinon Circuit A.
 
-## Hors scope
+Affichage dans le détail sous-commande (`WorkflowExpandedForm.tsx`) :  
+- bloc « Informations logistiques »  
+  - Origine (pays vendeur + drapeau)  
+  - Articles poids déclaré : X / Y  
+  - Articles poids inconnu : X / Y  
+  - Poids déclaré total / Poids vérifié total  
 
-- Pas de nouvelle colonne produit, pas de nouveau prix BDD : tout reste calculé à la volée via `logistics-rules.ts`.
-- Pas de modification du formulaire vendeur ni des migrations existantes.
-- Pas de refonte visuelle générale (cartes produit gardent leur layout).
+## 6. Badges cockpit
 
-## Technique
+- Pas de badge « Poids connu » sur les cartes principales (KZ + IMP suffisent).  
+- Badge IMP enrichi avec drapeau + pays d'origine quand connu (`IMP 🇨🇳 Chine`).  
+  - Source : `profiles.source_country_id` agrégé via assessment ; déjà disponible dans `LogisticsOrderRow.source_country_*`. Si absent → IMP simple.  
+- Bloc « Informations logistiques » uniquement dans le drawer/expanded.
 
-- `useEstimatedTotal` : hook React Query qui dépend de `[productId, destinationCountryId]`, réutilise les services déjà chargés par `useShippingServices`.
-- Tolérance : constantes existantes `WEIGHT_TOLERANCE_PCT` / `WEIGHT_TOLERANCE_KG` dans `logistics-rules.ts`.
-- Branchement workflow B : ne crée pas d'`order_shipment_assessments` avec `status = awaiting_weighing` quand `getOrCreateShipmentAssessment` détecte poids déclaré complet (déjà partiellement fait — on rend la pré-saisie obligatoire et on saute `awaiting_weighing` côté cockpit).
+## 7. Gestion des anomalies
 
-Validation : vérification visuelle via Playwright sur (a) fiche produit international avec poids, (b) panier avec auto-sélection, (c) cockpit d'une commande poids connu (absence des étapes pesée), (d) panneau anomalie.
+- `weight_status='anomaly'` → expédition bloquée (`ready_delivery` non atteignable).  
+- Panneau **Anomalies poids** (déjà partiel : `WeightAnomalyPanel.tsx`) — actions :  
+  1. Accepter la perte → marque `verified` + débloque (existant).  
+  2. Contacter le client (interne uniquement, jamais visible côté client).  
+  3. Annuler la commande.  
+  4. **Nouveau** : Modifier les frais → ouvre un mini-formulaire (ajustement `air_freight_fee` / `service_fee`) puis débloque.  
+- Aucune notification client n'est envoyée pour l'anomalie : libellés client neutres (`En préparation`).
+
+## 8. Confidentialité client
+
+Aucun composant côté client (cart, orders, product) n'affiche `anomaly`, `weight_check`, `declared vs real`. Audit grep ciblé sur :  
+- `src/routes/cart.tsx`, `src/routes/orders.tsx`, `src/routes/product.$productId.tsx`,  
+- `src/components/product/*`, `src/components/shared/OrderStatusBadge.tsx`.
+
+Tout `weight_status === 'anomaly'` côté client est mappé sur « En préparation logistique ».
+
+## 9. Filtres & KPI cockpit
+
+Dans `workflow.config.ts` + `cockpit/lib/workflow.ts` :  
+- File « À peser » : exclut Circuit B (déjà partiellement fait, à durcir sur `pending_verification`).  
+- Nouvelle file « À vérifier » : `pending_verification` (Circuit B).  
+- File « Attente paiement » : exclut Circuit B.  
+- File « À expédier » : inclut Circuit B passé en `ready_delivery`.  
+- File « Anomalies » : `weight_status='anomaly'` (toutes commandes).
+
+## 10. Migrations & code
+
+Migration SQL :
+1. `order_shipment_item_weights` (table + GRANT + RLS + trigger updated_at).
+2. `order_shipment_assessments` : colonnes `declared_items_count int`, `unknown_items_count int`, `total_items_count int`, `weight_gap_pct numeric`.
+3. Statut enum / contrainte CHECK : ajouter `pending_verification` dans la liste autorisée.
+
+Code touché (édition ciblée, pas de réécriture) :
+- `src/lib/shipment-assessments.functions.ts` — logique de création + nouveau `upsertItemWeights`.
+- `src/lib/admin-logistics.functions.ts` — ALLOWED transitions + agrégation row.
+- `src/lib/workflow.config.ts` — étapes Circuit B + filtres.
+- `src/cockpit/lib/workflow.ts` + `WorkflowControlPanel.tsx` + `OrderDrawer.tsx` + `PipelineView.tsx` + `OrderCard.tsx` — split steps.
+- `src/components/workflow/WorkflowRow.tsx` — badge IMP + drapeau, retirer badge poids des cartes principales.
+- `src/components/workflow/WorkflowExpandedForm.tsx` — bloc Informations logistiques.
+- `src/components/shared/ShipmentAssessmentDialog.tsx` — mode item-par-item.
+- `src/components/admin/WeightAnomalyPanel.tsx` — action « Modifier les frais ».
+
+## 11. Vérification
+
+- Build TS automatique.
+- Playwright headless : sous-commande tout-déclaré → suite cockpit ne propose plus « Peser » ni « Calculer frais », bouton « Vérifier poids » disponible ; saisie article par article ; écart > 10 % → anomalie bloquante.
+- Sous-commande mixte → reste Circuit A.
+
+---
+
+**Note** : pas de changement côté client e-commerce (déjà fait dans l'itération précédente : prix final estimé, sélection mode transport, panier). Aucune notification d'anomalie au client.
