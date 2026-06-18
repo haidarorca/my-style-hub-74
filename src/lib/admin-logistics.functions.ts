@@ -307,11 +307,18 @@ async function fallbackLogisticsQuery(
     new Set(Array.from(orderItemsMap.values()).flat().map((i) => i.product_id).filter(Boolean)),
   );
   let productShopMap = new Map<string, string>();
+  let productWeightMap = new Map<string, number | null>();
   let shopSourceMap = new Map<string, string | null>();
   if (allProductIds.length > 0) {
     try {
-      const { data: products } = await supabase.from("products").select("id, shop_id").in("id", allProductIds);
-      for (const p of products ?? []) { if (p.shop_id) productShopMap.set(p.id, p.shop_id); }
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, shop_id, weight_kg")
+        .in("id", allProductIds);
+      for (const p of products ?? []) {
+        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+        productWeightMap.set(p.id, p.weight_kg != null ? Number(p.weight_kg) : null);
+      }
       const shopIds = Array.from(new Set(productShopMap.values()));
       if (shopIds.length > 0) {
         const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
