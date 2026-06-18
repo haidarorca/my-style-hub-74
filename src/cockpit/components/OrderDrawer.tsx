@@ -86,7 +86,7 @@ interface Props {
   subOrderHistoryLoading?: boolean;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange, subOrderHistory, subOrderHistoryLoading }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, subOrderHistory, subOrderHistoryLoading }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
@@ -96,38 +96,58 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
 
-  // ─── Phase 2 : SCOPE BOUTIQUE ───
-  // Toutes les sous-commandes sœurs (pour navigation et libellé).
+  // ─── SCOPE PAR SOUS-COMMANDE (vendor_id + line_kind) ───
   const allSubs = useMemo(
     () => deriveSubOrders(articles, status, order.order_id ?? undefined),
     [articles, status, order.order_id],
   );
-  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
-  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
+  const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
+  const currentVendorId = currentSub?.vendor_id ?? null;
+  // Articles affichés dans ce drawer : filtré par sous-commande si scope actif.
   const scopedArticles = useMemo(
-    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
-    [articles, vendorId],
+    () => subOrderKey
+      ? (articles ?? []).filter(a => (a.sub_order_key ?? `${a.vendor_id ?? "unknown"}::${a.line_kind ?? (a.is_import ? "IMPORT_UNKNOWN_WEIGHT" : "LOCAL")}`) === subOrderKey)
+      : articles,
+    [articles, subOrderKey],
   );
   const siblings = useMemo(
     () => allSubs.map(s => ({
+      sub_order_key: s.sub_order_key,
       vendor_id: s.vendor_id, vendor_name: s.vendor_name,
+      line_kind: s.line_kind,
       index: s.index, total: s.total, label: s.label,
     })),
     [allSubs],
   );
-  const isScoped = !!vendorId && !!currentSub;
-  // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
+  const isScoped = !!subOrderKey && !!currentSub;
   const headerLabel = isScoped ? currentSub!.label : kz;
   const headerVendor = isScoped ? currentSub!.vendor_name : null;
+  const lineKind = currentSub?.line_kind ?? null;
 
-  // Finances : pro-rata du sous-total produits quand scopé.
-  const productShare = isScoped && financials.productTotal > 0
-    ? currentSub!.financials.product_total / financials.productTotal
-    : 1;
-  const ot = isScoped ? currentSub!.financials.product_total : financials.productTotal;
-  const sf = isScoped ? Math.round(financials.freight * productShare) : financials.freight;
+  // ─── FINANCES PAR SOUS-COMMANDE (plus aucun prorata) ───
+  // Produits : sum de la sous-commande.
+  // Fret :
+  //   LOCAL                 → 0
+  //   IMPORT_KNOWN_WEIGHT   → sum des item.freight_fee (figé au checkout)
+  //   IMPORT_UNKNOWN_WEIGHT → assessment.air_freight_fee (0 tant qu'aucune pesée)
+  let ot: number;
+  let sf: number;
+  if (isScoped && currentSub) {
+    ot = currentSub.financials.product_total;
+    if (lineKind === "IMPORT_KNOWN_WEIGHT") {
+      sf = currentSub.financials.declared_freight;
+    } else if (lineKind === "IMPORT_UNKNOWN_WEIGHT") {
+      sf = Number(subAssessment?.air_freight_fee ?? 0);
+    } else {
+      sf = 0;
+    }
+  } else {
+    ot = financials.productTotal;
+    sf = financials.freight;
+  }
   const gt = ot + sf;
-  const tp = Math.round(financials.paid * (isScoped ? productShare : 1));
+  // Paiements : non répartis par prorata. En vue scopée, on n'expose que ce qui est dû ici.
+  const tp = isScoped ? Math.min(financials.paid, gt) : financials.paid;
   const rem = Math.max(0, gt - tp);
   const paidFull = rem <= 0 && gt > 0;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
