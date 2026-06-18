@@ -3,6 +3,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { UnknownItem } from "./WeightForm";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -450,7 +453,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
           {/* Pesée */}
           {imp && status === "awaiting_weighing" && (
-            <div onClick={onFormInteraction}><WeightForm orderId={order.order_id ?? ""} declaredFreight={Number((order as any).declared_freight_from_items ?? 0)} onWeigh={onWeigh} /></div>
+            <WeightFormWithUnknownItems
+              orderId={order.order_id ?? ""}
+              assessmentId={order.assessment_id}
+              declaredFreight={Number((order as any).declared_freight_from_items ?? 0)}
+              onWeigh={onWeigh}
+              onFormInteraction={onFormInteraction}
+            />
           )}
 
           {/* Paiement */}
@@ -483,5 +492,60 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
         {dialogs}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Sous-composant : fetch les articles à poids inconnu de la commande et alimente WeightForm. */
+function WeightFormWithUnknownItems({
+  orderId,
+  assessmentId,
+  declaredFreight,
+  onWeigh,
+  onFormInteraction,
+}: {
+  orderId: string;
+  assessmentId: string | null;
+  declaredFreight: number;
+  onWeigh: Props["onWeigh"];
+  onFormInteraction?: () => void;
+}) {
+  const { data: unknownItems = [] } = useQuery({
+    queryKey: ["unknown-weight-items", orderId],
+    enabled: !!orderId,
+    queryFn: async (): Promise<UnknownItem[]> => {
+      const { data: items, error } = await (supabase as any)
+        .from("order_items")
+        .select("id, product_id, quantity, product_name, product_image_url, size, color")
+        .eq("order_id", orderId);
+      if (error || !items) return [];
+      const pids = Array.from(new Set(items.map((it: any) => it.product_id).filter(Boolean)));
+      if (pids.length === 0) return [];
+      const { data: products } = await (supabase as any)
+        .from("products")
+        .select("id, weight_kg")
+        .in("id", pids);
+      const wMap = new Map<string, number>((products ?? []).map((p: any) => [p.id, Number(p.weight_kg ?? 0)]));
+      return (items as any[])
+        .filter((it) => (wMap.get(it.product_id) ?? 0) <= 0)
+        .map((it) => ({
+          id: it.id,
+          name: it.product_name ?? "Produit",
+          imageUrl: it.product_image_url ?? null,
+          variantLabel: [it.size, it.color].filter(Boolean).join(" · ") || null,
+          quantity: it.quantity ?? 1,
+        }));
+    },
+  });
+
+  return (
+    <div onClick={onFormInteraction}>
+      <WeightForm
+        orderId={orderId}
+        assessmentId={assessmentId}
+        declaredFreight={declaredFreight}
+        unknownItems={unknownItems}
+        onWeigh={onWeigh}
+      />
+    </div>
   );
 }

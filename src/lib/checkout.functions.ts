@@ -100,6 +100,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         total += unitPrice * item.quantity;
 
         // ── Fret PAR LIGNE pour les articles internationaux à poids déclaré ──
+        // ⚠️ Indépendance stricte par ligne : on n'utilise QUE item.shippingServiceId
+        // (préférence enregistrée sur la ligne). Le sélecteur global éventuel n'est
+        // PAS appliqué ici — il sert uniquement de filtre à la sélection au panier.
         const sourceId = product.profiles?.source_country_id ?? null;
         const isIntl = !!sourceId && sourceId !== data.destinationCountryId;
         let lineFreight = 0;
@@ -108,7 +111,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           intlCount += 1;
           const weight = Number(product.weight_kg ?? 0);
           if (weight > 0) {
-            const svcId = (item.shippingServiceId ?? data.shippingServiceId) ?? null;
+            const svcId = item.shippingServiceId ?? null;
             const svc = await resolveService(svcId);
             const rate = svc?.price_per_kg ?? null;
             if (svc && rate != null && rate > 0) {
@@ -124,7 +127,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               allIntlDeclared = false; // poids OK mais pas de service applicable
             }
           } else {
-            allIntlDeclared = false; // poids inconnu → circuit A
+            allIntlDeclared = false; // poids inconnu → AUCUN fret au checkout
           }
         }
         if (lineFreight > 0) total += lineFreight;
