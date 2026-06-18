@@ -551,7 +551,7 @@ function LogisticsControlCenter() {
               {/* Statuts */}
               <div className="flex flex-wrap gap-2">
                 {detailRow.order_status && <SB config={safeOrderStatus(detailRow.order_status)} />}
-                {detailRow.logistics_status && <SB config={safeLogStatus(detailRow.logistics_status)} />}
+                {detailRow.logistics_status && <SB config={safeLogStatus(detailRow.logistics_status, detailRow.weight_status)} />}
                 {detailRow.payment_status && <SB config={safePayStatus(detailRow.payment_status)} />}
               </div>
 
