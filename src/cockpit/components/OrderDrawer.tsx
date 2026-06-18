@@ -81,18 +81,24 @@ interface Props {
   onSubOrderChange?: (subOrderKey: string) => void;
   /** Assessment scopé à la sous-commande affichée (uniquement IMPORT_UNKNOWN_WEIGHT). */
   subAssessment?: { id: string; air_freight_fee: number | null; status: string | null } | null;
+  /** Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère). */
+  effectiveSubStatus?: string | null;
   /** Phase B : historique métier de la sous-commande affichée. */
   subOrderHistory?: SubOrderHistory;
   subOrderHistoryLoading?: boolean;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, subOrderHistory, subOrderHistoryLoading }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, effectiveSubStatus, subOrderHistory, subOrderHistoryLoading }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
   if (!order) return null;
 
-  const status = order.logistics_status ?? "new";
+  // Statut affiché : si on est scopé sur une sous-commande, on lit son statut
+  // RÉEL (sub_order_states) au lieu du statut de la commande mère. Sans cela,
+  // cliquer "Confirmer" écrirait bien sub_order_states mais l'UI continuerait
+  // d'afficher l'ancien statut de la mère.
+  const status = (subOrderKey ? (effectiveSubStatus ?? order.logistics_status) : order.logistics_status) ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
 
@@ -173,7 +179,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
   // Prochaine étape dans le circuit métier (Circuit B si poids déclaré).
   const weightStatus = (order as any).weight_status as string | null | undefined;
-  const nextStep = getNextStep(status, imp, weightStatus);
+  const nextStep = getNextStep(status, imp, weightStatus, lineKind);
 
 
   // Handler qui ferme le drawer après changement de statut (scopé à la sous-commande si applicable).
@@ -278,13 +284,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
+          {/* Workflow : 1 par sous-commande. Le workflow dépend du line_kind
+              de la sous-commande affichée (KNOWN ≠ UNKNOWN). */}
           {(isScoped || !isMultiVendor) && (
             <WorkflowControlPanel
               orderId={order.order_id ?? undefined}
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
+              lineKind={lineKind}
               articles={scopedArticles}
               weightStatus={weightStatus}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}

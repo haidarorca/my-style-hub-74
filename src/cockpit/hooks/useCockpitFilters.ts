@@ -46,7 +46,7 @@ export function useCockpitFilters({ rows, vendorProfiles, historyMap }: UseCockp
     const productOrigins = new Set<string>();
 
     for (const r of rows) {
-      const s = (r.order.logistics_status ?? "new").trim() || "new";
+      const s = (r.effective_status ?? r.order.logistics_status ?? "new").trim() || "new";
       statuses.add(s);
       const profile = vendorProfiles?.get(r.vendor_id);
       if (profile?.source_country_id) {

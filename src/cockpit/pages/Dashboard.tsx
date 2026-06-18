@@ -43,6 +43,7 @@ export default function CockpitDashboard() {
     getWeighings, addWeighing,
     updateStatus, cancelOrder, cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
+    getSubOrderStatus,
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
@@ -50,7 +51,8 @@ export default function CockpitDashboard() {
 
   // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
   // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
-  const { rows: subOrderRows } = useSubOrderRows(orders);
+  // Chaque row reçoit `effective_status` (sub_order_states ?? mother).
+  const { rows: subOrderRows } = useSubOrderRows(orders, getSubOrderStatus);
 
   // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
   const visibleOrderIdsAll = useMemo(
@@ -242,12 +244,12 @@ export default function CockpitDashboard() {
   // du Cockpit). Le pipeline a besoin de la liste des commandes mères
   // correspondantes pour ses colonnes — on les dérive ici.
   const tabbedSubRows = useMemo(() => {
-    if (activeTab === "archive") {
-      return filteredSubRows.filter(r =>
-        r.order.logistics_status === "delivered" || r.order.logistics_status === "cancelled");
-    }
-    return filteredSubRows.filter(r =>
-      r.order.logistics_status !== "delivered" && r.order.logistics_status !== "cancelled");
+    const isDone = (r: typeof filteredSubRows[number]) => {
+      const s = (r.effective_status ?? r.order.logistics_status ?? "").trim();
+      return s === "delivered" || s === "cancelled";
+    };
+    if (activeTab === "archive") return filteredSubRows.filter(isDone);
+    return filteredSubRows.filter(r => !isDone(r));
   }, [filteredSubRows, activeTab]);
 
   const displayOrders = useMemo(() => {
@@ -423,6 +425,10 @@ export default function CockpitDashboard() {
         const subAss = selectedSubKey && selectedOrder.order_id
           ? getAssessment(selectedOrder.order_id, selectedSubKey)
           : null;
+        // Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère).
+        const effectiveSubStatus = selectedSubKey && selectedOrder.order_id
+          ? (getSubOrderStatus(selectedOrder.order_id, selectedSubKey, selectedOrder.logistics_status ?? null) ?? selectedOrder.logistics_status ?? "new")
+          : null;
         return (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
@@ -437,6 +443,7 @@ export default function CockpitDashboard() {
           subOrderKey={selectedSubKey}
           onSubOrderChange={setSelectedSubKey}
           subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
+          effectiveSubStatus={effectiveSubStatus}
           subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
           subOrderHistoryLoading={historyLoading}
           dialogs={
