@@ -199,38 +199,67 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
             </div>
           ) : (
             <>
-              <div className="text-[11px] text-gray-500">Saisir le poids réel de chaque article à poids inconnu :</div>
+              <div className="text-[11px] text-gray-500">Saisir le poids réel de chaque article. Dimensions facultatives (poids volumétrique pris si supérieur).</div>
               <div className="space-y-2">
-                {unknownItems.map((it) => (
-                  <div key={it.id} className="flex gap-2 items-center border rounded-md p-2 bg-gray-50">
-                    <div className="h-12 w-12 shrink-0 rounded bg-white border overflow-hidden flex items-center justify-center">
-                      {it.imageUrl
-                        ? <img src={it.imageUrl} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
-                        : <PkgIcon className="h-5 w-5 text-gray-300" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold truncate">{it.name}</div>
-                      <div className="text-[10px] text-gray-500">
-                        {it.variantLabel ? `${it.variantLabel} · ` : ""}Qté {it.quantity}
+                {unknownItems.map((it) => {
+                  const inp = perItemInputs[it.id] ?? { real: "", l: "", w: "", h: "" };
+                  const setField = (k: keyof typeof inp, v: string) =>
+                    setPerItemInputs(prev => ({ ...prev, [it.id]: { ...inp, [k]: v } }));
+                  const bd = perItemBreakdown.find(b => b.id === it.id);
+                  return (
+                    <div key={it.id} className="border rounded-md p-2 bg-gray-50 space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <div className="h-12 w-12 shrink-0 rounded bg-white border overflow-hidden flex items-center justify-center">
+                          {it.imageUrl
+                            ? <img src={it.imageUrl} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
+                            : <PkgIcon className="h-5 w-5 text-gray-300" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold truncate">{it.name}</div>
+                          <div className="text-[10px] text-gray-500">
+                            {it.variantLabel ? `${it.variantLabel} · ` : ""}Qté {it.quantity}
+                          </div>
+                        </div>
                       </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <div>
+                          <label className="text-[10px] text-gray-500">Poids réel *</label>
+                          <Input type="number" step="0.01" value={inp.real}
+                            onChange={e => setField("real", e.target.value)}
+                            className="h-8 text-xs" placeholder="kg" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">L (cm)</label>
+                          <Input type="number" value={inp.l}
+                            onChange={e => setField("l", e.target.value)}
+                            className="h-8 text-xs" placeholder="L" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">l (cm)</label>
+                          <Input type="number" value={inp.w}
+                            onChange={e => setField("w", e.target.value)}
+                            className="h-8 text-xs" placeholder="l" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">H (cm)</label>
+                          <Input type="number" value={inp.h}
+                            onChange={e => setField("h", e.target.value)}
+                            className="h-8 text-xs" placeholder="H" />
+                        </div>
+                      </div>
+                      {bd && (bd.vol > 0 || bd.chargeable > 0) && (
+                        <div className="text-[10px] text-gray-600 flex justify-between">
+                          <span>Vol: {bd.vol.toFixed(3)} kg</span>
+                          <span>Facturable: <b className="text-orange-700">{bd.chargeable.toFixed(3)} kg</b> × {bd.qty}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={perItemWeights[it.id] ?? ""}
-                        onChange={e => setPerItemWeights(prev => ({ ...prev, [it.id]: e.target.value }))}
-                        className="h-9 text-sm w-20"
-                        placeholder="kg"
-                      />
-                      <span className="text-[10px] text-gray-500">kg</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {perItemTotalKg > 0 && (
                 <div className="bg-gray-50 rounded p-2 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Poids inconnu total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Poids facturable total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Fret inconnu calculé:</span><span className="font-medium">{fmtF(freightPerItem)}</span></div>
                   {declaredFreight > 0 && (
                     <div className="flex justify-between"><span className="text-gray-500">Fret déclaré (figé):</span><span className="font-medium">{fmtF(declaredFreight)}</span></div>
@@ -238,9 +267,10 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
                   <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
                 </div>
               )}
-              <Button size="sm" className="w-full h-10 bg-orange-600 hover:bg-orange-700" onClick={handleSubmitPerItem} disabled={perItemTotalKg <= 0}>
+              <Button size="sm" className="w-full h-10 bg-orange-600 hover:bg-orange-700" onClick={handleSubmitPerItem} disabled={!perItemReady}>
                 Enregistrer la pesée
               </Button>
+
             </>
           )}
         </>
