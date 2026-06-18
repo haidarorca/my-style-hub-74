@@ -119,8 +119,14 @@ export function useRealOrders() {
   const getOrderFinancials = useCallback((order: LogisticsOrderRow) => {
     const oid = order.order_id ?? "";
     const productTotal = order.order_total ?? 0;
-    // Priorité : freightMap (fret calculé par pesée) > total_shipping_fees (Supabase)
-    const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
+    // Fret figé au checkout pour les articles à poids déclaré (toujours additionné, jamais écrasé)
+    const declaredFreight = Number((order as any).declared_freight_from_items ?? 0);
+    // Fret pesé en local (saisie agent pour articles à poids inconnu)
+    const weighedFreight = Number(freightMap[oid] ?? 0);
+    // Fret depuis l'évaluation logistique (totalShippingFees inclut déjà declared + air_freight_fee côté serveur)
+    const serverFreight = Number(order.total_shipping_fees ?? 0);
+    // On prend le maximum entre serveur et (declared + weighed local) pour ne jamais perdre un fret connu.
+    const freight = Math.max(serverFreight, declaredFreight + weighedFreight);
     const grandTotal = productTotal + freight;
     const declaredCircuit = order.weight_status === "declared" || order.weight_status === "verified" || order.weight_status === "anomaly";
     const recordedPaid = getTotalPaid(oid);
