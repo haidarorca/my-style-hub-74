@@ -7,6 +7,7 @@
 // - Affiche le TOTAL ESTIMÉ (produit + transport le moins cher)
 // - Message client adapté au statut (déclaré / vérifié / inconnu)
 // ═══════════════════════════════════════════════════════════════
+import { useEffect } from "react";
 import { Plane, Check } from "lucide-react";
 import { useEstimatedShipping, formatDelay } from "@/hooks/use-estimated-shipping";
 import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
@@ -35,6 +36,9 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
   // Cas B : poids déclaré → on affiche le total estimé + la grille des modes.
   const cheapest = est.cheapest!;
   const selected = est.options.find((opt) => opt.service.id === selectedServiceId) ?? cheapest;
+  useEffect(() => {
+    if (!selectedServiceId && cheapest?.service.id) onSelectService?.(cheapest.service.id);
+  }, [selectedServiceId, cheapest?.service.id, onSelectService]);
   const total =
     productPrice != null ? Math.round(Number(productPrice) + selected.price) : null;
 
