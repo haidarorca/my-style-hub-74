@@ -180,6 +180,12 @@ export interface OrderArticle {
   shop_type_label: string | null;
   origin_country?: string | null;
   origin_country_flag?: string | null;
+  /** ★ Catégorie figée au checkout (LOCAL / IMPORT_KNOWN_WEIGHT / IMPORT_UNKNOWN_WEIGHT). */
+  line_kind?: import("@/lib/line-kind").LineKind;
+  /** Fret figé au checkout pour cet article (uniquement IMPORT_KNOWN_WEIGHT > 0). */
+  freight_fee?: number;
+  /** Clé sous-commande = `${vendor_id}::${line_kind}`. */
+  sub_order_key?: string;
   // ─── Périmètre Cockpit (responsabilité Kawzone) ───
   /** True si l'article appartient à une boutique gérée directement par Kawzone. */
   is_admin_shop?: boolean;
