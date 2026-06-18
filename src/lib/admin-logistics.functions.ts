@@ -72,6 +72,8 @@ export type LogisticsOrderRow = {
   service_fee: number | null;
   extra_fees: number | null;
   total_shipping_fees: number | null;
+  /** Fret figé au checkout pour les articles à poids déclaré (somme des __freight_fee). */
+  declared_freight_from_items?: number | null;
   warehouse_location: string | null;
   agent_name: string | null;
   parcel_photo_url: string | null;
