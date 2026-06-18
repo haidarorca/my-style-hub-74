@@ -91,7 +91,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
       variant_id: l.variant_id,
       quantity: l.quantity,
       customization: l.customization,
-      shipping_service_id: l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null,
+      shipping_service_id: null,
       created_at: l.created_at,
       products: p,
       product_variants: l.variant_id ? vMap.get(l.variant_id) ?? null : null,
