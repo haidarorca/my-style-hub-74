@@ -55,7 +55,9 @@ export function WeightForm({ orderId, declaredFreight = 0, onWeigh }: Props) {
       chargeableWeightKg: chargeableGlobal,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightGlobal,
-      finalFreight: freightGlobal + declaredFreight,
+      // finalFreight = fret pesé uniquement (le fret déclaré reste figé sur les items).
+      // L'affichage cockpit additionne déclaré + pesé automatiquement.
+      finalFreight: freightGlobal,
       weighedBy: "Admin",
     });
     setRealWeight(""); setLength(""); setWidth(""); setHeight("");
