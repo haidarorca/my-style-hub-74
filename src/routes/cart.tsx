@@ -874,7 +874,7 @@ function CartPage() {
       const groups = await buildDispatchGroups(savedOrderId, addr);
 
       // Only remove the items the buyer actually ordered — keep the rest in the cart.
-      const orderedIds = selectedItems.map((it: any) => it.id as string);
+      const orderedIds = selectedItems.flatMap((it: any) => [it.id as string, ...((it.__duplicate_ids ?? []) as string[])]);
       if (user) {
         await supabase.from("cart_items").delete().in("id", orderedIds);
       } else {
