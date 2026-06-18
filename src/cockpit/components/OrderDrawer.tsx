@@ -261,6 +261,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
               articles={scopedArticles}
+              weightStatus={weightStatus}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}
