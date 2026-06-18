@@ -250,6 +250,29 @@ function ProductPage() {
   const displayPriceLines = useDisplayPriceLines(priceLines);
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
+
+  // Estimation transport pour la fiche (mode poids connu)
+  const shippingEstProduct = useMemo(() => data ? ({
+    weight_kg: (data as any).weight_kg,
+    length_cm: (data as any).length_cm,
+    width_cm: (data as any).width_cm,
+    height_cm: (data as any).height_cm,
+    vendor_source_country_id: ((data as any).profiles?.source_country_id ?? null) as string | null,
+  }) : null, [data]);
+  const shippingEst = useEstimatedShipping(shippingEstProduct);
+  const selectedShippingOption = useMemo(
+    () => shippingEst.options.find((o) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
+    [shippingEst, selectedShippingServiceId],
+  );
+  // Prix consolidé affiché au client : produit + transport choisi si poids connu intl.
+  const displayPrice = useMemo(() => {
+    if (resolvedFinalPrice == null) return null;
+    if (shippingEst.isIntl && shippingEst.canEstimate && selectedShippingOption) {
+      return Math.round(Number(resolvedFinalPrice) + selectedShippingOption.price);
+    }
+    return Number(resolvedFinalPrice);
+  }, [resolvedFinalPrice, shippingEst, selectedShippingOption]);
+  const transportIncluded = shippingEst.isIntl && shippingEst.canEstimate && !!selectedShippingOption;
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
   const needsCustomImage = !!imageCustom && !customImageFile;
