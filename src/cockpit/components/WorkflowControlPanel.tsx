@@ -57,6 +57,8 @@ interface Props {
   isImport: boolean;
   isLocal: boolean;
   articles?: OrderArticle[];
+  /** "declared" / "verified" / "anomaly" → utilise le Circuit B (poids déclaré). */
+  weightStatus?: string | null;
   onStatusChange: (status: string) => void;
 }
 
