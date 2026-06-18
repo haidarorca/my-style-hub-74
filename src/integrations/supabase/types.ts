@@ -1548,6 +1548,7 @@ export type Database = {
           total_fees: number | null
           updated_at: string
           volumetric_weight_kg: number | null
+          weight_mode: string | null
           width_cm: number | null
         }
         Insert: {
@@ -1576,6 +1577,7 @@ export type Database = {
           total_fees?: number | null
           updated_at?: string
           volumetric_weight_kg?: number | null
+          weight_mode?: string | null
           width_cm?: number | null
         }
         Update: {
@@ -1604,6 +1606,7 @@ export type Database = {
           total_fees?: number | null
           updated_at?: string
           volumetric_weight_kg?: number | null
+          weight_mode?: string | null
           width_cm?: number | null
         }
         Relationships: []
