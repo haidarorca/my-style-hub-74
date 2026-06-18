@@ -440,19 +440,15 @@ async function fallbackLogisticsQuery(
     const payment = assessmentId ? (paymentMap.get(assessmentId) ?? {}) : {};
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
 
-    const totalFees =
-      Number(assessment.air_freight_fee ?? 0) +
-      Number(assessment.service_fee ?? 0) +
-      Number(assessment.extra_fees ?? 0);
     const amountPaid = Number(payment.amount_paid ?? 0);
+    const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
-      const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
-      const storedTotal = Number(order.total ?? 0);
-      const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
-      const orderTotal = productSubtotal > 0 ? productSubtotal : Math.max(0, storedTotal - totalFees);
-      // amount_remaining = complément logistique uniquement. Si le fret est déjà inclus
-      // dans orders.total (Circuit B), aucune demande client supplémentaire ne doit apparaître.
-      const amountRemaining = Math.max(0, totalFees - amountPaid);
+    const storedTotal = Number(order.total ?? 0);
+    const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
+    const orderTotal = productSubtotal > 0 ? productSubtotal : Math.max(0, storedTotal - totalFees);
+    // amount_remaining = complément logistique uniquement. Si le fret est déjà inclus
+    // dans orders.total (Circuit B), aucune demande client supplémentaire ne doit apparaître.
+    const amountRemaining = Math.max(0, totalFees - amountPaid);
 
     // ── Comptage déclaré / inconnu + détection du pays d'origine
     let declaredCount = 0;
