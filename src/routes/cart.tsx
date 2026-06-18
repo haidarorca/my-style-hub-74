@@ -729,7 +729,7 @@ function CartPage() {
           .insert({
             id: orderId,
             buyer_id: null,
-            total: grandTotal,
+            total: grandTotal + (shippingEstimate ?? 0),
             status: "new",
             customer_name: addr.full_name,
             customer_phone: addr.phone,
@@ -954,10 +954,15 @@ function CartPage() {
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">
                 {t("cart.total")} · {selectedCount} {t("cart.title")}
+                {shippingEstimate != null && (
+                  <span className="ms-1">
+                    (produit {grandTotal.toLocaleString("fr-FR")} + transport {shippingEstimate.toLocaleString("fr-FR")})
+                  </span>
+                )}
               </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
-                  <>{grandTotal.toLocaleString("fr-FR")} FCFA</>
+                  <>{(grandTotal + (shippingEstimate ?? 0)).toLocaleString("fr-FR")} FCFA</>
                 ) : (
                   <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
                 )}

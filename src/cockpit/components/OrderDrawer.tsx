@@ -146,8 +146,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
   const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
-  // Prochaine étape dans le circuit métier
-  const nextStep = getNextStep(status, imp);
+  // Prochaine étape dans le circuit métier (Circuit B si poids déclaré).
+  const weightStatus = (order as any).weight_status as string | null | undefined;
+  const nextStep = getNextStep(status, imp, weightStatus);
+
 
   // Handler qui ferme le drawer après changement de statut
   const handleStatusAndClose = (orderId: string, newStatus: string, admin: string) => {
@@ -259,6 +261,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
               articles={scopedArticles}
+              weightStatus={weightStatus}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}

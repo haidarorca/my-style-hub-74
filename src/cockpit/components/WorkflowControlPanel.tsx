@@ -40,12 +40,25 @@ const IMPORT_STEPS_V2: FlowStep[] = [
   { key: "delivered", label: "Livrée", description: "Commande livrée" },
 ];
 
+// Circuit B — poids déclaré : vérification interne, pas de paiement client supplémentaire.
+const IMPORT_STEPS_DECLARED: FlowStep[] = [
+  { key: "new", label: "Nouvelle", description: "Commande reçue" },
+  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
+  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur" },
+  { key: "received_warehouse", label: "Vérif. interne", description: "Reçue — poids vérifié par l'agent" },
+  { key: "ready_delivery", label: "Prête", description: "Prête à expédier" },
+  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
+  { key: "delivered", label: "Livrée", description: "Commande livrée" },
+];
+
 interface Props {
   orderId?: string;
   status: string;
   isImport: boolean;
   isLocal: boolean;
   articles?: OrderArticle[];
+  /** "declared" / "verified" / "anomaly" → utilise le Circuit B (poids déclaré). */
+  weightStatus?: string | null;
   onStatusChange: (status: string) => void;
 }
 
@@ -176,7 +189,7 @@ function CircuitAccordion({
   );
 }
 
-export function WorkflowControlPanel({ orderId, status, isImport, isLocal, onStatusChange }: Props) {
+export function WorkflowControlPanel({ orderId, status, isImport, isLocal, weightStatus, onStatusChange }: Props) {
   const s = status ?? "new";
   const keyBase = `cockpit:circuit-open:${orderId ?? "_"}`;
 
@@ -197,18 +210,23 @@ export function WorkflowControlPanel({ orderId, status, isImport, isLocal, onSta
     );
   }
 
+  const isDeclared =
+    weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly";
+  const importSteps = isDeclared ? IMPORT_STEPS_DECLARED : IMPORT_STEPS_V2;
+
   return (
     <CircuitAccordion
-      storageKey={`${keyBase}:import`}
+      storageKey={`${keyBase}:import:${isDeclared ? "B" : "A"}`}
       defaultOpen={false}
-      steps={IMPORT_STEPS_V2}
+      steps={importSteps}
       currentStatus={s}
       isImportFlow={true}
-      title="Circuit IMPORT"
+      title={isDeclared ? "Circuit IMPORT (poids déclaré)" : "Circuit IMPORT"}
       icon={Truck}
       headerColor="bg-indigo-100 text-indigo-700"
-      action={getNextStep(s, true)}
+      action={getNextStep(s, true, weightStatus)}
       onStatusChange={onStatusChange}
     />
   );
 }
+
