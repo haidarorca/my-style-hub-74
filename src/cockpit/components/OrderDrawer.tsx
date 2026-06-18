@@ -161,8 +161,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const isLocalOrder = !!scopedArticles && hasLocal && !hasImport;
   const isImportOrder = !!scopedArticles && !hasLocal && hasImport;
   const isImportFallback = !scopedArticles && isImport(order);
-  // Quand scopé : pas de "multi-vendor" dans ce drawer (par définition c'est UNE boutique).
-  const isMultiVendor = !isScoped && !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
+  // En mode non-scopé : un drawer "mère" est multi-sous-commandes si >1 sub_order_key.
+  const isMultiVendor = !isScoped && allSubs.length > 1;
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
@@ -176,9 +176,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const nextStep = getNextStep(status, imp, weightStatus);
 
 
-  // Handler qui ferme le drawer après changement de statut
+  // Handler qui ferme le drawer après changement de statut (scopé à la sous-commande si applicable).
   const handleStatusAndClose = (orderId: string, newStatus: string, admin: string) => {
-    onStatusChange(orderId, newStatus, admin);
+    onStatusChange(orderId, newStatus, admin, subOrderKey ?? null);
     onClose();
   };
 
