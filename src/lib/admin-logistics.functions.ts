@@ -441,6 +441,28 @@ async function fallbackLogisticsQuery(
       real_weight_kg: (assessment.real_weight_kg as number) ?? null,
       volumetric_weight_kg: (assessment.volumetric_weight_kg as number) ?? null,
       chargeable_weight_kg: (assessment.volumetric_weight_kg as number) ?? (assessment.real_weight_kg as number) ?? null,
+      declared_weight_kg: (() => {
+        if (items.length === 0) return null;
+        let total = 0;
+        for (const it of items) {
+          const w = productWeightMap.get(it.product_id);
+          if (w == null || w <= 0) return null; // un produit sans poids → on ne peut pas additionner
+          total += w * (it.quantity ?? 1);
+        }
+        return Math.round(total * 1000) / 1000;
+      })(),
+      weight_status: (() => {
+        if (orderType === "local") return "verified" as const;
+        const real = Number((assessment.real_weight_kg as number) ?? 0);
+        if (real > 0) return "verified" as const;
+        // déclaré ?
+        let hasAll = items.length > 0;
+        for (const it of items) {
+          const w = productWeightMap.get(it.product_id);
+          if (w == null || w <= 0) { hasAll = false; break; }
+        }
+        return hasAll ? ("declared" as const) : ("unknown" as const);
+      })(),
       air_freight_fee: (assessment.air_freight_fee as number) ?? null,
       service_fee: (assessment.service_fee as number) ?? null,
       extra_fees: (assessment.extra_fees as number) ?? null,
