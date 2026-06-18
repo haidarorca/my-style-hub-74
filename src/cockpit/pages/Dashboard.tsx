@@ -244,12 +244,12 @@ export default function CockpitDashboard() {
   // du Cockpit). Le pipeline a besoin de la liste des commandes mères
   // correspondantes pour ses colonnes — on les dérive ici.
   const tabbedSubRows = useMemo(() => {
-    if (activeTab === "archive") {
-      return filteredSubRows.filter(r =>
-        r.order.logistics_status === "delivered" || r.order.logistics_status === "cancelled");
-    }
-    return filteredSubRows.filter(r =>
-      r.order.logistics_status !== "delivered" && r.order.logistics_status !== "cancelled");
+    const isDone = (r: typeof filteredSubRows[number]) => {
+      const s = (r.effective_status ?? r.order.logistics_status ?? "").trim();
+      return s === "delivered" || s === "cancelled";
+    };
+    if (activeTab === "archive") return filteredSubRows.filter(isDone);
+    return filteredSubRows.filter(r => !isDone(r));
   }, [filteredSubRows, activeTab]);
 
   const displayOrders = useMemo(() => {
