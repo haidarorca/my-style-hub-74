@@ -77,7 +77,10 @@ function AdminEditProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [lengthCm, setLengthCm] = useState<string>("");
+  const [widthCm, setWidthCm] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("");
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [rejectionReason, setRejectionReason] = useState("");
   const [vendorId, setVendorId] = useState<string>("");
@@ -169,7 +172,10 @@ function AdminEditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
-    setRequiresIntlShipping(Boolean((p as any).requires_international_shipping));
+    setWeightKg((p as any).weight_kg != null ? String((p as any).weight_kg) : "");
+    setLengthCm((p as any).length_cm != null ? String((p as any).length_cm) : "");
+    setWidthCm((p as any).width_cm != null ? String((p as any).width_cm) : "");
+    setHeightCm((p as any).height_cm != null ? String((p as any).height_cm) : "");
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setRejectionReason(p.rejection_reason ?? "");
     setVendorId(p.vendor_id ?? "");
@@ -445,13 +451,11 @@ function AdminEditProductPage() {
       const finalPendingCategoryRequestId = finalCategoryPick && isReq(finalCategoryPick) ? idOf(finalCategoryPick) : null;
 
       // Product update
-      const updatePayload: {
-        name: string; code: string; designation: string | null; description: string | null;
-        price: number; category_id: string | null; pending_category_request_id: string | null; vendor_id: string;
-        status: "pending" | "approved" | "rejected"; rejection_reason: string | null;
-        requires_international_shipping: boolean;
-        is_edit?: boolean;
-      } = {
+      const w = weightKg.trim() ? Number(weightKg) : null;
+      const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
+      const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
+      const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
+      const updatePayload: any = {
         name: name.trim(),
         code: cleanCode,
         designation: designation.trim() || null,
@@ -462,7 +466,11 @@ function AdminEditProductPage() {
         vendor_id: vendorId,
         status: (["pending","approved","rejected"].includes(status) ? status : "pending"),
         rejection_reason: status === "rejected" ? (rejectionReason.trim() || "Non conforme") : null,
-        requires_international_shipping: requiresIntlShipping,
+        weight_kg: w && w > 0 ? w : null,
+        length_cm: l && l > 0 ? l : null,
+        width_cm: wi && wi > 0 ? wi : null,
+        height_cm: h && h > 0 ? h : null,
+        weight_source: w && w > 0 ? "vendor_declared" : null,
       };
       if (status === "approved") updatePayload.is_edit = false;
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
@@ -549,14 +557,31 @@ function AdminEditProductPage() {
             <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
-          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="min-w-0 flex-1">
-              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div>
+              <Label className="text-sm font-medium">Poids et dimensions (optionnel)</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Activez si ce produit nécessite un service de transport international (pesée à l'arrivée et validation client des frais réels).
+                Si renseigné, une estimation transport sera proposée au client pour les commandes internationales. Sinon : "Transport calculé après réception et pesée".
               </p>
             </div>
-            <Switch checked={requiresIntlShipping} onCheckedChange={setRequiresIntlShipping} />
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <Label className="text-[10px]">Poids (kg)</Label>
+                <Input className="h-8" type="number" min={0} step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="2" />
+              </div>
+              <div>
+                <Label className="text-[10px]">L (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">l (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">H (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="—" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
