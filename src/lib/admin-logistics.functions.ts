@@ -446,9 +446,13 @@ async function fallbackLogisticsQuery(
       Number(assessment.extra_fees ?? 0);
     const amountPaid = Number(payment.amount_paid ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
-    const orderTotal = Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0);
-    // amount_remaining = reste à payer sur la commande totale (produits + frais)
-    const amountRemaining = Math.max(0, orderTotal - amountPaid);
+      const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
+      const storedTotal = Number(order.total ?? 0);
+      const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
+      const orderTotal = productSubtotal > 0 ? productSubtotal : Math.max(0, storedTotal - totalFees);
+      // amount_remaining = complément logistique uniquement. Si le fret est déjà inclus
+      // dans orders.total (Circuit B), aucune demande client supplémentaire ne doit apparaître.
+      const amountRemaining = Math.max(0, totalFees - amountPaid);
 
     // ── Comptage déclaré / inconnu + détection du pays d'origine
     let declaredCount = 0;
@@ -476,7 +480,7 @@ async function fallbackLogisticsQuery(
       customer_phone: (order.customer_phone as string) ?? null,
       customer_address: (order.customer_address as string) ?? null,
       customer_city: (order.customer_city as string) ?? null,
-      order_total: Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0),
+      order_total: orderTotal,
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
