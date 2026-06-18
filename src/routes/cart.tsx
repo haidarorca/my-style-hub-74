@@ -352,17 +352,50 @@ function CartPage() {
   };
   const grandTotal = selectedItems.reduce((s, it: any) => s + unitPrice(it) * it.quantity, 0);
 
+  // Items internationaux sélectionnés (utilisé pour l'estimation transport).
+  const intlSelectedItems = useMemo(
+    () => selectedItems.filter(isItemInternational),
+    [selectedItems, isItemInternational],
+  );
+  // Tous les items internationaux ont un poids déclaré ?
+  const allIntlHaveDeclaredWeight = useMemo(() => {
+    if (intlSelectedItems.length === 0) return false;
+    return intlSelectedItems.every((it: any) => Number(it?.products?.weight_kg ?? 0) > 0);
+  }, [intlSelectedItems]);
+
+  // Estimation transport quand poids déclaré + service choisi.
+  const shippingEstimate = useMemo(() => {
+    if (!allIntlHaveDeclaredWeight) return null;
+    if (!selectedShippingService) return null;
+    const ratePerKg = Number(selectedShippingService.price_per_kg ?? 0);
+    if (ratePerKg <= 0) return null;
+    let totalKg = 0;
+    for (const it of intlSelectedItems) {
+      const p = it.products ?? {};
+      const real = Number(p.weight_kg ?? 0);
+      const l = Number(p.length_cm ?? 0);
+      const w = Number(p.width_cm ?? 0);
+      const h = Number(p.height_cm ?? 0);
+      const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+      totalKg += Math.max(real, vol) * (it.quantity ?? 1);
+    }
+    return Math.round(totalKg * ratePerKg);
+  }, [allIntlHaveDeclaredWeight, intlSelectedItems, selectedShippingService]);
+
   const renderShippingServiceSelector = () => {
     if (!hasIntlItems) return null;
+    // Cas A : au moins un article sans poids → message "après pesée"
+    // Cas B : tous les articles ont un poids déclaré → message "estimation, vérifié à réception"
+    const message = allIntlHaveDeclaredWeight
+      ? "Le coût du transport est estimé à partir des informations fournies par le vendeur. Le poids réel sera vérifié à la réception par notre agent logistique."
+      : "Le prix de transport sera calculé après réception et pesée réelle du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.";
     return (
       <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <Label className="flex items-center gap-2 text-sm font-semibold">
           <Plane className="h-4 w-4 text-primary" />
           Choisissez votre service de transport *
         </Label>
-        <p className="text-[11px] text-muted-foreground">
-          Le prix de transport sera calculé après réception et pesée réelle du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{message}</p>
         {!destinationCountryId ? (
           <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>
         ) : shippingServices.length === 0 ? (
@@ -397,6 +430,17 @@ function CartPage() {
           <p className="text-[11px] text-muted-foreground">
             Service sélectionné : <span className="font-medium text-foreground">{selectedShippingService.name}</span>
           </p>
+        )}
+        {shippingEstimate != null && (
+          <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-800">
+            <div className="flex items-center justify-between">
+              <span>Estimation transport</span>
+              <span className="font-semibold">~ {shippingEstimate.toLocaleString("fr-FR")} FCFA</span>
+            </div>
+            <div className="text-[10px] text-emerald-700/80 mt-0.5">
+              Estimation basée sur le poids déclaré par le vendeur · ajustée après vérification à la réception.
+            </div>
+          </div>
         )}
       </div>
     );
@@ -657,7 +701,9 @@ function CartPage() {
             destination_country_id: destinationCountryId,
             shipping_service_id: hasIntlItems ? shippingServiceId : null,
             shipping_estimate_note: hasIntlItems && shippingServiceId
-              ? "Estimé — sera recalculé après pesée"
+              ? (allIntlHaveDeclaredWeight
+                  ? `Estimation transport ~ ${shippingEstimate?.toLocaleString("fr-FR") ?? "—"} FCFA · vérifié à la réception`
+                  : "À calculer après réception et pesée")
               : null,
           } as any);
         if (oErr) {
