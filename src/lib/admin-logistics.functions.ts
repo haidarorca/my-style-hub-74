@@ -273,7 +273,7 @@ async function fallbackLogisticsQuery(
     /* 1b */ countryIds.length > 0
       ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
-    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price").in("order_id", orderIds),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price, customization").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
