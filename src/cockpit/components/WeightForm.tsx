@@ -47,22 +47,48 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
   const ratePerKg = parseFloat(rate) || FREIGHT_RATE_PER_KG;
   const freightGlobal = calcFreight(chargeableGlobal, ratePerKg);
 
-  // ── Mode per_item : map id → poids en kg ──
-  const [perItemWeights, setPerItemWeights] = useState<Record<string, string>>({});
+  // ── Mode per_item : map id → { real_kg, l_cm, w_cm, h_cm } ──
+  type PerItemInput = { real: string; l: string; w: string; h: string };
+  const blankPI: PerItemInput = { real: "", l: "", w: "", h: "" };
+  const [perItemInputs, setPerItemInputs] = useState<Record<string, PerItemInput>>({});
   useEffect(() => {
-    // Initialiser/synchroniser quand la liste change
-    setPerItemWeights(prev => {
-      const next: Record<string, string> = {};
-      for (const it of unknownItems) next[it.id] = prev[it.id] ?? "";
+    setPerItemInputs(prev => {
+      const next: Record<string, PerItemInput> = {};
+      for (const it of unknownItems) next[it.id] = prev[it.id] ?? { ...blankPI };
       return next;
     });
   }, [unknownItems]);
 
+  /** Poids facturable par article = max(réel, volumétrique). qty appliquée. */
+  const perItemBreakdown = useMemo(() => {
+    return unknownItems.map((it) => {
+      const inp = perItemInputs[it.id] ?? blankPI;
+      const real = parseFloat(inp.real) || 0;
+      const l = parseFloat(inp.l) || 0;
+      const w = parseFloat(inp.w) || 0;
+      const h = parseFloat(inp.h) || 0;
+      const vol = l > 0 && w > 0 && h > 0 ? calcVolumetricWeight(l, w, h) : 0;
+      const chargeable = Math.max(real, vol);
+      const qty = it.quantity || 1;
+      return { id: it.id, real, vol, chargeable, qty, totalChargeable: chargeable * qty };
+    });
+  }, [unknownItems, perItemInputs]);
+
   const perItemTotalKg = useMemo(
-    () => Object.values(perItemWeights).reduce((s, v) => s + (parseFloat(v) || 0), 0),
-    [perItemWeights],
+    () => perItemBreakdown.reduce((s, b) => s + b.totalChargeable, 0),
+    [perItemBreakdown],
+  );
+  const perItemRealTotalKg = useMemo(
+    () => perItemBreakdown.reduce((s, b) => s + b.real * b.qty, 0),
+    [perItemBreakdown],
+  );
+  const perItemVolTotalKg = useMemo(
+    () => perItemBreakdown.reduce((s, b) => s + b.vol * b.qty, 0),
+    [perItemBreakdown],
   );
   const freightPerItem = calcFreight(perItemTotalKg, ratePerKg);
+  /** Tous les articles doivent avoir un poids réel saisi (dimensions optionnelles). */
+  const perItemReady = perItemBreakdown.length > 0 && perItemBreakdown.every(b => b.real > 0);
 
   const handleSubmitGlobal = () => {
     if (!realW || !chargeableGlobal) return;
@@ -77,28 +103,37 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
       chargeableWeightKg: chargeableGlobal,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightGlobal,
-      finalFreight: freightGlobal, // fret pesé uniquement ; le déclaré reste figé sur les items
+      finalFreight: freightGlobal,
       weighedBy: "Admin",
     });
     setRealWeight(""); setLength(""); setWidth(""); setHeight("");
   };
 
   const handleSubmitPerItem = () => {
-    if (perItemTotalKg <= 0) return;
+    if (!perItemReady) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
-      realWeightKg: Math.round(perItemTotalKg * 1000) / 1000,
+      realWeightKg: Math.round(perItemRealTotalKg * 1000) / 1000,
       lengthCm: 0, widthCm: 0, heightCm: 0,
-      volumetricWeightKg: 0,
+      volumetricWeightKg: Math.round(perItemVolTotalKg * 1000) / 1000,
       chargeableWeightKg: Math.round(perItemTotalKg * 1000) / 1000,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightPerItem,
       finalFreight: freightPerItem,
       weighedBy: "Admin",
-    });
-    setPerItemWeights({});
+      // Détail par article (persisté côté backend si le schéma le permet).
+      perItemWeights: perItemBreakdown.reduce((acc, b) => {
+        acc[b.id] = { real_kg: b.real, l_cm: parseFloat(perItemInputs[b.id]?.l || "0") || 0,
+                      w_cm: parseFloat(perItemInputs[b.id]?.w || "0") || 0,
+                      h_cm: parseFloat(perItemInputs[b.id]?.h || "0") || 0,
+                      chargeable_kg: b.chargeable };
+        return acc;
+      }, {} as Record<string, { real_kg: number; l_cm: number; w_cm: number; h_cm: number; chargeable_kg: number }>),
+    } as any);
+    setPerItemInputs({});
   };
+
 
   const totalFreightPreview = (mode === "global" ? freightGlobal : freightPerItem) + declaredFreight;
 
@@ -164,38 +199,67 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
             </div>
           ) : (
             <>
-              <div className="text-[11px] text-gray-500">Saisir le poids réel de chaque article à poids inconnu :</div>
+              <div className="text-[11px] text-gray-500">Saisir le poids réel de chaque article. Dimensions facultatives (poids volumétrique pris si supérieur).</div>
               <div className="space-y-2">
-                {unknownItems.map((it) => (
-                  <div key={it.id} className="flex gap-2 items-center border rounded-md p-2 bg-gray-50">
-                    <div className="h-12 w-12 shrink-0 rounded bg-white border overflow-hidden flex items-center justify-center">
-                      {it.imageUrl
-                        ? <img src={it.imageUrl} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
-                        : <PkgIcon className="h-5 w-5 text-gray-300" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold truncate">{it.name}</div>
-                      <div className="text-[10px] text-gray-500">
-                        {it.variantLabel ? `${it.variantLabel} · ` : ""}Qté {it.quantity}
+                {unknownItems.map((it) => {
+                  const inp = perItemInputs[it.id] ?? { real: "", l: "", w: "", h: "" };
+                  const setField = (k: keyof typeof inp, v: string) =>
+                    setPerItemInputs(prev => ({ ...prev, [it.id]: { ...inp, [k]: v } }));
+                  const bd = perItemBreakdown.find(b => b.id === it.id);
+                  return (
+                    <div key={it.id} className="border rounded-md p-2 bg-gray-50 space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <div className="h-12 w-12 shrink-0 rounded bg-white border overflow-hidden flex items-center justify-center">
+                          {it.imageUrl
+                            ? <img src={it.imageUrl} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
+                            : <PkgIcon className="h-5 w-5 text-gray-300" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold truncate">{it.name}</div>
+                          <div className="text-[10px] text-gray-500">
+                            {it.variantLabel ? `${it.variantLabel} · ` : ""}Qté {it.quantity}
+                          </div>
+                        </div>
                       </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <div>
+                          <label className="text-[10px] text-gray-500">Poids réel *</label>
+                          <Input type="number" step="0.01" value={inp.real}
+                            onChange={e => setField("real", e.target.value)}
+                            className="h-8 text-xs" placeholder="kg" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">L (cm)</label>
+                          <Input type="number" value={inp.l}
+                            onChange={e => setField("l", e.target.value)}
+                            className="h-8 text-xs" placeholder="L" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">l (cm)</label>
+                          <Input type="number" value={inp.w}
+                            onChange={e => setField("w", e.target.value)}
+                            className="h-8 text-xs" placeholder="l" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500">H (cm)</label>
+                          <Input type="number" value={inp.h}
+                            onChange={e => setField("h", e.target.value)}
+                            className="h-8 text-xs" placeholder="H" />
+                        </div>
+                      </div>
+                      {bd && (bd.vol > 0 || bd.chargeable > 0) && (
+                        <div className="text-[10px] text-gray-600 flex justify-between">
+                          <span>Vol: {bd.vol.toFixed(3)} kg</span>
+                          <span>Facturable: <b className="text-orange-700">{bd.chargeable.toFixed(3)} kg</b> × {bd.qty}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={perItemWeights[it.id] ?? ""}
-                        onChange={e => setPerItemWeights(prev => ({ ...prev, [it.id]: e.target.value }))}
-                        className="h-9 text-sm w-20"
-                        placeholder="kg"
-                      />
-                      <span className="text-[10px] text-gray-500">kg</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {perItemTotalKg > 0 && (
                 <div className="bg-gray-50 rounded p-2 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Poids inconnu total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Poids facturable total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Fret inconnu calculé:</span><span className="font-medium">{fmtF(freightPerItem)}</span></div>
                   {declaredFreight > 0 && (
                     <div className="flex justify-between"><span className="text-gray-500">Fret déclaré (figé):</span><span className="font-medium">{fmtF(declaredFreight)}</span></div>
@@ -203,9 +267,10 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
                   <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
                 </div>
               )}
-              <Button size="sm" className="w-full h-10 bg-orange-600 hover:bg-orange-700" onClick={handleSubmitPerItem} disabled={perItemTotalKg <= 0}>
+              <Button size="sm" className="w-full h-10 bg-orange-600 hover:bg-orange-700" onClick={handleSubmitPerItem} disabled={!perItemReady}>
                 Enregistrer la pesée
               </Button>
+
             </>
           )}
         </>
