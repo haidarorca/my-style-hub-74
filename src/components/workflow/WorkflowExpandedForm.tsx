@@ -11,9 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, CreditCard, Receipt } from "lucide-react";
+import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, CreditCard, Receipt, ScanLine, AlertTriangle } from "lucide-react";
 import { updateShipmentAssessment, confirmShipmentPayment, updateShipmentTracking } from "@/lib/admin-logistics.functions";
-import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
+import { getOrCreateShipmentAssessment, verifyDeclaredWeight } from "@/lib/shipment-assessments.functions";
+import { getOrderItems } from "@/lib/cockpit-payments.functions";
+import { useQuery } from "@tanstack/react-query";
 import { useShippingServices } from "@/hooks/use-shipping-services";
 import { fmtF } from "@/lib/workflow.config";
 import type { WorkflowRow } from "@/types/workflow";
