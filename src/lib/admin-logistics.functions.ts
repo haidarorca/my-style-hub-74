@@ -450,6 +450,24 @@ async function fallbackLogisticsQuery(
     // amount_remaining = reste à payer sur la commande totale (produits + frais)
     const amountRemaining = Math.max(0, orderTotal - amountPaid);
 
+    // ── Comptage déclaré / inconnu + détection du pays d'origine
+    let declaredCount = 0;
+    let unknownCount = 0;
+    let detectedSrcCountryId: string | null = (order.source_country_id as string) ?? null;
+    for (const it of items) {
+      const w = productWeightMap.get(it.product_id);
+      if (w != null && w > 0) declaredCount += 1;
+      else unknownCount += 1;
+      if (!detectedSrcCountryId) {
+        const shopId = productShopMap.get(it.product_id);
+        if (shopId) {
+          const src = shopSourceMap.get(shopId);
+          if (src) detectedSrcCountryId = src;
+        }
+      }
+    }
+    const totalItemsCount = items.length;
+
     return {
       order_id: orderId,
       order_status: String(order.status ?? "new"),
@@ -462,7 +480,13 @@ async function fallbackLogisticsQuery(
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
+      source_country_id: detectedSrcCountryId,
+      source_country_name: detectedSrcCountryId ? (countryNameMap.get(detectedSrcCountryId) ?? null) : null,
+      source_country_flag: detectedSrcCountryId ? (countryFlagMap.get(detectedSrcCountryId) ?? null) : null,
       item_count: items.reduce((s, i) => s + (i.quantity ?? 1), 0),
+      declared_items_count: declaredCount,
+      unknown_items_count: unknownCount,
+      total_items_count: totalItemsCount,
       days_pending: daysBetween(String(order.created_at)),
 
       assessment_id: assessmentId,
