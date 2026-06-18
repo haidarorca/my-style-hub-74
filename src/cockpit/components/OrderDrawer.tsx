@@ -529,56 +529,39 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   );
 }
 
-/** Sous-composant : fetch les articles à poids inconnu de la commande et alimente WeightForm. */
-function WeightFormWithUnknownItems({
+/** Pesée scopée à une sous-commande IMPORT_UNKNOWN_WEIGHT.
+ *  - N'écrit JAMAIS sur une autre assessment.
+ *  - La liste à peser provient des `scopedArticles` (déjà filtrés par sub_order_key). */
+function WeightFormUnknownSub({
   orderId,
+  subOrderKey,
   assessmentId,
-  declaredFreight,
+  unknownArticles,
   onWeigh,
   onFormInteraction,
 }: {
   orderId: string;
+  subOrderKey: string;
   assessmentId: string | null;
-  declaredFreight: number;
+  unknownArticles: OrderArticle[];
   onWeigh: Props["onWeigh"];
   onFormInteraction?: () => void;
 }) {
-  const { data: unknownItems = [] } = useQuery({
-    queryKey: ["unknown-weight-items", orderId],
-    enabled: !!orderId,
-    queryFn: async (): Promise<UnknownItem[]> => {
-      const { data: items, error } = await (supabase as any)
-        .from("order_items")
-        .select("id, product_id, quantity, product_name, product_image_url, size, color")
-        .eq("order_id", orderId);
-      if (error || !items) return [];
-      const pids = Array.from(new Set(items.map((it: any) => it.product_id).filter(Boolean)));
-      if (pids.length === 0) return [];
-      const { data: products } = await (supabase as any)
-        .from("products")
-        .select("id, weight_kg")
-        .in("id", pids);
-      const wMap = new Map<string, number>((products ?? []).map((p: any) => [p.id, Number(p.weight_kg ?? 0)]));
-      return (items as any[])
-        .filter((it) => (wMap.get(it.product_id) ?? 0) <= 0)
-        .map((it) => ({
-          id: it.id,
-          name: it.product_name ?? "Produit",
-          imageUrl: it.product_image_url ?? null,
-          variantLabel: [it.size, it.color].filter(Boolean).join(" · ") || null,
-          quantity: it.quantity ?? 1,
-        }));
-    },
-  });
-
+  const items: UnknownItem[] = unknownArticles.map(a => ({
+    id: `${a.product_id}::${a.variant_id ?? ""}`,
+    name: a.product_name,
+    imageUrl: a.product_image ?? null,
+    variantLabel: a.variant_label ?? null,
+    quantity: a.quantity ?? 1,
+  }));
   return (
     <div onClick={onFormInteraction}>
       <WeightForm
         orderId={orderId}
         assessmentId={assessmentId}
-        declaredFreight={declaredFreight}
-        unknownItems={unknownItems}
-        onWeigh={onWeigh}
+        declaredFreight={0}
+        unknownItems={items}
+        onWeigh={(r) => onWeigh({ ...r, assessmentId, subOrderKey })}
       />
     </div>
   );
