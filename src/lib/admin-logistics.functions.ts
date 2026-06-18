@@ -273,7 +273,7 @@ async function fallbackLogisticsQuery(
     /* 1b */ countryIds.length > 0
       ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
-    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity").in("order_id", orderIds),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
@@ -326,15 +326,15 @@ async function fallbackLogisticsQuery(
     try {
       const { data: products } = await supabase
         .from("products")
-        .select("id, shop_id, weight_kg")
+        .select("id, vendor_id, weight_kg")
         .in("id", allProductIds);
       for (const p of products ?? []) {
-        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+        if (p.vendor_id) productShopMap.set(p.id, p.vendor_id);
         productWeightMap.set(p.id, p.weight_kg != null ? Number(p.weight_kg) : null);
       }
       const shopIds = Array.from(new Set(productShopMap.values()));
       if (shopIds.length > 0) {
-        const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
+        const { data: shops } = await supabase.from("profiles").select("id, source_country_id").in("id", shopIds);
         for (const s of shops ?? []) { shopSourceMap.set(s.id, s.source_country_id ?? null); }
       }
       // Fetch name + flag pour les pays d'origine (shops + champ direct sur la commande)
@@ -440,15 +440,15 @@ async function fallbackLogisticsQuery(
     const payment = assessmentId ? (paymentMap.get(assessmentId) ?? {}) : {};
     const tracking = assessmentId ? (trackingMap.get(assessmentId) ?? {}) : {};
 
-    const totalFees =
-      Number(assessment.air_freight_fee ?? 0) +
-      Number(assessment.service_fee ?? 0) +
-      Number(assessment.extra_fees ?? 0);
     const amountPaid = Number(payment.amount_paid ?? 0);
+    const totalFees = Number(assessment.air_freight_fee ?? 0) + Number(assessment.service_fee ?? 0) + Number(assessment.extra_fees ?? 0);
     const amountRequested = Number(payment.amount_requested ?? totalFees);
-    const orderTotal = Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0);
-    // amount_remaining = reste à payer sur la commande totale (produits + frais)
-    const amountRemaining = Math.max(0, orderTotal - amountPaid);
+    const storedTotal = Number(order.total ?? 0);
+    const productSubtotal = orderTotalFromItems.get(orderId) ?? 0;
+    const orderTotal = productSubtotal > 0 ? productSubtotal : Math.max(0, storedTotal - totalFees);
+    // amount_remaining = complément logistique uniquement. Si le fret est déjà inclus
+    // dans orders.total (Circuit B), aucune demande client supplémentaire ne doit apparaître.
+    let amountRemaining = Math.max(0, totalFees - amountPaid);
 
     // ── Comptage déclaré / inconnu + détection du pays d'origine
     let declaredCount = 0;
@@ -467,6 +467,8 @@ async function fallbackLogisticsQuery(
       }
     }
     const totalItemsCount = items.length;
+    const isDeclaredCircuit = orderType !== "local" && totalItemsCount > 0 && unknownCount === 0;
+    if (isDeclaredCircuit) amountRemaining = 0;
 
     return {
       order_id: orderId,
@@ -476,7 +478,7 @@ async function fallbackLogisticsQuery(
       customer_phone: (order.customer_phone as string) ?? null,
       customer_address: (order.customer_address as string) ?? null,
       customer_city: (order.customer_city as string) ?? null,
-      order_total: Number(order.total ?? 0) || (orderTotalFromItems.get(orderId) ?? 0),
+      order_total: orderTotal,
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
@@ -522,6 +524,7 @@ async function fallbackLogisticsQuery(
           const diff = Math.abs(real - declaredSum);
           if (diff > Math.max(0.5, declaredSum * 0.10)) return "anomaly" as const;
         }
+        if ((assessment.status as string) === "fees_calculated" && hasAll) return "declared" as const;
         if (real > 0) return "verified" as const;
         return hasAll ? ("declared" as const) : ("unknown" as const);
       })(),
@@ -536,9 +539,9 @@ async function fallbackLogisticsQuery(
       admin_comment: (assessment.admin_comment as string) ?? null,
       client_response_note: (assessment.client_response_note as string) ?? null,
 
-      payment_status: (payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null),
+      payment_status: isDeclaredCircuit ? "paid" : ((payment.payment_status as string) ?? (totalFees > 0 ? "pending" : null)),
       amount_requested: amountRequested,
-      amount_paid: amountPaid,
+      amount_paid: isDeclaredCircuit ? totalFees : amountPaid,
       amount_remaining: amountRemaining,
       payment_method: (payment.payment_method as string) ?? null,
       payment_reference: (payment.payment_reference as string) ?? null,

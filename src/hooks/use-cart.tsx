@@ -12,6 +12,7 @@ export interface AddToCartInput {
   variantId?: string | null;
   quantity?: number;
   customization?: Record<string, unknown> | null;
+  shippingServiceId?: string | null;
 }
 
 interface GuestCartLine {
@@ -20,6 +21,7 @@ interface GuestCartLine {
   variant_id: string | null;
   quantity: number;
   customization: Record<string, unknown> | null;
+  shipping_service_id?: string | null;
   created_at: string;
 }
 
@@ -79,6 +81,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
       variant_id: l.variant_id,
       quantity: l.quantity,
       customization: l.customization,
+      shipping_service_id: l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null,
       created_at: l.created_at,
       products: p,
       product_variants: l.variant_id ? vMap.get(l.variant_id) ?? null : null,
@@ -137,6 +140,12 @@ export function useCart() {
 
   const addToCart = async (input: AddToCartInput) => {
     const qty = input.quantity ?? 1;
+    const baseCustomization = input.customization && Object.keys(input.customization).length > 0
+      ? input.customization
+      : null;
+    const customization = input.shippingServiceId
+      ? { ...(input.customization ?? {}), __shipping_service_id: input.shippingServiceId }
+      : baseCustomization;
 
     if (!user) {
       // Guest cart
@@ -145,17 +154,20 @@ export function useCart() {
         (l) =>
           l.product_id === input.productId &&
           (l.variant_id ?? null) === (input.variantId ?? null) &&
-          !input.customization,
+          !baseCustomization && (l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null) === (input.shippingServiceId ?? null),
       );
-      if (idx >= 0 && !input.customization) {
+      if (idx >= 0 && !baseCustomization) {
         lines[idx].quantity += qty;
+        lines[idx].shipping_service_id = input.shippingServiceId ?? lines[idx].shipping_service_id ?? null;
+        lines[idx].customization = customization;
       } else {
         lines.unshift({
           id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           product_id: input.productId,
           variant_id: input.variantId ?? null,
           quantity: qty,
-          customization: input.customization ?? null,
+          customization,
+          shipping_service_id: input.shippingServiceId ?? null,
           created_at: new Date().toISOString(),
         });
       }
@@ -176,10 +188,10 @@ export function useCart() {
       : existingQuery.is("variant_id", null);
     const { data: existing } = await existingQuery.maybeSingle();
 
-    if (existing && !input.customization) {
+    if (existing && !baseCustomization) {
       const { error } = await supabase
         .from("cart_items")
-        .update({ quantity: existing.quantity + qty })
+        .update({ quantity: existing.quantity + qty, customization: customization as never })
         .eq("id", existing.id);
       if (error) {
         toast.error(error.message);
@@ -191,7 +203,7 @@ export function useCart() {
         product_id: input.productId,
         variant_id: input.variantId ?? null,
         quantity: qty,
-        customization: (input.customization ?? null) as never,
+        customization: customization as never,
       });
       if (error) {
         toast.error(error.message);

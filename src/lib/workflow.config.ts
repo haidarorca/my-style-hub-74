@@ -89,7 +89,7 @@ export function applyWorkflowFilter(
   // Workflow B (poids déclaré/vérifié) : "to_weigh" et "waiting_client"
   // n'ont aucun sens, on les exclut explicitement de ces filtres.
   const isDeclared = (r: WorkflowRow) =>
-    r.weight_status === "declared" || r.weight_status === "verified";
+    r.weight_status === "declared" || r.weight_status === "verified" || r.weight_status === "anomaly";
   switch (filter) {
     case "actions":
       return rows.filter(
@@ -141,7 +141,7 @@ export function computeFilterCounts(
   rows: WorkflowRow[]
 ): Record<WorkflowFilterKey, number> {
   const isDeclared = (r: WorkflowRow) =>
-    r.weight_status === "declared" || r.weight_status === "verified";
+    r.weight_status === "declared" || r.weight_status === "verified" || r.weight_status === "anomaly";
   return {
     actions: rows.filter(
       (r) =>

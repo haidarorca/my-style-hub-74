@@ -105,7 +105,16 @@ const WORKFLOW_STEPS = [
   { key: "delivered", label: "Livré", icon: CheckCircle, color: "bg-blue-500" },
 ];
 
+const WORKFLOW_STEPS_DECLARED = [
+  { key: "order", label: "Commande", icon: Package, color: "bg-amber-500" },
+  { key: "warehouse", label: "Réception", icon: Warehouse, color: "bg-gray-500" },
+  { key: "verification", label: "Vérification", icon: Scale, color: "bg-cyan-500" },
+  { key: "shipping", label: "Expédié", icon: Ship, color: "bg-violet-500" },
+  { key: "delivered", label: "Livré", icon: CheckCircle, color: "bg-blue-500" },
+];
+
 function WorkflowTimeline({ row }: { row: LogisticsOrderRow }) {
+  const declaredCircuit = row.weight_status === "declared" || row.weight_status === "verified" || row.weight_status === "anomaly";
   const getStepState = (stepKey: string): "done" | "active" | "pending" => {
     const ls = row.logistics_status;
     const ps = row.payment_status;
@@ -119,13 +128,15 @@ function WorkflowTimeline({ row }: { row: LogisticsOrderRow }) {
       case "validation": return ls && ["validated", "ready_to_ship", "shipped"].includes(ls) ? "done" : ls === "awaiting_client_validation" ? "active" : "pending";
       case "shipping": return ls === "shipped" ? "done" : ls === "ready_to_ship" ? "active" : "pending";
       case "delivered": return os === "delivered" ? "done" : ls === "shipped" ? "active" : "pending";
+      case "verification": return ls && ["ready_to_ship", "shipped"].includes(ls) ? "done" : ls === "fees_calculated" ? "active" : "pending";
       default: return "pending";
     }
   };
+  const steps = declaredCircuit ? WORKFLOW_STEPS_DECLARED : WORKFLOW_STEPS;
   return (
     <div className="relative overflow-x-auto pb-2">
       <div className="flex items-center justify-between min-w-[600px]">
-        {WORKFLOW_STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const state = getStepState(step.key);
           const Icon = step.icon;
           return (
@@ -540,7 +551,7 @@ function LogisticsControlCenter() {
               {/* Statuts */}
               <div className="flex flex-wrap gap-2">
                 {detailRow.order_status && <SB config={safeOrderStatus(detailRow.order_status)} />}
-                {detailRow.logistics_status && <SB config={safeLogStatus(detailRow.logistics_status)} />}
+                {detailRow.logistics_status && <SB config={safeLogStatus(detailRow.logistics_status, detailRow.weight_status)} />}
                 {detailRow.payment_status && <SB config={safePayStatus(detailRow.payment_status)} />}
               </div>
 
@@ -875,6 +886,7 @@ function DesktopRow({ row, onView, onCreateAssessment }: { row: LogisticsOrderRo
   const isUrgent = row.days_pending > 14;
   const isBlocked = row.days_pending > 7 && row.logistics_status !== "shipped" && row.logistics_status !== "validated";
   const isArch = isArchived(row);
+  const logStatusConfig = safeLogStatus(row.logistics_status, row.weight_status);
 
   return (
     <tr className={cn("border-b hover:bg-muted/20 transition-colors", isUrgent && "bg-red-50/50", isBlocked && !isUrgent && "bg-orange-50/30", isArch && "opacity-50")}>
@@ -882,7 +894,7 @@ function DesktopRow({ row, onView, onCreateAssessment }: { row: LogisticsOrderRo
       <td className="px-2 py-1.5"><span className="font-mono">#{row.order_id.slice(0, 8)}</span>{isArch && <History className="h-3 w-3 inline ml-1 text-muted-foreground" />}</td>
       <td className="px-2 py-1.5"><p className="font-medium truncate max-w-[120px]">{row.customer_name ?? "—"}</p><p className="text-[9px] text-muted-foreground">{row.customer_phone ?? "—"}</p></td>
       <td className="px-2 py-1.5">{row.order_status && <SB config={safeOrderStatus(row.order_status)} />}</td>
-      <td className="px-2 py-1.5">{row.assessment_id ? (row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />) : <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">À créer</span>}</td>
+      <td className="px-2 py-1.5">{row.assessment_id ? (row.logistics_status && <SB config={logStatusConfig} />) : <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium border bg-gray-100 text-gray-500 border-gray-300">À créer</span>}</td>
       <td className="px-2 py-1.5">{row.payment_status && row.total_shipping_fees ? <SB config={safePayStatus(row.payment_status)} /> : <span className="text-gray-400">—</span>}</td>
       <td className="px-2 py-1.5 text-right font-medium">{fmtN(row.order_total)}</td>
       <td className="px-2 py-1.5 text-right">{row.total_shipping_fees ? fmtN(row.total_shipping_fees) : "—"}</td>
@@ -908,6 +920,7 @@ function MobileLogisticsCard({ row, onView, onCreateAssessment }: { row: Logisti
   const hasRemaining = (row.amount_remaining ?? 0) > 0;
   const isUrgent = row.days_pending > 14;
   const isArch = isArchived(row);
+  const logStatusConfig = safeLogStatus(row.logistics_status, row.weight_status);
 
   return (
     <div className={cn("rounded-xl border bg-card p-3 space-y-2", isUrgent && "border-red-300 bg-red-50/30", isArch && "opacity-50")}>
@@ -923,7 +936,7 @@ function MobileLogisticsCard({ row, onView, onCreateAssessment }: { row: Logisti
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {row.order_status && <SB config={safeOrderStatus(row.order_status)} />}
-          {row.logistics_status && <SB config={safeLogStatus(row.logistics_status)} />}
+          {row.logistics_status && <SB config={logStatusConfig} />}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs">
@@ -961,7 +974,12 @@ function OrderTypeBadge({ type, size = "default" }: { type?: "local" | "import" 
 }
 
 function safeOrderStatus(s: string | null | undefined) { return ORDER_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
-function safeLogStatus(s: string | null | undefined) { return LOG_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
+function safeLogStatus(s: string | null | undefined, weightStatus?: string | null) {
+  if ((weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly") && s === "fees_calculated") {
+    return { label: "Vérification", color: "bg-cyan-100 text-cyan-700 border-cyan-300" };
+  }
+  return LOG_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" };
+}
 function safePayStatus(s: string | null | undefined) { return PAY_S[s ?? ""] ?? { label: s ?? "?", color: "bg-gray-100 text-gray-500 border-gray-300" }; }
 
 function fmtN(n: number | null | undefined): string {

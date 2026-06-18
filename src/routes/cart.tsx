@@ -276,6 +276,13 @@ function CartPage() {
     () => items.filter((it: any) => selectedIds.has(it.id)),
     [items, selectedIds],
   );
+  const preferredShippingServiceId = useMemo(() => {
+    for (const it of selectedItems as any[]) {
+      const saved = it.shipping_service_id ?? it.customization?.__shipping_service_id;
+      if (saved) return String(saved);
+    }
+    return null;
+  }, [selectedItems]);
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
   // RÈGLE UNIQUE : un article est international si destination ≠ source vendeur.
@@ -333,9 +340,12 @@ function CartPage() {
           if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
             setShippingServiceId(null);
           }
-          // Auto-sélection du transport le moins cher si rien n'est encore choisi.
+          // Reprendre le choix fait sur la fiche produit, sinon auto-sélection du moins cher.
           if (!shippingServiceId && services.length > 0) {
-            const cheapest = [...services].sort(
+            const preferred = preferredShippingServiceId
+              ? services.find((service) => service.id === preferredShippingServiceId)
+              : null;
+            const cheapest = preferred ?? [...services].sort(
               (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
             )[0];
             if (cheapest) setShippingServiceId(cheapest.id);
@@ -347,7 +357,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasIntlItems, destinationCountryId, sourceCountryId]);
+  }, [hasIntlItems, destinationCountryId, sourceCountryId, preferredShippingServiceId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
@@ -492,6 +502,11 @@ function CartPage() {
     if (c.color) parts.push(`${t("product.color")} ${c.color}`);
     if (c.image_url) parts.push(t("product.your_image"));
     return parts.length ? parts.join(", ") : null;
+  };
+  const cleanCustomization = (c: any) => {
+    if (!c || typeof c !== "object") return null;
+    const { __shipping_service_id, ...rest } = c;
+    return Object.keys(rest).length > 0 ? rest : null;
   };
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
@@ -698,7 +713,7 @@ function CartPage() {
         color: it.product_variants?.color ?? null,
         unit_price: unitPrice(it),
         quantity: it.quantity,
-        customization: it.customization ?? null,
+        customization: cleanCustomization(it.customization),
       }));
 
       let savedOrderId = orderId;
@@ -718,7 +733,7 @@ function CartPage() {
               productId: it.products.id,
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
-              customization: it.customization ?? null,
+              customization: cleanCustomization(it.customization),
             })),
           },
         });

@@ -115,12 +115,17 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           .maybeSingle();
         svcPricePerKg = svc?.price_per_kg != null ? Number(svc.price_per_kg) : null;
 
-        allHaveDeclaredWeight = data.items.every((it) => {
+        const internationalItems = data.items.filter((it) => {
+          const p = productMap.get(it.productId) as any;
+          const sourceId = p?.profiles?.source_country_id ?? null;
+          return !!sourceId && sourceId !== data.destinationCountryId;
+        });
+        allHaveDeclaredWeight = internationalItems.length > 0 && internationalItems.every((it) => {
           const p = productMap.get(it.productId) as any;
           return p && Number(p.weight_kg ?? 0) > 0;
         });
         if (allHaveDeclaredWeight && svcPricePerKg != null && svcPricePerKg > 0) {
-          for (const it of data.items) {
+          for (const it of internationalItems) {
             const p = productMap.get(it.productId) as any;
             const real = Number(p.weight_kg ?? 0);
             const l = Number(p.length_cm ?? 0);

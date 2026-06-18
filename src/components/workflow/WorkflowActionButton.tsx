@@ -65,6 +65,15 @@ export function WorkflowActionButton({ row, onAction }: Props) {
   }
 
   // ── IMPORT : 7-step workflow ──
+  const declaredCircuit = row.weight_status === "declared" || row.weight_status === "verified" || row.weight_status === "anomaly";
+  if (declaredCircuit && (row.logistics_status === null || row.logistics_status === "" || row.logistics_status === "awaiting_weighing")) {
+    return (
+      <span className="text-[10px] text-blue-700 font-medium px-2 py-1 bg-blue-50 border border-blue-200 rounded-full">
+        À vérifier
+      </span>
+    );
+  }
+
   switch (row.logistics_status) {
     case "awaiting_weighing":
     case null:
@@ -82,7 +91,7 @@ export function WorkflowActionButton({ row, onAction }: Props) {
     case "fees_calculated":
       // Circuit B — poids déjà déclaré : action interne « Vérifier »
       // qui court-circuite l'envoi au client (passe direct à ready_to_ship).
-      if (row.weight_status === "declared") {
+      if (declaredCircuit) {
         return (
           <span className="text-[10px] text-blue-700 font-medium px-2 py-1 bg-blue-50 border border-blue-200 rounded-full">
             À vérifier

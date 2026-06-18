@@ -7,6 +7,7 @@
 // - Affiche le TOTAL ESTIMÉ (produit + transport le moins cher)
 // - Message client adapté au statut (déclaré / vérifié / inconnu)
 // ═══════════════════════════════════════════════════════════════
+import { useEffect } from "react";
 import { Plane, Check } from "lucide-react";
 import { useEstimatedShipping, formatDelay } from "@/hooks/use-estimated-shipping";
 import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
@@ -14,10 +15,17 @@ import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
 interface Props {
   product: EstimatedShippingProduct;
   productPrice: number | null;
+  selectedServiceId?: string | null;
+  onSelectService?: (serviceId: string) => void;
 }
 
-export function EstimatedShippingPanel({ product, productPrice }: Props) {
+export function EstimatedShippingPanel({ product, productPrice, selectedServiceId, onSelectService }: Props) {
   const est = useEstimatedShipping(product);
+
+  useEffect(() => {
+    const cheapestId = est.cheapest?.service.id;
+    if (!selectedServiceId && cheapestId) onSelectService?.(cheapestId);
+  }, [selectedServiceId, est.cheapest?.service.id, onSelectService]);
 
   if (!est.isIntl) return null;
 
@@ -32,8 +40,9 @@ export function EstimatedShippingPanel({ product, productPrice }: Props) {
 
   // Cas B : poids déclaré → on affiche le total estimé + la grille des modes.
   const cheapest = est.cheapest!;
+  const selected = est.options.find((opt) => opt.service.id === selectedServiceId) ?? cheapest;
   const total =
-    productPrice != null ? Math.round(Number(productPrice) + cheapest.price) : null;
+    productPrice != null ? Math.round(Number(productPrice) + selected.price) : null;
 
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 overflow-hidden">
@@ -55,13 +64,16 @@ export function EstimatedShippingPanel({ product, productPrice }: Props) {
         <div className="space-y-1.5">
           {est.options.map((opt) => {
             const isCheapest = opt.service.id === cheapest.service.id;
+            const isSelected = opt.service.id === selected.service.id;
             return (
-              <div
+              <button
+                type="button"
                 key={opt.service.id}
-                className={`flex items-center justify-between gap-2 rounded-lg border p-2 ${
-                  isCheapest
+                onClick={() => onSelectService?.(opt.service.id)}
+                className={`w-full text-left flex items-center justify-between gap-2 rounded-lg border p-2 transition-colors ${
+                  isSelected
                     ? "border-emerald-400 bg-white"
-                    : "border-emerald-200/60 bg-white/60"
+                    : "border-emerald-200/60 bg-white/60 hover:bg-white"
                 }`}
               >
                 <div className="min-w-0">
@@ -70,6 +82,11 @@ export function EstimatedShippingPanel({ product, productPrice }: Props) {
                     {isCheapest && (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
                         <Check className="h-2.5 w-2.5" /> RECOMMANDÉ
+                      </span>
+                    )}
+                    {isSelected && !isCheapest && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                        <Check className="h-2.5 w-2.5" /> SÉLECTIONNÉ
                       </span>
                     )}
                   </div>
@@ -82,15 +99,14 @@ export function EstimatedShippingPanel({ product, productPrice }: Props) {
                     {opt.price.toLocaleString("fr-FR")} FCFA
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
 
         <p className="text-[11px] text-emerald-700/80 pt-1 leading-snug">
           Le coût du transport affiché est calculé à partir des informations fournies par le vendeur
-          et sera vérifié par notre équipe logistique à la réception. Vous pourrez choisir votre
-          mode définitif au moment du panier.
+          et sera vérifié par notre équipe logistique à la réception. Choisissez votre mode de transport dès maintenant. Vous pourrez encore le modifier dans le panier avant validation.
         </p>
       </div>
     </div>

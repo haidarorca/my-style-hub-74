@@ -241,6 +241,16 @@ export function WorkflowExpandedForm({ row }: Props) {
   }
 
   /* ═── WORKFLOW IMPORT / MIXTE (7 etapes) ────────────────────── */
+  const declaredCircuit = row.weight_status === "declared" || row.weight_status === "verified" || row.weight_status === "anomaly";
+  if (declaredCircuit && (ls === null || ls === undefined || ls === "" || ls === "awaiting_weighing")) {
+    if (row.assessment_id) return <VerifyWeightForm row={row} />;
+    return (
+      <div className="pt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-[11px] text-blue-900">
+        Circuit poids déclaré détecté. Créez l'évaluation logistique pour lancer la vérification interne, sans pesée client ni paiement complémentaire.
+      </div>
+    );
+  }
+
   if (ls === "awaiting_weighing") {
     return (
       <div className="space-y-3 pt-2">
@@ -318,7 +328,7 @@ export function WorkflowExpandedForm({ row }: Props) {
   // ─── FRAIS CALCULÉS ──────────────────────────────
   if (ls === "fees_calculated") {
     // Circuit B — poids déclaré : vérification interne (saisie article par article).
-    if (row.weight_status === "declared" || row.weight_status === "anomaly") {
+    if (declaredCircuit) {
       return <VerifyWeightForm row={row} />;
     }
     // Circuit A — poids inconnu : envoi au client.

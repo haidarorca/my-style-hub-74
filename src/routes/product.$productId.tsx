@@ -147,6 +147,7 @@ function ProductPage() {
   const [reportReason, setReportReason] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedShippingServiceId, setSelectedShippingServiceId] = useState<string | null>(null);
 
   // Customization state
   const [customImageFile, setCustomImageFile] = useState<File | null>(null);
@@ -291,6 +292,7 @@ function ProductPage() {
         variantId: matchedVariant?.id ?? null,
         quantity: qty,
         customization: Object.keys(customization).length > 0 ? customization : null,
+        shippingServiceId: selectedShippingServiceId,
       });
     } finally {
       setSubmitting(false);
@@ -404,6 +406,8 @@ function ProductPage() {
                     : null)) ?? null,
             }}
             productPrice={resolvedFinalPrice}
+            selectedServiceId={selectedShippingServiceId}
+            onSelectService={setSelectedShippingServiceId}
           />
 
 
