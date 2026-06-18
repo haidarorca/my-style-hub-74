@@ -1545,6 +1545,7 @@ export type Database = {
           service_fee: number | null
           shipping_service_id: string | null
           status: Database["public"]["Enums"]["shipment_assessment_status"]
+          sub_order_key: string | null
           total_fees: number | null
           updated_at: string
           volumetric_weight_kg: number | null
@@ -1574,6 +1575,7 @@ export type Database = {
           service_fee?: number | null
           shipping_service_id?: string | null
           status?: Database["public"]["Enums"]["shipment_assessment_status"]
+          sub_order_key?: string | null
           total_fees?: number | null
           updated_at?: string
           volumetric_weight_kg?: number | null
@@ -1603,6 +1605,7 @@ export type Database = {
           service_fee?: number | null
           shipping_service_id?: string | null
           status?: Database["public"]["Enums"]["shipment_assessment_status"]
+          sub_order_key?: string | null
           total_fees?: number | null
           updated_at?: string
           volumetric_weight_kg?: number | null
@@ -2751,6 +2754,44 @@ export type Database = {
           whatsapp_number?: string | null
         }
         Relationships: []
+      }
+      sub_order_states: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          status: string
+          sub_order_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          status: string
+          sub_order_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          status?: string
+          sub_order_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_order_states_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_conversations: {
         Row: {
