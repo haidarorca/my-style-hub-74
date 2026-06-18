@@ -473,15 +473,27 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           )}
 
-          {/* Pesée */}
-          {imp && status === "awaiting_weighing" && (
-            <WeightFormWithUnknownItems
+          {/* Pesée — UNIQUEMENT pour IMPORT_UNKNOWN_WEIGHT, scopée à la sous-commande. */}
+          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && (
+            <WeightFormUnknownSub
               orderId={order.order_id ?? ""}
-              assessmentId={order.assessment_id}
-              declaredFreight={Number((order as any).declared_freight_from_items ?? 0)}
+              subOrderKey={subOrderKey!}
+              assessmentId={subAssessment?.id ?? null}
+              unknownArticles={scopedArticles ?? []}
               onWeigh={onWeigh}
               onFormInteraction={onFormInteraction}
             />
+          )}
+          {/* Pas d'écran de pesée pour LOCAL ni pour IMPORT_KNOWN_WEIGHT (fret figé au checkout). */}
+          {isScoped && lineKind === "IMPORT_KNOWN_WEIGHT" && sf > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+              Fret figé au checkout : <b>{fmtF(sf)}</b>. Aucune pesée ne sera appliquée à cette sous-commande.
+            </div>
+          )}
+          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && !subAssessment?.air_freight_fee && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800">
+              En attente de pesée — aucun fret n'est facturé tant que le colis n'a pas été pesé.
+            </div>
           )}
 
           {/* Paiement */}
