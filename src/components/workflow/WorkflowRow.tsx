@@ -320,6 +320,7 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
           <WorkflowStepBar
             orderType={row.order_type}
             logisticsStatus={row.logistics_status}
+            weightStatus={row.weight_status}
           />
 
           <div className="grid grid-cols-4 gap-3 text-xs bg-muted/30 rounded-lg p-2">
