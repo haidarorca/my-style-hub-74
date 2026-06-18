@@ -276,6 +276,13 @@ function CartPage() {
     () => items.filter((it: any) => selectedIds.has(it.id)),
     [items, selectedIds],
   );
+  const preferredShippingServiceId = useMemo(() => {
+    for (const it of selectedItems as any[]) {
+      const saved = it.shipping_service_id ?? it.customization?.__shipping_service_id;
+      if (saved) return String(saved);
+    }
+    return null;
+  }, [selectedItems]);
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
   // RÈGLE UNIQUE : un article est international si destination ≠ source vendeur.
@@ -333,9 +340,12 @@ function CartPage() {
           if (shippingServiceId && !services.some((service) => service.id === shippingServiceId)) {
             setShippingServiceId(null);
           }
-          // Auto-sélection du transport le moins cher si rien n'est encore choisi.
+          // Reprendre le choix fait sur la fiche produit, sinon auto-sélection du moins cher.
           if (!shippingServiceId && services.length > 0) {
-            const cheapest = [...services].sort(
+            const preferred = preferredShippingServiceId
+              ? services.find((service) => service.id === preferredShippingServiceId)
+              : null;
+            const cheapest = preferred ?? [...services].sort(
               (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
             )[0];
             if (cheapest) setShippingServiceId(cheapest.id);
