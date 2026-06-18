@@ -939,32 +939,31 @@ function CartPage() {
                                       </p>
                                     )}
                                     {cust && <p className="text-xs text-primary">{t("product.personalization")} : {cust}</p>}
-                                    {/* Sélecteur de transport par ligne (intl + poids déclaré) */}
+                                    {/* Sélecteur de transport par ligne (indépendant) */}
                                     {(() => {
                                       const intl = isItemInternational(it);
-                                      const w = Number(it?.products?.weight_kg ?? 0);
                                       if (!intl) return null;
-                                      if (w <= 0) {
-                                        return (
-                                          <p className="mt-1 text-[11px] text-amber-700">
-                                            Transport calculé après pesée
-                                          </p>
-                                        );
-                                      }
-                                      const currentId = (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? shippingServiceId;
+                                      const w = Number(it?.products?.weight_kg ?? 0);
                                       if (shippingServices.length === 0) return null;
+                                      const currentId =
+                                        (it.shipping_service_id ?? it.customization?.__shipping_service_id) ??
+                                        (w > 0 ? cheapestServiceId : null);
                                       return (
-                                        <div className="mt-1 flex items-center gap-1.5">
+                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                           <Plane className="h-3 w-3 text-primary" />
                                           <select
                                             value={currentId ?? ""}
                                             onChange={(e) => updateLineShipping(it.id, e.target.value || null)}
                                             className="text-[11px] rounded border border-border bg-background px-1.5 py-0.5"
                                           >
+                                            {w <= 0 && <option value="">— préférence —</option>}
                                             {shippingServices.map((s) => (
                                               <option key={s.id} value={s.id}>{s.name}</option>
                                             ))}
                                           </select>
+                                          {w <= 0 && (
+                                            <span className="text-[10px] text-amber-700">Calculé après pesée</span>
+                                          )}
                                         </div>
                                       );
                                     })()}
