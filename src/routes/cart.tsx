@@ -361,7 +361,7 @@ function CartPage() {
           Choisissez votre service de transport *
         </Label>
         <p className="text-[11px] text-muted-foreground">
-          Obligatoire uniquement pour les produits import (marqués "Import"). Les frais seront calculés après pesée réelle. Les produits locaux ne nécessitent pas ce service.
+          Le prix de transport sera calculé après réception et pesée réelle du colis. Aucun montant n'est facturé tant que la pesée n'a pas été effectuée.
         </p>
         {!destinationCountryId ? (
           <p className="text-xs text-destructive">Choisissez d’abord le pays de livraison.</p>
