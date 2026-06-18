@@ -11,6 +11,7 @@ import { Store, Package, AlertTriangle, Wallet, CheckCircle2, Layers, Ban } from
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { NEXT_ACTION_LABELS } from "@/cockpit/lib/order-aggregate";
+import { LINE_KIND_SHORT, LINE_KIND_BADGE } from "@/lib/line-kind";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 
 interface Props {
