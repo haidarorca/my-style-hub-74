@@ -292,18 +292,23 @@ async function fallbackLogisticsQuery(
     }
   }
 
-  // ── Order items (avec unit_price pour calculer le total)
-  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number }>>();
+  // ── Order items (avec unit_price + customization pour calculer total et fret déclaré)
+  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number; customization: any }>>();
   let orderTotalFromItems = new Map<string, number>();
+  let declaredFreightFromItemsMap = new Map<string, number>();
   if (itemsResult.status === "fulfilled" && itemsResult.value.data) {
     for (const it of itemsResult.value.data) {
       const arr = orderItemsMap.get(it.order_id) ?? [];
       const qty = it.quantity ?? 1;
       const price = it.unit_price ?? 0;
-      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price });
+      const cust = (it as any).customization ?? null;
+      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price, customization: cust });
       orderItemsMap.set(it.order_id, arr);
-      // Calculer le total depuis les items
       orderTotalFromItems.set(it.order_id, (orderTotalFromItems.get(it.order_id) ?? 0) + (qty * price));
+      const lineFreight = Number((cust && typeof cust === "object" ? (cust as any).__freight_fee : 0) ?? 0);
+      if (lineFreight > 0) {
+        declaredFreightFromItemsMap.set(it.order_id, (declaredFreightFromItemsMap.get(it.order_id) ?? 0) + lineFreight);
+      }
     }
   }
 
