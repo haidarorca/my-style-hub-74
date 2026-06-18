@@ -759,6 +759,7 @@ function CartPage() {
               variantId: it.variant_id ?? null,
               quantity: it.quantity,
               customization: cleanCustomization(it.customization),
+              shippingServiceId: (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? (hasIntlItems ? shippingServiceId : null),
             })),
           },
         });
