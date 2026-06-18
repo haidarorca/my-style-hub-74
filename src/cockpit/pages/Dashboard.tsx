@@ -425,6 +425,10 @@ export default function CockpitDashboard() {
         const subAss = selectedSubKey && selectedOrder.order_id
           ? getAssessment(selectedOrder.order_id, selectedSubKey)
           : null;
+        // Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère).
+        const effectiveSubStatus = selectedSubKey && selectedOrder.order_id
+          ? (getSubOrderStatus(selectedOrder.order_id, selectedSubKey, selectedOrder.logistics_status ?? null) ?? selectedOrder.logistics_status ?? "new")
+          : null;
         return (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
@@ -439,6 +443,7 @@ export default function CockpitDashboard() {
           subOrderKey={selectedSubKey}
           onSubOrderChange={setSelectedSubKey}
           subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
+          effectiveSubStatus={effectiveSubStatus}
           subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
           subOrderHistoryLoading={historyLoading}
           dialogs={
