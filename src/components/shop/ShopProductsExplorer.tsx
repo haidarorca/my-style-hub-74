@@ -34,6 +34,11 @@ export type ShopProduct = {
   created_at?: string;
   product_images: { url: string }[] | null;
   product_variants?: Variant[];
+  weight_kg?: number | null;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
+  profiles?: { source_country_id?: string | null } | null;
 };
 
 type Cat = {
