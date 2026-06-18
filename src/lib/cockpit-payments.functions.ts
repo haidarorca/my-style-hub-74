@@ -289,7 +289,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, requires_international_shipping").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
         ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
@@ -309,11 +309,19 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const vendors = (vendorsResult.status === "fulfilled" ? vendorsResult.value.data : []) ?? [];
     const productImages = (imagesResult.status === "fulfilled" ? imagesResult.value.data : []) ?? [];
 
-    // SOURCE DE VÉRITÉ unique pour LOCAL vs IMPORT : products.requires_international_shipping
-    // (la table import_products sert au scraping/import de fiches produits, PAS au circuit logistique)
-    const importProductIds = new Set<string>(
-      products.filter((p: any) => p?.requires_international_shipping === true).map((p: any) => p.id)
-    );
+    // RÈGLE UNIQUE LOCAL vs IMPORT :
+    //   import = destination_country_id ≠ vendor.source_country_id
+    //   local  = même pays OU source vendeur inconnue
+    const vendorById = new Map(vendors.map((v: any) => [v.id, v]));
+    const orderDestId = (orderRow as any)?.destination_country_id ?? null;
+    const importProductIds = new Set<string>();
+    for (const p of products) {
+      const v = vendorById.get((p as any).vendor_id);
+      const src = (v as any)?.source_country_id ?? null;
+      if (orderDestId && src && src !== orderDestId) {
+        importProductIds.add((p as any).id);
+      }
+    }
 
     // Pays d'origine : récupéré via le vendeur du produit (profiles.source_country_id)
     const sourceCountryIds = Array.from(new Set(
@@ -327,9 +335,8 @@ export const getOrderItems = createServerFn({ method: "POST" })
     const countryByIdMap = new Map(countriesData.map((c: any) => [c.id, { name: c.name, flag: c.flag_emoji ?? "" }]));
     const countryMap = new Map<string, { name: string; flag: string }>();
     for (const p of products) {
-      if (!(p as any).requires_international_shipping) continue;
-      const vid = (p as any).vendor_id;
-      const v = vid ? vendors.find((x: any) => x.id === vid) : null;
+      if (!importProductIds.has((p as any).id)) continue;
+      const v = vendorById.get((p as any).vendor_id);
       const cid = (v as any)?.source_country_id;
       const c = cid ? countryByIdMap.get(cid) : null;
       if (c) countryMap.set((p as any).id, c);
@@ -495,31 +502,41 @@ export const getOrderTypesBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.order_ids.length === 0) return {} as Record<string, "local" | "import" | "mixte">;
 
-    // Étape 1: Charger order_items avec product_id
-    const { data: itemsRaw } = await supabaseAdmin
-      .from("order_items")
-      .select("order_id, product_id")
-      .in("order_id", data.order_ids);
+    // Étape 1: Charger order_items avec product_id ET les commandes pour destination
+    const [{ data: itemsRaw }, { data: ordersRaw }] = await Promise.all([
+      supabaseAdmin
+        .from("order_items")
+        .select("order_id, product_id, vendor_id")
+        .in("order_id", data.order_ids),
+      supabaseAdmin
+        .from("orders")
+        .select("id, destination_country_id")
+        .in("id", data.order_ids),
+    ]);
 
     const items = itemsRaw ?? [];
+    const destByOrder = new Map<string, string | null>(
+      (ordersRaw ?? []).map((o: any) => [o.id, o.destination_country_id ?? null])
+    );
 
-    // Étape 2: Source de vérité = products.requires_international_shipping
-    // (la table import_products concerne le scraping de fiches, pas le circuit logistique)
-    const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean))) as string[];
-    let importProductIds = new Set<string>();
-    if (productIds.length > 0) {
-      const { data: prods } = await supabaseAdmin
-        .from("products")
-        .select("id, requires_international_shipping")
-        .in("id", productIds);
-      importProductIds = new Set((prods ?? []).filter((p: any) => p?.requires_international_shipping === true).map((p: any) => p.id));
+    // Étape 2: Charger les vendeurs pour leur source_country_id.
+    const vendorIds = Array.from(new Set(items.map((it: any) => it.vendor_id).filter(Boolean))) as string[];
+    const vendorSrcMap = new Map<string, string | null>();
+    if (vendorIds.length > 0) {
+      const { data: vs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, source_country_id")
+        .in("id", vendorIds);
+      for (const v of vs ?? []) vendorSrcMap.set((v as any).id, (v as any).source_country_id ?? null);
     }
 
-    // Étape 3: Grouper par order_id et classer
+    // Étape 3: RÈGLE UNIQUE — import si destination_country_id ≠ vendor.source_country_id
     const orderItems = new Map<string, { is_import: boolean }[]>();
     for (const it of items) {
-      const orderId = it.order_id;
-      const isImport = importProductIds.has(it.product_id ?? "");
+      const orderId = it.order_id as string;
+      const dest = destByOrder.get(orderId) ?? null;
+      const src = vendorSrcMap.get((it as any).vendor_id) ?? null;
+      const isImport = !!(dest && src && dest !== src);
       if (!orderItems.has(orderId)) orderItems.set(orderId, []);
       orderItems.get(orderId)!.push({ is_import: isImport });
     }
