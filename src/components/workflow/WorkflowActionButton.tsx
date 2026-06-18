@@ -80,6 +80,16 @@ export function WorkflowActionButton({ row, onAction }: Props) {
       );
 
     case "fees_calculated":
+      // Circuit B — poids déjà déclaré : action interne « Vérifier »
+      // qui court-circuite l'envoi au client (passe direct à ready_to_ship).
+      if (row.weight_status === "declared") {
+        return (
+          <span className="text-[10px] text-blue-700 font-medium px-2 py-1 bg-blue-50 border border-blue-200 rounded-full">
+            À vérifier
+          </span>
+        );
+      }
+      // Circuit A — poids inconnu : envoyer les frais au client.
       return (
         <Button size="sm" className="h-7 text-[11px] gap-1 bg-blue-600 hover:bg-blue-700" onClick={() => handleAction(() => actions.sendFeesToClient(row))} disabled={loading}>
           <Send className="h-3 w-3" />
