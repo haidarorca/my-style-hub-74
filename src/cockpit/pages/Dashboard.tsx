@@ -45,17 +45,21 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
+  const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
 
   // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
   // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
   const { rows: subOrderRows } = useSubOrderRows(orders);
 
-  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
-  const visibleOrderIds = useMemo(
+  // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
+  const visibleOrderIdsAll = useMemo(
     () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
     [subOrderRows],
   );
+  const { getAssessment } = useSubAssessments(visibleOrderIdsAll);
+
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  const visibleOrderIds = visibleOrderIdsAll;
   const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
 
   // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
@@ -67,7 +71,7 @@ export default function CockpitDashboard() {
 
 
   const openOrder = useCallback((o: LogisticsOrderRow) => {
-    setSelectedVendorId(undefined);
+    setSelectedSubKey(undefined);
     setSelectedOrder(o);
   }, []);
 
