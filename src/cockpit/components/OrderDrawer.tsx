@@ -213,16 +213,16 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Phase 2 : Strip de navigation vers les sœurs (uniquement quand scopé) ─── */}
-          {isScoped && onVendorChange && (
+          {/* ─── Navigation sœurs (uniquement quand scopé) ─── */}
+          {isScoped && onSubOrderChange && (
             <RelatedSubOrdersStrip
               siblings={siblings}
-              currentVendorId={vendorId!}
-              onSelect={onVendorChange}
+              currentKey={subOrderKey!}
+              onSelect={onSubOrderChange}
             />
           )}
 
-          {/* ─── Phase B : Badges métier (boutique/produit supprimé, risque, attente) ─── */}
+          {/* ─── Badges métier (boutique/produit supprimé, risque, attente) ─── */}
           {isScoped && (
             <div className="px-1">
               <SubOrderBadges history={subOrderHistory} />
@@ -234,7 +234,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
           )}
 
-          {/* ─── Phase B : Historique métier (Événement → Décision → Mouvement) ─── */}
+          {/* ─── Historique métier (Événement → Décision → Mouvement) ─── */}
           {isScoped && (
             <div className="space-y-2">
               <div className="flex justify-end">
@@ -249,12 +249,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
             </div>
           )}
-          {isScoped && vendorId && order.order_id && (
+          {isScoped && currentVendorId && order.order_id && (
             <EventCaptureDialog
               open={showEventCapture}
               onClose={() => setShowEventCapture(false)}
               orderId={order.order_id}
-              vendorId={vendorId}
+              vendorId={currentVendorId}
               motherOrderIds={[order.order_id]}
             />
           )}
