@@ -395,7 +395,7 @@ export default function CockpitDashboard() {
             historyMap={historyMap}
 
             onSelectSubRow={(row) => {
-              setSelectedSubKey(row.vendor_id);
+              setSelectedSubKey(row.sub_order_key);
               setSelectedOrder(row.order);
             }}
           />
@@ -417,7 +417,13 @@ export default function CockpitDashboard() {
       </div>
 
       {/* Drawer */}
-      {selectedOrder && (
+      {selectedOrder && (() => {
+        // Vendor id de la sous-commande sélectionnée (pour getHistory) + assessment scopé.
+        const subVendorId = selectedSubKey ? selectedSubKey.split("::")[0] : null;
+        const subAss = selectedSubKey && selectedOrder.order_id
+          ? getAssessment(selectedOrder.order_id, selectedSubKey)
+          : null;
+        return (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
@@ -428,9 +434,10 @@ export default function CockpitDashboard() {
           onPartialDeliver={handlePartialDeliver}
           onSettleFinancial={handleSettleFinancial}
           onResumeRestock={handleResumeRestock}
-          vendorId={selectedSubKey}
-          onVendorChange={setSelectedSubKey}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedSubKey) : undefined}
+          subOrderKey={selectedSubKey}
+          onSubOrderChange={setSelectedSubKey}
+          subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
+          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
           subOrderHistoryLoading={historyLoading}
           dialogs={
             <>
