@@ -284,13 +284,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
           )}
 
-          {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
+          {/* Workflow : 1 par sous-commande. Le workflow dépend du line_kind
+              de la sous-commande affichée (KNOWN ≠ UNKNOWN). */}
           {(isScoped || !isMultiVendor) && (
             <WorkflowControlPanel
               orderId={order.order_id ?? undefined}
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
+              lineKind={lineKind}
               articles={scopedArticles}
               weightStatus={weightStatus}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
