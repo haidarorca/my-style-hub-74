@@ -277,7 +277,14 @@ export function useCart() {
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
     if (!user) {
-      const lines = readGuestCart().map((l) => (l.id === id ? { ...l, quantity } : l));
+      const current = readGuestCart();
+      const anchor = current.find((l) => l.id === id);
+      const sig = anchor ? cartLineSignature(anchor.product_id, anchor.variant_id, anchor.customization) : null;
+      const lines = sig
+        ? current
+            .filter((l) => l.id === id || cartLineSignature(l.product_id, l.variant_id, l.customization) !== sig)
+            .map((l) => (l.id === id ? { ...l, quantity } : l))
+        : current.map((l) => (l.id === id ? { ...l, quantity } : l));
       writeGuestCart(lines);
       refresh();
       return;
@@ -295,7 +302,13 @@ export function useCart() {
 
   const removeItem = async (id: string) => {
     if (!user) {
-      writeGuestCart(readGuestCart().filter((l) => l.id !== id));
+      const current = readGuestCart();
+      const anchor = current.find((l) => l.id === id);
+      const sig = anchor ? cartLineSignature(anchor.product_id, anchor.variant_id, anchor.customization) : null;
+      writeGuestCart(sig
+        ? current.filter((l) => cartLineSignature(l.product_id, l.variant_id, l.customization) !== sig)
+        : current.filter((l) => l.id !== id)
+      );
       refresh();
       return;
     }
