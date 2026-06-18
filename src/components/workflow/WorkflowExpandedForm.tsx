@@ -17,7 +17,7 @@ import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, Cred
 import { updateShipmentAssessment, confirmShipmentPayment, updateShipmentTracking } from "@/lib/admin-logistics.functions";
 import { getOrCreateShipmentAssessment, verifyDeclaredWeight } from "@/lib/shipment-assessments.functions";
 import { getOrderItems } from "@/lib/cockpit-payments.functions";
-import { useQuery } from "@tanstack/react-query";
+
 import { useShippingServices } from "@/hooks/use-shipping-services";
 import { fmtF } from "@/lib/workflow.config";
 import type { WorkflowRow } from "@/types/workflow";
