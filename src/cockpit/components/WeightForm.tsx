@@ -47,22 +47,48 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
   const ratePerKg = parseFloat(rate) || FREIGHT_RATE_PER_KG;
   const freightGlobal = calcFreight(chargeableGlobal, ratePerKg);
 
-  // ── Mode per_item : map id → poids en kg ──
-  const [perItemWeights, setPerItemWeights] = useState<Record<string, string>>({});
+  // ── Mode per_item : map id → { real_kg, l_cm, w_cm, h_cm } ──
+  type PerItemInput = { real: string; l: string; w: string; h: string };
+  const blankPI: PerItemInput = { real: "", l: "", w: "", h: "" };
+  const [perItemInputs, setPerItemInputs] = useState<Record<string, PerItemInput>>({});
   useEffect(() => {
-    // Initialiser/synchroniser quand la liste change
-    setPerItemWeights(prev => {
-      const next: Record<string, string> = {};
-      for (const it of unknownItems) next[it.id] = prev[it.id] ?? "";
+    setPerItemInputs(prev => {
+      const next: Record<string, PerItemInput> = {};
+      for (const it of unknownItems) next[it.id] = prev[it.id] ?? { ...blankPI };
       return next;
     });
   }, [unknownItems]);
 
+  /** Poids facturable par article = max(réel, volumétrique). qty appliquée. */
+  const perItemBreakdown = useMemo(() => {
+    return unknownItems.map((it) => {
+      const inp = perItemInputs[it.id] ?? blankPI;
+      const real = parseFloat(inp.real) || 0;
+      const l = parseFloat(inp.l) || 0;
+      const w = parseFloat(inp.w) || 0;
+      const h = parseFloat(inp.h) || 0;
+      const vol = l > 0 && w > 0 && h > 0 ? calcVolumetricWeight(l, w, h) : 0;
+      const chargeable = Math.max(real, vol);
+      const qty = it.quantity || 1;
+      return { id: it.id, real, vol, chargeable, qty, totalChargeable: chargeable * qty };
+    });
+  }, [unknownItems, perItemInputs]);
+
   const perItemTotalKg = useMemo(
-    () => Object.values(perItemWeights).reduce((s, v) => s + (parseFloat(v) || 0), 0),
-    [perItemWeights],
+    () => perItemBreakdown.reduce((s, b) => s + b.totalChargeable, 0),
+    [perItemBreakdown],
+  );
+  const perItemRealTotalKg = useMemo(
+    () => perItemBreakdown.reduce((s, b) => s + b.real * b.qty, 0),
+    [perItemBreakdown],
+  );
+  const perItemVolTotalKg = useMemo(
+    () => perItemBreakdown.reduce((s, b) => s + b.vol * b.qty, 0),
+    [perItemBreakdown],
   );
   const freightPerItem = calcFreight(perItemTotalKg, ratePerKg);
+  /** Tous les articles doivent avoir un poids réel saisi (dimensions optionnelles). */
+  const perItemReady = perItemBreakdown.length > 0 && perItemBreakdown.every(b => b.real > 0);
 
   const handleSubmitGlobal = () => {
     if (!realW || !chargeableGlobal) return;
@@ -77,28 +103,37 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
       chargeableWeightKg: chargeableGlobal,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightGlobal,
-      finalFreight: freightGlobal, // fret pesé uniquement ; le déclaré reste figé sur les items
+      finalFreight: freightGlobal,
       weighedBy: "Admin",
     });
     setRealWeight(""); setLength(""); setWidth(""); setHeight("");
   };
 
   const handleSubmitPerItem = () => {
-    if (perItemTotalKg <= 0) return;
+    if (!perItemReady) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
-      realWeightKg: Math.round(perItemTotalKg * 1000) / 1000,
+      realWeightKg: Math.round(perItemRealTotalKg * 1000) / 1000,
       lengthCm: 0, widthCm: 0, heightCm: 0,
-      volumetricWeightKg: 0,
+      volumetricWeightKg: Math.round(perItemVolTotalKg * 1000) / 1000,
       chargeableWeightKg: Math.round(perItemTotalKg * 1000) / 1000,
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightPerItem,
       finalFreight: freightPerItem,
       weighedBy: "Admin",
-    });
-    setPerItemWeights({});
+      // Détail par article (persisté côté backend si le schéma le permet).
+      perItemWeights: perItemBreakdown.reduce((acc, b) => {
+        acc[b.id] = { real_kg: b.real, l_cm: parseFloat(perItemInputs[b.id]?.l || "0") || 0,
+                      w_cm: parseFloat(perItemInputs[b.id]?.w || "0") || 0,
+                      h_cm: parseFloat(perItemInputs[b.id]?.h || "0") || 0,
+                      chargeable_kg: b.chargeable };
+        return acc;
+      }, {} as Record<string, { real_kg: number; l_cm: number; w_cm: number; h_cm: number; chargeable_kg: number }>),
+    } as any);
+    setPerItemInputs({});
   };
+
 
   const totalFreightPreview = (mode === "global" ? freightGlobal : freightPerItem) + declaredFreight;
 
