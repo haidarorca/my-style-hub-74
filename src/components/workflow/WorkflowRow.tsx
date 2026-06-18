@@ -15,7 +15,7 @@ import {
   getDaysBadgeColor,
   getPaymentBadgeVariant,
 } from "@/lib/workflow.config";
-import { weightStatusBadgeClass, weightStatusLabel } from "@/lib/logistics-rules";
+
 import type { WorkflowRow as TWorkflowRow } from "@/types/workflow";
 
 interface Props {
