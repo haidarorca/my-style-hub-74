@@ -274,8 +274,8 @@ export default function CockpitDashboard() {
   const resultCount = tabbedSubRows.length;
 
 
-  const handleStatus = (orderId: string, status: string, _admin: string) => {
-    updateStatus(orderId, status, _admin || adminName);
+  const handleStatus = (orderId: string, status: string, _admin: string, subOrderKey?: string | null) => {
+    updateStatus(orderId, status, _admin || adminName, subOrderKey ?? null);
     setHasChanges(false);
   };
   const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
