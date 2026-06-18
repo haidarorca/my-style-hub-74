@@ -1,53 +1,58 @@
 // ═══════════════════════════════════════════════════════════════
-// SUB-ORDERS — Vue dérivée par vendeur (Phase 3).
+// SUB-ORDERS — Vue dérivée par (vendor_id + line_kind).
 //
-// Une "sub_order" = projection d'une commande mère par `vendor_id`.
-// C'est l'unité opérationnelle principale du Cockpit.
+// Une "sub_order" = projection d'une commande mère par boutique ET catégorie.
+// Une même boutique vendant du IMPORT_KNOWN_WEIGHT + IMPORT_UNKNOWN_WEIGHT
+// produit DEUX sous-commandes opérationnelles distinctes.
 //
-// Règle de visibilité Cockpit (validée) :
-//   - is_admin_shop = true             → "kawzone"     (visible)
-//   - sinon, commission_amount > 0     → "commission"  (visible)
-//   - sinon                            → "autonomous"  (HORS Cockpit)
+// Catégories strictes :
+//   LOCAL                  — pas de fret, pas de pesée
+//   IMPORT_KNOWN_WEIGHT    — fret FIGÉ au checkout (sum des freight_fee)
+//   IMPORT_UNKNOWN_WEIGHT  — fret SEULEMENT après pesée
+//                            (zéro jusqu'à présence d'un air_freight_fee)
 //
-// Le scope est calculé directement à partir des articles : on évite
-// un aller-retour serveur supplémentaire — `getOrderItems` capture
-// déjà `is_admin_shop` et `commission_amount` pour chaque ligne.
+// Règle de visibilité Cockpit (inchangée) :
+//   is_admin_shop=true       → "kawzone"
+//   commission_amount>0      → "commission"
+//   sinon                    → "autonomous"
 // ═══════════════════════════════════════════════════════════════
 
 import type { OrderArticle } from "./article-states";
 import { aggregateOrder, type OrderAggregate } from "./order-aggregate";
 import { formatSubOrderLabel } from "./orderNumbers";
+import { subOrderKey, type LineKind } from "@/lib/line-kind";
 
+/** Conservé pour compat composants legacy. Nouveau code : utiliser `line_kind`. */
 export type SubOrderKind = "local" | "import" | "local_and_import";
 export type SubOrderCockpitScope = "kawzone" | "commission" | "autonomous";
 
 export interface DerivedSubOrder {
+  /** Clé STABLE et UNIQUE : `${vendor_id}::${line_kind}`. */
+  sub_order_key: string;
+  /** Catégorie stricte de cette sous-commande. */
+  line_kind: LineKind;
   vendor_id: string;
   vendor_name: string;
   index: number;
   total: number;
   label: string;
+  /** @deprecated Mapping vers l'ancien type pour composants non migrés. */
   kind: SubOrderKind;
   articles: OrderArticle[];
   aggregate: OrderAggregate;
-  /** Scope dérivé des articles — détermine la visibilité Cockpit. */
   cockpit_scope: SubOrderCockpitScope;
-  /** Raccourci : true si la sous-commande appartient au Cockpit principal. */
   is_kawzone_managed: boolean;
-  /** Finances par sous-commande. */
   financials: {
     product_total: number;
     article_count: number;
     delivered_count: number;
     blocked_count: number;
-    /** Somme commission_amount Kawzone (toutes lignes non annulées). */
     commission_total: number;
-    /** Marge Kawzone = commission encaissée (revenus nets pour Kawzone). */
     kawzone_margin: number;
-    /** Total remboursements client (settlement.type === "refund"). */
     refund_total: number;
-    /** Total avoirs client (settlement.type === "credit"). */
     credit_total: number;
+    /** Fret figé au checkout (uniquement IMPORT_KNOWN_WEIGHT, sum des item.freight_fee). */
+    declared_freight: number;
   };
 }
 
@@ -64,6 +69,18 @@ function computeScope(articles: OrderArticle[]): SubOrderCockpitScope {
   return "autonomous";
 }
 
+function inferLineKind(a: OrderArticle): LineKind {
+  if (a.line_kind === "LOCAL" || a.line_kind === "IMPORT_KNOWN_WEIGHT" || a.line_kind === "IMPORT_UNKNOWN_WEIGHT") {
+    return a.line_kind;
+  }
+  // Fallback : LOCAL si non-import, sinon UNKNOWN par défaut (jamais inventer un KNOWN).
+  return a.is_import ? "IMPORT_UNKNOWN_WEIGHT" : "LOCAL";
+}
+
+function legacyKindFor(line_kind: LineKind): SubOrderKind {
+  return line_kind === "LOCAL" ? "local" : "import";
+}
+
 export function deriveSubOrders(
   articles: OrderArticle[] | null | undefined,
   orderStatus?: string,
@@ -72,31 +89,34 @@ export function deriveSubOrders(
   const list = articles ?? [];
   if (list.length === 0) return [];
 
-  const groups = new Map<string, OrderArticle[]>();
+  // Grouper par (vendor_id + line_kind).
+  const groups = new Map<string, { vendor_id: string; line_kind: LineKind; arr: OrderArticle[] }>();
   for (const a of list) {
-    const key = a.vendor_id ?? "unknown";
-    const arr = groups.get(key);
-    if (arr) arr.push(a);
-    else groups.set(key, [a]);
+    const vid = a.vendor_id ?? "unknown";
+    const lk = inferLineKind(a);
+    const key = a.sub_order_key ?? subOrderKey(vid, lk);
+    const bucket = groups.get(key);
+    if (bucket) bucket.arr.push(a);
+    else groups.set(key, { vendor_id: vid, line_kind: lk, arr: [a] });
   }
 
   type RawSub = Omit<DerivedSubOrder, "index" | "total" | "label">;
   const raw: RawSub[] = [];
-  for (const [vendor_id, vendorArticles] of groups) {
+  for (const [key, { vendor_id, line_kind, arr: vendorArticles }] of groups) {
     const first = vendorArticles[0];
     const vendor_name = first.vendor_name ?? "Vendeur inconnu";
     const aggregate = aggregateOrder(vendorArticles, orderStatus);
 
-    const hasLocal = vendorArticles.some(a => a.is_local);
-    const hasImport = vendorArticles.some(a => a.is_import);
-    const kind: SubOrderKind =
-      hasLocal && hasImport ? "local_and_import"
-      : hasImport ? "import"
-      : "local";
-
     const active = vendorArticles.filter(a => a.status !== "cancelled");
     const product_total = active.reduce((s, a) => s + (a.line_total ?? 0), 0);
     const commission_total = active.reduce((s, a) => s + (a.commission_amount ?? 0), 0);
+    // Fret figé : SOMME des __freight_fee de CETTE sous-commande UNIQUEMENT.
+    // - LOCAL → toujours 0
+    // - IMPORT_KNOWN_WEIGHT → fret figé au checkout (jamais recalculé)
+    // - IMPORT_UNKNOWN_WEIGHT → 0 ici (fret réel = air_freight_fee de l'assessment, ailleurs)
+    const declared_freight = line_kind === "IMPORT_KNOWN_WEIGHT"
+      ? active.reduce((s, a) => s + (a.freight_fee ?? 0), 0)
+      : 0;
     const refund_total = vendorArticles.reduce((s, a) => {
       const st = a.settlement;
       return st && st.type === "refund" ? s + (st.amount ?? 0) : s;
@@ -109,9 +129,11 @@ export function deriveSubOrders(
     const cockpit_scope = computeScope(vendorArticles);
 
     raw.push({
+      sub_order_key: key,
+      line_kind,
       vendor_id,
       vendor_name,
-      kind,
+      kind: legacyKindFor(line_kind),
       articles: vendorArticles,
       aggregate,
       cockpit_scope,
@@ -125,11 +147,12 @@ export function deriveSubOrders(
         kawzone_margin: commission_total,
         refund_total,
         credit_total,
+        declared_freight,
       },
     });
   }
 
-  // Tri opérationnel : bloquants, puis règlements en attente, puis prêts.
+  // Tri opérationnel : bloquants → règlements → prêts.
   const sorted = raw.sort((a, b) => {
     const score = (s: RawSub) =>
       (s.aggregate.flags.has_blocking ? 1000 : 0) +
