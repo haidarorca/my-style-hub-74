@@ -546,9 +546,7 @@ function VerifyWeightForm({ row }: { row: WorkflowRow }) {
         data: {
           assessment_id: row.assessment_id,
           items: lines.map((l) => ({
-            order_item_id: l.order_item_id,
             product_id: l.product_id,
-            declared_weight_kg: l.declared || null,
             real_weight_kg: parseFloat(l.real) || 0,
             quantity: l.quantity,
           })),
