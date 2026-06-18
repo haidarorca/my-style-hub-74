@@ -116,7 +116,7 @@ export function WeightAnomalyPanel() {
               {isOpen && (
                 <div className="border-t border-red-200 bg-red-50/50 px-3 py-3 space-y-2">
                   <div className="text-[11px] text-muted-foreground">
-                    Total produits : {fmt(row.order_total)} · Service : {row.shipping_service_name ?? "—"}
+                    Total produits : {fmt(row.order_total)}
                   </div>
                   <Textarea
                     value={note}
