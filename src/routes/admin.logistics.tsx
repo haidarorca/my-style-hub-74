@@ -105,7 +105,16 @@ const WORKFLOW_STEPS = [
   { key: "delivered", label: "Livré", icon: CheckCircle, color: "bg-blue-500" },
 ];
 
+const WORKFLOW_STEPS_DECLARED = [
+  { key: "order", label: "Commande", icon: Package, color: "bg-amber-500" },
+  { key: "warehouse", label: "Réception", icon: Warehouse, color: "bg-gray-500" },
+  { key: "verification", label: "Vérification", icon: Scale, color: "bg-cyan-500" },
+  { key: "shipping", label: "Expédié", icon: Ship, color: "bg-violet-500" },
+  { key: "delivered", label: "Livré", icon: CheckCircle, color: "bg-blue-500" },
+];
+
 function WorkflowTimeline({ row }: { row: LogisticsOrderRow }) {
+  const declaredCircuit = row.weight_status === "declared" || row.weight_status === "verified" || row.weight_status === "anomaly";
   const getStepState = (stepKey: string): "done" | "active" | "pending" => {
     const ls = row.logistics_status;
     const ps = row.payment_status;
@@ -119,13 +128,15 @@ function WorkflowTimeline({ row }: { row: LogisticsOrderRow }) {
       case "validation": return ls && ["validated", "ready_to_ship", "shipped"].includes(ls) ? "done" : ls === "awaiting_client_validation" ? "active" : "pending";
       case "shipping": return ls === "shipped" ? "done" : ls === "ready_to_ship" ? "active" : "pending";
       case "delivered": return os === "delivered" ? "done" : ls === "shipped" ? "active" : "pending";
+      case "verification": return ls && ["ready_to_ship", "shipped"].includes(ls) ? "done" : ls === "fees_calculated" ? "active" : "pending";
       default: return "pending";
     }
   };
+  const steps = declaredCircuit ? WORKFLOW_STEPS_DECLARED : WORKFLOW_STEPS;
   return (
     <div className="relative overflow-x-auto pb-2">
       <div className="flex items-center justify-between min-w-[600px]">
-        {WORKFLOW_STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const state = getStepState(step.key);
           const Icon = step.icon;
           return (
