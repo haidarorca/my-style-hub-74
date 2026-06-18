@@ -33,6 +33,7 @@ import { useSiteSettings } from "@/hooks/use-site-settings";
 import { createCheckoutOrder } from "@/lib/checkout.functions";
 import { getPublicVendorContacts } from "@/lib/support.functions";
 import { listShippingServices, type ShippingService } from "@/lib/shipping-services.functions";
+import { getCartItemLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plane } from "lucide-react";
 
@@ -74,7 +75,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { user, profile } = useAuth();
-  const { items, updateQuantity, removeItem, updateLineShipping, refresh } = useCart();
+  const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
@@ -162,7 +163,7 @@ function CartPage() {
   // can be added as new groups without changing the UI structure.
   type VendorGroup = { shopName: string; vendorId: string; items: any[] };
   // 3 catégories STRICTES — alignées avec line-kind.ts.
-  type LogisticsType = "LOCAL" | "IMPORT_KNOWN_WEIGHT" | "IMPORT_UNKNOWN_WEIGHT";
+  type LogisticsType = LineKind;
   type LogisticsSection = {
     type: LogisticsType;
     label: string;
@@ -179,12 +180,7 @@ function CartPage() {
   //   LOCAL                  : pas d'import (destination = source ou info absente).
   //   IMPORT_KNOWN_WEIGHT    : import + poids produit > 0 → fret figé immédiatement.
   //   IMPORT_UNKNOWN_WEIGHT  : import + pas de poids → fret après pesée uniquement.
-  const getItemLogisticsType = (it: any): LogisticsType => {
-    const src = it?.products?.profiles?.source_country_id ?? null;
-    if (!destinationCountryId || !src || src === destinationCountryId) return "LOCAL";
-    const w = Number(it?.products?.weight_kg ?? 0);
-    return w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
-  };
+  const getItemLogisticsType = (it: any): LogisticsType => getCartItemLineKind(it, destinationCountryId);
 
   const logisticsGroups = useMemo(() => {
     const sections = new Map<LogisticsType, LogisticsSection>();
@@ -238,15 +234,6 @@ function CartPage() {
     return sections;
   }, [items, destinationCountryId, t]);
 
-  // Flat vendor groups (backward compat for existing logic)
-  const groups = new Map<string, VendorGroup>();
-  for (const section of logisticsGroups.values()) {
-    for (const [key, vg] of section.vendorGroups) {
-      if (!groups.has(key)) groups.set(key, vg);
-      else groups.get(key)!.items.push(...vg.items);
-    }
-  }
-
   // === Selection state (defaults: tout coché) ===
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const allIds = useMemo(() => items.map((it: any) => it.id as string), [items]);
@@ -291,13 +278,6 @@ function CartPage() {
     () => items.filter((it: any) => selectedIds.has(it.id)),
     [items, selectedIds],
   );
-  const preferredShippingServiceId = useMemo(() => {
-    for (const it of selectedItems as any[]) {
-      const saved = it.shipping_service_id ?? it.customization?.__shipping_service_id;
-      if (saved) return String(saved);
-    }
-    return null;
-  }, [selectedItems]);
   const selectedCount = selectedItems.reduce((s, it: any) => s + (it.quantity ?? 0), 0);
 
   // RÈGLE UNIQUE : un article est international si destination ≠ source vendeur.
@@ -358,17 +338,14 @@ function CartPage() {
         const cheapest = [...services].sort(
           (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
         )[0] ?? null;
-        const preferred = preferredShippingServiceId
-          ? services.find((s) => s.id === preferredShippingServiceId)
-          : null;
         // KNOWN : auto-sélection du moins cher (le client peut changer ensuite).
         setKnownShippingServiceId((prev) => {
           if (prev && services.some((s) => s.id === prev)) return prev;
-          return (preferred ?? cheapest)?.id ?? null;
+          return cheapest?.id ?? null;
         });
         // UNKNOWN : pas d'auto-sélection (force le choix conscient). Garde celui d'avant si valide.
         setUnknownShippingServiceId((prev) =>
-          prev && services.some((s) => s.id === prev) ? prev : (preferred?.id ?? null),
+          prev && services.some((s) => s.id === prev) ? prev : null,
         );
       } catch (e) {
         console.error("[cart] load shipping services failed", e);
@@ -376,7 +353,7 @@ function CartPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasIntlItems, destinationCountryId, sourceCountryId, preferredShippingServiceId]);
+  }, [hasIntlItems, destinationCountryId, sourceCountryId]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
@@ -582,8 +559,21 @@ function CartPage() {
   };
   const cleanCustomization = (c: any) => {
     if (!c || typeof c !== "object") return null;
-    const { __shipping_service_id, ...rest } = c;
+    const { __shipping_service_id, __line_kind, __sub_order_key, __freight_fee, ...rest } = c;
     return Object.keys(rest).length > 0 ? rest : null;
+  };
+
+  const stampedCustomization = (it: any, serviceId: string | null) => {
+    const kind = getItemLogisticsType(it);
+    const vendorId = it?.products?.vendor_id ?? null;
+    const base = cleanCustomization(it.customization) ?? {};
+    return {
+      ...base,
+      __line_kind: kind,
+      __sub_order_key: subOrderKey(vendorId, kind),
+      ...(kind === "IMPORT_KNOWN_WEIGHT" ? { __freight_fee: lineFreight(it) } : {}),
+      ...(serviceId ? { __shipping_service_id: serviceId } : {}),
+    };
   };
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
@@ -783,6 +773,15 @@ function CartPage() {
       };
       console.info("[checkout] submit start", debugPayload);
       const rows = selectedItems.map((it: any) => ({
+        // Une ligne = une seule catégorie métier, stampée avant toute persistance.
+        // Le serveur authentifié recalcule et écrase ces valeurs ; le flux invité
+        // conserve ainsi le même contrat sans double bucket.
+        customization: stampedCustomization(
+          it,
+          getItemLogisticsType(it) === "IMPORT_KNOWN_WEIGHT" ? knownShippingServiceId :
+          getItemLogisticsType(it) === "IMPORT_UNKNOWN_WEIGHT" ? unknownShippingServiceId :
+          null,
+        ),
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -794,7 +793,6 @@ function CartPage() {
         color: it.product_variants?.color ?? null,
         unit_price: unitPrice(it),
         quantity: it.quantity,
-        customization: cleanCustomization(it.customization),
       }));
 
       let savedOrderId = orderId;
@@ -820,7 +818,7 @@ function CartPage() {
                 productId: it.products.id,
                 variantId: it.variant_id ?? null,
                 quantity: it.quantity,
-                customization: cleanCustomization(it.customization),
+                customization: stampedCustomization(it, svc),
                 shippingServiceId: svc,
               };
             }),
@@ -866,7 +864,7 @@ function CartPage() {
       const groups = await buildDispatchGroups(savedOrderId, addr);
 
       // Only remove the items the buyer actually ordered — keep the rest in the cart.
-      const orderedIds = selectedItems.map((it: any) => it.id as string);
+      const orderedIds = selectedItems.flatMap((it: any) => [it.id as string, ...((it.__duplicate_ids ?? []) as string[])]);
       if (user) {
         await supabase.from("cart_items").delete().in("id", orderedIds);
       } else {

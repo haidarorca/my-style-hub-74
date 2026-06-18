@@ -47,6 +47,16 @@ export function clearGuestCart() {
   writeGuestCart([]);
 }
 
+function stripCartInternalMetadata(c: any) {
+  if (!c || typeof c !== "object") return null;
+  const { __shipping_service_id, __line_kind, __sub_order_key, __freight_fee, ...rest } = c as Record<string, unknown>;
+  return Object.keys(rest).length > 0 ? rest : null;
+}
+
+function cartLineSignature(productId: string, variantId: string | null | undefined, customization: any) {
+  return `${productId}::${variantId ?? ""}::${JSON.stringify(stripCartInternalMetadata(customization))}`;
+}
+
 async function hydrateGuestLines(lines: GuestCartLine[]) {
   if (lines.length === 0) return [];
   const productIds = Array.from(new Set(lines.map((l) => l.product_id)));
@@ -81,7 +91,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
       variant_id: l.variant_id,
       quantity: l.quantity,
       customization: l.customization,
-      shipping_service_id: l.shipping_service_id ?? (l.customization as any)?.__shipping_service_id ?? null,
+      shipping_service_id: null,
       created_at: l.created_at,
       products: p,
       product_variants: l.variant_id ? vMap.get(l.variant_id) ?? null : null,
@@ -115,15 +125,10 @@ export function useCart() {
         raw = (await hydrateGuestLines(readGuestCart())) as any[];
       }
       // Render-side dedupe : merge duplicate rows by (product_id, variant_id, clean customization).
-      // Le `__shipping_service_id` historique est ignoré dans la signature.
-      const stripShipping = (c: any) => {
-        if (!c || typeof c !== "object") return null;
-        const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-        return Object.keys(rest).length > 0 ? rest : null;
-      };
+      // Les métadonnées logistiques historiques sont ignorées dans la signature.
       const byKey = new Map<string, any>();
       for (const it of raw) {
-        const sig = `${it.product_id}::${it.variant_id ?? ""}::${JSON.stringify(stripShipping(it.customization))}`;
+        const sig = cartLineSignature(it.product_id, it.variant_id, it.customization);
         const existing = byKey.get(sig);
         if (existing) {
           existing.quantity = (existing.quantity ?? 0) + (it.quantity ?? 0);
@@ -164,19 +169,15 @@ export function useCart() {
     // Customization client UNIQUEMENT (text/image/font/color…). __shipping_service_id
     // n'est plus stocké ici : le choix de transport est fait au panier (par section)
     // et au checkout (par ligne). Cela garantit que les ajouts identiques se mergent.
-    const baseCustomization = input.customization && Object.keys(input.customization).length > 0
-      ? input.customization
-      : null;
+    const baseCustomization = stripCartInternalMetadata(input.customization);
     const customization = baseCustomization;
 
     if (!user) {
       // Guest cart
       const lines = readGuestCart();
+      const targetSig = cartLineSignature(input.productId, input.variantId, baseCustomization);
       const idx = lines.findIndex(
-        (l) =>
-          l.product_id === input.productId &&
-          (l.variant_id ?? null) === (input.variantId ?? null) &&
-          !baseCustomization && !l.customization,
+        (l) => cartLineSignature(l.product_id, l.variant_id, l.customization) === targetSig,
       );
       if (idx >= 0) {
         lines[idx].quantity += qty;
@@ -210,14 +211,9 @@ export function useCart() {
     const { data: existingRows } = await existingQuery;
 
     // Mergeable rows = rows whose meaningful customization matches new input.
-    const stripShipping = (c: any) => {
-      if (!c || typeof c !== "object") return null;
-      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-      return Object.keys(rest).length > 0 ? rest : null;
-    };
-    const targetSig = JSON.stringify(stripShipping(baseCustomization));
+    const targetSig = JSON.stringify(stripCartInternalMetadata(baseCustomization));
     const mergeable = (existingRows ?? []).filter(
-      (r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig,
+      (r: any) => JSON.stringify(stripCartInternalMetadata(r.customization)) === targetSig,
     );
 
     if (mergeable.length > 0) {
@@ -262,12 +258,7 @@ export function useCart() {
       .eq("id", id)
       .maybeSingle();
     if (!anchor) return [id];
-    const stripShipping = (c: any) => {
-      if (!c || typeof c !== "object") return null;
-      const { __shipping_service_id, ...rest } = c as Record<string, unknown>;
-      return Object.keys(rest).length > 0 ? rest : null;
-    };
-    const targetSig = JSON.stringify(stripShipping(anchor.customization));
+    const targetSig = JSON.stringify(stripCartInternalMetadata(anchor.customization));
     let q = supabase
       .from("cart_items")
       .select("id, customization")
@@ -276,7 +267,7 @@ export function useCart() {
     q = anchor.variant_id ? q.eq("variant_id", anchor.variant_id) : q.is("variant_id", null);
     const { data: rows } = await q;
     const ids = (rows ?? [])
-      .filter((r: any) => JSON.stringify(stripShipping(r.customization)) === targetSig)
+      .filter((r: any) => JSON.stringify(stripCartInternalMetadata(r.customization)) === targetSig)
       .map((r: any) => r.id as string);
     return ids.length > 0 ? ids : [id];
   };
@@ -284,7 +275,14 @@ export function useCart() {
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
     if (!user) {
-      const lines = readGuestCart().map((l) => (l.id === id ? { ...l, quantity } : l));
+      const current = readGuestCart();
+      const anchor = current.find((l) => l.id === id);
+      const sig = anchor ? cartLineSignature(anchor.product_id, anchor.variant_id, anchor.customization) : null;
+      const lines = sig
+        ? current
+            .filter((l) => l.id === id || cartLineSignature(l.product_id, l.variant_id, l.customization) !== sig)
+            .map((l) => (l.id === id ? { ...l, quantity } : l))
+        : current.map((l) => (l.id === id ? { ...l, quantity } : l));
       writeGuestCart(lines);
       refresh();
       return;
@@ -302,7 +300,13 @@ export function useCart() {
 
   const removeItem = async (id: string) => {
     if (!user) {
-      writeGuestCart(readGuestCart().filter((l) => l.id !== id));
+      const current = readGuestCart();
+      const anchor = current.find((l) => l.id === id);
+      const sig = anchor ? cartLineSignature(anchor.product_id, anchor.variant_id, anchor.customization) : null;
+      writeGuestCart(sig
+        ? current.filter((l) => cartLineSignature(l.product_id, l.variant_id, l.customization) !== sig)
+        : current.filter((l) => l.id !== id)
+      );
       refresh();
       return;
     }
@@ -312,15 +316,12 @@ export function useCart() {
     else refresh();
   };
 
-  /** Met à jour le service de transport choisi pour UNE ligne du panier. */
+  /** @deprecated Le transport n'est plus stocké sur une ligne panier. */
   const updateLineShipping = async (id: string, serviceId: string | null) => {
     if (!user) {
       const lines = readGuestCart().map((l) => {
         if (l.id !== id) return l;
-        const cust = { ...(l.customization ?? {}) } as Record<string, unknown>;
-        if (serviceId) cust.__shipping_service_id = serviceId;
-        else delete cust.__shipping_service_id;
-        return { ...l, shipping_service_id: serviceId, customization: cust };
+        return { ...l, shipping_service_id: null, customization: stripCartInternalMetadata(l.customization) };
       });
       writeGuestCart(lines);
       refresh();
@@ -328,9 +329,7 @@ export function useCart() {
     }
     // Lire la customization existante puis fusionner
     const { data: row } = await supabase.from("cart_items").select("customization").eq("id", id).maybeSingle();
-    const cust = { ...((row?.customization as Record<string, unknown>) ?? {}) };
-    if (serviceId) cust.__shipping_service_id = serviceId;
-    else delete cust.__shipping_service_id;
+    const cust = stripCartInternalMetadata(row?.customization);
     const { error } = await supabase.from("cart_items").update({ customization: cust as never }).eq("id", id);
     if (error) toast.error(error.message);
     else refresh();
