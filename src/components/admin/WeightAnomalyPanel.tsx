@@ -130,7 +130,7 @@ export function WeightAnomalyPanel() {
               {isOpen && (
                 <div className="border-t border-red-200 bg-red-50/50 px-3 py-3 space-y-2">
                   <div className="text-[11px] text-muted-foreground">
-                    Total produits : {fmt(row.order_total)}
+                    Total produits : {fmt(row.order_total)} · Frais actuels : {fmt(row.total_shipping_fees)}
                   </div>
                   <Textarea
                     value={note}
@@ -139,6 +139,47 @@ export function WeightAnomalyPanel() {
                     rows={2}
                     className="text-xs"
                   />
+                  {showFeeForm && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50/60 p-2 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground">Frais avion (FCFA) *</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={airFee}
+                            onChange={(e) => setAirFee(e.target.value)}
+                            className="h-8 text-xs"
+                            placeholder={String(row.air_freight_fee ?? 0)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground">Frais service (FCFA)</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={svcFee}
+                            onChange={(e) => setSvcFee(e.target.value)}
+                            className="h-8 text-xs"
+                            placeholder={String(row.service_fee ?? 0)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={mut.isPending || !airFee}
+                          onClick={() => mut.mutate({ orderId: row.order_id, action: "modify_fees" })}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" /> Appliquer les nouveaux frais
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowFeeForm(false)}>
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
@@ -148,6 +189,20 @@ export function WeightAnomalyPanel() {
                       className="bg-emerald-600 hover:bg-emerald-700"
                     >
                       <Check className="h-3.5 w-3.5 mr-1" /> Accepter la perte
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={mut.isPending}
+                      onClick={() => {
+                        setShowFeeForm((v) => !v);
+                        if (!showFeeForm) {
+                          setAirFee(String(row.air_freight_fee ?? ""));
+                          setSvcFee(String(row.service_fee ?? ""));
+                        }
+                      }}
+                    >
+                      <DollarSign className="h-3.5 w-3.5 mr-1" /> Modifier les frais
                     </Button>
                     <Button
                       size="sm"
