@@ -179,7 +179,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
   // Prochaine étape dans le circuit métier (Circuit B si poids déclaré).
   const weightStatus = (order as any).weight_status as string | null | undefined;
-  const nextStep = getNextStep(status, imp, weightStatus);
+  const nextStep = getNextStep(status, imp, weightStatus, lineKind);
 
 
   // Handler qui ferme le drawer après changement de statut (scopé à la sous-commande si applicable).
