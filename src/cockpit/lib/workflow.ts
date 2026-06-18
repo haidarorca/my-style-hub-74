@@ -213,10 +213,10 @@ const IMPORT_FLOW_DECLARED: Record<string, NextStep> = {
   confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
   ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
   // Vérification interne uniquement, puis directement prête à expédier.
-  received_warehouse: { status: "ready_delivery", label: "Prête", actionLabel: "Vérifier poids & marquer prête", color: "bg-cyan-600" },
+  received_warehouse: { status: "fees_calculated", label: "Vérification poids", actionLabel: "Vérifier poids", color: "bg-cyan-600" },
   // Si pour une raison X l'ancien circuit a écrit ces statuts, on les court-circuite.
   awaiting_weighing: { status: "ready_delivery", label: "Prête", actionLabel: "Vérifier & marquer prête", color: "bg-cyan-600" },
-  fees_calculated: { status: "ready_delivery", label: "Prête", actionLabel: "Vérifier & marquer prête", color: "bg-cyan-600" },
+  fees_calculated: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
   payment_fees: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
   ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
