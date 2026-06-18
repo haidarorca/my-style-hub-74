@@ -569,8 +569,21 @@ function CartPage() {
   };
   const cleanCustomization = (c: any) => {
     if (!c || typeof c !== "object") return null;
-    const { __shipping_service_id, ...rest } = c;
+    const { __shipping_service_id, __line_kind, __sub_order_key, __freight_fee, ...rest } = c;
     return Object.keys(rest).length > 0 ? rest : null;
+  };
+
+  const stampedCustomization = (it: any, serviceId: string | null) => {
+    const kind = getItemLogisticsType(it);
+    const vendorId = it?.products?.vendor_id ?? null;
+    const base = cleanCustomization(it.customization) ?? {};
+    return {
+      ...base,
+      __line_kind: kind,
+      __sub_order_key: subOrderKey(vendorId, kind),
+      ...(kind === "IMPORT_KNOWN_WEIGHT" ? { __freight_fee: lineFreight(it) } : {}),
+      ...(serviceId ? { __shipping_service_id: serviceId } : {}),
+    };
   };
   const useGeolocation = () => {
     if (!navigator.geolocation) return toast.error(t("common.location_unavailable"));
