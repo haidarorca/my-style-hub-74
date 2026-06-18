@@ -21,7 +21,7 @@ import { getWeightAnomaly } from "@/lib/logistics-rules";
 const fmt = (n: number | null | undefined) =>
   n == null ? "—" : `${Number(n).toLocaleString("fr-FR")} FCFA`;
 
-type Action = "accept_loss" | "contact_client" | "cancel_order";
+type Action = "accept_loss" | "contact_client" | "cancel_order" | "modify_fees";
 
 export function WeightAnomalyPanel() {
   const qc = useQueryClient();
