@@ -415,6 +415,23 @@ export const getOrderItems = createServerFn({ method: "POST" })
       const isImportProduct = importProductIds.has(it.product_id ?? "");
       const isLocalProduct = !isImportProduct;
 
+      // ── LINE KIND figé (source : customization.__line_kind stampé au checkout) ──
+      // Fallback de calcul si absent : LOCAL si non-import, sinon KNOWN/UNKNOWN selon weight_kg.
+      const cust = (it.customization ?? null) as any;
+      let lineKind: "LOCAL" | "IMPORT_KNOWN_WEIGHT" | "IMPORT_UNKNOWN_WEIGHT" = "LOCAL";
+      const stampedKind = cust?.__line_kind;
+      if (stampedKind === "LOCAL" || stampedKind === "IMPORT_KNOWN_WEIGHT" || stampedKind === "IMPORT_UNKNOWN_WEIGHT") {
+        lineKind = stampedKind;
+      } else if (isImportProduct) {
+        const w = Number((prod as any)?.weight_kg ?? 0);
+        lineKind = w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
+      }
+      // Fret figé pour KNOWN uniquement. UNKNOWN n'a JAMAIS de fret avant pesée.
+      const freightFee = lineKind === "IMPORT_KNOWN_WEIGHT"
+        ? Number(cust?.__freight_fee ?? 0) || 0
+        : 0;
+      const subOrderKey = `${it.vendor_id ?? "unknown"}::${lineKind}`;
+
       return {
         product_id: it.product_id ?? "",
         product_name: prodName,
@@ -440,6 +457,9 @@ export const getOrderItems = createServerFn({ method: "POST" })
         commission_amount: it.commission_amount ?? null,
         is_import: isImportProduct,
         is_local: isLocalProduct,
+        line_kind: lineKind,
+        freight_fee: freightFee,
+        sub_order_key: subOrderKey,
         origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
         vendor: it.vendor_id && vendor ? {

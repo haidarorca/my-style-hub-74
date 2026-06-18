@@ -18,6 +18,7 @@ import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
+import { useSubAssessments } from "@/cockpit/hooks/useSubAssessments";
 import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
 import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
 import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
@@ -45,17 +46,21 @@ export default function CockpitDashboard() {
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [selectedVendorId, setSelectedVendorId] = useState<string | undefined>(undefined);
+  const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
 
   // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
   // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
   const { rows: subOrderRows } = useSubOrderRows(orders);
 
-  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
-  const visibleOrderIds = useMemo(
+  // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
+  const visibleOrderIdsAll = useMemo(
     () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
     [subOrderRows],
   );
+  const { getAssessment } = useSubAssessments(visibleOrderIdsAll);
+
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  const visibleOrderIds = visibleOrderIdsAll;
   const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
 
   // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
@@ -67,7 +72,7 @@ export default function CockpitDashboard() {
 
 
   const openOrder = useCallback((o: LogisticsOrderRow) => {
-    setSelectedVendorId(undefined);
+    setSelectedSubKey(undefined);
     setSelectedOrder(o);
   }, []);
 
@@ -269,8 +274,8 @@ export default function CockpitDashboard() {
   const resultCount = tabbedSubRows.length;
 
 
-  const handleStatus = (orderId: string, status: string, _admin: string) => {
-    updateStatus(orderId, status, _admin || adminName);
+  const handleStatus = (orderId: string, status: string, _admin: string, subOrderKey?: string | null) => {
+    updateStatus(orderId, status, _admin || adminName, subOrderKey ?? null);
     setHasChanges(false);
   };
   const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
@@ -284,15 +289,15 @@ export default function CockpitDashboard() {
     cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
     setShowCancel(false);
     setSelectedOrder(null);
-    setSelectedVendorId(undefined);
+    setSelectedSubKey(undefined);
   }, [selectedOrder, cancelOrder, adminName]);
 
   const handleCloseDrawer = useCallback(() => {
     setShowItemsPanel(false);
     if (hasChanges) setShowCloseConfirm(true);
-    else { setSelectedOrder(null); setSelectedVendorId(undefined); }
+    else { setSelectedOrder(null); setSelectedSubKey(undefined); }
   }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedVendorId(undefined); }, []);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubKey(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
@@ -390,7 +395,7 @@ export default function CockpitDashboard() {
             historyMap={historyMap}
 
             onSelectSubRow={(row) => {
-              setSelectedVendorId(row.vendor_id);
+              setSelectedSubKey(row.sub_order_key);
               setSelectedOrder(row.order);
             }}
           />
@@ -412,7 +417,13 @@ export default function CockpitDashboard() {
       </div>
 
       {/* Drawer */}
-      {selectedOrder && (
+      {selectedOrder && (() => {
+        // Vendor id de la sous-commande sélectionnée (pour getHistory) + assessment scopé.
+        const subVendorId = selectedSubKey ? selectedSubKey.split("::")[0] : null;
+        const subAss = selectedSubKey && selectedOrder.order_id
+          ? getAssessment(selectedOrder.order_id, selectedSubKey)
+          : null;
+        return (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
@@ -423,9 +434,10 @@ export default function CockpitDashboard() {
           onPartialDeliver={handlePartialDeliver}
           onSettleFinancial={handleSettleFinancial}
           onResumeRestock={handleResumeRestock}
-          vendorId={selectedVendorId}
-          onVendorChange={setSelectedVendorId}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", selectedVendorId) : undefined}
+          subOrderKey={selectedSubKey}
+          onSubOrderChange={setSelectedSubKey}
+          subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
+          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
           subOrderHistoryLoading={historyLoading}
           dialogs={
             <>
@@ -437,7 +449,8 @@ export default function CockpitDashboard() {
             </>
           }
         />
-      )}
+        );
+      })()}
     </div>
   );
 }

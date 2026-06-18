@@ -6,6 +6,7 @@
 import { Store, AlertTriangle, CheckCircle2, Ban } from "lucide-react";
 import { fmtF, fmtDateTime } from "@/cockpit/lib/workflow";
 import { NEXT_ACTION_LABELS } from "@/cockpit/lib/order-aggregate";
+import { LINE_KIND_SHORT, LINE_KIND_BADGE } from "@/lib/line-kind";
 import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
 import { SubOrderBadges } from "./SubOrderBadges";
 import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
@@ -31,9 +32,8 @@ export function SubOrderCard({ row, onClick, history }: Props) {
     : done ? "border-l-gray-300 bg-gray-50/40"
     : "border-l-slate-300 bg-white";
 
-  const hasImport = row.kind === "import" || row.kind === "local_and_import";
-  const kindLabel = hasImport ? "IMPORT" : "LOCAL";
-  const kindClass = hasImport ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700";
+  const kindLabel = LINE_KIND_SHORT[row.line_kind];
+  const kindClass = LINE_KIND_BADGE[row.line_kind];
 
   return (
     <button
