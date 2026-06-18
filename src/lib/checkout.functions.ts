@@ -148,7 +148,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         destination_country_id: data.destinationCountryId,
         shipping_service_id: data.shippingServiceId ?? null,
         shipping_estimate_note: data.shippingServiceId
-          ? "Estimé — sera recalculé après pesée"
+          ? (allHaveDeclaredWeight
+              ? `Fret inclus (${freightFee.toLocaleString("fr-FR")} FCFA) — vérifié à la réception`
+              : "Estimé — sera recalculé après pesée")
           : null,
       } as any);
       if (orderError) throw new Error(`Création commande: ${orderError.message}`);
@@ -162,6 +164,27 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (itemsError) {
         await supabaseAdmin.from("orders").delete().eq("id", orderId);
         throw new Error(`Création articles commande: ${itemsError.message}`);
+      }
+
+      // Circuit B — pré-créer l'évaluation avec le fret déjà calculé.
+      // L'agent logistique n'aura plus qu'à vérifier le poids à la réception.
+      if (allHaveDeclaredWeight && freightFee > 0 && data.shippingServiceId) {
+        try {
+          await (supabaseAdmin as any)
+            .from("order_shipment_assessments")
+            .insert({
+              order_id: orderId,
+              created_by: context.userId,
+              status: "fees_calculated",
+              shipping_service_id: data.shippingServiceId,
+              price_per_kg_snapshot: svcPricePerKg,
+              real_weight_kg: Math.round(chargeableKg * 1000) / 1000,
+              air_freight_fee: freightFee,
+              admin_comment: "Fret payé à la commande (poids déclaré). À vérifier à la réception.",
+            });
+        } catch (assessmentError) {
+          console.error("[checkout.server] prefill assessment failed", { orderId, error: assessmentError });
+        }
       }
 
       // NOTIFIER les vendeurs concernes par la commande
