@@ -59,6 +59,10 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
   const isImport = item.is_import ?? false;
   const isLocal = item.is_local ?? false;
   const status = (row?.status as ArticleStatus | undefined) ?? projectInitialStatus(orderStatus, isImport);
+  // Catégorie figée : fallback de calcul si l'item ne la porte pas.
+  const lineKind = (item.line_kind
+    ?? (isImport ? "IMPORT_UNKNOWN_WEIGHT" : "LOCAL")) as import("@/lib/line-kind").LineKind;
+  const vendorId = item.shop_id ?? null;
   return {
     product_id: item.product_id,
     product_name: item.product_name ?? "Produit",
@@ -72,7 +76,7 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
     line_total: item.line_total ?? 0,
     is_import: isImport,
     is_local: isLocal,
-    vendor_id: item.shop_id ?? null,
+    vendor_id: vendorId,
     vendor_name: item.owner_name ?? item.shop_name ?? null,
     shop_type_label: item.shop_type_label ?? null,
     origin_country: item.origin_country ?? null,
@@ -80,6 +84,9 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
     is_admin_shop: item.is_admin_shop ?? false,
     commission_rate: item.commission_rate ?? null,
     commission_amount: item.commission_amount ?? null,
+    line_kind: lineKind,
+    freight_fee: item.freight_fee ?? 0,
+    sub_order_key: item.sub_order_key ?? `${vendorId ?? "unknown"}::${lineKind}`,
     status,
     delivered_qty: row?.delivered_qty ?? 0,
     stock_break: (row?.stock_break as unknown as StockBreakDecision | undefined) ?? undefined,
