@@ -169,9 +169,7 @@ export function useCart() {
     // Customization client UNIQUEMENT (text/image/font/color…). __shipping_service_id
     // n'est plus stocké ici : le choix de transport est fait au panier (par section)
     // et au checkout (par ligne). Cela garantit que les ajouts identiques se mergent.
-    const baseCustomization = input.customization && Object.keys(input.customization).length > 0
-      ? input.customization
-      : null;
+    const baseCustomization = stripCartInternalMetadata(input.customization);
     const customization = baseCustomization;
 
     if (!user) {
@@ -318,15 +316,12 @@ export function useCart() {
     else refresh();
   };
 
-  /** Met à jour le service de transport choisi pour UNE ligne du panier. */
+  /** @deprecated Le transport n'est plus stocké sur une ligne panier. */
   const updateLineShipping = async (id: string, serviceId: string | null) => {
     if (!user) {
       const lines = readGuestCart().map((l) => {
         if (l.id !== id) return l;
-        const cust = { ...(l.customization ?? {}) } as Record<string, unknown>;
-        if (serviceId) cust.__shipping_service_id = serviceId;
-        else delete cust.__shipping_service_id;
-        return { ...l, shipping_service_id: serviceId, customization: cust };
+        return { ...l, shipping_service_id: null, customization: stripCartInternalMetadata(l.customization) };
       });
       writeGuestCart(lines);
       refresh();
@@ -334,9 +329,7 @@ export function useCart() {
     }
     // Lire la customization existante puis fusionner
     const { data: row } = await supabase.from("cart_items").select("customization").eq("id", id).maybeSingle();
-    const cust = { ...((row?.customization as Record<string, unknown>) ?? {}) };
-    if (serviceId) cust.__shipping_service_id = serviceId;
-    else delete cust.__shipping_service_id;
+    const cust = stripCartInternalMetadata(row?.customization);
     const { error } = await supabase.from("cart_items").update({ customization: cust as never }).eq("id", id);
     if (error) toast.error(error.message);
     else refresh();
