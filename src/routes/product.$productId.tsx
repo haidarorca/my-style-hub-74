@@ -27,6 +27,7 @@ import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
+import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
 
 export const Route = createFileRoute("/product/$productId")({
