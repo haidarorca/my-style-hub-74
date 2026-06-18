@@ -188,17 +188,6 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
         </div>
 
         <div className="flex items-center justify-end gap-1">
-          {(row.order_type === "import" || row.order_type === "mixed") && row.weight_status && (
-            <span
-              className={cn(
-                "text-[9px] px-1 py-0.5 rounded border font-medium",
-                weightStatusBadgeClass(row.weight_status)
-              )}
-              title={weightStatusLabel(row.weight_status)}
-            >
-              {row.weight_status === "anomaly" ? "⚠ Anomalie" : row.weight_status === "verified" ? "✓ Pesé" : row.weight_status === "declared" ? "≈ Déclaré" : "? Inconnu"}
-            </span>
-          )}
           {row.days_pending > 0 && (
             <span
               className={cn(
