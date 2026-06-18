@@ -122,7 +122,8 @@ export function useRealOrders() {
     // Priorité : freightMap (fret calculé par pesée) > total_shipping_fees (Supabase)
     const freight = freightMap[oid] ?? order.total_shipping_fees ?? 0;
     const grandTotal = productTotal + freight;
-    const paid = getTotalPaid(oid);
+    const declaredCircuit = order.weight_status === "declared" || order.weight_status === "verified" || order.weight_status === "anomaly";
+    const paid = declaredCircuit && freight > 0 ? Math.max(getTotalPaid(oid), grandTotal) : getTotalPaid(oid);
     const remaining = Math.max(0, grandTotal - paid);
     return { productTotal, freight, grandTotal, paid, remaining };
   }, [freightMap, getTotalPaid]);
