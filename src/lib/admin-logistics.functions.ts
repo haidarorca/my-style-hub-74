@@ -524,6 +524,7 @@ async function fallbackLogisticsQuery(
           const diff = Math.abs(real - declaredSum);
           if (diff > Math.max(0.5, declaredSum * 0.10)) return "anomaly" as const;
         }
+        if ((assessment.status as string) === "fees_calculated" && hasAll) return "declared" as const;
         if (real > 0) return "verified" as const;
         return hasAll ? ("declared" as const) : ("unknown" as const);
       })(),
