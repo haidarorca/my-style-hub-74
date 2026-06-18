@@ -273,7 +273,7 @@ async function fallbackLogisticsQuery(
     /* 1b */ countryIds.length > 0
       ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
-    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity").in("order_id", orderIds),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
@@ -326,15 +326,15 @@ async function fallbackLogisticsQuery(
     try {
       const { data: products } = await supabase
         .from("products")
-        .select("id, shop_id, weight_kg")
+        .select("id, vendor_id, weight_kg")
         .in("id", allProductIds);
       for (const p of products ?? []) {
-        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+        if (p.vendor_id) productShopMap.set(p.id, p.vendor_id);
         productWeightMap.set(p.id, p.weight_kg != null ? Number(p.weight_kg) : null);
       }
       const shopIds = Array.from(new Set(productShopMap.values()));
       if (shopIds.length > 0) {
-        const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
+        const { data: shops } = await supabase.from("profiles").select("id, source_country_id").in("id", shopIds);
         for (const s of shops ?? []) { shopSourceMap.set(s.id, s.source_country_id ?? null); }
       }
       // Fetch name + flag pour les pays d'origine (shops + champ direct sur la commande)
