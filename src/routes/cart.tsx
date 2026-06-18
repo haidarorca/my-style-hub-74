@@ -783,6 +783,15 @@ function CartPage() {
       };
       console.info("[checkout] submit start", debugPayload);
       const rows = selectedItems.map((it: any) => ({
+        // Une ligne = une seule catégorie métier, stampée avant toute persistance.
+        // Le serveur authentifié recalcule et écrase ces valeurs ; le flux invité
+        // conserve ainsi le même contrat sans double bucket.
+        customization: stampedCustomization(
+          it,
+          getItemLogisticsType(it) === "IMPORT_KNOWN_WEIGHT" ? knownShippingServiceId :
+          getItemLogisticsType(it) === "IMPORT_UNKNOWN_WEIGHT" ? unknownShippingServiceId :
+          null,
+        ),
         product_id: it.products.id,
         variant_id: it.variant_id ?? null,
         vendor_id: it.products.vendor_id,
@@ -794,7 +803,6 @@ function CartPage() {
         color: it.product_variants?.color ?? null,
         unit_price: unitPrice(it),
         quantity: it.quantity,
-        customization: cleanCustomization(it.customization),
       }));
 
       let savedOrderId = orderId;
@@ -820,7 +828,7 @@ function CartPage() {
                 productId: it.products.id,
                 variantId: it.variant_id ?? null,
                 quantity: it.quantity,
-                customization: cleanCustomization(it.customization),
+                customization: stampedCustomization(it, svc),
                 shippingServiceId: svc,
               };
             }),
