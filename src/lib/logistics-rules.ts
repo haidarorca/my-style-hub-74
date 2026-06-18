@@ -20,7 +20,11 @@
 // Cas local (source = destination) → JAMAIS de circuit pesée, JAMAIS d'import.
 // ═══════════════════════════════════════════════════════════════
 
-export type WeightStatus = "unknown" | "declared" | "verified";
+export type WeightStatus = "unknown" | "declared" | "verified" | "anomaly";
+
+/** Tolérance par défaut entre poids déclaré et poids réel mesuré. */
+export const WEIGHT_TOLERANCE_PCT = 0.10;
+export const WEIGHT_TOLERANCE_KG = 0.5;
 
 export interface LogisticsProduct {
   weight_kg?: number | null;
