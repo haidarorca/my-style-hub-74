@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, ChevronRight, Phone, Eye } from "lucide-react";
 import { WorkflowStepBar } from "./WorkflowStepBar";
-import { WorkflowExpandedForm } from "./WorkflowExpandedForm";
+import { WorkflowExpandedForm, LogisticsInfoBlock } from "./WorkflowExpandedForm";
 import { CustomerBadge } from "./CustomerBadge";
 import { WorkflowActionButton } from "./WorkflowActionButton";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ import {
   getDaysBadgeColor,
   getPaymentBadgeVariant,
 } from "@/lib/workflow.config";
-import { weightStatusBadgeClass, weightStatusLabel } from "@/lib/logistics-rules";
+
 import type { WorkflowRow as TWorkflowRow } from "@/types/workflow";
 
 interface Props {
@@ -188,17 +188,6 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
         </div>
 
         <div className="flex items-center justify-end gap-1">
-          {(row.order_type === "import" || row.order_type === "mixed") && row.weight_status && (
-            <span
-              className={cn(
-                "text-[9px] px-1 py-0.5 rounded border font-medium",
-                weightStatusBadgeClass(row.weight_status)
-              )}
-              title={weightStatusLabel(row.weight_status)}
-            >
-              {row.weight_status === "anomaly" ? "⚠ Anomalie" : row.weight_status === "verified" ? "✓ Pesé" : row.weight_status === "declared" ? "≈ Déclaré" : "? Inconnu"}
-            </span>
-          )}
           {row.days_pending > 0 && (
             <span
               className={cn(
@@ -242,22 +231,16 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
             >
               {typeLabel.icon}
             </span>
+            {row.order_type !== "local" && row.source_country_flag && (
+              <span className="text-[11px] leading-none shrink-0" title={row.source_country_name ?? ""}>
+                {row.source_country_flag}
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground font-mono truncate">
               {position > 0 ? `#${String(position).padStart(3, "0")}` : "#---"} · {row.order_id?.slice(0, 8)}…
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {(row.order_type === "import" || row.order_type === "mixed") && row.weight_status && (
-              <span
-                className={cn(
-                  "text-[9px] px-1.5 py-0 rounded border font-medium",
-                  weightStatusBadgeClass(row.weight_status)
-                )}
-                title={weightStatusLabel(row.weight_status)}
-              >
-                {row.weight_status === "anomaly" ? "⚠" : row.weight_status === "verified" ? "✓" : row.weight_status === "declared" ? "≈" : "?"}
-              </span>
-            )}
             {row.days_pending > 0 && (
               <span
                 className={cn(
@@ -348,6 +331,8 @@ export function WorkflowRow({ row, position = 0, onViewDetail }: Props) {
               </div>
             </div>
           </div>
+
+          <LogisticsInfoBlock row={row} />
 
           <WorkflowExpandedForm row={row} />
 

@@ -294,6 +294,10 @@ export function getAvailableActions(row: WorkflowRow): {
         primary: { label: "Valider pesée", action: "validate_weighing" },
       };
     case "fees_calculated":
+      // Circuit B : poids déclaré, vérification interne par l'agent.
+      if (row.weight_status === "declared") {
+        return { primary: { label: "Vérifier poids", action: "verify_weight" } };
+      }
       return {
         primary: { label: "Envoyer au client", action: "send_to_client" },
       };

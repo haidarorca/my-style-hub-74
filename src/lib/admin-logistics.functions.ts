@@ -45,7 +45,17 @@ export type LogisticsOrderRow = {
   order_created_at: string;
   destination_country_id: string | null;
   destination_country_name: string | null;
+  /** Pays d'origine (vendeur) — premier non-vide rencontré sur les items import. */
+  source_country_id: string | null;
+  source_country_name: string | null;
+  source_country_flag: string | null;
   item_count: number;
+  /** Nombre d'articles avec poids déclaré > 0 (déclaration vendeur). */
+  declared_items_count: number;
+  /** Nombre d'articles sans poids déclaré. */
+  unknown_items_count: number;
+  /** Total d'articles (= declared + unknown). */
+  total_items_count: number;
   days_pending: number;
 
   // Logistique
@@ -261,7 +271,7 @@ async function fallbackLogisticsQuery(
 
   const [countriesResult, itemsResult, assessmentsResult] = await Promise.allSettled([
     /* 1b */ countryIds.length > 0
-      ? supabase.from("countries").select("id, name").in("id", countryIds)
+      ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
     /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
@@ -272,11 +282,13 @@ async function fallbackLogisticsQuery(
     ).in("order_id", orderIds),
   ]);
 
-  // ── Countries
+  // ── Countries (name + flag)
   let countryNameMap = new Map<string, string>();
+  let countryFlagMap = new Map<string, string>();
   if (countriesResult.status === "fulfilled" && countriesResult.value.data) {
     for (const c of countriesResult.value.data) {
       if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+      if (c.id && c.flag_emoji) countryFlagMap.set(c.id as string, c.flag_emoji as string);
     }
   }
 
@@ -324,6 +336,22 @@ async function fallbackLogisticsQuery(
       if (shopIds.length > 0) {
         const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
         for (const s of shops ?? []) { shopSourceMap.set(s.id, s.source_country_id ?? null); }
+      }
+      // Fetch name + flag pour les pays d'origine (shops + champ direct sur la commande)
+      const sourceCountryIds = new Set<string>();
+      for (const v of shopSourceMap.values()) if (v) sourceCountryIds.add(v);
+      for (const o of rawOrders) if (o.source_country_id) sourceCountryIds.add(o.source_country_id as string);
+      // Exclure ceux déjà chargés via destination
+      const missingSrc = Array.from(sourceCountryIds).filter((id) => !countryNameMap.has(id));
+      if (missingSrc.length > 0) {
+        const { data: srcCountries } = await supabase
+          .from("countries")
+          .select("id, name, flag_emoji")
+          .in("id", missingSrc);
+        for (const c of srcCountries ?? []) {
+          if (c.id && c.name) countryNameMap.set(c.id as string, c.name as string);
+          if (c.id && c.flag_emoji) countryFlagMap.set(c.id as string, c.flag_emoji as string);
+        }
       }
     } catch { /* ignorer */ }
   }
@@ -422,6 +450,24 @@ async function fallbackLogisticsQuery(
     // amount_remaining = reste à payer sur la commande totale (produits + frais)
     const amountRemaining = Math.max(0, orderTotal - amountPaid);
 
+    // ── Comptage déclaré / inconnu + détection du pays d'origine
+    let declaredCount = 0;
+    let unknownCount = 0;
+    let detectedSrcCountryId: string | null = (order.source_country_id as string) ?? null;
+    for (const it of items) {
+      const w = productWeightMap.get(it.product_id);
+      if (w != null && w > 0) declaredCount += 1;
+      else unknownCount += 1;
+      if (!detectedSrcCountryId) {
+        const shopId = productShopMap.get(it.product_id);
+        if (shopId) {
+          const src = shopSourceMap.get(shopId);
+          if (src) detectedSrcCountryId = src;
+        }
+      }
+    }
+    const totalItemsCount = items.length;
+
     return {
       order_id: orderId,
       order_status: String(order.status ?? "new"),
@@ -434,7 +480,13 @@ async function fallbackLogisticsQuery(
       order_created_at: String(order.created_at ?? new Date().toISOString()),
       destination_country_id: (order.destination_country_id as string) ?? null,
       destination_country_name: countryNameMap.get(order.destination_country_id as string) ?? null,
+      source_country_id: detectedSrcCountryId,
+      source_country_name: detectedSrcCountryId ? (countryNameMap.get(detectedSrcCountryId) ?? null) : null,
+      source_country_flag: detectedSrcCountryId ? (countryFlagMap.get(detectedSrcCountryId) ?? null) : null,
       item_count: items.reduce((s, i) => s + (i.quantity ?? 1), 0),
+      declared_items_count: declaredCount,
+      unknown_items_count: unknownCount,
+      total_items_count: totalItemsCount,
       days_pending: daysBetween(String(order.created_at)),
 
       assessment_id: assessmentId,
@@ -1000,9 +1052,10 @@ export const updateShipmentAssessment = createServerFn({ method: "POST" })
       const next = data.status;
 
       // Transitions autorisées IMPORT
+      // fees_calculated → ready_to_ship : court-circuit Circuit B (poids déclaré vérifié)
       const IMPORT_ALLOWED: Record<string, string[]> = {
         awaiting_weighing: ["fees_calculated"],
-        fees_calculated: ["awaiting_client_validation", "rejected"],
+        fees_calculated: ["awaiting_client_validation", "ready_to_ship", "rejected"],
         rejected: ["awaiting_weighing"],
         awaiting_client_validation: ["validated", "rejected"],
         validated: ["ready_to_ship"],

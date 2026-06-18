@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,9 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, CreditCard, Receipt } from "lucide-react";
+import { Loader2, CheckCircle, Send, Truck, PackageCheck, RotateCcw, Phone, CreditCard, Receipt, ScanLine, AlertTriangle } from "lucide-react";
 import { updateShipmentAssessment, confirmShipmentPayment, updateShipmentTracking } from "@/lib/admin-logistics.functions";
-import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
+import { getOrCreateShipmentAssessment, verifyDeclaredWeight } from "@/lib/shipment-assessments.functions";
+import { getOrderItems } from "@/lib/cockpit-payments.functions";
+
 import { useShippingServices } from "@/hooks/use-shipping-services";
 import { fmtF } from "@/lib/workflow.config";
 import type { WorkflowRow } from "@/types/workflow";
@@ -313,6 +317,11 @@ export function WorkflowExpandedForm({ row }: Props) {
 
   // ─── FRAIS CALCULÉS ──────────────────────────────
   if (ls === "fees_calculated") {
+    // Circuit B — poids déclaré : vérification interne (saisie article par article).
+    if (row.weight_status === "declared" || row.weight_status === "anomaly") {
+      return <VerifyWeightForm row={row} />;
+    }
+    // Circuit A — poids inconnu : envoi au client.
     return (
       <div className="pt-2 space-y-2">
         <p className="text-xs text-muted-foreground">
@@ -434,4 +443,234 @@ export function WorkflowExpandedForm({ row }: Props) {
   }
 
   return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LogisticsInfoBlock — bloc d'infos logistiques (interne)
+   ═══════════════════════════════════════════════════════════════ */
+export function LogisticsInfoBlock({ row }: { row: WorkflowRow }) {
+  if (row.order_type === "local") return null;
+  const declared = row.declared_items_count ?? 0;
+  const unknown = row.unknown_items_count ?? 0;
+  const total = row.total_items_count ?? (declared + unknown);
+  return (
+    <div className="rounded-lg border bg-slate-50/70 px-3 py-2 text-[11px] space-y-1">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+        Informations logistiques
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Origine :</span>
+          <span className="font-medium">
+            {row.source_country_flag ? `${row.source_country_flag} ` : ""}
+            {row.source_country_name ?? "—"}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Articles déclarés :</span>{" "}
+          <span className="font-medium">{declared} / {total}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Poids déclaré :</span>{" "}
+          <span className="font-medium">
+            {row.declared_weight_kg != null ? `${Number(row.declared_weight_kg).toFixed(2)} kg` : "—"}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Poids vérifié :</span>{" "}
+          <span className="font-medium">
+            {row.real_weight_kg != null && Number(row.real_weight_kg) > 0
+              ? `${Number(row.real_weight_kg).toFixed(2)} kg`
+              : "—"}
+          </span>
+        </div>
+        {unknown > 0 && (
+          <div className="col-span-2 text-amber-700">
+            {unknown} article{unknown > 1 ? "s" : ""} sans poids déclaré — workflow pesée requis.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VerifyWeightForm — Circuit B : vérification interne, par article
+   ═══════════════════════════════════════════════════════════════ */
+function VerifyWeightForm({ row }: { row: WorkflowRow }) {
+  const qc = useQueryClient();
+  const getItemsFn = useServerFn(getOrderItems);
+  const verifyFn = useServerFn(verifyDeclaredWeight);
+
+  const { data: itemsData, isLoading } = useQuery({
+    queryKey: ["order-items-verify", row.order_id],
+    queryFn: () => getItemsFn({ data: { order_id: row.order_id } }),
+    staleTime: 30_000,
+  });
+
+  type Line = {
+    product_id?: string;
+    name: string;
+    quantity: number;
+    real: string;
+  };
+
+  const [lines, setLines] = useState<Line[]>([]);
+  useEffect(() => {
+    if (!itemsData?.items) return;
+    setLines(
+      itemsData.items.map((it: any) => ({
+        product_id: it.product_id,
+        name: it.product_name ?? "Article",
+        quantity: Number(it.quantity ?? 1),
+        real: "",
+      })),
+    );
+  }, [itemsData]);
+
+  // Référence : poids déclaré total agrégé (vendeur).
+  const totalDeclared = Number(row.declared_weight_kg ?? 0);
+  const totalReal = lines.reduce(
+    (s, l) => s + (parseFloat(l.real) || 0) * l.quantity,
+    0,
+  );
+  const tolerance = Math.max(0.5, totalDeclared * 0.10);
+  const allFilled = lines.length > 0 && lines.every((l) => parseFloat(l.real) > 0);
+  const willBeAnomaly =
+    allFilled && totalDeclared > 0 && Math.abs(totalReal - totalDeclared) > tolerance;
+
+  const verify = useMutation({
+    mutationFn: async () => {
+      if (!row.assessment_id) throw new Error("Évaluation logistique manquante");
+      return await verifyFn({
+        data: {
+          assessment_id: row.assessment_id,
+          items: lines.map((l) => ({
+            product_id: l.product_id,
+            real_weight_kg: parseFloat(l.real) || 0,
+            quantity: l.quantity,
+          })),
+        },
+      });
+    },
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["workflow-orders"] });
+      qc.invalidateQueries({ queryKey: ["weight-anomalies"] });
+      if (res?.isAnomaly) {
+        toast.error("Anomalie détectée — expédition bloquée. Traitez via le panneau Anomalies.");
+      } else {
+        toast.success("Poids vérifié — prêt à expédier");
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Pré-remplissage avec la moyenne déclarée par article (référence rapide).
+  const perItemDeclared =
+    totalDeclared > 0 && lines.length > 0
+      ? totalDeclared / lines.reduce((s, l) => s + l.quantity, 0)
+      : 0;
+  const fillWithDeclared = () => {
+    setLines((ls) => ls.map((l) => ({ ...l, real: perItemDeclared > 0 ? perItemDeclared.toFixed(2) : "" })));
+  };
+
+  return (
+    <div className="pt-2 space-y-3">
+      <div className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-900 flex items-start gap-1.5">
+        <ScanLine className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <span>
+          Vérification interne (Circuit B). Saisissez le poids réel pour chaque article.
+          Si l'écart total est ≤ tolérance, la commande passe directement à « Prêt à expédier »
+          sans envoi au client.
+        </span>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement des articles…
+        </div>
+      ) : lines.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucun article trouvé.</p>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-[1fr_50px_80px] gap-1.5 text-[9px] uppercase tracking-wider text-muted-foreground px-1">
+            <span>Article</span>
+            <span className="text-right">Qté</span>
+            <span className="text-right">Réel (kg)</span>
+          </div>
+          {lines.map((l, i) => (
+            <div
+              key={l.product_id ?? i}
+              className="grid grid-cols-[1fr_50px_80px] gap-1.5 items-center"
+            >
+              <span className="text-xs truncate" title={l.name}>{l.name}</span>
+              <span className="text-[11px] text-right text-muted-foreground">×{l.quantity}</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={l.real}
+                onChange={(e) =>
+                  setLines((arr) =>
+                    arr.map((x, j) => (j === i ? { ...x, real: e.target.value } : x)),
+                  )
+                }
+                className="h-7 text-xs text-right"
+                placeholder="0.00"
+              />
+            </div>
+          ))}
+
+          <div className="rounded-md bg-muted/40 px-2 py-1.5 text-[11px] space-y-0.5">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total déclaré</span>
+              <span className="font-medium">{totalDeclared.toFixed(2)} kg</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total réel</span>
+              <span className={cn("font-medium", willBeAnomaly && "text-red-700")}>
+                {totalReal.toFixed(2)} kg
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tolérance</span>
+              <span className="text-[10px] text-muted-foreground">
+                ± {tolerance.toFixed(2)} kg (10 % ou 0.5 kg)
+              </span>
+            </div>
+          </div>
+
+          {willBeAnomaly && (
+            <div className="rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] text-red-800 flex items-start gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Écart au-delà de la tolérance. La validation créera une anomalie interne et
+                bloquera l'expédition automatique. Le client ne voit aucune mention d'anomalie.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          size="sm"
+          onClick={() => verify.mutate()}
+          disabled={verify.isPending || !allFilled || lines.length === 0}
+        >
+          {verify.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+          ) : (
+            <CheckCircle className="h-3.5 w-3.5 mr-1" />
+          )}
+          Valider la vérification
+        </Button>
+        {totalDeclared > 0 && (
+          <Button size="sm" variant="outline" onClick={fillWithDeclared}>
+            Pré-remplir avec la déclaration
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }

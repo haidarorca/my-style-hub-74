@@ -227,6 +227,68 @@ const UpdateSchema = z.object({
     .optional(),
 });
 
+// ---------- Admin: vérifier le poids déclaré (Circuit B, court-circuit) ----------
+// Reçoit une saisie article-par-article + facultatif des frais ajustés.
+// Si l'écart total déclaré/réel ≤ tolérance, passe directement à ready_to_ship.
+// Sinon, reste sur fees_calculated (l'anomalie bloque l'expédition).
+const VerifySchema = z.object({
+  assessment_id: z.string().uuid(),
+  items: z
+    .array(
+      z.object({
+        order_item_id: z.string().optional(),
+        product_id: z.string().optional(),
+        declared_weight_kg: z.number().min(0).nullable().optional(),
+        real_weight_kg: z.number().min(0),
+        quantity: z.number().int().min(1).default(1),
+      }),
+    )
+    .min(1),
+  air_freight_fee: z.number().min(0).nullable().optional(),
+  service_fee: z.number().min(0).nullable().optional(),
+  admin_comment: z.string().max(2000).nullable().optional(),
+});
+
+export const verifyDeclaredWeight = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => VerifySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // Calcul agrégat
+    const totalReal = data.items.reduce(
+      (s, it) => s + Number(it.real_weight_kg) * Number(it.quantity ?? 1),
+      0,
+    );
+    const totalDeclared = data.items.reduce(
+      (s, it) => s + Number(it.declared_weight_kg ?? 0) * Number(it.quantity ?? 1),
+      0,
+    );
+
+    // Tolérance : 10 % ou 0.5 kg.
+    const tolerance = Math.max(0.5, totalDeclared * 0.10);
+    const isAnomaly = totalDeclared > 0 && Math.abs(totalReal - totalDeclared) > tolerance;
+
+    const patch: Record<string, unknown> = {
+      real_weight_kg: Math.round(totalReal * 1000) / 1000,
+      // On garde le statut sur fees_calculated tant qu'il y a une anomalie
+      // pour bloquer l'expédition automatique.
+      status: isAnomaly ? "fees_calculated" : "ready_to_ship",
+    };
+    if (data.air_freight_fee != null) patch.air_freight_fee = data.air_freight_fee;
+    if (data.service_fee != null) patch.service_fee = data.service_fee;
+    if (data.admin_comment) patch.admin_comment = data.admin_comment;
+
+    const { data: row, error } = await (supabaseAdmin as any)
+      .from("order_shipment_assessments")
+      .update(patch)
+      .eq("id", data.assessment_id)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return { assessment: row as ShipmentAssessment, isAnomaly, totalReal, totalDeclared };
+  });
+
 export const updateShipmentAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => UpdateSchema.parse(input))
