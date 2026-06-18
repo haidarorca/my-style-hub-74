@@ -742,8 +742,12 @@ function CartPage() {
       toast.error(t("checkout.country_required"));
       return;
     }
-    if (hasIntlItems && !shippingServiceId) {
-      toast.error("Veuillez choisir un service de transport international.");
+    if (selectedHasKnown && !knownShippingServiceId) {
+      toast.error("Choisissez le mode de transport pour les articles à poids déclaré.");
+      return;
+    }
+    if (selectedHasUnknown && !unknownShippingServiceId) {
+      toast.error("Choisissez le mode de transport pour les articles à poids inconnu.");
       return;
     }
     setSubmitting(true);
@@ -798,7 +802,7 @@ function CartPage() {
         const saved = await createOrder({
           data: {
             destinationCountryId,
-            shippingServiceId: hasIntlItems ? shippingServiceId : null,
+            shippingServiceId: knownShippingServiceId ?? unknownShippingServiceId ?? null,
             address: {
               full_name: addr.full_name,
               phone: addr.phone,
@@ -806,13 +810,20 @@ function CartPage() {
               city: addr.city,
               note: addr.note,
             },
-            items: selectedItems.map((it: any) => ({
-              productId: it.products.id,
-              variantId: it.variant_id ?? null,
-              quantity: it.quantity,
-              customization: cleanCustomization(it.customization),
-              shippingServiceId: (it.shipping_service_id ?? it.customization?.__shipping_service_id) ?? (hasIntlItems ? shippingServiceId : null),
-            })),
+            items: selectedItems.map((it: any) => {
+              const kind = getItemLogisticsType(it);
+              const svc =
+                kind === "IMPORT_KNOWN_WEIGHT" ? knownShippingServiceId :
+                kind === "IMPORT_UNKNOWN_WEIGHT" ? unknownShippingServiceId :
+                null;
+              return {
+                productId: it.products.id,
+                variantId: it.variant_id ?? null,
+                quantity: it.quantity,
+                customization: cleanCustomization(it.customization),
+                shippingServiceId: svc,
+              };
+            }),
           },
         });
         savedOrderId = saved.orderId;
@@ -822,7 +833,7 @@ function CartPage() {
           .insert({
             id: orderId,
             buyer_id: null,
-            total: grandTotal + cartFreightTotal,
+            total: grandTotal + cartFreightTotal, // UNKNOWN exclu (lineFreight=0 pour UNKNOWN)
             status: "new",
             customer_name: addr.full_name,
             customer_phone: addr.phone,
@@ -830,12 +841,12 @@ function CartPage() {
             city: addr.city,
             note: addr.note,
             destination_country_id: destinationCountryId,
-            shipping_service_id: hasIntlItems ? shippingServiceId : null,
-            shipping_estimate_note: hasIntlItems && shippingServiceId
-              ? (allIntlHaveDeclaredWeight
-                  ? `Estimation transport ~ ${shippingEstimate?.toLocaleString("fr-FR") ?? "—"} FCFA · vérifié à la réception`
-                  : "À calculer après réception et pesée")
-              : null,
+            shipping_service_id: knownShippingServiceId ?? unknownShippingServiceId ?? null,
+            shipping_estimate_note: selectedHasUnknown
+              ? "Articles à poids inconnu : fret calculé après pesée."
+              : (selectedHasKnown
+                  ? `Fret inclus (${cartFreightTotal.toLocaleString("fr-FR")} FCFA) — vérifié à la réception`
+                  : null),
           } as any);
         if (oErr) {
           console.error("[checkout] guest orders.insert failed", oErr, debugPayload);
