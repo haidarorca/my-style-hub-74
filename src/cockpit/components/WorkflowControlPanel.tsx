@@ -189,7 +189,7 @@ function CircuitAccordion({
   );
 }
 
-export function WorkflowControlPanel({ orderId, status, isImport, isLocal, onStatusChange }: Props) {
+export function WorkflowControlPanel({ orderId, status, isImport, isLocal, weightStatus, onStatusChange }: Props) {
   const s = status ?? "new";
   const keyBase = `cockpit:circuit-open:${orderId ?? "_"}`;
 
@@ -210,18 +210,23 @@ export function WorkflowControlPanel({ orderId, status, isImport, isLocal, onSta
     );
   }
 
+  const isDeclared =
+    weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly";
+  const importSteps = isDeclared ? IMPORT_STEPS_DECLARED : IMPORT_STEPS_V2;
+
   return (
     <CircuitAccordion
-      storageKey={`${keyBase}:import`}
+      storageKey={`${keyBase}:import:${isDeclared ? "B" : "A"}`}
       defaultOpen={false}
-      steps={IMPORT_STEPS_V2}
+      steps={importSteps}
       currentStatus={s}
       isImportFlow={true}
-      title="Circuit IMPORT"
+      title={isDeclared ? "Circuit IMPORT (poids déclaré)" : "Circuit IMPORT"}
       icon={Truck}
       headerColor="bg-indigo-100 text-indigo-700"
-      action={getNextStep(s, true)}
+      action={getNextStep(s, true, weightStatus)}
       onStatusChange={onStatusChange}
     />
   );
 }
+
