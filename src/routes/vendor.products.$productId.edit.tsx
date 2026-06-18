@@ -67,7 +67,10 @@ function EditProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [requiresIntlShipping, setRequiresIntlShipping] = useState<boolean>(false);
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [lengthCm, setLengthCm] = useState<string>("");
+  const [widthCm, setWidthCm] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("");
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
@@ -107,7 +110,10 @@ function EditProductPage() {
     setDesignation(p.designation ?? "");
     setDescription(p.description ?? "");
     setPrice(String(p.price ?? ""));
-    setRequiresIntlShipping(Boolean((p as any).requires_international_shipping));
+    setWeightKg((p as any).weight_kg != null ? String((p as any).weight_kg) : "");
+    setLengthCm((p as any).length_cm != null ? String((p as any).length_cm) : "");
+    setWidthCm((p as any).width_cm != null ? String((p as any).width_cm) : "");
+    setHeightCm((p as any).height_cm != null ? String((p as any).height_cm) : "");
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
     const drafts = data.variants.map(fromExisting);
@@ -247,12 +253,20 @@ function EditProductPage() {
         newImages.length > 0 ||
         variantsChanged;
 
-      const updatePayload = {
+      const w = weightKg.trim() ? Number(weightKg) : null;
+      const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
+      const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
+      const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
+      const updatePayload: any = {
         name: name.trim(),
         designation: designation.trim() || null,
         description: description.trim() || null,
         price: Number(price) || 0,
-        requires_international_shipping: requiresIntlShipping,
+        weight_kg: w && w > 0 ? w : null,
+        length_cm: l && l > 0 ? l : null,
+        width_cm: wi && wi > 0 ? wi : null,
+        height_cm: h && h > 0 ? h : null,
+        weight_source: w && w > 0 ? "vendor_declared" : null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
@@ -347,21 +361,31 @@ function EditProductPage() {
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
             <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
           </div>
-          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="min-w-0 flex-1">
-              <Label className="text-sm font-medium">Frais internationaux après pesée</Label>
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div>
+              <Label className="text-sm font-medium">Poids et dimensions (optionnel)</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Activez si le colis doit être pesé à l'arrivée. Le client choisira un service de transport au panier et les frais réels seront calculés après pesée.
+                Si renseigné, une estimation transport sera affichée au client pour les commandes internationales. Sinon : "Transport calculé après réception et pesée".
               </p>
             </div>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={requiresIntlShipping}
-                onChange={(e) => setRequiresIntlShipping(e.target.checked)}
-              />
-            </label>
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <Label className="text-[10px]">Poids (kg)</Label>
+                <Input className="h-8" type="number" min={0} step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="2" />
+              </div>
+              <div>
+                <Label className="text-[10px]">L (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">l (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="—" />
+              </div>
+              <div>
+                <Label className="text-[10px]">H (cm)</Label>
+                <Input className="h-8" type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="—" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
