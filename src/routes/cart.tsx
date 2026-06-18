@@ -356,8 +356,7 @@ function CartPage() {
       }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasIntlItems, destinationCountryId, sourceCountryId]);
+  }, [hasIntlItems, destinationCountryId, sourceCountryId, preferredShippingServiceId, shippingServiceId, fetchShippingServices]);
 
   const pricesReady = displayPriceLines.isReady;
   const fallbackUnitPrice = (it: any) => Number(it.product_variants?.price_override ?? it.products?.price ?? 0);
