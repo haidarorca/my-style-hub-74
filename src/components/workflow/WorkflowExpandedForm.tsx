@@ -509,11 +509,9 @@ function VerifyWeightForm({ row }: { row: WorkflowRow }) {
   });
 
   type Line = {
-    order_item_id?: string;
     product_id?: string;
     name: string;
     quantity: number;
-    declared: number;
     real: string;
   };
 
@@ -522,17 +520,16 @@ function VerifyWeightForm({ row }: { row: WorkflowRow }) {
     if (!itemsData?.items) return;
     setLines(
       itemsData.items.map((it: any) => ({
-        order_item_id: it.id,
         product_id: it.product_id,
         name: it.product_name ?? "Article",
         quantity: Number(it.quantity ?? 1),
-        declared: Number(it.weight_kg ?? 0),
         real: "",
       })),
     );
   }, [itemsData]);
 
-  const totalDeclared = lines.reduce((s, l) => s + l.declared * l.quantity, 0);
+  // Référence : poids déclaré total agrégé (vendeur).
+  const totalDeclared = Number(row.declared_weight_kg ?? 0);
   const totalReal = lines.reduce(
     (s, l) => s + (parseFloat(l.real) || 0) * l.quantity,
     0,
