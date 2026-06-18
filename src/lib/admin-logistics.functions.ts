@@ -314,13 +314,23 @@ async function fallbackLogisticsQuery(
     }
   }
 
-  // ── Assessments
+  // ── Assessments : peut y en avoir N par commande (un par sous-commande import).
+  //    On garde le « principal » pour les champs scalaires affichés en liste,
+  //    et on agrège séparément la somme des air_freight_fee (jamais d'invention).
   let assessmentMap = new Map<string, Record<string, unknown>>();
+  let assessmentAirSumMap = new Map<string, number>();
+  let assessmentHasUnknownMap = new Map<string, boolean>();
   if (assessmentsResult.status === "fulfilled" && assessmentsResult.value.data) {
     for (const a of assessmentsResult.value.data) {
-      assessmentMap.set(a.order_id as string, a as SafeRow);
+      const oid = a.order_id as string;
+      // Priorité au statut le plus « avancé » côté UI ; à défaut, premier rencontré.
+      if (!assessmentMap.has(oid)) assessmentMap.set(oid, a as SafeRow);
+      const air = (a as any).air_freight_fee;
+      if (air != null) assessmentAirSumMap.set(oid, (assessmentAirSumMap.get(oid) ?? 0) + Number(air));
+      if ((a as any).weight_mode === "unknown") assessmentHasUnknownMap.set(oid, true);
     }
   }
+
 
   // ═════ ÉTAPE 3 : Produits + Shops (dépend de l'étape 2)
   const allProductIds = Array.from(
