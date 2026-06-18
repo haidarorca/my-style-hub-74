@@ -568,6 +568,7 @@ async function fallbackLogisticsQuery(
       service_fee: (assessment.service_fee as number) ?? null,
       extra_fees: (assessment.extra_fees as number) ?? null,
       total_shipping_fees: totalFees,
+      declared_freight_from_items: declaredFreightFromItems > 0 ? declaredFreightFromItems : null,
       warehouse_location: (assessment.warehouse_location as string) ?? null,
       agent_name: (assessment.agent_name as string) ?? null,
       parcel_photo_url: (assessment.parcel_photo_url as string) ?? null,
