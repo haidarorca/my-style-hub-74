@@ -54,6 +54,10 @@ export type LogisticsOrderRow = {
   real_weight_kg: number | null;
   volumetric_weight_kg: number | null;
   chargeable_weight_kg: number | null;
+  /** Somme des poids déclarés par les vendeurs (kg). null si au moins un produit n'a pas de poids. */
+  declared_weight_kg: number | null;
+  /** "unknown" | "declared" | "verified" — voir lib/logistics-rules. */
+  weight_status: "unknown" | "declared" | "verified";
   air_freight_fee: number | null;
   service_fee: number | null;
   extra_fees: number | null;
@@ -303,11 +307,18 @@ async function fallbackLogisticsQuery(
     new Set(Array.from(orderItemsMap.values()).flat().map((i) => i.product_id).filter(Boolean)),
   );
   let productShopMap = new Map<string, string>();
+  let productWeightMap = new Map<string, number | null>();
   let shopSourceMap = new Map<string, string | null>();
   if (allProductIds.length > 0) {
     try {
-      const { data: products } = await supabase.from("products").select("id, shop_id").in("id", allProductIds);
-      for (const p of products ?? []) { if (p.shop_id) productShopMap.set(p.id, p.shop_id); }
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, shop_id, weight_kg")
+        .in("id", allProductIds);
+      for (const p of products ?? []) {
+        if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+        productWeightMap.set(p.id, p.weight_kg != null ? Number(p.weight_kg) : null);
+      }
       const shopIds = Array.from(new Set(productShopMap.values()));
       if (shopIds.length > 0) {
         const { data: shops } = await supabase.from("shops").select("id, source_country_id").in("id", shopIds);
@@ -430,6 +441,28 @@ async function fallbackLogisticsQuery(
       real_weight_kg: (assessment.real_weight_kg as number) ?? null,
       volumetric_weight_kg: (assessment.volumetric_weight_kg as number) ?? null,
       chargeable_weight_kg: (assessment.volumetric_weight_kg as number) ?? (assessment.real_weight_kg as number) ?? null,
+      declared_weight_kg: (() => {
+        if (items.length === 0) return null;
+        let total = 0;
+        for (const it of items) {
+          const w = productWeightMap.get(it.product_id);
+          if (w == null || w <= 0) return null; // un produit sans poids → on ne peut pas additionner
+          total += w * (it.quantity ?? 1);
+        }
+        return Math.round(total * 1000) / 1000;
+      })(),
+      weight_status: (() => {
+        if (orderType === "local") return "verified" as const;
+        const real = Number((assessment.real_weight_kg as number) ?? 0);
+        if (real > 0) return "verified" as const;
+        // déclaré ?
+        let hasAll = items.length > 0;
+        for (const it of items) {
+          const w = productWeightMap.get(it.product_id);
+          if (w == null || w <= 0) { hasAll = false; break; }
+        }
+        return hasAll ? ("declared" as const) : ("unknown" as const);
+      })(),
       air_freight_fee: (assessment.air_freight_fee as number) ?? null,
       service_fee: (assessment.service_fee as number) ?? null,
       extra_fees: (assessment.extra_fees as number) ?? null,

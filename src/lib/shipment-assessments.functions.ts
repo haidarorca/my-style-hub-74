@@ -91,6 +91,10 @@ export const listShipmentAssessments = createServerFn({ method: "POST" })
   });
 
 // ---------- Admin: get or create assessment for one order ----------
+// Pré-remplissage : si tous les items ont un poids déclaré + dimensions,
+// on initialise l'évaluation au statut "fees_calculated" avec les valeurs
+// déclarées. L'agent passe alors en mode VÉRIFICATION (et non pesée).
+// Sinon (poids inconnu pour au moins un item), statut "awaiting_weighing".
 export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ order_id: z.string().uuid() }).parse(input))
@@ -120,20 +124,81 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
       if (svc?.price_per_kg != null) svcPrice = Number(svc.price_per_kg);
     }
 
+    // Pré-remplissage à partir des poids/dimensions déclarés par les vendeurs.
+    let declaredRealKg = 0;
+    let declaredVolKg = 0;
+    let allHaveDeclaredWeight = false;
+    let maxL = 0, maxW = 0, maxH = 0;
+    try {
+      const { data: items } = await (supabaseAdmin as any)
+        .from("order_items")
+        .select("product_id, quantity")
+        .eq("order_id", data.order_id);
+      const itemList = (items ?? []) as Array<{ product_id: string; quantity: number }>;
+      if (itemList.length > 0) {
+        const productIds = Array.from(new Set(itemList.map((i) => i.product_id).filter(Boolean)));
+        const { data: products } = await (supabaseAdmin as any)
+          .from("products")
+          .select("id, weight_kg, length_cm, width_cm, height_cm")
+          .in("id", productIds);
+        const pMap = new Map<string, any>((products ?? []).map((p: any) => [p.id, p]));
+        allHaveDeclaredWeight = itemList.every((it) => {
+          const p = pMap.get(it.product_id);
+          return p && Number(p.weight_kg ?? 0) > 0;
+        });
+        if (allHaveDeclaredWeight) {
+          for (const it of itemList) {
+            const p = pMap.get(it.product_id) ?? {};
+            const qty = Number(it.quantity ?? 1);
+            const real = Number(p.weight_kg ?? 0);
+            const l = Number(p.length_cm ?? 0);
+            const w = Number(p.width_cm ?? 0);
+            const h = Number(p.height_cm ?? 0);
+            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+            declaredRealKg += real * qty;
+            declaredVolKg += vol * qty;
+            if (l > maxL) maxL = l;
+            if (w > maxW) maxW = w;
+            if (h > maxH) maxH = h;
+          }
+        }
+      }
+    } catch { /* on retombe sur le mode "pesée" classique */ }
+
+    const useDeclared = allHaveDeclaredWeight && declaredRealKg > 0;
+    const chargeable = useDeclared ? Math.max(declaredRealKg, declaredVolKg) : 0;
+    const airFreightFee = useDeclared && svcPrice != null
+      ? Math.round(chargeable * svcPrice)
+      : null;
+
+    const insertPayload: Record<string, unknown> = {
+      order_id: data.order_id,
+      created_by: context.userId,
+      status: useDeclared ? "fees_calculated" : "awaiting_weighing",
+      shipping_service_id: order?.shipping_service_id ?? null,
+      price_per_kg_snapshot: svcPrice,
+    };
+    if (useDeclared) {
+      insertPayload.real_weight_kg = Math.round(declaredRealKg * 1000) / 1000;
+      insertPayload.volumetric_weight_kg = declaredVolKg > 0
+        ? Math.round(declaredVolKg * 1000) / 1000
+        : null;
+      insertPayload.length_cm = maxL || null;
+      insertPayload.width_cm = maxW || null;
+      insertPayload.height_cm = maxH || null;
+      insertPayload.air_freight_fee = airFreightFee;
+      insertPayload.admin_comment = "Pré-rempli depuis les poids déclarés par les vendeurs — à vérifier à la réception.";
+    }
+
     const { data: created, error } = await (supabaseAdmin as any)
       .from("order_shipment_assessments")
-      .insert({
-        order_id: data.order_id,
-        created_by: context.userId,
-        status: "awaiting_weighing",
-        shipping_service_id: order?.shipping_service_id ?? null,
-        price_per_kg_snapshot: svcPrice,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
     return created as ShipmentAssessment;
   });
+
 
 // ---------- Admin: update assessment (fees, weight, photo, etc.) ----------
 const UpdateSchema = z.object({
