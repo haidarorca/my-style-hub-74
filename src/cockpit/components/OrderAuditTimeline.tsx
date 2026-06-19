@@ -7,7 +7,26 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry } from "@/cockpit/types";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
-import { PAYMENT_METHOD_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { PAYMENT_METHOD_LABELS, STATUS_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { LINE_KIND_SHORT, type LineKind } from "@/lib/line-kind";
+
+/** Transforme une entrée d'audit brute en libellé métier lisible.
+ *  Exemples :
+ *   "[uuid::IMPORT_KNOWN_WEIGHT] Statut → confirmed"
+ *      → label "Statut → Confirmée", sub "Sous-commande Import · Poids déclaré"
+ *   "Statut → shipped" → "Statut → Expédiée" */
+function humanizeAuditAction(action: string): { label: string; sub?: string } {
+  const scoped = action.match(/^\[([0-9a-f-]+)::(LOCAL|IMPORT_KNOWN_WEIGHT|IMPORT_UNKNOWN_WEIGHT)\]\s*Statut\s*→\s*(\S+)\s*$/i);
+  if (scoped) {
+    const lk = scoped[2].toUpperCase() as LineKind;
+    const st = scoped[3];
+    const lkLabel = lk === "LOCAL" ? "Sous-commande Local" : `Sous-commande Import (${LINE_KIND_SHORT[lk]})`;
+    return { label: `Statut → ${STATUS_LABELS[st] ?? st}`, sub: lkLabel };
+  }
+  const simple = action.match(/^Statut\s*→\s*(\S+)\s*$/i);
+  if (simple) return { label: `Statut → ${STATUS_LABELS[simple[1]] ?? simple[1]}` };
+  return { label: action };
+}
 
 /* ═══════════════════════════════════════════════════════════════
    OrderAuditTimeline — historique unique regroupant toutes
@@ -60,7 +79,9 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
       else if (action.includes("livr") || action.includes("deliver")) { icon = CheckCircle; tone = "emerald"; }
       else if (action.includes("expéd") || action.includes("ship")) { icon = Truck; tone = "indigo"; }
       else if (action.includes("pesée") || action.includes("weigh")) { icon = Scale; tone = "orange"; }
-      out.push({ date: a.timestamp, label: a.action, sub: a.details ?? undefined, by: a.adminName, icon, tone });
+      const human = humanizeAuditAction(a.action);
+      const subParts = [human.sub, a.details ?? undefined].filter(Boolean) as string[];
+      out.push({ date: a.timestamp, label: human.label, sub: subParts.length ? subParts.join(" · ") : undefined, by: a.adminName, icon, tone });
     }
 
     // Paiements (+ modifications)
