@@ -1,102 +1,79 @@
 // ═══════════════════════════════════════════════════════════════
-// DASHBOARD — Cockpit Kawzone (architecture sous-commandes boutiques)
-// Une seule vue : pipeline par sous-commande boutique.
-// Le concept MIXTE et les KPI globaux ont été retirés.
+// DASHBOARD — Centre de pilotage ERP Kawzone
+// Chaque bouton modifie réellement les données et fait avancer
+// la commande dans son cycle de vie.
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useSearch, useNavigate } from "@tanstack/react-router";
-import { Search, ClipboardList, Archive, ArrowUpDown, Download } from "lucide-react";
+import { Search, ClipboardList, Home, Package, Archive, X, ArrowLeft, Pencil, Trash2, Filter, ChevronDown, AlertTriangle, ArrowUpDown, Download, DollarSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
-import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
 import { useAuth } from "@/hooks/use-auth";
+import { KpiCards } from "@/cockpit/components/KpiCards";
+import { OrderCard } from "@/cockpit/components/OrderCard";
 import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
 import { CancelDialog } from "@/cockpit/components/CancelDialog";
 import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
+import { DateRangeFilter } from "@/cockpit/components/DateRangeFilter";
 import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
 import { PipelineView } from "@/cockpit/components/PipelineView";
-import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
-import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
-import { useSubAssessments } from "@/cockpit/hooks/useSubAssessments";
-import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
-import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
-import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
-import { fmtF } from "@/cockpit/lib/workflow";
+import type { DateRange } from "react-day-picker";
+import { fmtF, isImport, STATUS_LABELS, statusToKpiFilter } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
-import type { ArchiveFilter } from "@/cockpit/types";
-import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
+import type { KpiFilter, ArchiveFilter } from "@/cockpit/types";
+import { getOrderItems } from "@/lib/cockpit-payments.functions";
+import type { OrderArticle, ArticleStatus, StockBreakAction } from "@/cockpit/lib/article-states";
 
-
+// ─── Config tri ───
 type SortField = "date" | "amount" | "name" | "status";
 type SortDir = "asc" | "desc";
 
+// ─── Tous les statuts pour le filtre ───
+const ALL_STATUSES = [
+  { key: "new", label: "A confirmer" },
+  { key: "confirmed", label: "Confirmee" },
+  { key: "ordered_supplier", label: "Commandee fournisseur" },
+  { key: "received_warehouse", label: "Recue entrepot" },
+  { key: "awaiting_weighing", label: "A peser" },
+  { key: "fees_calculated", label: "Calcul frais" },
+  { key: "payment_fees", label: "Paiement client" },
+  { key: "ready", label: "Prete (local)" },
+  { key: "ready_delivery", label: "Prete (import)" },
+  { key: "shipped", label: "Expediee" },
+  { key: "delivered", label: "Livree" },
+  { key: "cancelled", label: "Annulee" },
+];
+
+// ─── Config postes de travail ───
+// Chaque poste définit: titre, label du bouton, couleur, prochain statut
+const WORKSTATIONS: Record<string, { title: string; actionLabel: string; actionColor: string; nextStatus: string }> = {
+  new: { title: "POSTE — À confirmer", actionLabel: "Confirmer", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "confirmed" },
+  payment_pending: { title: "POSTE — Paiements", actionLabel: "Marquer payée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "ready" },
+  to_weigh: { title: "POSTE — À peser", actionLabel: "Pesée enregistrée", actionColor: "bg-orange-600 hover:bg-orange-700 text-white", nextStatus: "fees_calculated" },
+  ready: { title: "POSTE — Prête à expédier", actionLabel: "Expédier", actionColor: "bg-indigo-600 hover:bg-indigo-700 text-white", nextStatus: "shipped" },
+  shipped: { title: "POSTE — En livraison", actionLabel: "Marquer livrée", actionColor: "bg-emerald-600 hover:bg-emerald-700 text-white", nextStatus: "delivered" },
+};
 
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const {
-    orders, isLoading, setSearchTerm,
+    orders, isLoading, searchTerm, setSearchTerm,
     getPayments, getTotalPaid, getAudit,
     addPayment, editPayment, deletePayment,
     getWeighings, addWeighing,
-    updateStatus, cancelOrder, cancellations,
+    updateStatus, cancelOrder, getCancellation, cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
-    getSubOrderStatus,
   } = useRealOrders();
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
-  const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
-
-  // Le Cockpit n'expose QUE les sous-commandes Admin + Commission. Les boutiques
-  // autonomes sont exclues à la source dans `useSubOrderRows` (rows = managed).
-  // Chaque row reçoit `effective_status` (sub_order_states ?? mother).
-  const { rows: subOrderRows } = useSubOrderRows(orders, getSubOrderStatus);
-
-  // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
-  const visibleOrderIdsAll = useMemo(
-    () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
-    [subOrderRows],
-  );
-  const { getAssessment } = useSubAssessments(visibleOrderIdsAll);
-
-  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
-  const visibleOrderIds = visibleOrderIdsAll;
-  const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
-
-  // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
-  const visibleVendorIds = useMemo(
-    () => [...new Set(subOrderRows.map(r => r.vendor_id))],
-    [subOrderRows],
-  );
-  const { data: vendorProfiles } = useVendorProfiles(visibleVendorIds);
-
-
-  const openOrder = useCallback((o: LogisticsOrderRow) => {
-    setSelectedSubKey(undefined);
-    setSelectedOrder(o);
-  }, []);
-
-  // ─── Deep-link : ?orderId=…&focus=money ───
-  const search = useSearch({ from: "/admin/cockpit" });
-  const navigate = useNavigate({ from: "/admin/cockpit" });
-  useEffect(() => {
-    if (!search.orderId || orders.length === 0) return;
-    const found = orders.find(o => o.order_id === search.orderId);
-    if (!found) return;
-    setSelectedOrder(found);
-    const focus = search.focus;
-    navigate({ search: {}, replace: true });
-    if (focus === "money") {
-      setTimeout(() => {
-        const el = document.getElementById("cockpit-financial-actions");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 250);
-    }
-  }, [search.orderId, search.focus, orders, navigate]);
-
-  const [activeTab, setActiveTab] = useState<"actions" | "archive">("actions");
+  const [selectedSubOrderKey, setSelectedSubOrderKey] = useState<string | undefined>(undefined);
+  const [selectedArticles, setSelectedArticles] = useState<OrderArticle[] | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"actions" | "alerts" | "financial" | "archive">("actions");
+  const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
+  const [viewMode, setViewMode] = useState<"list" | "pipeline">("pipeline");
+  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
 
   // Dialogs
   const [showCancel, setShowCancel] = useState(false);
@@ -104,124 +81,95 @@ export default function CockpitDashboard() {
   const [showItemsPanel, setShowItemsPanel] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // ─── Moteur de filtres métier multi-dimensions ───
-  const {
-    filters,
-    filteredRows: filteredSubRows,
-    options: filterOptions,
-    count: activeFilterCount,
-    update: updateFilter,
-    toggleArray: toggleArrayFilter,
-    reset: resetFilters,
-  } = useCockpitFilters({ rows: subOrderRows, vendorProfiles, historyMap });
+  // ─── Filtres avancés ───
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [balanceFilter, setBalanceFilter] = useState<string>(""); // "", "unpaid", "partial", "paid"
+  const [minDays, setMinDays] = useState<string>("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  // Synchronise la recherche du moteur de filtres avec la barre globale.
-  useEffect(() => { setSearchTerm(filters.search); }, [filters.search, setSearchTerm]);
-
-  // Tri
+  // ─── Tri ───
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // ─── Sélection multiple ───
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
-  // ─── Article states ───
-  const articlesHook = useArticleStates(
-    selectedOrder?.order_id ?? null,
-    selectedOrder?.logistics_status ?? undefined
-  );
-  const selectedArticles = selectedOrder ? articlesHook.articles : undefined;
+  // États locaux pour formulaires inline
+  const [payForms, setPayForms] = useState<Record<string, { amount: string; method: string; reference: string }>>({});
+  const [weighForms, setWeighForms] = useState<Record<string, { realWeight: string; length: string; width: string; height: string }>>({});
+  const [editingPay, setEditingPay] = useState<string | null>(null);
+  const [editPayForm, setEditPayForm] = useState<{ amount: string; method: string; reference: string }>({ amount: "", method: "wave", reference: "" });
 
+  // ─── Charger les articles quand une commande est sélectionnée ───
+  useEffect(() => {
+    if (!selectedOrder) {
+      setSelectedArticles(undefined);
+      return;
+    }
+    const orderId = selectedOrder.order_id ?? "";
+    if (!orderId) return;
+
+    getOrderItems({ data: { order_id: orderId } })
+      .then((result: any) => {
+        if (result?.items && result.items.length > 0) {
+          // Convertir les items du serveur en OrderArticle
+          // Le backend DÉTERMINE is_import/is_local — on utilise SES valeurs sans fallback
+          const rawItems = result.items ?? [];
+          const arts: OrderArticle[] = rawItems.map((it: any, idx: number) => ({
+            product_id: it.product_id ?? `prod_${idx}`,
+            product_name: it.product_name ?? "Produit",
+            product_image: it.product_image ?? null,
+            variant_id: it.variant_id ?? null,
+            variant_label: it.variant_label ?? null,
+            size: it.size ?? null,
+            color: it.color ?? null,
+            quantity: it.quantity ?? 1,
+            unit_price: it.unit_price ?? 0,
+            line_total: it.line_total ?? 0,
+            status: "pending" as ArticleStatus,
+            // PAS DE FALLBACK : si le backend ne renvoie pas is_import/is_local,
+            // c'est false par défaut. Le backend est la seule source de vérité.
+            is_import: it.is_import ?? false,
+            is_local: it.is_local ?? false,
+            vendor_id: it.shop_id ?? null,
+            vendor_name: it.owner_name ?? it.shop_name ?? null,
+            shop_type_label: it.shop_type_label ?? null,
+            origin_country: it.origin_country ?? null,
+            origin_country_flag: it.origin_country_flag ?? null,
+          }));
+          setSelectedArticles(arts);
+        } else {
+          // Aucun article en base : tableau vide (pas de synthétique biaisé)
+          setSelectedArticles([]);
+        }
+      })
+      .catch(() => setSelectedArticles([]));
+  }, [selectedOrder]);
+
+  // ─── Handlers gestion article par article ───
   const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const last_valid_status = art.status !== "no_stock" ? art.status : art.stock_break?.last_valid_status;
-    const decision: StockBreakDecision = {
-      reason: data.reason,
-      action: data.action,
-      action_label: data.action,
-      resolved: true,
-      created_at: new Date().toISOString(),
-      last_valid_status,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: "no_stock", stock_break: decision },
-      audit_action: `stock_break.${data.action}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handleResumeRestock = useCallback((productId: string) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art || !art.stock_break || art.stock_break.action !== "wait_restock") return;
-    const memorized = art.stock_break.last_valid_status;
-    const fallback: ArticleStatus = art.is_import ? "received" : "available";
-    const target: ArticleStatus = memorized ?? fallback;
-    const newSb: StockBreakDecision = {
-      ...art.stock_break,
-      resumed_at: new Date().toISOString(),
-      resumed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: target, stock_break: newSb },
-      audit_action: "stock_break.resume_restock",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId
+        ? { ...a, status: "no_stock" as ArticleStatus, stock_break: { reason: data.reason, action: data.action, action_label: data.action, resolved: false, created_at: new Date().toISOString() } }
+        : a
+    ));
+  }, []);
 
   const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status },
-      audit_action: `status.${status}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId ? { ...a, status } : a
+    ));
+  }, []);
 
   const handlePartialDeliver = useCallback((productId: string, qty: number) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const newDelivered = (art.delivered_qty ?? 0) + qty;
-    const fullyDelivered = newDelivered >= art.quantity;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: {
-        delivered_qty: newDelivered,
-        status: fullyDelivered ? "delivered" : art.status,
-      },
-      audit_action: "partial_deliver",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handleSettleFinancial = useCallback((productId: string, data: { type: Settlement["type"]; amount: number; cost_attribution: Settlement["cost_attribution"]; method?: string; reference?: string; note?: string; shared_split?: Settlement["shared_split"] }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const settlement: Settlement = {
-      type: data.type,
-      amount: data.amount,
-      cost_attribution: data.cost_attribution,
-      shared_split: data.shared_split,
-      method: data.method,
-      reference: data.reference,
-      note: data.note,
-      processed_at: new Date().toISOString(),
-      processed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { settlement },
-      audit_action: `settlement.${data.type}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
+    setSelectedArticles(prev => prev?.map(a =>
+      a.product_id === productId
+        ? { ...a, delivered_qty: (a.delivered_qty ?? 0) + qty, status: ((a.delivered_qty ?? 0) + qty) >= a.quantity ? "delivered" as ArticleStatus : a.status }
+        : a
+    ));
+  }, []);
 
   const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
   const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
@@ -230,38 +178,118 @@ export default function CockpitDashboard() {
   const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
   const selFinancials = selectedOrder ? getOrderFinancials(selectedOrder) : { productTotal: 0, freight: 0, grandTotal: 0, paid: 0, remaining: 0 };
 
+  // totalPaidMap pour PipelineView
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const o of orders) m[o.order_id ?? ""] = getOrderFinancials(o).paid;
     return m;
   }, [orders, getOrderFinancials]);
 
+  // ─── KPI data ───
+  const kpi = useMemo(() => {
+    const s = { new: 0, payment_pending: 0, to_weigh: 0, ready: 0, shipped: 0 };
+    let debt = 0;
+    for (const o of orders) {
+      const st = o.logistics_status ?? "";
+      if (st === "delivered" || st === "cancelled") continue;
 
+      // Compter par statut exact pour les KPI
+      if (st === "" || st === "new") s.new++;
+      else if (st === "awaiting_weighing") s.to_weigh++;
+      else if (st === "shipped") s.shipped++;
+      else if (st === "ready" || st === "ready_delivery") s.ready++;
 
-
-  // ─── Tri + résolution sous-commandes → commandes mères ───
-  // Le moteur de filtres travaille sur les sous-commandes (granularité métier
-  // du Cockpit). Le pipeline a besoin de la liste des commandes mères
-  // correspondantes pour ses colonnes — on les dérive ici.
-  const tabbedSubRows = useMemo(() => {
-    const isDone = (r: typeof filteredSubRows[number]) => {
-      const s = (r.effective_status ?? r.order.logistics_status ?? "").trim();
-      return s === "delivered" || s === "cancelled";
-    };
-    if (activeTab === "archive") return filteredSubRows.filter(isDone);
-    return filteredSubRows.filter(r => !isDone(r));
-  }, [filteredSubRows, activeTab]);
-
-  const displayOrders = useMemo(() => {
-    const seen = new Set<string>();
-    const list: LogisticsOrderRow[] = [];
-    for (const r of tabbedSubRows) {
-      const oid = r.mother_order_id;
-      if (seen.has(oid)) continue;
-      seen.add(oid);
-      list.push(r.order);
+      // Dettes: solde restant (toutes commandes actives)
+      const { remaining } = getOrderFinancials(o);
+      if (remaining > 0) debt += remaining;
     }
-    return [...list].sort((a, b) => {
+    return { ...s, debt };
+  }, [orders, getOrderFinancials]);
+
+  // ─── Calcul d'alerte (âge de la commande) ───
+  const getOrderAge = useCallback((o: LogisticsOrderRow) => {
+    const created = new Date(o.order_created_at ?? Date.now());
+    const now = new Date();
+    return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  }, []);
+
+  // ─── Filtered & Sorted orders ───
+  const displayOrders = useMemo(() => {
+    let list = orders;
+
+    // 1. Recherche texte
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter(o =>
+        (o.order_id ?? "").toLowerCase().includes(q) ||
+        (o.customer_name ?? "").toLowerCase().includes(q) ||
+        (o.customer_phone ?? "").toLowerCase().includes(q) ||
+        getOrderNumber(o.order_id ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Tab filter (archive / actions)
+    switch (activeTab) {
+      case "archive": list = list.filter(o => o.logistics_status === "delivered" || o.logistics_status === "cancelled"); break;
+      default: list = list.filter(o => o.logistics_status !== "delivered" && o.logistics_status !== "cancelled"); break;
+    }
+
+    // 3. KPI filter (quand on clique sur un KPI card)
+    if (kpiFilter === "debt") {
+      list = list.filter(o => getOrderFinancials(o).remaining > 0);
+    } else if (kpiFilter === "payment_pending") {
+      list = list.filter(o => getOrderFinancials(o).remaining > 0);
+    } else if (kpiFilter === "ready") {
+      list = list.filter(o => {
+        const st = o.logistics_status ?? "";
+        return (st === "ready" || st === "ready_delivery") && getOrderFinancials(o).remaining === 0;
+      });
+    } else if (kpiFilter === "new") {
+      list = list.filter(o => { const st = o.logistics_status ?? ""; return st === "" || st === "new"; });
+    } else if (kpiFilter === "to_weigh") {
+      list = list.filter(o => o.logistics_status === "awaiting_weighing");
+    } else if (kpiFilter === "shipped") {
+      list = list.filter(o => o.logistics_status === "shipped");
+    }
+
+    // 4. Filtres avancés combinables
+    if (statusFilter) {
+      // "new" = null/"" OU "new" en base (compat avec les anciennes et nouvelles commandes)
+      const statusMatch = (o: LogisticsOrderRow) => {
+        const s = o.logistics_status ?? "";
+        if (statusFilter === "new") return s === "" || s === "new";
+        return s === statusFilter;
+      };
+      list = list.filter(statusMatch);
+    }
+        if (balanceFilter) {
+      list = list.filter(o => {
+        const { paid, remaining } = getOrderFinancials(o);
+        const gt = (o.order_total ?? 0) + (o.total_shipping_fees ?? 0);
+        if (balanceFilter === "unpaid") return paid === 0 && remaining > 0;
+        if (balanceFilter === "partial") return paid > 0 && remaining > 0;
+        if (balanceFilter === "paid") return remaining === 0 && gt > 0;
+        return true;
+      });
+    }
+    if (minDays) {
+      const days = parseInt(minDays);
+      if (!isNaN(days)) {
+        list = list.filter(o => getOrderAge(o) >= days);
+      }
+    }
+    // 5b. Filtre par période (date de création)
+    if (dateRange?.from) {
+      const fromTime = dateRange.from.getTime();
+      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() >= fromTime);
+    }
+    if (dateRange?.to) {
+      const toTime = dateRange.to.getTime() + 24 * 60 * 60 * 1000; // inclusif
+      list = list.filter(o => new Date(o.order_created_at ?? 0).getTime() <= toTime);
+    }
+
+    // 5. Tri
+    list = [...list].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortField) {
         case "date": return dir * (new Date(b.order_created_at ?? 0).getTime() - new Date(a.order_created_at ?? 0).getTime());
@@ -271,18 +299,22 @@ export default function CockpitDashboard() {
         default: return 0;
       }
     });
-  }, [tabbedSubRows, sortField, sortDir]);
 
-  const resultCount = tabbedSubRows.length;
+    return list;
+  }, [orders, searchTerm, activeTab, kpiFilter, getOrderFinancials, statusFilter, balanceFilter, minDays, sortField, sortDir, getOrderAge, orderTypeMap]);
 
+  // ─── Compteurs de résultats ───
+  const resultCount = displayOrders.length;
+  const activeFilterCount = [statusFilter, balanceFilter, minDays, (dateRange?.from ? "date" : "")].filter(Boolean).length;
 
-  const handleStatus = (orderId: string, status: string, _admin: string, subOrderKey?: string | null) => {
-    updateStatus(orderId, status, _admin || adminName, subOrderKey ?? null);
-    setHasChanges(false);
+  // ─── Handlers ───
+  const handleStatus = (orderId: string, status: string, _admin: string) => {
+    updateStatus(orderId, status, _admin || adminName);
+    setHasChanges(false); // BUG 2 FIX : remettre le flag à false après action réussie
   };
   const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
     addPayment(orderId, amount, method, reference, _admin || adminName);
-    setHasChanges(false);
+    setHasChanges(false); // BUG 2 FIX : remettre le flag à false après paiement enregistré
   };
   const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
 
@@ -291,145 +323,415 @@ export default function CockpitDashboard() {
     cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
     setShowCancel(false);
     setSelectedOrder(null);
-    setSelectedSubKey(undefined);
+    setSelectedSubOrderKey(undefined);
   }, [selectedOrder, cancelOrder, adminName]);
 
   const handleCloseDrawer = useCallback(() => {
     setShowItemsPanel(false);
+    setSelectedSubOrderKey(undefined);
     if (hasChanges) setShowCloseConfirm(true);
-    else { setSelectedOrder(null); setSelectedSubKey(undefined); }
+    else setSelectedOrder(null);
   }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubKey(undefined); }, []);
+  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubOrderKey(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
+
+  const ws = kpiFilter ? WORKSTATIONS[kpiFilter] : null;
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b px-4 py-2">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-sm font-bold">Kawzone Cockpit</h1>
-          <span className="text-[10px] text-gray-500">{subOrderRows.length} sous-commandes</span>
+          <h1 className="text-sm font-bold">{ws ? ws.title : "Kawzone Cockpit"}</h1>
+          <span className="text-[10px] text-gray-500">{orders.length} commandes</span>
         </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Boutique, vendeur, téléphone, KZ-xxx, sous-cmd…"
-            className="pl-8 h-9 text-sm"
-            value={filters.search}
-            onChange={e => updateFilter("search", e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Barre outils */}
-      <div className="px-4 pt-2 pb-1 space-y-2 relative">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Tri */}
-          <div className="relative shrink-0">
-            <select
-              value={`${sortField}_${sortDir}`}
-              onChange={e => { const [f, d] = e.target.value.split("_"); setSortField(f as SortField); setSortDir(d as SortDir); }}
-              className="appearance-none bg-gray-100 text-[10px] text-gray-600 rounded-lg pl-7 pr-3 py-1.5 cursor-pointer"
-            >
-              <option value="date_desc">Date ↓</option>
-              <option value="date_asc">Date ↑</option>
-              <option value="amount_desc">Montant ↓</option>
-              <option value="amount_asc">Montant ↑</option>
-              <option value="name_asc">Nom A-Z</option>
-              <option value="status_asc">Statut</option>
-            </select>
-            <ArrowUpDown className="absolute left-2 top-1.5 h-3 w-3 text-gray-400 pointer-events-none" />
+        {!ws && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
+            <Input placeholder="Rechercher (nom, telephone, KZ-xxx)..." className="pl-8 h-9 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-
-          {/* Moteur de filtres métier multi-dimensions */}
-          <CockpitFilterPanel
-            filters={filters}
-            count={activeFilterCount}
-            total={subOrderRows.length}
-            filteredCount={filteredSubRows.length}
-            options={filterOptions}
-            onUpdate={updateFilter}
-            onToggleArray={toggleArrayFilter}
-            onReset={resetFilters}
-          />
-
-          <button
-            onClick={() => {
-              const rows = displayOrders.map(o => {
-                const { productTotal, freight, grandTotal, paid, remaining } = getOrderFinancials(o);
-                return [getOrderNumber(o.order_id ?? ""), o.customer_name ?? "", o.logistics_status ?? "new", productTotal, freight, grandTotal, paid, remaining].join(",");
-              });
-              const csv = "KZ,Client,Statut,Produit,Fret,Total,Paye,Reste\n" + rows.join("\n");
-              const blob = new Blob([csv], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
-            }}
-            className="ml-auto flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
-          >
-            <Download className="h-3 w-3" />CSV
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">
-            {resultCount} sous-commande{resultCount > 1 ? "s" : ""} affichée{resultCount > 1 ? "s" : ""}
-          </span>
-          {resultCount !== subOrderRows.length && (
-            <span className="text-[10px] text-orange-500">sur {subOrderRows.length} total</span>
-          )}
-        </div>
-      </div>
-
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto pb-16">
-        {activeTab === "archive" ? (
-          <ArchiveView orders={displayOrders} onSelect={setSelectedOrder} cancellations={cancellations} />
-        ) : (
-          <PipelineView
-            orders={displayOrders}
-            totalPaidMap={totalPaidMap}
-            freightMap={freightMap}
-            onSelect={openOrder}
-            orderTypeMap={orderTypeMap}
-            subRows={tabbedSubRows}
-            historyMap={historyMap}
-
-            onSelectSubRow={(row) => {
-              setSelectedSubKey(row.sub_order_key);
-              setSelectedOrder(row.order);
-            }}
-          />
         )}
       </div>
 
-      {/* Bottom nav — Actions + Archive uniquement */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
-        <div className="flex justify-around items-center h-14">
-          {[
-            { k: "actions" as const, l: "Actions", i: ClipboardList },
-            { k: "archive" as const, l: "Archive", i: Archive },
-          ].map(t => (
-            <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => setActiveTab(t.k)}>
-              <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
-            </button>
-          ))}
+      {/* KPI (seulement hors poste de travail) */}
+      {!ws && activeTab === "actions" && (
+        <div className="px-4 pt-2 pb-1">
+          <KpiCards newCount={kpi.new} pendingPayment={kpi.payment_pending} toWeigh={kpi.to_weigh} ready={kpi.ready} shipped={kpi.shipped} totalDebt={kpi.debt} activeFilter={kpiFilter} onFilter={setKpiFilter} />
+          {kpiFilter && <button onClick={() => setKpiFilter(null)} className="mt-1 text-[10px] text-orange-600 flex items-center gap-1"><X className="h-3 w-3" />Effacer le filtre</button>}
         </div>
+      )}
+
+      {/* Barre outils : Filtres + Tri + Vue + Export */}
+      {!ws && (
+        <div className="px-4 pt-2 pb-1 space-y-2">
+          {/* Ligne 1: Toggle vue + Tri + Filtres + Export */}
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+              <button onClick={() => setViewMode("list")} className={`text-[10px] px-3 py-1.5 rounded-md ${viewMode === "list" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Liste</button>
+              <button onClick={() => setViewMode("pipeline")} className={`text-[10px] px-3 py-1.5 rounded-md ${viewMode === "pipeline" ? "bg-white shadow-sm font-semibold" : "text-gray-500"}`}>Pipeline</button>
+            </div>
+
+            {/* Tri */}
+            <div className="relative shrink-0">
+              <select
+                value={`${sortField}_${sortDir}`}
+                onChange={e => { const [f, d] = e.target.value.split("_"); setSortField(f as SortField); setSortDir(d as SortDir); }}
+                className="appearance-none bg-gray-100 text-[10px] text-gray-600 rounded-lg pl-7 pr-3 py-1.5 cursor-pointer"
+              >
+                <option value="date_desc">Date ↓</option>
+                <option value="date_asc">Date ↑</option>
+                <option value="amount_desc">Montant ↓</option>
+                <option value="amount_asc">Montant ↑</option>
+                <option value="name_asc">Nom A-Z</option>
+                <option value="status_asc">Statut</option>
+              </select>
+              <ArrowUpDown className="absolute left-2 top-1.5 h-3 w-3 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Bouton filtres */}
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg font-medium ${showFilters || activeFilterCount > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}
+            >
+              <Filter className="h-3 w-3" />
+              Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </button>
+
+            {/* Export CSV */}
+            <button
+              onClick={() => {
+                const rows = displayOrders.map(o => {
+                  const { productTotal, freight, grandTotal, paid, remaining } = getOrderFinancials(o);
+                  return [getOrderNumber(o.order_id ?? ""), o.customer_name ?? "", o.logistics_status ?? "new", productTotal, freight, grandTotal, paid, remaining].join(",");
+                });
+                const csv = "KZ,Client,Statut,Produit,Fret,Total,Paye,Reste\n" + rows.join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = `cockpit_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 ml-auto"
+            >
+              <Download className="h-3 w-3" />CSV
+            </button>
+          </div>
+
+          {/* Ligne 2: Panneau filtres avancés */}
+          {showFilters && (
+            <div className="bg-white border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-700">Filtres avancés</span>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => { setStatusFilter(""); setBalanceFilter(""); setMinDays(""); setDateRange(undefined); }}
+                    className="text-[10px] text-red-500 hover:text-red-700"
+                  >
+                    Tout effacer
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Statut */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Statut</label>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    {ALL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                {/* Type — supprime : plus de filtre Local/Import/Mixte */}
+                {/* Solde */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Solde</label>
+                  <select value={balanceFilter} onChange={e => setBalanceFilter(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2">
+                    <option value="">Tous</option>
+                    <option value="unpaid">Non paye</option>
+                    <option value="partial">Partiel</option>
+                    <option value="paid">Paye total</option>
+                  </select>
+                </div>
+                {/* Ancienneté */}
+                <div>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Anciennete min (jours)</label>
+                  <input type="number" placeholder="Ex: 7" value={minDays} onChange={e => setMinDays(e.target.value)} className="w-full text-[11px] border rounded h-8 px-2" />
+                </div>
+                {/* Période */}
+                <div className="col-span-2">
+                  <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compteur résultats */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-gray-400">{resultCount} commande{resultCount > 1 ? "s" : ""} affichee{resultCount > 1 ? "s" : ""}</span>
+            {resultCount !== orders.length && <span className="text-[10px] text-orange-500">sur {orders.length} total</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto pb-16">
+        {kpiFilter ? (() => {
+          const f = kpiFilter;
+          const ws = WORKSTATIONS[f];
+          const isPaymentStation = f === "payment_pending";
+          const isWeighStation = f === "to_weigh";
+          const isSimpleStation = !!ws && !isPaymentStation && !isWeighStation;
+          return (
+            <div>
+              <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">{ws?.title ?? f}</h2>
+                  <p className="text-xs text-gray-500">{displayOrders.length} commande{displayOrders.length > 1 ? "s" : ""}</p>
+                </div>
+                <button onClick={() => setKpiFilter(null)} className="text-xs text-orange-600 font-medium px-3 py-1.5 rounded-lg hover:bg-orange-50 flex items-center gap-1">
+                  <ArrowLeft className="h-3.5 w-3.5" />Retour
+                </button>
+              </div>
+              {displayOrders.length === 0 ? (
+                <div className="text-center py-12 text-gray-500"><p className="font-medium">Aucune commande</p><p className="text-sm">Tout est a jour !</p></div>
+              ) : displayOrders.map(o => {
+                const oid = o.order_id ?? "";
+                const { productTotal, freight, grandTotal, paid, remaining } = getOrderFinancials(o);
+                const payments = getPayments(oid);
+
+                // ═══════════════════════════════════════════
+                // POSTE PAIEMENTS — Formulaire inline complet
+                // ═══════════════════════════════════════════
+                if (isPaymentStation) {
+                  const pf = payForms[oid] ?? { amount: "", method: "wave", reference: "" };
+                  return (
+                    <div key={oid} className="px-4 py-3 border-b border-gray-100 bg-white">
+                      {/* Infos commande */}
+                      <div onClick={() => setSelectedOrder(o)} className="cursor-pointer">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-[11px] font-bold">{getOrderNumber(oid)}</span>
+                          <span className="text-xs font-medium">{o.customer_name}</span>
+                        </div>
+                        {/* Décomposition complète des montants */}
+                        <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
+                          <div className="bg-gray-50 rounded p-1.5">
+                            <div className="text-gray-400">Produit</div>
+                            <div className="font-semibold">{fmtF(productTotal)}</div>
+                          </div>
+                          <div className="bg-orange-50 rounded p-1.5">
+                            <div className="text-orange-400">Fret</div>
+                            <div className="font-semibold text-orange-700">{fmtF(freight)}</div>
+                          </div>
+                          <div className="bg-emerald-50 rounded p-1.5">
+                            <div className="text-emerald-400">Total</div>
+                            <div className="font-semibold text-emerald-700">{fmtF(grandTotal)}</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[10px] mb-2">
+                          <span>Paye: <b className="text-emerald-600">{fmtF(paid)}</b></span>
+                          <span>Reste: <b className={remaining > 0 ? "text-red-600" : "text-emerald-600"}>{fmtF(remaining)}</b></span>
+                          <span>{payments.length} paiement{payments.length > 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+
+                      {/* Historique des paiements (modifiable) */}
+                      {payments.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          {payments.map(p => (
+                            <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1 text-[10px]">
+                              {editingPay === p.id ? (
+                                <div className="flex gap-1 flex-1 items-center">
+                                  <input type="number" className="w-16 h-6 text-[10px] border rounded px-1" value={editPayForm.amount} onChange={e => setEditPayForm(prev => ({ ...prev, amount: e.target.value }))} />
+                                  <select className="h-6 text-[10px] border rounded" value={editPayForm.method} onChange={e => setEditPayForm(prev => ({ ...prev, method: e.target.value }))}>
+                                    <option value="wave">Wave</option>
+                                    <option value="orange_money">OM</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="bank_transfer">Virement</option>
+                                  </select>
+                                  <input type="text" className="w-14 h-6 text-[10px] border rounded px-1" value={editPayForm.reference} onChange={e => setEditPayForm(prev => ({ ...prev, reference: e.target.value }))} />
+                                  <button className="h-6 px-2 bg-emerald-600 text-white text-[10px] rounded" onClick={() => { editPayment(p.id, { amount: parseFloat(editPayForm.amount) || p.amount, method: editPayForm.method, reference: editPayForm.reference }); setEditingPay(null); }}>OK</button>
+                                  <button className="h-6 px-2 bg-gray-400 text-white text-[10px] rounded" onClick={() => setEditingPay(null)}>X</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span>{fmtF(p.amount)} — {p.method} — {p.reference}</span>
+                                  <div className="flex gap-1">
+                                    <button onClick={() => { setEditingPay(p.id); setEditPayForm({ amount: String(p.amount), method: p.method, reference: p.reference }); }} className="p-0.5 text-gray-400 hover:text-blue-600"><Pencil className="h-3 w-3" /></button>
+                                    <button onClick={() => { if (confirm("Supprimer ce paiement ?")) deletePayment(p.id); }} className="p-0.5 text-gray-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Formulaire d'ajout de paiement */}
+                      {remaining > 0 ? (
+                        <div className="flex gap-2 mt-1">
+                          <input type="number" placeholder="Montant" className="w-20 h-8 text-xs border rounded px-2" value={pf.amount} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, amount: e.target.value } }))} />
+                          <select className="h-8 text-xs border rounded px-1" value={pf.method} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, method: e.target.value } }))}>
+                            <option value="wave">Wave</option>
+                            <option value="orange_money">OM</option>
+                            <option value="cash">Cash</option>
+                            <option value="bank_transfer">Virement</option>
+                          </select>
+                          <input type="text" placeholder="Ref" className="w-16 h-8 text-xs border rounded px-2" value={pf.reference} onChange={e => setPayForms(prev => ({ ...prev, [oid]: { ...pf, reference: e.target.value } }))} />
+                          <button
+                            className="h-8 px-3 bg-emerald-600 text-white text-xs rounded font-medium"
+                            onClick={() => {
+                              const amt = parseFloat(pf.amount);
+                              if (amt > 0) {
+                                const actualAmt = amt > remaining ? remaining : amt;
+                                handlePayment(oid, actualAmt, pf.method, pf.reference, adminName);
+                                setPayForms(prev => ({ ...prev, [oid]: { amount: "", method: "wave", reference: "" } }));
+                                // Auto-avancement si solde atteint
+                                if (actualAmt >= remaining) {
+                                  const nextSt = isImport(o) ? "ready_delivery" : "ready";
+                                  handleStatus(oid, nextSt, adminName);
+                                }
+                              }
+                            }}
+                          >
+                            Encaisser
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-emerald-600 font-medium bg-emerald-50 rounded px-2 py-1">Paye en totalite — {fmtF(paid)} / {fmtF(grandTotal)}</div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // ═══════════════════════════════════════════
+                // POSTE À PESER — Formulaire inline
+                // ═══════════════════════════════════════════
+                if (isWeighStation) {
+                  const wf = weighForms[oid] ?? { realWeight: "", length: "", width: "", height: "" };
+                  const rw = parseFloat(wf.realWeight) || 0;
+                  const l = parseFloat(wf.length) || 0;
+                  const w = parseFloat(wf.width) || 0;
+                  const h = parseFloat(wf.height) || 0;
+                  const volWeight = (l * w * h) / 5000;
+                  const chargeable = Math.max(rw, volWeight);
+                  const freight = Math.round(chargeable * 7500);
+                  return (
+                    <div key={oid} className="px-4 py-3 border-b border-gray-100 bg-white">
+                      <div onClick={() => setSelectedOrder(o)} className="cursor-pointer mb-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[11px] font-bold">{getOrderNumber(oid)}</span>
+                          <span className="text-xs">{o.customer_name}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500">Produit: {fmtF(productTotal)}</div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 mb-2">
+                        <input type="number" placeholder="Poids (kg)" className="h-8 text-xs border rounded px-2" value={wf.realWeight} onChange={e => setWeighForms(prev => ({ ...prev, [oid]: { ...wf, realWeight: e.target.value } }))} />
+                        <input type="number" placeholder="L (cm)" className="h-8 text-xs border rounded px-2" value={wf.length} onChange={e => setWeighForms(prev => ({ ...prev, [oid]: { ...wf, length: e.target.value } }))} />
+                        <input type="number" placeholder="l (cm)" className="h-8 text-xs border rounded px-2" value={wf.width} onChange={e => setWeighForms(prev => ({ ...prev, [oid]: { ...wf, width: e.target.value } }))} />
+                        <input type="number" placeholder="H (cm)" className="h-8 text-xs border rounded px-2" value={wf.height} onChange={e => setWeighForms(prev => ({ ...prev, [oid]: { ...wf, height: e.target.value } }))} />
+                      </div>
+                      {rw > 0 && (
+                        <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
+                          <div>Vol: {volWeight.toFixed(2)}kg | Facture: {chargeable.toFixed(2)}kg</div>
+                          <div className="font-bold text-orange-700">Fret: {fmtF(freight)}</div>
+                          <div className="font-semibold">Total client: {fmtF(productTotal + freight)}</div>
+                        </div>
+                      )}
+                      <button
+                        className="h-8 px-4 bg-orange-600 text-white text-xs rounded font-medium w-full disabled:opacity-50"
+                        disabled={!rw}
+                        onClick={() => {
+                          if (rw) {
+                            // 1. Enregistrer la pesée
+                            handleWeigh({
+                              orderId: oid, realWeightKg: rw, lengthCm: l, widthCm: w, heightCm: h,
+                              volumetricWeightKg: volWeight, chargeableWeightKg: chargeable,
+                              freightRatePerKg: 7500, estimatedFreight: freight, finalFreight: freight,
+                              weighedBy: adminName,
+                            });
+                            // 2. Reset formulaire
+                            setWeighForms(prev => ({ ...prev, [oid]: { realWeight: "", length: "", width: "", height: "" } }));
+                            // 3. Auto-avancer vers "fees_calculated" (fret calculé, attente paiement)
+                            handleStatus(oid, "fees_calculated", adminName);
+                          }
+                        }}
+                      >
+                        Enregistrer la pesee → Calcul frais
+                      </button>
+                    </div>
+                  );
+                }
+
+                // ═══════════════════════════════════════════
+                // POSTE SIMPLE (Confirmer, Expédier, Marquer livrée)
+                // ═══════════════════════════════════════════
+                if (isSimpleStation && ws) {
+                  return (
+                    <div key={oid} className="px-4 py-3 border-b border-gray-100 bg-white">
+                      <OrderCard
+                        order={o}
+                        index={0}
+                        onClick={() => setSelectedOrder(o)}
+                        totalPaid={paid}
+                        freight={freight}
+                        grandTotal={grandTotal}
+                        orderType={orderTypeMap[o.order_id ?? ""]}
+                        quickAction={{
+                          label: ws.actionLabel,
+                          color: ws.actionColor,
+                          onClick: (e) => {
+                            e.stopPropagation();
+                            handleStatus(oid, ws.nextStatus, adminName);
+                          },
+                        }}
+                      />
+                    </div>
+                  );
+                }
+
+                // Fallback: afficher la carte sans action
+                return (
+                  <OrderCard
+                    key={oid}
+                    order={o}
+                    index={0}
+                    onClick={() => setSelectedOrder(o)}
+                    totalPaid={paid}
+                    freight={freight}
+                    grandTotal={grandTotal}
+                    orderType={orderTypeMap[o.order_id ?? ""]}
+                  />
+                );
+              })}
+            </div>
+          );
+        })() : activeTab === "actions" && viewMode === "pipeline" ? (
+          <PipelineView orders={displayOrders} totalPaidMap={totalPaidMap} freightMap={freightMap} onSelect={setSelectedOrder} orderTypeMap={orderTypeMap} />
+        ) : activeTab === "archive" ? (
+          <ArchiveView orders={displayOrders} archiveFilter={archiveFilter} onSelect={setSelectedOrder} cancellations={cancellations} />
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {displayOrders.length === 0 ? <div className="text-center py-12 text-gray-500">Aucune commande</div> : displayOrders.map((o, i) => {
+              const a = getOrderFinancials(o);
+              return <OrderCard key={o.order_id} order={o} index={i} onClick={() => setSelectedOrder(o)} totalPaid={a.paid} freight={a.freight} grandTotal={a.grandTotal} orderType={orderTypeMap[o.order_id ?? ""]} />;
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Drawer */}
-      {selectedOrder && (() => {
-        // Vendor id de la sous-commande sélectionnée (pour getHistory) + assessment scopé.
-        const subVendorId = selectedSubKey ? selectedSubKey.split("::")[0] : null;
-        const subAss = selectedSubKey && selectedOrder.order_id
-          ? getAssessment(selectedOrder.order_id, selectedSubKey)
-          : null;
-        // Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère).
-        const effectiveSubStatus = selectedSubKey && selectedOrder.order_id
-          ? (getSubOrderStatus(selectedOrder.order_id, selectedSubKey, selectedOrder.logistics_status ?? null) ?? selectedOrder.logistics_status ?? "new")
-          : null;
-        return (
+      {/* Bottom nav */}
+      {!ws && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
+          <div className="flex justify-around items-center h-14">
+            {[{ k: "actions" as const, l: "Actions", i: ClipboardList }, { k: "alerts" as const, l: "Alertes", i: AlertTriangle }, { k: "financial" as const, l: "Financier", i: DollarSign }, { k: "archive" as const, l: "Archive", i: Archive }].map(t => (
+              <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setKpiFilter(null); }}>
+                <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Drawer — dialogs ET OrderItemsPanel rendus DANS SheetContent pour eviter inert Radix */}
+      {selectedOrder && (
         <OrderDrawer
           order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
           onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
@@ -438,16 +740,11 @@ export default function CockpitDashboard() {
           onStockBreak={handleStockBreak}
           onArticleStatusChange={handleArticleStatusChange}
           onPartialDeliver={handlePartialDeliver}
-          onSettleFinancial={handleSettleFinancial}
-          onResumeRestock={handleResumeRestock}
-          subOrderKey={selectedSubKey}
-          onSubOrderChange={setSelectedSubKey}
-          subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
-          effectiveSubStatus={effectiveSubStatus}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
-          subOrderHistoryLoading={historyLoading}
+          subOrderKey={selectedSubOrderKey}
+          onSubOrderChange={setSelectedSubOrderKey}
           dialogs={
             <>
+              {/* OrderItemsPanel rendu a l'interieur du SheetContent — sinon inert bloque les clics */}
               {showItemsPanel && (
                 <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
               )}
@@ -456,22 +753,20 @@ export default function CockpitDashboard() {
             </>
           }
         />
-        );
-      })()}
+      )}
     </div>
   );
 }
 
 // ════════════════════════════════════════════
-// Archive View — liste simple des commandes terminées
+// Archive View
 // ════════════════════════════════════════════
 
-function ArchiveView({ orders, onSelect, cancellations }: {
-  orders: LogisticsOrderRow[];
-  onSelect: (o: LogisticsOrderRow) => void;
-  cancellations: any[];
+function ArchiveView({ orders, archiveFilter, onSelect, cancellations }: {
+  orders: LogisticsOrderRow[]; archiveFilter: ArchiveFilter;
+  onSelect: (o: LogisticsOrderRow) => void; cancellations: any[];
 }) {
-  const [filter, setFilter] = useState<ArchiveFilter>("all");
+  const [filter, setFilter] = useState<ArchiveFilter>(archiveFilter);
   const filtered = orders.filter(o => filter === "all" || o.logistics_status === filter);
   return (
     <div>
@@ -504,4 +799,4 @@ function ArchiveView({ orders, onSelect, cancellations }: {
       </div>
     </div>
   );
-}
+}// sync: Sun J
