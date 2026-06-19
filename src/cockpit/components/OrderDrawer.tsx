@@ -22,11 +22,15 @@ import type { SettlementInput } from "./PendingFinancialActions";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
+import { NextActionBanner } from "./NextActionBanner";
+import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
+import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
@@ -91,8 +95,16 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
     () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
     [articles, vendorId],
   );
-
+  const siblings = useMemo(
+    () => allSubs.map(s => ({
+      vendor_id: s.vendor_id, vendor_name: s.vendor_name,
+      index: s.index, total: s.total, label: s.label,
+    })),
+    [allSubs],
+  );
   const isScoped = !!vendorId && !!currentSub;
+  // Helper pour masquer visuellement du JSX sans supprimer le code (court-circuite le type-checking)
+  const _h = (_jsx: any) => null;
   // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
   const headerLabel = isScoped ? currentSub!.label : kz;
   const headerVendor = isScoped ? currentSub!.vendor_name : null;
@@ -123,6 +135,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
+
+  // Agrégateur — sur les articles scopés.
+  const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
+  const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
@@ -164,11 +180,23 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
+          {/* ─── Phase 2 : Strip de navigation vers les sœurs (masqué visuellement) ─── */}
+          {_h(isScoped && onVendorChange && (
+            <RelatedSubOrdersStrip
+              siblings={siblings}
+              currentVendorId={vendorId!}
+              onSelect={onVendorChange}
+            />
+          ))}
+
           {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
           {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
           )}
 
+
+          {/* Agrégateur (debug) — sur les articles scopés. Masqué visuellement. */}
+          {_h(<AggregateDebugPanel articles={scopedArticles} orderStatus={status} />)}
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
@@ -179,6 +207,11 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               alwaysShow={isMultiVendor}
             />
           )}
+
+          {/* Action suivante — masquée visuellement */}
+          {_h(nextActionInfo && (
+            <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
+          ))}
 
           {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
           {(isScoped || !isMultiVendor) && (
@@ -192,7 +225,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
-          <PartialDeliveryBanner articles={scopedArticles} />
+          <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
 
           <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
 
@@ -297,13 +330,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
               alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
             }
-            // Rupture non résolue
-            const blockedArticles = (scopedArticles ?? []).filter(a => a.stock_break && !a.stock_break.resolved);
-            if (blockedArticles.length > 0) {
-              const n = blockedArticles.length;
+            // Rupture non résolue → lecture agrégateur (source unique)
+            if (agg.flags.has_blocking) {
+              const n = agg.counters.blocked;
               alerts.push({ tone: "red", title: `${n} rupture${n > 1 ? "s" : ""} non résolue${n > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
             }
-            // Commande bloquée depuis X jours
+            // Commande bloquée depuis X jours (dimension temporelle — pas encore dans agg)
             if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
               const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
               if (days >= 7) {
