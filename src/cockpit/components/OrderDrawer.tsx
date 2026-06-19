@@ -219,14 +219,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Navigation sœurs (uniquement quand scopé) ─── */}
-          {isScoped && onSubOrderChange && (
-            <RelatedSubOrdersStrip
-              siblings={siblings}
-              currentKey={subOrderKey!}
-              onSelect={onSubOrderChange}
-            />
-          )}
+          {/* ─── Navigation sœurs masquée volontairement (UI simplifiée) ─── */}
+
 
           {/* ─── Badges métier (boutique/produit supprimé, risque, attente) ─── */}
           {isScoped && (
