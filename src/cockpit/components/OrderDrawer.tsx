@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home } from "lucide-react";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
-import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
+import { getOrderNumber, getTechnicalRef, formatSubOrderLabel } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
