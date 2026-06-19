@@ -7,7 +7,26 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry } from "@/cockpit/types";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
-import { PAYMENT_METHOD_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { PAYMENT_METHOD_LABELS, STATUS_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { LINE_KIND_SHORT, type LineKind } from "@/lib/line-kind";
+
+/** Transforme une entrée d'audit brute en libellé métier lisible.
+ *  Exemples :
+ *   "[uuid::IMPORT_KNOWN_WEIGHT] Statut → confirmed"
+ *      → label "Statut → Confirmée", sub "Sous-commande Import · Poids déclaré"
+ *   "Statut → shipped" → "Statut → Expédiée" */
+function humanizeAuditAction(action: string): { label: string; sub?: string } {
+  const scoped = action.match(/^\[([0-9a-f-]+)::(LOCAL|IMPORT_KNOWN_WEIGHT|IMPORT_UNKNOWN_WEIGHT)\]\s*Statut\s*→\s*(\S+)\s*$/i);
+  if (scoped) {
+    const lk = scoped[2].toUpperCase() as LineKind;
+    const st = scoped[3];
+    const lkLabel = lk === "LOCAL" ? "Sous-commande Local" : `Sous-commande Import (${LINE_KIND_SHORT[lk]})`;
+    return { label: `Statut → ${STATUS_LABELS[st] ?? st}`, sub: lkLabel };
+  }
+  const simple = action.match(/^Statut\s*→\s*(\S+)\s*$/i);
+  if (simple) return { label: `Statut → ${STATUS_LABELS[simple[1]] ?? simple[1]}` };
+  return { label: action };
+}
 
 /* ═══════════════════════════════════════════════════════════════
    OrderAuditTimeline — historique unique regroupant toutes
