@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Package, CheckCircle, CreditCard, Truck, XCircle, Scale,
   AlertTriangle, RefreshCw, ShieldAlert, PackageCheck, Repeat,
@@ -7,26 +7,7 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry } from "@/cockpit/types";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
-import { PAYMENT_METHOD_LABELS, STATUS_LABELS, fmtF } from "@/cockpit/lib/workflow";
-import { LINE_KIND_SHORT, type LineKind } from "@/lib/line-kind";
-
-/** Transforme une entrée d'audit brute en libellé métier lisible.
- *  Exemples :
- *   "[uuid::IMPORT_KNOWN_WEIGHT] Statut → confirmed"
- *      → label "Statut → Confirmée", sub "Sous-commande Import · Poids déclaré"
- *   "Statut → shipped" → "Statut → Expédiée" */
-function humanizeAuditAction(action: string): { label: string; sub?: string } {
-  const scoped = action.match(/^\[([0-9a-f-]+)::(LOCAL|IMPORT_KNOWN_WEIGHT|IMPORT_UNKNOWN_WEIGHT)\]\s*Statut\s*→\s*(\S+)\s*$/i);
-  if (scoped) {
-    const lk = scoped[2].toUpperCase() as LineKind;
-    const st = scoped[3];
-    const lkLabel = lk === "LOCAL" ? "Sous-commande Local" : `Sous-commande Import (${LINE_KIND_SHORT[lk]})`;
-    return { label: `Statut → ${STATUS_LABELS[st] ?? st}`, sub: lkLabel };
-  }
-  const simple = action.match(/^Statut\s*→\s*(\S+)\s*$/i);
-  if (simple) return { label: `Statut → ${STATUS_LABELS[simple[1]] ?? simple[1]}` };
-  return { label: action };
-}
+import { PAYMENT_METHOD_LABELS, fmtF } from "@/cockpit/lib/workflow";
 
 /* ═══════════════════════════════════════════════════════════════
    OrderAuditTimeline — historique unique regroupant toutes
@@ -43,15 +24,15 @@ interface Event {
 }
 
 const TONES: Record<Event["tone"], { bg: string; text: string }> = {
-  gray: { bg: "bg-gray-100", text: "text-gray-600" },
-  blue: { bg: "bg-blue-100", text: "text-blue-700" },
-  emerald: { bg: "bg-emerald-100", text: "text-emerald-700" },
-  indigo: { bg: "bg-indigo-100", text: "text-indigo-700" },
-  orange: { bg: "bg-orange-100", text: "text-orange-700" },
-  red: { bg: "bg-red-100", text: "text-red-700" },
-  amber: { bg: "bg-amber-100", text: "text-amber-700" },
-  violet: { bg: "bg-violet-100", text: "text-violet-700" },
-  teal: { bg: "bg-teal-100", text: "text-teal-700" },
+  gray:     { bg: "bg-gray-100",    text: "text-gray-600" },
+  blue:     { bg: "bg-blue-100",    text: "text-blue-700" },
+  emerald:  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  indigo:   { bg: "bg-indigo-100",  text: "text-indigo-700" },
+  orange:   { bg: "bg-orange-100",  text: "text-orange-700" },
+  red:      { bg: "bg-red-100",     text: "text-red-700" },
+  amber:    { bg: "bg-amber-100",   text: "text-amber-700" },
+  violet:   { bg: "bg-violet-100",  text: "text-violet-700" },
+  teal:     { bg: "bg-teal-100",    text: "text-teal-700" },
 };
 
 interface Props {
@@ -61,7 +42,11 @@ interface Props {
   articles?: OrderArticle[];
 }
 
+const INITIAL_VISIBLE = 5;
+
 export function OrderAuditTimeline({ order, payments, audit, articles }: Props) {
+  const [expanded, setExpanded] = useState(false);
+
   const events = useMemo<Event[]>(() => {
     const out: Event[] = [];
 
@@ -79,9 +64,7 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
       else if (action.includes("livr") || action.includes("deliver")) { icon = CheckCircle; tone = "emerald"; }
       else if (action.includes("expéd") || action.includes("ship")) { icon = Truck; tone = "indigo"; }
       else if (action.includes("pesée") || action.includes("weigh")) { icon = Scale; tone = "orange"; }
-      const human = humanizeAuditAction(a.action);
-      const subParts = [human.sub, a.details ?? undefined].filter(Boolean) as string[];
-      out.push({ date: a.timestamp, label: human.label, sub: subParts.length ? subParts.join(" · ") : undefined, by: a.adminName, icon, tone });
+      out.push({ date: a.timestamp, label: a.action, sub: a.details ?? undefined, by: a.adminName, icon, tone });
     }
 
     // Paiements (+ modifications)
@@ -133,7 +116,6 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
             by: o.by, icon: ShieldAlert, tone: "amber",
           });
         }
-        // Settlement (exécution financière) — TOP-LEVEL sur l'article, séparé de stock_break.
         if (art.settlement) {
           const s = art.settlement;
           const lbl =
@@ -151,7 +133,6 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
             by: s.processed_by, icon: CheckCircle, tone: "emerald",
           });
         }
-        // Reprise après réappro (wait_restock)
         if (sb.action === "wait_restock" && sb.resumed_at) {
           const start = new Date(sb.created_at).getTime();
           const end = new Date(sb.resumed_at).getTime();
@@ -164,7 +145,6 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
           });
         }
       }
-      // Livraison partielle (état courant — pas d'historique)
       const delivered = art.delivered_qty ?? 0;
       if (delivered > 0 && delivered < art.quantity) {
         const last = (art.status_history ?? []).slice(-1)[0];
@@ -186,19 +166,24 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
     return <div className="text-xs text-gray-400 py-3 text-center italic">Aucun événement</div>;
   }
 
+  const hasMore = events.length > INITIAL_VISIBLE;
+  const displayEvents = expanded ? events : events.slice(0, INITIAL_VISIBLE);
+  const totalHidden = events.length - INITIAL_VISIBLE;
+
   return (
     <div className="space-y-0">
-      {events.map((e, i) => {
+      {displayEvents.map((e, i) => {
         const d = new Date(e.date);
         const Icon = e.icon;
         const t = TONES[e.tone];
+        const isLast = i === displayEvents.length - 1;
         return (
           <div key={i} className="flex gap-3 py-1.5">
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center ${t.text}`}>
                 <Icon className="h-4 w-4" />
               </div>
-              {i < events.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 my-1" />}
+              {!isLast && <div className="w-0.5 flex-1 bg-gray-200 my-1" />}
             </div>
             <div className="flex-1 pb-2 min-w-0">
               <div className="text-[13px] font-medium leading-tight">{e.label}</div>
@@ -211,6 +196,24 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
           </div>
         );
       })}
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          {expanded ? (
+            <>
+              <span>▲</span> Réduire l'historique
+            </>
+          ) : (
+            <>
+              <span>▼</span> Voir tout l'historique ({totalHidden} événement{totalHidden > 1 ? "s" : ""})
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
