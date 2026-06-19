@@ -103,10 +103,21 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const tech = getTechnicalRef(order.order_id ?? "");
 
   // ─── SCOPE PAR SOUS-COMMANDE (vendor_id + line_kind) ───
-  const allSubs = useMemo(
-    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
-    [articles, status, order.order_id],
-  );
+  // IMPORTANT : le Drawer doit afficher le même ensemble de sous-commandes
+  // que la liste Cockpit (PipelineView / Dashboard), donc UNIQUEMENT celles
+  // gérées par Kawzone (is_kawzone_managed). Les sous-commandes autonomes
+  // sont exclues et on RENUMÉROTE 1..N sur ce sous-ensemble.
+  const allSubs = useMemo(() => {
+    const raw = deriveSubOrders(articles, status, order.order_id ?? undefined);
+    const visible = raw.filter(s => s.is_kawzone_managed);
+    const total = visible.length;
+    return visible.map((s, i) => ({
+      ...s,
+      index: i + 1,
+      total,
+      label: formatSubOrderLabel(order.order_id ?? "", i + 1, total),
+    }));
+  }, [articles, status, order.order_id]);
   const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
   const currentVendorId = currentSub?.vendor_id ?? null;
   // Articles affichés dans ce drawer : filtré par sous-commande si scope actif.
