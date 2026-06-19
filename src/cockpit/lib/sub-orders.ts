@@ -143,11 +143,20 @@ export function deriveSubOrders(
     return score(b) - score(a);
   });
 
-  const total = sorted.length;
-  return sorted.map((s, i) => ({
+  // Numérotation uniquement sur les sous-commandes Kawzone (pas les autonomes)
+  const kawzoneSubs = sorted.filter(s => s.is_kawzone_managed);
+  const kawzoneTotal = kawzoneSubs.length;
+
+  // Index dans la séquence Kawzone uniquement
+  const kawzoneIndexMap = new Map<string, number>();
+  kawzoneSubs.forEach((s, i) => kawzoneIndexMap.set(s.sub_order_key, i + 1));
+
+  return sorted.map(s => ({
     ...s,
-    index: i + 1,
-    total,
-    label: formatSubOrderLabel(motherOrderId ?? "", i + 1, total),
+    index: kawzoneIndexMap.get(s.sub_order_key) ?? 0,
+    total: kawzoneTotal,
+    label: s.is_kawzone_managed
+      ? formatSubOrderLabel(motherOrderId ?? "", kawzoneIndexMap.get(s.sub_order_key) ?? 0, kawzoneTotal)
+      : `${s.vendor_name} (autonome)`,
   }));
 }
