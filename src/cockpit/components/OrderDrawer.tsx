@@ -219,14 +219,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Navigation sœurs (uniquement quand scopé) ─── */}
-          {isScoped && onSubOrderChange && (
-            <RelatedSubOrdersStrip
-              siblings={siblings}
-              currentKey={subOrderKey!}
-              onSelect={onSubOrderChange}
-            />
-          )}
+          {/* ─── Navigation sœurs masquée volontairement (UI simplifiée) ─── */}
+
 
           {/* ─── Badges métier (boutique/produit supprimé, risque, attente) ─── */}
           {isScoped && (
@@ -266,8 +260,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           )}
 
 
-          {/* Agrégateur (debug) — sur les articles scopés. */}
-          <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
+          {/* AggregateDebugPanel masqué volontairement (UI simplifiée) */}
+
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
