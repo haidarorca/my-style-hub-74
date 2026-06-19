@@ -260,8 +260,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           )}
 
 
-          {/* Agrégateur (debug) — sur les articles scopés. */}
-          <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
+          {/* AggregateDebugPanel masqué volontairement (UI simplifiée) */}
+
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
