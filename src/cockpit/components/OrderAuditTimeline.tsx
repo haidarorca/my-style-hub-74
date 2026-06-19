@@ -79,7 +79,9 @@ export function OrderAuditTimeline({ order, payments, audit, articles }: Props) 
       else if (action.includes("livr") || action.includes("deliver")) { icon = CheckCircle; tone = "emerald"; }
       else if (action.includes("expéd") || action.includes("ship")) { icon = Truck; tone = "indigo"; }
       else if (action.includes("pesée") || action.includes("weigh")) { icon = Scale; tone = "orange"; }
-      out.push({ date: a.timestamp, label: a.action, sub: a.details ?? undefined, by: a.adminName, icon, tone });
+      const human = humanizeAuditAction(a.action);
+      const subParts = [human.sub, a.details ?? undefined].filter(Boolean) as string[];
+      out.push({ date: a.timestamp, label: human.label, sub: subParts.length ? subParts.join(" · ") : undefined, by: a.adminName, icon, tone });
     }
 
     // Paiements (+ modifications)
