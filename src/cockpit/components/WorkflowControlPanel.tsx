@@ -40,40 +40,13 @@ const IMPORT_STEPS_V2: FlowStep[] = [
   { key: "delivered", label: "Livrée", description: "Commande livrée" },
 ];
 
-// Circuit B — poids déclaré : vérification interne, pas de paiement client supplémentaire.
-const IMPORT_STEPS_DECLARED: FlowStep[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue" },
-  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
-  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur" },
-  { key: "received_warehouse", label: "Réception", description: "Reçue à l'entrepôt" },
-  { key: "fees_calculated", label: "Vérif. poids", description: "Contrôle interne par l'agent" },
-  { key: "ready_delivery", label: "Prête", description: "Prête à expédier" },
-  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
-  { key: "delivered", label: "Livrée", description: "Commande livrée" },
-];
-
-// IMPORT_KNOWN_WEIGHT — fret figé au checkout. Aucune pesée, aucun paiement
-// complémentaire client. Workflow strictement opérationnel.
-const IMPORT_STEPS_KNOWN: FlowStep[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue" },
-  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
-  { key: "ordered_supplier", label: "Fournisseur", description: "Commandée chez le fournisseur" },
-  { key: "received_warehouse", label: "Réception", description: "Reçue à l'entrepôt" },
-  { key: "ready_delivery", label: "Prête", description: "Prête à expédier" },
-  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
-  { key: "delivered", label: "Livrée", description: "Commande livrée" },
-];
-
 interface Props {
   orderId?: string;
   status: string;
   isImport: boolean;
   isLocal: boolean;
+  isKnownWeight?: boolean;
   articles?: OrderArticle[];
-  /** line_kind de la sous-commande — pilote KNOWN vs UNKNOWN. */
-  lineKind?: string | null;
-  /** "declared" / "verified" / "anomaly" → utilise le Circuit B (poids déclaré). */
-  weightStatus?: string | null;
   onStatusChange: (status: string) => void;
 }
 
@@ -204,7 +177,7 @@ function CircuitAccordion({
   );
 }
 
-export function WorkflowControlPanel({ orderId, status, isImport, isLocal, lineKind, weightStatus, onStatusChange }: Props) {
+export function WorkflowControlPanel({ orderId, status, isImport, isLocal, isKnownWeight, onStatusChange }: Props) {
   const s = status ?? "new";
   const keyBase = `cockpit:circuit-open:${orderId ?? "_"}`;
 
@@ -225,28 +198,35 @@ export function WorkflowControlPanel({ orderId, status, isImport, isLocal, lineK
     );
   }
 
-  // IMPORT_KNOWN_WEIGHT prime sur weightStatus : fret figé, aucune pesée.
-  const isKnown = lineKind === "IMPORT_KNOWN_WEIGHT";
-  const isDeclared = !isKnown && (
-    weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly"
-  );
-  const importSteps = isKnown ? IMPORT_STEPS_KNOWN : (isDeclared ? IMPORT_STEPS_DECLARED : IMPORT_STEPS_V2);
-  const variantTag = isKnown ? "KNOWN" : isDeclared ? "B" : "A";
-  const title = isKnown ? "Circuit IMPORT (poids connu)" : isDeclared ? "Circuit IMPORT (poids déclaré)" : "Circuit IMPORT";
+  if (isKnownWeight) {
+    return (
+      <CircuitAccordion
+        storageKey={`${keyBase}:import-known`}
+        defaultOpen={false}
+        steps={IMPORT_STEPS_KNOWN}
+        currentStatus={s}
+        isImportFlow={true}
+        title="Circuit IMPORT — Poids déclaré"
+        icon={Truck}
+        headerColor="bg-blue-100 text-blue-700"
+        action={getNextStep(s, true)}
+        onStatusChange={onStatusChange}
+      />
+    );
+  }
 
   return (
     <CircuitAccordion
-      storageKey={`${keyBase}:import:${variantTag}`}
+      storageKey={`${keyBase}:import`}
       defaultOpen={false}
-      steps={importSteps}
+      steps={IMPORT_STEPS_V2}
       currentStatus={s}
       isImportFlow={true}
-      title={title}
+      title="Circuit IMPORT"
       icon={Truck}
       headerColor="bg-indigo-100 text-indigo-700"
-      action={getNextStep(s, true, weightStatus, lineKind ?? null)}
+      action={getNextStep(s, true)}
       onStatusChange={onStatusChange}
     />
   );
 }
-
