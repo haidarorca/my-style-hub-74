@@ -2,10 +2,7 @@
 // OrderDrawer — Fiche commande (pas de dialogs internes)
 // ═══════════════════════════════════════════════════════════════
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type { UnknownItem } from "./WeightForm";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home } from "lucide-react";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
-import { getOrderNumber, getTechnicalRef, formatSubOrderLabel } from "@/cockpit/lib/orderNumbers";
+import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
 import { PaymentHistory } from "./PaymentHistory";
@@ -37,10 +34,6 @@ import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/orde
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
-import { EventTimeline } from "./EventTimeline";
-import { SubOrderBadges } from "./SubOrderBadges";
-import { EventCaptureDialog } from "./EventCaptureDialog";
-import type { SubOrderHistory } from "@/cockpit/hooks/useSubOrderHistories";
 
 interface OrderFinancials {
   productTotal: number;
@@ -62,8 +55,8 @@ interface Props {
   onPayment: (orderId: string, amount: number, method: string, reference: string, adminName: string) => void;
   onEditPayment?: (id: string, u: { amount?: number; method?: string; reference?: string }) => void;
   onDeletePayment?: (id: string) => void;
-  onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp"> & { assessmentId?: string | null; subOrderKey?: string | null }) => void;
-  onStatusChange: (orderId: string, status: string, adminName: string, subOrderKey?: string | null) => void;
+  onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp">) => void;
+  onStatusChange: (orderId: string, status: string, adminName: string) => void;
   onRequestCancel?: () => void;
   onViewItems?: () => void;
   onFormInteraction?: () => void;
@@ -75,96 +68,55 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
-  /** Scope du drawer à UNE sous-commande (vendor_id + line_kind). */
-  subOrderKey?: string | null;
-  /** Navigation vers une autre sous-commande de la même commande mère. */
-  onSubOrderChange?: (subOrderKey: string) => void;
-  /** Assessment scopé à la sous-commande affichée (uniquement IMPORT_UNKNOWN_WEIGHT). */
-  subAssessment?: { id: string; air_freight_fee: number | null; status: string | null } | null;
-  /** Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère). */
-  effectiveSubStatus?: string | null;
-  /** Phase B : historique métier de la sous-commande affichée. */
-  subOrderHistory?: SubOrderHistory;
-  subOrderHistoryLoading?: boolean;
+  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
+  vendorId?: string;
+  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
+  onVendorChange?: (vendorId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange, subAssessment, effectiveSubStatus, subOrderHistory, subOrderHistoryLoading }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
-  const [showEventCapture, setShowEventCapture] = useState(false);
   if (!order) return null;
 
-  // Statut affiché : si on est scopé sur une sous-commande, on lit son statut
-  // RÉEL (sub_order_states) au lieu du statut de la commande mère. Sans cela,
-  // cliquer "Confirmer" écrirait bien sub_order_states mais l'UI continuerait
-  // d'afficher l'ancien statut de la mère.
-  const status = (subOrderKey ? (effectiveSubStatus ?? order.logistics_status) : order.logistics_status) ?? "new";
+  const status = order.logistics_status ?? "new";
   const kz = getOrderNumber(order.order_id ?? "");
   const tech = getTechnicalRef(order.order_id ?? "");
 
-  // ─── SCOPE PAR SOUS-COMMANDE (vendor_id + line_kind) ───
-  // IMPORTANT : le Drawer doit afficher le même ensemble de sous-commandes
-  // que la liste Cockpit (PipelineView / Dashboard), donc UNIQUEMENT celles
-  // gérées par Kawzone (is_kawzone_managed). Les sous-commandes autonomes
-  // sont exclues et on RENUMÉROTE 1..N sur ce sous-ensemble.
-  const allSubs = useMemo(() => {
-    const raw = deriveSubOrders(articles, status, order.order_id ?? undefined);
-    const visible = raw.filter(s => s.is_kawzone_managed);
-    const total = visible.length;
-    return visible.map((s, i) => ({
-      ...s,
-      index: i + 1,
-      total,
-      label: formatSubOrderLabel(order.order_id ?? "", i + 1, total),
-    }));
-  }, [articles, status, order.order_id]);
-  const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
-  const currentVendorId = currentSub?.vendor_id ?? null;
-  // Articles affichés dans ce drawer : filtré par sous-commande si scope actif.
+  // ─── Phase 2 : SCOPE BOUTIQUE ───
+  // Toutes les sous-commandes sœurs (pour navigation et libellé).
+  const allSubs = useMemo(
+    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
+    [articles, status, order.order_id],
+  );
+  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
+  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
   const scopedArticles = useMemo(
-    () => subOrderKey
-      ? (articles ?? []).filter(a => (a.sub_order_key ?? `${a.vendor_id ?? "unknown"}::${a.line_kind ?? (a.is_import ? "IMPORT_UNKNOWN_WEIGHT" : "LOCAL")}`) === subOrderKey)
-      : articles,
-    [articles, subOrderKey],
+    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
+    [articles, vendorId],
   );
   const siblings = useMemo(
     () => allSubs.map(s => ({
-      sub_order_key: s.sub_order_key,
       vendor_id: s.vendor_id, vendor_name: s.vendor_name,
-      line_kind: s.line_kind,
       index: s.index, total: s.total, label: s.label,
     })),
     [allSubs],
   );
-  const isScoped = !!subOrderKey && !!currentSub;
+  const isScoped = !!vendorId && !!currentSub;
+  // Helper pour masquer visuellement du JSX sans supprimer le code (court-circuite le type-checking)
+  const _h = (_jsx: any) => null;
+  // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
   const headerLabel = isScoped ? currentSub!.label : kz;
   const headerVendor = isScoped ? currentSub!.vendor_name : null;
-  const lineKind = currentSub?.line_kind ?? null;
 
-  // ─── FINANCES PAR SOUS-COMMANDE (plus aucun prorata) ───
-  // Produits : sum de la sous-commande.
-  // Fret :
-  //   LOCAL                 → 0
-  //   IMPORT_KNOWN_WEIGHT   → sum des item.freight_fee (figé au checkout)
-  //   IMPORT_UNKNOWN_WEIGHT → assessment.air_freight_fee (0 tant qu'aucune pesée)
-  let ot: number;
-  let sf: number;
-  if (isScoped && currentSub) {
-    ot = currentSub.financials.product_total;
-    if (lineKind === "IMPORT_KNOWN_WEIGHT") {
-      sf = currentSub.financials.declared_freight;
-    } else if (lineKind === "IMPORT_UNKNOWN_WEIGHT") {
-      sf = Number(subAssessment?.air_freight_fee ?? 0);
-    } else {
-      sf = 0;
-    }
-  } else {
-    ot = financials.productTotal;
-    sf = financials.freight;
-  }
+  // Finances : pro-rata du sous-total produits quand scopé.
+  const productShare = isScoped && financials.productTotal > 0
+    ? currentSub!.financials.product_total / financials.productTotal
+    : 1;
+  const ot = isScoped ? currentSub!.financials.product_total : financials.productTotal;
+  const sf = isScoped ? Math.round(financials.freight * productShare) : financials.freight;
   const gt = ot + sf;
-  // Paiements : non répartis par prorata. En vue scopée, on n'expose que ce qui est dû ici.
-  const tp = isScoped ? Math.min(financials.paid, gt) : financials.paid;
+  const tp = Math.round(financials.paid * (isScoped ? productShare : 1));
   const rem = Math.max(0, gt - tp);
   const paidFull = rem <= 0 && gt > 0;
   const waMsg = `Bonjour ${order.customer_name ?? ""}, concernant votre commande ${order.order_id ?? ""}`;
@@ -178,8 +130,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const isLocalOrder = !!scopedArticles && hasLocal && !hasImport;
   const isImportOrder = !!scopedArticles && !hasLocal && hasImport;
   const isImportFallback = !scopedArticles && isImport(order);
-  // En mode non-scopé : un drawer "mère" est multi-sous-commandes si >1 sub_order_key.
-  const isMultiVendor = !isScoped && allSubs.length > 1;
+  // Quand scopé : pas de "multi-vendor" dans ce drawer (par définition c'est UNE boutique).
+  const isMultiVendor = !isScoped && !!articles && new Set(articles.map(a => a.vendor_id ?? "unknown")).size > 1;
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
@@ -188,14 +140,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
   const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
-  // Prochaine étape dans le circuit métier (Circuit B si poids déclaré).
-  const weightStatus = (order as any).weight_status as string | null | undefined;
-  const nextStep = getNextStep(status, imp, weightStatus, lineKind);
+  // Prochaine étape dans le circuit métier
+  const nextStep = getNextStep(status, imp);
 
-
-  // Handler qui ferme le drawer après changement de statut (scopé à la sous-commande si applicable).
+  // Handler qui ferme le drawer après changement de statut
   const handleStatusAndClose = (orderId: string, newStatus: string, admin: string) => {
-    onStatusChange(orderId, newStatus, admin, subOrderKey ?? null);
+    onStatusChange(orderId, newStatus, admin);
     onClose();
   };
 
@@ -230,49 +180,23 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
-          {/* ─── Navigation sœurs masquée volontairement (UI simplifiée) ─── */}
-
-
-          {/* ─── Badges métier (boutique/produit supprimé, risque, attente) ─── */}
-          {isScoped && (
-            <div className="px-1">
-              <SubOrderBadges history={subOrderHistory} />
-            </div>
-          )}
+          {/* ─── Phase 2 : Strip de navigation vers les sœurs (masqué visuellement) ─── */}
+          {_h(isScoped && onVendorChange && (
+            <RelatedSubOrdersStrip
+              siblings={siblings}
+              currentVendorId={vendorId!}
+              onSelect={onVendorChange}
+            />
+          ))}
 
           {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
           {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
           )}
 
-          {/* ─── Historique métier (Événement → Décision → Mouvement) ─── */}
-          {isScoped && (
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowEventCapture(true)}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1"
-                >
-                  + Enregistrer un événement
-                </button>
-              </div>
-              <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
-            </div>
-          )}
-          {isScoped && currentVendorId && order.order_id && (
-            <EventCaptureDialog
-              open={showEventCapture}
-              onClose={() => setShowEventCapture(false)}
-              orderId={order.order_id}
-              vendorId={currentVendorId}
-              motherOrderIds={[order.order_id]}
-            />
-          )}
 
-
-          {/* AggregateDebugPanel masqué volontairement (UI simplifiée) */}
-
+          {/* Agrégateur (debug) — sur les articles scopés. Masqué visuellement. */}
+          {_h(<AggregateDebugPanel articles={scopedArticles} orderStatus={status} />)}
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
@@ -284,22 +208,19 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
-          {/* Action suivante */}
-          {nextActionInfo && (
+          {/* Action suivante — masquée visuellement */}
+          {_h(nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
-          )}
+          ))}
 
-          {/* Workflow : 1 par sous-commande. Le workflow dépend du line_kind
-              de la sous-commande affichée (KNOWN ≠ UNKNOWN). */}
+          {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
           {(isScoped || !isMultiVendor) && (
             <WorkflowControlPanel
               orderId={order.order_id ?? undefined}
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
-              lineKind={lineKind}
               articles={scopedArticles}
-              weightStatus={weightStatus}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}
@@ -466,11 +387,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Historique d'audit unifié */}
+          {/* Historique d'audit unifié — masqué visuellement (redondant avec le circuit workflow) */}
+          {_h(
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
             <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
           </div>
+          )}
 
           {/* Pesées */}
           {weighings.length > 0 && (
@@ -486,27 +409,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           )}
 
-          {/* Pesée — UNIQUEMENT pour IMPORT_UNKNOWN_WEIGHT, scopée à la sous-commande. */}
-          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && (
-            <WeightFormUnknownSub
-              orderId={order.order_id ?? ""}
-              subOrderKey={subOrderKey!}
-              assessmentId={subAssessment?.id ?? null}
-              unknownArticles={scopedArticles ?? []}
-              onWeigh={onWeigh}
-              onFormInteraction={onFormInteraction}
-            />
-          )}
-          {/* Pas d'écran de pesée pour LOCAL ni pour IMPORT_KNOWN_WEIGHT (fret figé au checkout). */}
-          {isScoped && lineKind === "IMPORT_KNOWN_WEIGHT" && sf > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-              Fret figé au checkout : <b>{fmtF(sf)}</b>. Aucune pesée ne sera appliquée à cette sous-commande.
-            </div>
-          )}
-          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && !subAssessment?.air_freight_fee && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800">
-              En attente de pesée — aucun fret n'est facturé tant que le colis n'a pas été pesé.
-            </div>
+          {/* Pesée */}
+          {imp && status === "awaiting_weighing" && (
+            <div onClick={onFormInteraction}><WeightForm orderId={order.order_id ?? ""} onWeigh={onWeigh} /></div>
           )}
 
           {/* Paiement */}
@@ -539,43 +444,5 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
         {dialogs}
       </SheetContent>
     </Sheet>
-  );
-}
-
-/** Pesée scopée à une sous-commande IMPORT_UNKNOWN_WEIGHT.
- *  - N'écrit JAMAIS sur une autre assessment.
- *  - La liste à peser provient des `scopedArticles` (déjà filtrés par sub_order_key). */
-function WeightFormUnknownSub({
-  orderId,
-  subOrderKey,
-  assessmentId,
-  unknownArticles,
-  onWeigh,
-  onFormInteraction,
-}: {
-  orderId: string;
-  subOrderKey: string;
-  assessmentId: string | null;
-  unknownArticles: OrderArticle[];
-  onWeigh: Props["onWeigh"];
-  onFormInteraction?: () => void;
-}) {
-  const items: UnknownItem[] = unknownArticles.map(a => ({
-    id: `${a.product_id}::${a.variant_id ?? ""}`,
-    name: a.product_name,
-    imageUrl: a.product_image ?? null,
-    variantLabel: a.variant_label ?? null,
-    quantity: a.quantity ?? 1,
-  }));
-  return (
-    <div onClick={onFormInteraction}>
-      <WeightForm
-        orderId={orderId}
-        assessmentId={assessmentId}
-        declaredFreight={0}
-        unknownItems={items}
-        onWeigh={(r) => onWeigh({ ...r, assessmentId, subOrderKey })}
-      />
-    </div>
   );
 }
