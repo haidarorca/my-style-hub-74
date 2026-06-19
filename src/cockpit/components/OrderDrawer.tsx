@@ -64,13 +64,13 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
-  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
-  vendorId?: string;
-  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
-  onVendorChange?: (vendorId: string) => void;
+  /** Phase 2 : scope du drawer à UNE sous-commande. Si défini, articles/workflow/financials sont filtrés. */
+  subOrderKey?: string;
+  /** Phase 2 : navigation vers une autre sous-commande de la même commande mère. */
+  onSubOrderChange?: (subOrderKey: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -85,16 +85,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
     () => deriveSubOrders(articles, status, order.order_id ?? undefined),
     [articles, status, order.order_id],
   );
-  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
-  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
+  const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
+  // Articles affichés dans ce drawer : filtré par sub_order_key si scope actif.
   const scopedArticles = useMemo(
-    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
-    [articles, vendorId],
+    () => subOrderKey ? (articles ?? []).filter(a => (a.sub_order_key ?? a.vendor_id ?? "unknown") === subOrderKey) : articles,
+    [articles, subOrderKey],
   );
 
-  // Si vendorId est passé, on est EN MODE SCOPÉ (sous-commande isolée),
-  // même si deriveSubOrders n'a pas trouvé la sous-commande (articles vide, etc.)
-  const isScoped = !!vendorId;
+  // Si subOrderKey est passé, on est EN MODE SCOPÉ (sous-commande isolée)
+  const isScoped = !!subOrderKey;
   // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
   const headerLabel = isScoped && currentSub ? currentSub.label : kz;
   const headerVendor = isScoped && currentSub ? currentSub.vendor_name : null;
@@ -179,6 +178,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               orderStatus={status}
               motherOrderId={order.order_id ?? undefined}
               alwaysShow={isMultiVendor}
+              onSelectSubOrder={onSubOrderChange}
             />
           )}
 
