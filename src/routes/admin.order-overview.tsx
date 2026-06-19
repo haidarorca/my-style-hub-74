@@ -39,17 +39,23 @@ function OrderOverviewPage() {
   const getPayments = useServerFn(listAllOrderPayments);
 
   // ── Filtres ──
-  const [statusFilter, setStatusFilter] = useState("");
-  const [countryFilter, setCountryFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"" | "local" | "import" | "mixed">("");
+  // Valeurs "all"* utilisées car Radix UI SelectItem n'accepte pas value=""
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all_countries");
+  const [typeFilter, setTypeFilter] = useState<"all_types" | "local" | "import" | "mixed">("all_types");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
   // ── Chargement données ──
+  // Conversion "all"* → "" pour le serveur (qui attend "" pour "pas de filtre")
+  const serverStatus = statusFilter === "all" ? "" : statusFilter;
+  const serverCountry = countryFilter === "all_countries" ? "" : countryFilter;
+  const serverType = typeFilter === "all_types" ? "" : typeFilter;
+
   const { data, isLoading } = useQuery({
-    queryKey: ["order-overview", page, pageSize, statusFilter, countryFilter, typeFilter, q],
-    queryFn: async () => getOverview({ data: { page, pageSize, statusFilter, countryFilter, typeFilter, q, dateFrom: null, dateTo: null } }),
+    queryKey: ["order-overview", page, pageSize, serverStatus, serverCountry, serverType, q],
+    queryFn: async () => getOverview({ data: { page, pageSize, statusFilter: serverStatus, countryFilter: serverCountry, typeFilter: serverType as any, q, dateFrom: null, dateTo: null } }),
     refetchInterval: 30000,
   });
 
@@ -167,11 +173,12 @@ function FilterBar({
   q: string; onQChange: (v: string) => void;
   status: string; onStatusChange: (v: string) => void;
   country: string; onCountryChange: (v: string) => void;
-  type: "" | "local" | "import" | "mixed"; onTypeChange: (v: "" | "local" | "import" | "mixed") => void;
+  type: "all_types" | "local" | "import" | "mixed"; onTypeChange: (v: "all_types" | "local" | "import" | "mixed") => void;
   countries: { id: string; name: string; flag_emoji: string | null }[];
 }) {
+  // Valeurs "all"* car Radix UI interdit value=""
   const statusOptions = [
-    { value: "", label: "Toutes" },
+    { value: "all", label: "Toutes" },
     { value: "new", label: "À traiter" },
     { value: "confirmed", label: "Confirmées" },
     { value: "ordered_supplier", label: "Chez fournisseur" },
@@ -215,7 +222,7 @@ function FilterBar({
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tous types</SelectItem>
+            <SelectItem value="all_types">Tous types</SelectItem>
             <SelectItem value="local">Local</SelectItem>
             <SelectItem value="import">Import</SelectItem>
             <SelectItem value="mixed">Mixte</SelectItem>
@@ -228,7 +235,7 @@ function FilterBar({
               <SelectValue placeholder="Pays" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tous pays</SelectItem>
+              <SelectItem value="all_countries">Tous pays</SelectItem>
               {countries.map(c => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.flag_emoji ? `${c.flag_emoji} ` : ""}{c.name}
