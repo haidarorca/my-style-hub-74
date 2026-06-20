@@ -104,7 +104,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
   // ─── SCOPE PAR SOUS-COMMANDE (vendor_id + line_kind) ───
   const allSubs = useMemo(
-    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
+    () => deriveManagedSubOrders(articles, status, order.order_id ?? undefined),
     [articles, status, order.order_id],
   );
   const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
