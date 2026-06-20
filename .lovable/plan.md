@@ -1,94 +1,61 @@
-# Finalisation complète de l'architecture métier
 
-Objectif : que les 3 catégories `LOCAL`, `IMPORT_KNOWN_WEIGHT`, `IMPORT_UNKNOWN_WEIGHT` soient appliquées **uniformément** sur tout le flux, sans logique partielle, sans prorata, sans fret avant pesée.
+## Analyse — Page actuelle vs maquette
 
----
+Page `/admin/commandes` (état actuel)
+- Filtres : recherche, pays (texte), type, circuit, onglets de statut.
+- Affichage : KZ, client, pays texte, sous-commandes (avec `step/total` par sous-commande), paiement, statut global, barre de progression `done/total` (livrées), dernière activité.
+- Au clic : rien. Pas de drawer.
 
-## Règles métier (source de vérité)
+Manques par rapport à la maquette
+1. **Filtre par dates** : aucun sélecteur de période (Aujourd'hui / Hier / Cette semaine / Ce mois / Ce trimestre / Personnalisé + calendrier début/fin).
+2. **Drapeaux pays** : remplacés par `🏳️`. Aucun mapping pays → drapeau.
+3. **Ouverture en fenêtre** : aucun drawer. Pour gérer une commande, il faut aller dans le Cockpit.
+4. **Progressions** : la barre globale `done/total` est correcte par spec (sous-commandes 100% terminées) — à conserver. La progression individuelle `step/total` redéfinit `FLOW_STEPS` localement au lieu de réutiliser `IMPORT_STEPS` / `getImportStepIndex` du Cockpit → risque de divergence.
 
-| Catégorie | Fret au checkout | Pesée | Paiement fret | Sélecteur transport |
-|---|---|---|---|---|
-| **LOCAL** | 0 | non | jamais | aucun |
-| **IMPORT_KNOWN_WEIGHT** | calculé et **figé** | non | **avec la commande** | choix immédiat (Mode / Prix / Délai) |
-| **IMPORT_UNKNOWN_WEIGHT** | **0 / NULL** | oui | **après pesée** | 1 seul choix global (FCFA/kg) pour tous les UNKNOWN |
+## Architecture proposée — zéro duplication
 
-Regroupement sous-commande : **`(vendor_id + line_kind)`** partout (clé `${vendor_id}::${line_kind}`).
+Le `OrderDrawer` du Cockpit est piloté par ~15 props (paiements, audit, weighings, articles, handlers de mutation, assessment, history, etc.) que le `Dashboard` calcule via `useRealOrders`, `useArticleStates`, `useSubAssessments`, `useSubOrderHistories`. Copier ce wiring dans `admin.commandes.tsx` = duplication massive.
 
----
+Solution : **extraire le wiring du drawer dans un composant partagé** `<CockpitOrderDrawerHost>` qui :
+- prend en entrée : `selectedOrder`, `selectedSubKey`, `onClose`, plus les ressources déjà calculées par le parent (`orders`, hooks `useRealOrders`), 
+- gère en interne tous les handlers (status, paiement, weighing, articles, settlement, restock, cancel, items panel),
+- monte les dialogs internes (`CancelDialog`, `CloseConfirmDialog`, `OrderItemsPanel`),
+- est consommé à la fois par `Dashboard.tsx` (Cockpit) et par `admin.commandes.tsx`.
 
-## Vague 1 — Panier (`src/routes/cart.tsx` + `use-cart.tsx`)
+Résultat : **une seule source de vérité** pour l'ouverture/édition d'une sous-commande. Toute évolution du workflow se propage aux deux écrans.
 
-1. Remplacer le sectionnement `import / local` par **3 sections** : LOCAL, IMPORT_KNOWN_WEIGHT, IMPORT_UNKNOWN_WEIGHT.
-2. **Supprimer définitivement le sélecteur transport par ligne** (le `<select>` mt-1 actuellement rendu par ligne international).
-3. **KNOWN** : un seul sélecteur de service par sous-commande (vendor+KNOWN) affichant `Mode / Prix figé / Délai`. Prix = somme des frets ligne calculés avec le service choisi.
-4. **UNKNOWN** : un seul sélecteur global "Choisissez votre service de transport" affichant uniquement `Mode / FCFA-par-kg / Délai`. Aucun montant. Stocké comme préférence client sur chaque ligne UNKNOWN (`__shipping_service_id`).
-5. Total panier = `produits + fret KNOWN` uniquement. UNKNOWN n'ajoute jamais rien au total. Bandeau "Transport poids inconnu calculé après pesée" sous la section UNKNOWN.
-6. Bouton checkout désactivé si une section KNOWN ou UNKNOWN existe sans service choisi.
-7. `updateLineShipping` reste, mais n'est plus utilisé pour de l'UI par-ligne — utilisé par la propagation "section → toutes les lignes de cette section".
+## Changements
 
-## Vague 2 — Checkout (`src/lib/checkout.functions.ts`)
+### 1. Nouveau composant partagé
+`src/cockpit/components/CockpitOrderDrawerHost.tsx`
+- Props : `{ selectedOrder, selectedSubKey, onSubOrderChange, onClose, orders, realOrders, adminName }` (où `realOrders` = l'instance déjà créée de `useRealOrders` par le parent).
+- Encapsule : `useArticleStates`, `useSubAssessments` (scope = un id), `useSubOrderHistories` (scope = un id), tous les handlers, `<OrderDrawer>` et les 3 dialogs.
+- Code déplacé depuis `Dashboard.tsx` (≈140 lignes).
 
-1. Étendre `CheckoutSchema.items[]` : ajouter `__line_kind` indicatif, accepter un `shippingServiceId` par ligne (déjà fait).
-2. Le serveur **recalcule** `line_kind` (source de vérité) ; `shippingServiceId` par ligne accepté pour KNOWN.
-3. UNKNOWN : `__freight_fee = 0`, `air_freight_fee = NULL` sur l'assessment, status `pending_arrival`, `weight_mode = "unknown"`. Aucune note d'estimation.
-4. KNOWN : `__freight_fee` figé sur la ligne, somme reflétée dans `assessment.declared_freight` (rendu à titre indicatif), status `fees_calculated`, `weight_mode = "declared"`.
-5. Branche guest (cart.tsx l. 778-810) : retirer la `shipping_estimate_note` qui parle d'estimation pour UNKNOWN.
+### 2. `Dashboard.tsx` (Cockpit)
+- Supprime tout le wiring drawer/articles/assessment/dialogs/handlers déplacés.
+- Conserve la sélection et délègue à `<CockpitOrderDrawerHost>`.
+- Aucune régression fonctionnelle.
 
-## Vague 3 — Cockpit groupage & statuts
+### 3. `admin.commandes.tsx`
+- **Filtres dates** : nouveau composant `DateRangePicker` avec presets (Aujourd'hui, Hier, Cette semaine, Ce mois, Ce trimestre, Personnalisé) + calendriers `Calendar` shadcn pour début/fin. Filtre appliqué sur `order.order_created_at`.
+- **Drapeaux pays** : helper `countryFlag(code)` mappant `country_code` → emoji drapeau (utiliser `destination_country_id` ou un mapping ISO). Pour les codes inconnus → `🏳️`.
+- **Clic ligne/carte** : ouvre un état local `selectedOrder` + `selectedSubKey`.
+- **Drawer** : monte `<CockpitOrderDrawerHost>` avec la même instance `useRealOrders()` déjà présente sur la page.
+- **Sous-commandes en boutons** : la `RelatedSubOrdersStrip` est déjà rendue par `OrderDrawer` quand on est scopé, donc dès qu'on ouvre depuis le bouton "1/3" on a la navigation cross-sous-commandes. Au clic initial sur une ligne sans sous-commande choisie, on sélectionne automatiquement la première (`subs[0].sub_order_key`).
+- **Progression individuelle** : remplacer `FLOW_STEPS` local par `getImportStepIndex` / `IMPORT_STEPS` du Cockpit (`src/cockpit/lib/workflow.ts`) pour les circuits IMPORT, et garder une liste explicite uniquement pour LOCAL (déjà alignée). Tooltip listant les étapes restantes.
 
-Fichiers : `cockpit/lib/sub-orders.ts`, `useSubOrderRows.ts`, `useArticleStates.ts`, `OrderDrawer.tsx`, `SubOrderCard.tsx`, `SubOrdersPanel.tsx`, `Dashboard.tsx`, `WorkflowControlPanel.tsx`, `cockpit/lib/workflow.ts`.
+### 4. Hooks partagés (sans modification de logique)
+- `useArticleStates(orderId, status)` et `useSubAssessments([orderId])` fonctionnent déjà sur un id unique → réutilisables directement depuis le host.
+- `useSubOrderHistories([orderId])` idem.
 
-1. Vérifier que **toutes** les lectures (Drawer, Panel, Dashboard, Workflow, history) consomment `sub_order_key` issu de `deriveSubOrders`.
-2. `useArticleStates` + `updateStatus` : 100% scopés par `subOrderKey`. Supprimer toute branche "global order status" qui contourne la sous-commande.
-3. `WorkflowControlPanel` : actions de transition lisent/écrivent le statut depuis `sub_order_states` via la clé.
-4. Pour UNKNOWN : bloquer l'avancement workflow tant que `air_freight_fee IS NULL` (sauf annulation).
+## Données techniques
 
-## Vague 4 — Pesée (`WeightForm.tsx` + `shipment-assessments.functions.ts`)
+- Le filtre date opère côté client sur `order_created_at` (déjà dans `LogisticsOrderRow`).
+- Mapping drapeaux : préférer un helper dérivé du code ISO 2-lettres (`destination_country_code` si disponible, sinon fallback sur le nom). Si la donnée manque, ajouter une lecture rapide depuis `useRealOrders` ou un fallback texte.
+- Aucune migration DB. Aucun changement de workflow, de calcul de fret, ou de logique de sous-commande.
 
-1. Form scopé `sub_order_key` UNKNOWN uniquement (déjà partiellement fait → vérifier).
-2. Mode global : `real_weight_kg` requis, dimensions L/l/H optionnelles, calcul `volumetric = L*l*H/5000`, `chargeable = max(real, volumetric)`, `air_freight_fee = chargeable * service.price_per_kg`.
-3. **Mode `per_item`** : pour chaque order_item UNKNOWN, saisir `real_weight_kg` (requis) + L/l/H (optionnels), calcul volumétrique par article, `air_freight_fee = Σ chargeable_i * rate`.
-4. Persistance par article : nouvelle colonne JSON sur `order_shipment_assessments.per_item_weights` (déjà présente ou à ajouter via migration), structure `{ order_item_id: { real_kg, l_cm, w_cm, h_cm, chargeable_kg } }`.
-5. À l'écriture : UPDATE de l'assessment scopé par `(order_id, sub_order_key)` UNIQUEMENT.
-
-## Vague 5 — Finances (`finance.functions.ts`, `cockpit-payments.functions.ts`, `admin-logistics.functions.ts`, `OrderDrawer`, `FinanceCenter`)
-
-1. **Plus aucun prorata.** Toute somme s'agrège par `sub_order_key`.
-2. `getOrderFinancials` (ou équivalent) renvoie par sous-commande :
-   - `products_total` (somme `line_total` non annulés)
-   - `freight_total` = KNOWN → Σ `freight_fee` ligne ; UNKNOWN → `air_freight_fee` (0 si NULL) ; LOCAL → 0
-   - `commission_total`, `refund_total`, `credit_total`
-   - `total_due`, `paid`, `balance`
-3. Vue Finance : afficher 1 ligne par sous-commande, jamais une somme mère reconstituée par prorata.
-4. `OrderDrawer` : retirer toute trace de `productShare * motherFreight`.
-
-## Vague 6 — Workflow, Paiements, Dashboard
-
-1. `WorkflowDrawer` + `WorkflowExpandedForm` + `useWorkflowActions` : actions par sous-commande (ouvrir avec `sub_order_key` + `order_id`).
-2. `PaymentForm` : un paiement est lié à une sous-commande (ajouter `sub_order_key` au formulaire, à `order_payments` si la colonne existe — migration sinon).
-3. `Dashboard` : KPIs et listes regroupés sur `sub_order_key`, pas sur `order_id`.
-4. History (`useSubOrderHistories`) : déjà keyé sub-order ; vérifier que les events sont créés avec `sub_order_key`.
-
----
-
-## Détails techniques
-
-- Nouvelle migration (si nécessaire) :
-  - `order_shipment_assessments.per_item_weights jsonb`
-  - `order_payments.sub_order_key text` + index
-- Aucune RLS modifiée.
-- Aucune table ajoutée hors migrations existantes (`sub_order_states`).
-
-## Ordre d'exécution
-
-1. Vague 2 (serveur checkout) — pré-requis pour cart.
-2. Vague 1 (cart UI).
-3. Vague 3 (cockpit grouping/status).
-4. Vague 4 (pesée).
-5. Vague 5 (finances).
-6. Vague 6 (workflow/paiements/dashboard).
-7. Vérification finale : `rg` pour `prorata`, `productShare`, `__freight_fee` mal lu, `motherFreight`, et tout chemin lisant l'ancien `is_import` sans `line_kind`.
-
-## Livrable final
-
-Rapport listant pour chaque vague : fichiers modifiés, fonctions modifiées, et 1 phrase par règle métier expliquant où elle est désormais appliquée.
+## Hors-scope (explicitement)
+- Aucune modification de `WorkflowControlPanel`, `useSubOrderRows`, `sub-orders.ts`, `workflow.ts`, hooks Cockpit.
+- Aucune nouvelle route. La page `/admin/commandes` reste la cible.
+- Aucun changement de la règle "TERMINÉE" (déjà : toutes livrées ET reste = 0).

@@ -9,24 +9,19 @@ import { useSearch, useNavigate } from "@tanstack/react-router";
 import { Search, ClipboardList, Archive, ArrowUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
-import { useArticleStates } from "@/cockpit/hooks/useArticleStates";
 import { useAuth } from "@/hooks/use-auth";
-import { OrderDrawer } from "@/cockpit/components/OrderDrawer";
-import { CancelDialog } from "@/cockpit/components/CancelDialog";
-import { CloseConfirmDialog } from "@/cockpit/components/CloseConfirmDialog";
-import { OrderItemsPanel } from "@/cockpit/components/OrderItemsPanel";
+import { CockpitOrderDrawerHost } from "@/cockpit/components/CockpitOrderDrawerHost";
 import { PipelineView } from "@/cockpit/components/PipelineView";
 import { CockpitFilterPanel } from "@/cockpit/components/CockpitFilterPanel";
 import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
-import { useSubAssessments } from "@/cockpit/hooks/useSubAssessments";
-import { useSubOrderHistories, getHistory } from "@/cockpit/hooks/useSubOrderHistories";
+import { useSubOrderHistories } from "@/cockpit/hooks/useSubOrderHistories";
 import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
 import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
 import { fmtF } from "@/cockpit/lib/workflow";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { ArchiveFilter } from "@/cockpit/types";
-import type { ArticleStatus, StockBreakAction, StockBreakDecision, Settlement } from "@/cockpit/lib/article-states";
+
 
 
 type SortField = "date" | "amount" | "name" | "status";
@@ -36,15 +31,14 @@ type SortDir = "asc" | "desc";
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+  const realOrders = useRealOrders();
   const {
     orders, isLoading, setSearchTerm,
-    getPayments, getTotalPaid, getAudit,
-    addPayment, editPayment, deletePayment,
-    getWeighings, addWeighing,
-    updateStatus, cancelOrder, cancellations,
+    cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
     getSubOrderStatus,
-  } = useRealOrders();
+  } = realOrders;
+
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
@@ -54,16 +48,15 @@ export default function CockpitDashboard() {
   // Chaque row reçoit `effective_status` (sub_order_states ?? mother).
   const { rows: subOrderRows } = useSubOrderRows(orders, getSubOrderStatus);
 
-  // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
-  const visibleOrderIdsAll = useMemo(
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  // Utilisé par PipelineView pour les badges. Le drawer recalcule son propre
+  // historique scopé à un id unique.
+  const visibleOrderIds = useMemo(
     () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
     [subOrderRows],
   );
-  const { getAssessment } = useSubAssessments(visibleOrderIdsAll);
+  const { data: historyMap } = useSubOrderHistories(visibleOrderIds);
 
-  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
-  const visibleOrderIds = visibleOrderIdsAll;
-  const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
 
   // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
   const visibleVendorIds = useMemo(
@@ -98,11 +91,6 @@ export default function CockpitDashboard() {
 
   const [activeTab, setActiveTab] = useState<"actions" | "archive">("actions");
 
-  // Dialogs
-  const [showCancel, setShowCancel] = useState(false);
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const [showItemsPanel, setShowItemsPanel] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
   // ─── Moteur de filtres métier multi-dimensions ───
   const {
@@ -123,112 +111,9 @@ export default function CockpitDashboard() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
 
-  // ─── Article states ───
-  const articlesHook = useArticleStates(
-    selectedOrder?.order_id ?? null,
-    selectedOrder?.logistics_status ?? undefined
-  );
-  const selectedArticles = selectedOrder ? articlesHook.articles : undefined;
+  // Articles / handlers / dialogs : centralisés dans CockpitOrderDrawerHost.
 
-  const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const last_valid_status = art.status !== "no_stock" ? art.status : art.stock_break?.last_valid_status;
-    const decision: StockBreakDecision = {
-      reason: data.reason,
-      action: data.action,
-      action_label: data.action,
-      resolved: true,
-      created_at: new Date().toISOString(),
-      last_valid_status,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: "no_stock", stock_break: decision },
-      audit_action: `stock_break.${data.action}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
 
-  const handleResumeRestock = useCallback((productId: string) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art || !art.stock_break || art.stock_break.action !== "wait_restock") return;
-    const memorized = art.stock_break.last_valid_status;
-    const fallback: ArticleStatus = art.is_import ? "received" : "available";
-    const target: ArticleStatus = memorized ?? fallback;
-    const newSb: StockBreakDecision = {
-      ...art.stock_break,
-      resumed_at: new Date().toISOString(),
-      resumed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: target, stock_break: newSb },
-      audit_action: "stock_break.resume_restock",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
-
-  const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status },
-      audit_action: `status.${status}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handlePartialDeliver = useCallback((productId: string, qty: number) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const newDelivered = (art.delivered_qty ?? 0) + qty;
-    const fullyDelivered = newDelivered >= art.quantity;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: {
-        delivered_qty: newDelivered,
-        status: fullyDelivered ? "delivered" : art.status,
-      },
-      audit_action: "partial_deliver",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handleSettleFinancial = useCallback((productId: string, data: { type: Settlement["type"]; amount: number; cost_attribution: Settlement["cost_attribution"]; method?: string; reference?: string; note?: string; shared_split?: Settlement["shared_split"] }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const settlement: Settlement = {
-      type: data.type,
-      amount: data.amount,
-      cost_attribution: data.cost_attribution,
-      shared_split: data.shared_split,
-      method: data.method,
-      reference: data.reference,
-      note: data.note,
-      processed_at: new Date().toISOString(),
-      processed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { settlement },
-      audit_action: `settlement.${data.type}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
-
-  const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
-  const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
-  const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
-  const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
-  const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
-  const selFinancials = selectedOrder ? getOrderFinancials(selectedOrder) : { productTotal: 0, freight: 0, grandTotal: 0, paid: 0, remaining: 0 };
 
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -276,30 +161,10 @@ export default function CockpitDashboard() {
   const resultCount = tabbedSubRows.length;
 
 
-  const handleStatus = (orderId: string, status: string, _admin: string, subOrderKey?: string | null) => {
-    updateStatus(orderId, status, _admin || adminName, subOrderKey ?? null);
-    setHasChanges(false);
-  };
-  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
-    addPayment(orderId, amount, method, reference, _admin || adminName);
-    setHasChanges(false);
-  };
-  const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
+  // Tous les handlers (status, paiement, pesée, cancel, fermeture, articles)
+  // sont désormais gérés par CockpitOrderDrawerHost.
 
-  const doCancel = useCallback((reason: string, refundType: string) => {
-    if (!selectedOrder) return;
-    cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
-    setShowCancel(false);
-    setSelectedOrder(null);
-    setSelectedSubKey(undefined);
-  }, [selectedOrder, cancelOrder, adminName]);
 
-  const handleCloseDrawer = useCallback(() => {
-    setShowItemsPanel(false);
-    if (hasChanges) setShowCloseConfirm(true);
-    else { setSelectedOrder(null); setSelectedSubKey(undefined); }
-  }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubKey(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
@@ -419,45 +284,15 @@ export default function CockpitDashboard() {
       </div>
 
       {/* Drawer */}
-      {selectedOrder && (() => {
-        // Vendor id de la sous-commande sélectionnée (pour getHistory) + assessment scopé.
-        const subVendorId = selectedSubKey ? selectedSubKey.split("::")[0] : null;
-        const subAss = selectedSubKey && selectedOrder.order_id
-          ? getAssessment(selectedOrder.order_id, selectedSubKey)
-          : null;
-        // Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère).
-        const effectiveSubStatus = selectedSubKey && selectedOrder.order_id
-          ? (getSubOrderStatus(selectedOrder.order_id, selectedSubKey, selectedOrder.logistics_status ?? null) ?? selectedOrder.logistics_status ?? "new")
-          : null;
-        return (
-        <OrderDrawer
-          order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
-          onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
-          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
-          articles={selectedArticles}
-          onStockBreak={handleStockBreak}
-          onArticleStatusChange={handleArticleStatusChange}
-          onPartialDeliver={handlePartialDeliver}
-          onSettleFinancial={handleSettleFinancial}
-          onResumeRestock={handleResumeRestock}
-          subOrderKey={selectedSubKey}
-          onSubOrderChange={setSelectedSubKey}
-          subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
-          effectiveSubStatus={effectiveSubStatus}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
-          subOrderHistoryLoading={historyLoading}
-          dialogs={
-            <>
-              {showItemsPanel && (
-                <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
-              )}
-              <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />
-              <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
-            </>
-          }
-        />
-        );
-      })()}
+      <CockpitOrderDrawerHost
+        realOrders={realOrders}
+        selectedOrder={selectedOrder}
+        selectedSubKey={selectedSubKey}
+        onSubOrderChange={(k) => setSelectedSubKey(k)}
+        onClose={() => setSelectedOrder(null)}
+        adminName={adminName}
+      />
+
     </div>
   );
 }
