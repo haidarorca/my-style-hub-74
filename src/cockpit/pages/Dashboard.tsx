@@ -91,11 +91,6 @@ export default function CockpitDashboard() {
 
   const [activeTab, setActiveTab] = useState<"actions" | "archive">("actions");
 
-  // Dialogs
-  const [showCancel, setShowCancel] = useState(false);
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const [showItemsPanel, setShowItemsPanel] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
   // ─── Moteur de filtres métier multi-dimensions ───
   const {
