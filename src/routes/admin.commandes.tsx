@@ -552,21 +552,29 @@ function StatusBadge({ s }: { s: GlobalStatus }) {
   );
 }
 
-function ProgressBar({ done, total }: { done: number; total: number }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+function ProgressBar({
+  done, total, opSteps, opTotalSteps,
+}: { done: number; total: number; opSteps: number; opTotalSteps: number }) {
+  const opPct = opTotalSteps > 0 ? Math.round((opSteps / opTotalSteps) * 100) : 0;
+  const allDone = total > 0 && done === total;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span className="font-mono font-bold text-foreground">{done}/{total || 1}</span>
-        <span>{pct}%</span>
+        <span className="font-mono font-bold text-foreground">
+          {opSteps}/{opTotalSteps || 1}
+          <span className="ml-2 font-normal text-muted-foreground">
+            · {done}/{total || 1} terminée{total > 1 ? "s" : ""}
+          </span>
+        </span>
+        <span>{opPct}%</span>
       </div>
       <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
         <div
           className={cn(
             "h-full transition-all",
-            pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-blue-500" : "bg-orange-400",
+            allDone ? "bg-emerald-500" : opPct >= 50 ? "bg-blue-500" : "bg-orange-400",
           )}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${opPct}%` }}
         />
       </div>
     </div>
