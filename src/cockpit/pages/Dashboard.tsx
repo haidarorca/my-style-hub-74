@@ -165,30 +165,10 @@ export default function CockpitDashboard() {
   const resultCount = tabbedSubRows.length;
 
 
-  const handleStatus = (orderId: string, status: string, _admin: string, subOrderKey?: string | null) => {
-    updateStatus(orderId, status, _admin || adminName, subOrderKey ?? null);
-    setHasChanges(false);
-  };
-  const handlePayment = (orderId: string, amount: number, method: string, reference: string, _admin: string) => {
-    addPayment(orderId, amount, method, reference, _admin || adminName);
-    setHasChanges(false);
-  };
-  const handleWeigh = (record: Parameters<typeof addWeighing>[0]) => { addWeighing(record); setHasChanges(false); };
+  // Tous les handlers (status, paiement, pesée, cancel, fermeture, articles)
+  // sont désormais gérés par CockpitOrderDrawerHost.
 
-  const doCancel = useCallback((reason: string, refundType: string) => {
-    if (!selectedOrder) return;
-    cancelOrder(selectedOrder.order_id ?? "", reason, refundType as any, adminName);
-    setShowCancel(false);
-    setSelectedOrder(null);
-    setSelectedSubKey(undefined);
-  }, [selectedOrder, cancelOrder, adminName]);
 
-  const handleCloseDrawer = useCallback(() => {
-    setShowItemsPanel(false);
-    if (hasChanges) setShowCloseConfirm(true);
-    else { setSelectedOrder(null); setSelectedSubKey(undefined); }
-  }, [hasChanges]);
-  const confirmClose = useCallback(() => { setShowCloseConfirm(false); setHasChanges(false); setSelectedOrder(null); setSelectedSubKey(undefined); }, []);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen text-gray-500">Chargement des commandes...</div>;
 
