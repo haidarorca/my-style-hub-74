@@ -264,12 +264,19 @@ function CommandesPage() {
         const subs = (subsByOrder.get(oid) ?? []).slice().sort((a, b) => a.index - b.index);
         const fin = getOrderFinancials(o);
         const done = subs.filter(s => s.effective_status === "delivered").length;
+        let opSteps = 0;
+        let opTotalSteps = 0;
+        for (const s of subs) {
+          const p = subProgress(s.line_kind, s.effective_status);
+          opSteps += p.step;
+          opTotalSteps += p.total;
+        }
         const globalStatus = deriveGlobalStatus(o, subs, fin.remaining);
         const lastActivity =
           o.updated_at ?? o.shipped_at ?? o.weighed_at ?? o.warehouse_received_at ?? o.order_created_at ?? null;
         return {
           order: o, kz: getOrderNumber(oid), subs, fin,
-          total: subs.length, done, globalStatus, lastActivity,
+          total: subs.length, done, opSteps, opTotalSteps, globalStatus, lastActivity,
           flag: flagFor(o),
         };
       })
