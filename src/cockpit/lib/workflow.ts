@@ -23,18 +23,6 @@ export const IMPORT_STEPS: { key: ImportStatus; label: string; description: stri
   { key: "delivered", label: "Livrée", description: "Commande livrée au client" },
 ];
 
-/* ─── WORKFLOW IMPORT POIDS CONNU (7 étapes, sans pesée/frais/paiement) ───
-   new → confirmed → ordered_supplier → received_warehouse → ready_delivery → shipped → delivered */
-export const IMPORT_STEPS_KNOWN: { key: ImportStatus; label: string; description: string }[] = [
-  { key: "new", label: "Nouvelle", description: "Commande reçue" },
-  { key: "confirmed", label: "Confirmée", description: "Commande validée" },
-  { key: "ordered_supplier", label: "Commandée fournisseur", description: "Commande passée chez le fournisseur" },
-  { key: "received_warehouse", label: "Reçue entrepôt", description: "Produits reçus à l'entrepôt" },
-  { key: "ready_delivery", label: "Prête", description: "Prête à être expédiée" },
-  { key: "shipped", label: "Expédiée", description: "En cours de livraison" },
-  { key: "delivered", label: "Livrée", description: "Commande livrée au client" },
-];
-
 /* ─── WORKFLOW LOCAL OFFICIEL (6 étapes) ───
    new → confirmed → preparing → ready → shipped → delivered */
 export const LOCAL_STEPS: { key: LocalStatus; label: string; description: string }[] = [
@@ -202,7 +190,7 @@ const LOCAL_FLOW: Record<string, NextStep> = {
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
 };
 
-/** Circuit IMPORT : nouvelle → confirmée → fournisseur → entrepôt → pesée → calcul frais → paiement client → prête → expédiée → livrée */
+/** Circuit IMPORT A (poids inconnu) : passe par pesée, calcul frais et paiement client. */
 const IMPORT_FLOW: Record<string, NextStep> = {
   "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
   new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
@@ -216,10 +204,59 @@ const IMPORT_FLOW: Record<string, NextStep> = {
   shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
 };
 
-/** Retourne l'étape suivante d'une commande */
-export function getNextStep(currentStatus: string, importOrder: boolean): NextStep | null {
-  const flow = importOrder ? IMPORT_FLOW : LOCAL_FLOW;
+/** Circuit IMPORT B (poids déclaré) : vérification interne, pas de paiement complémentaire client.
+ *  Réception entrepôt → Prête → Expédiée → Livrée. La vérification du poids est faite par
+ *  l'agent logistique via le panneau d'évaluation, sans étape client. */
+const IMPORT_FLOW_DECLARED: Record<string, NextStep> = {
+  "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
+  new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
+  ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
+  // Vérification interne uniquement, puis directement prête à expédier.
+  received_warehouse: { status: "fees_calculated", label: "Vérification poids", actionLabel: "Vérifier poids", color: "bg-cyan-600" },
+  // Si pour une raison X l'ancien circuit a écrit ces statuts, on les court-circuite.
+  awaiting_weighing: { status: "ready_delivery", label: "Prête", actionLabel: "Vérifier & marquer prête", color: "bg-cyan-600" },
+  fees_calculated: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  payment_fees: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
+  shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
+};
+
+/** Circuit IMPORT KNOWN_WEIGHT : fret figé au checkout, aucune pesée, aucun
+ *  paiement complémentaire client. Le contrôle physique en entrepôt mène
+ *  directement à l'expédition. */
+const IMPORT_FLOW_KNOWN: Record<string, NextStep> = {
+  "": { status: "new", label: "À confirmer", actionLabel: "Créer la commande", color: "bg-purple-600" },
+  new: { status: "confirmed", label: "Confirmée", actionLabel: "Confirmer", color: "bg-emerald-600" },
+  confirmed: { status: "ordered_supplier", label: "Commandée fournisseur", actionLabel: "Commander fournisseur", color: "bg-cyan-600" },
+  ordered_supplier: { status: "received_warehouse", label: "Reçue entrepôt", actionLabel: "Marquer reçue", color: "bg-teal-600" },
+  received_warehouse: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  // Court-circuit : si d'anciens statuts de pesée existent, on les saute.
+  awaiting_weighing: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  fees_calculated: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  payment_fees: { status: "ready_delivery", label: "Prête", actionLabel: "Marquer prête", color: "bg-cyan-600" },
+  ready_delivery: { status: "shipped", label: "Expédiée", actionLabel: "Expédier", color: "bg-indigo-600" },
+  shipped: { status: "delivered", label: "Livrée", actionLabel: "Marquer livrée", color: "bg-emerald-600" },
+};
+
+/** Retourne l'étape suivante d'une commande.
+ *  @param weightStatus si "declared" / "verified" / "anomaly", on utilise le Circuit B.
+ *  @param lineKind si "IMPORT_KNOWN_WEIGHT", on utilise IMPORT_FLOW_KNOWN (prioritaire). */
+export function getNextStep(
+  currentStatus: string,
+  importOrder: boolean,
+  weightStatus?: string | null,
+  lineKind?: string | null,
+): NextStep | null {
+  if (!importOrder) {
+    const s = (currentStatus ?? "").trim();
+    return LOCAL_FLOW[s] ?? null;
+  }
   const s = (currentStatus ?? "").trim();
+  if (lineKind === "IMPORT_KNOWN_WEIGHT") return IMPORT_FLOW_KNOWN[s] ?? null;
+  const isDeclared =
+    weightStatus === "declared" || weightStatus === "verified" || weightStatus === "anomaly";
+  const flow = isDeclared ? IMPORT_FLOW_DECLARED : IMPORT_FLOW;
   return flow[s] ?? null;
 }
 

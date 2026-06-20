@@ -22,11 +22,15 @@ import type { SettlementInput } from "./PendingFinancialActions";
 import { useAuth } from "@/hooks/use-auth";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry, WeighingRecord } from "@/cockpit/types";
+import { NextActionBanner } from "./NextActionBanner";
+import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
+import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
 import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
+import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
 import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
@@ -64,13 +68,13 @@ interface Props {
   onOverrideDecision?: (productId: string, data: StockBreakSubmit, overrideReason: string) => void;
   onSettleFinancial?: (productId: string, data: SettlementInput) => void;
   onResumeRestock?: (productId: string) => void;
-  /** Phase 2 : scope du drawer à UNE sous-commande. Si défini, articles/workflow/financials sont filtrés. */
-  subOrderKey?: string;
-  /** Phase 2 : navigation vers une autre sous-commande de la même commande mère. */
-  onSubOrderChange?: (subOrderKey: string) => void;
+  /** Phase 2 : scope du drawer à UNE boutique. Si défini, articles/workflow/financials sont filtrés. */
+  vendorId?: string;
+  /** Phase 2 : navigation vers une autre boutique de la même commande mère. */
+  onVendorChange?: (vendorId: string) => void;
 }
 
-export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, subOrderKey, onSubOrderChange }: Props) {
+export function OrderDrawer({ order, orderIndex, payments, audit, weighings, financials, dialogs, onClose, onPayment, onEditPayment, onDeletePayment, onWeigh, onStatusChange, onRequestCancel, onViewItems, onFormInteraction, articles, onStockBreak, onArticleStatusChange, onPartialDeliver, onOverrideDecision, onSettleFinancial, onResumeRestock, vendorId, onVendorChange }: Props) {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   if (!order) return null;
@@ -85,28 +89,31 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
     () => deriveSubOrders(articles, status, order.order_id ?? undefined),
     [articles, status, order.order_id],
   );
-  const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
-  // Articles affichés dans ce drawer : filtré par sub_order_key si scope actif.
+  const currentSub = vendorId ? allSubs.find(s => s.vendor_id === vendorId) : undefined;
+  // Articles affichés dans ce drawer : filtré par vendeur si scope actif.
   const scopedArticles = useMemo(
-    () => subOrderKey ? (articles ?? []).filter(a => (a.sub_order_key ?? a.vendor_id ?? "unknown") === subOrderKey) : articles,
-    [articles, subOrderKey],
+    () => vendorId ? (articles ?? []).filter(a => (a.vendor_id ?? "unknown") === vendorId) : articles,
+    [articles, vendorId],
   );
-
-  // Si subOrderKey est passé, on est EN MODE SCOPÉ (sous-commande isolée)
-  const isScoped = !!subOrderKey;
-  // IMPORT_KNOWN_WEIGHT : tous les articles de la sous-commande ont weight_kg renseigné
-  const isKnownWeight = isScoped && (scopedArticles?.length ?? 0) > 0 && (scopedArticles ?? []).every(
-    a => (a as any).weight_kg != null && (a as any).weight_kg > 0
+  const siblings = useMemo(
+    () => allSubs.map(s => ({
+      vendor_id: s.vendor_id, vendor_name: s.vendor_name,
+      index: s.index, total: s.total, label: s.label,
+    })),
+    [allSubs],
   );
+  const isScoped = !!vendorId && !!currentSub;
+  // Helper pour masquer visuellement du JSX sans supprimer le code (court-circuite le type-checking)
+  const _h = (_jsx: any) => null;
   // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
-  const headerLabel = isScoped && currentSub ? currentSub.label : kz;
-  const headerVendor = isScoped && currentSub ? currentSub.vendor_name : null;
+  const headerLabel = isScoped ? currentSub!.label : kz;
+  const headerVendor = isScoped ? currentSub!.vendor_name : null;
 
   // Finances : pro-rata du sous-total produits quand scopé.
-  const productShare = isScoped && currentSub && financials.productTotal > 0
-    ? currentSub.financials.product_total / financials.productTotal
+  const productShare = isScoped && financials.productTotal > 0
+    ? currentSub!.financials.product_total / financials.productTotal
     : 1;
-  const ot = isScoped && currentSub ? currentSub.financials.product_total : financials.productTotal;
+  const ot = isScoped ? currentSub!.financials.product_total : financials.productTotal;
   const sf = isScoped ? Math.round(financials.freight * productShare) : financials.freight;
   const gt = ot + sf;
   const tp = Math.round(financials.paid * (isScoped ? productShare : 1));
@@ -128,6 +135,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const imp = isImportOrder || isImportFallback;
   const stepIdx = imp ? getImportStepIndex(status) : -1;
   const label = imp && stepIdx >= 0 ? `${stepIdx + 1}/${IMPORT_STEPS.length} ${IMPORT_STEPS[stepIdx]?.label}` : (status === "new" ? "À confirmer" : status);
+
+  // Agrégateur — sur les articles scopés.
+  const agg = useMemo(() => aggregateOrder(scopedArticles, status), [scopedArticles, status]);
+  const nextActionInfo = scopedArticles ? buildNextActionBannerPayload(agg) : null;
 
   // Prochaine étape dans le circuit métier
   const nextStep = getNextStep(status, imp);
@@ -169,11 +180,23 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           </SheetHeader>
 
+          {/* ─── Phase 2 : Strip de navigation vers les sœurs (masqué visuellement) ─── */}
+          {_h(isScoped && onVendorChange && (
+            <RelatedSubOrdersStrip
+              siblings={siblings}
+              currentVendorId={vendorId!}
+              onSelect={onVendorChange}
+            />
+          ))}
+
           {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
           {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
           )}
 
+
+          {/* Agrégateur (debug) — sur les articles scopés. Masqué visuellement. */}
+          {_h(<AggregateDebugPanel articles={scopedArticles} orderStatus={status} />)}
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
@@ -182,9 +205,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               orderStatus={status}
               motherOrderId={order.order_id ?? undefined}
               alwaysShow={isMultiVendor}
-              onSelectSubOrder={onSubOrderChange}
             />
           )}
+
+          {/* Action suivante — masquée visuellement */}
+          {_h(nextActionInfo && (
+            <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
+          ))}
 
           {/* Workflow : 1 par boutique. Masqué uniquement quand multi-vendor SANS scope. */}
           {(isScoped || !isMultiVendor) && (
@@ -193,13 +220,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               status={status}
               isImport={!!(isImportOrder || isImportFallback)}
               isLocal={!!isLocalOrder}
-              isKnownWeight={isKnownWeight}
               articles={scopedArticles}
               onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
             />
           )}
 
-          <PartialDeliveryBanner articles={scopedArticles} />
+          <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
 
           <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
 
@@ -233,8 +259,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           </div>
 
           {/* ─── Bouton : Voir les articles ─── */}
-          {/* Masqué quand scopé car ArticlesPanel affiche déjà les articles de cette sous-commande */}
-          {!isScoped && onViewItems && (
+          {onViewItems && (
             <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-2">
                 <ListOrdered className="h-5 w-5 text-orange-600" />
@@ -305,13 +330,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
               alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
             }
-            // Rupture non résolue
-            const blockedArticles = (scopedArticles ?? []).filter(a => a.stock_break && !a.stock_break.resolved);
-            if (blockedArticles.length > 0) {
-              const n = blockedArticles.length;
+            // Rupture non résolue → lecture agrégateur (source unique)
+            if (agg.flags.has_blocking) {
+              const n = agg.counters.blocked;
               alerts.push({ tone: "red", title: `${n} rupture${n > 1 ? "s" : ""} non résolue${n > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
             }
-            // Commande bloquée depuis X jours
+            // Commande bloquée depuis X jours (dimension temporelle — pas encore dans agg)
             if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
               const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
               if (days >= 7) {
@@ -363,8 +387,11 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Historique d'audit unifié — masqué visuellement (redondant avec le circuit workflow).
-              Bloc volontairement retiré ; le composant OrderAuditTimeline reste disponible si besoin. */}
+          {/* Historique d'audit unifié */}
+          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
+            <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
+          </div>
 
           {/* Pesées */}
           {weighings.length > 0 && (

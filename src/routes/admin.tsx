@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -64,8 +64,10 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
       { to: "/admin/logistics", label: "Logistique ERP", icon: Truck, perm: "orders" },
       { to: "/admin/workflow-center", label: "Workflow Center", icon: Zap, perm: "orders", badge: "BETA" },
-      { to: "/admin/order-overview", label: "Vue globale", icon: LayoutDashboard, perm: "orders" },
-      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", badge: "NEW" },
+      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true, badge: "NEW" },
+      { to: "/admin/cockpit/sav", label: "Centre SAV", icon: AlertTriangle, perm: "orders" },
+      { to: "/admin/cockpit/finance", label: "Centre Financier", icon: Wallet, perm: "orders" },
+      { to: "/admin/cockpit/archive", label: "Archive Cockpit", icon: Archive, perm: "orders" },
       { to: "/admin/commission-orders", label: "Cmd commission", icon: Briefcase, perm: "orders" },
       { to: "/admin/shipments", label: "Expéditions Chine", icon: PackageCheck, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
@@ -160,7 +162,7 @@ function AdminLayout() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
                 <Link
-                  to="/"
+                  to="/products"
                   onClick={() => setMenuOpen(false)}
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
                 >
