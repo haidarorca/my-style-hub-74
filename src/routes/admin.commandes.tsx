@@ -50,17 +50,18 @@ const fmtDateShort = (iso?: string | null) => {
 };
 
 type GlobalStatus =
-  | "cancelled" | "delivered" | "awaiting_payment"
+  | "cancelled" | "delivered" | "delivered_unpaid" | "awaiting_payment"
   | "ready_delivery" | "to_weigh" | "to_process" | "in_progress";
 
 const STATUS_BADGE: Record<GlobalStatus, { label: string; cls: string }> = {
-  cancelled:        { label: "Annulée",            cls: "bg-red-100 text-red-700 border-red-200" },
-  delivered:        { label: "Terminée",           cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  awaiting_payment: { label: "En attente paiement", cls: "bg-orange-100 text-orange-700 border-orange-200" },
-  ready_delivery:   { label: "Prête livraison",    cls: "bg-sky-100 text-sky-700 border-sky-200" },
-  to_weigh:         { label: "À peser",            cls: "bg-amber-100 text-amber-700 border-amber-200" },
-  to_process:       { label: "À traiter",          cls: "bg-purple-100 text-purple-700 border-purple-200" },
-  in_progress:      { label: "En cours",           cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  cancelled:        { label: "Annulée",                cls: "bg-red-100 text-red-700 border-red-200" },
+  delivered:        { label: "Terminée",               cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  delivered_unpaid: { label: "Livrée — reste à payer", cls: "bg-amber-100 text-amber-800 border-amber-200" },
+  awaiting_payment: { label: "En attente paiement",    cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  ready_delivery:   { label: "Prête livraison",        cls: "bg-sky-100 text-sky-700 border-sky-200" },
+  to_weigh:         { label: "À peser",                cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  to_process:       { label: "À traiter",              cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  in_progress:      { label: "En cours",               cls: "bg-blue-100 text-blue-700 border-blue-200" },
 };
 
 const LINE_KIND_LABEL: Record<string, string> = {
