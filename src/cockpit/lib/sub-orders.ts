@@ -114,11 +114,19 @@ export function deriveSubOrders(
 
     const cockpit_scope = computeScope(subArticles);
 
+    // line_kind = partie après "::" dans sub_order_key (fallback: déduit de kind).
+    const parsedKind = sub_order_key.includes("::") ? sub_order_key.split("::")[1] : "";
+    const line_kind: LineKind =
+      parsedKind === "LOCAL" || parsedKind === "IMPORT_KNOWN_WEIGHT" || parsedKind === "IMPORT_UNKNOWN_WEIGHT"
+        ? (parsedKind as LineKind)
+        : (hasImport ? "IMPORT_UNKNOWN_WEIGHT" : "LOCAL");
+
     raw.push({
       vendor_id,
       vendor_name,
       sub_order_key,
       kind,
+      line_kind,
       articles: subArticles,
       aggregate,
       cockpit_scope,
