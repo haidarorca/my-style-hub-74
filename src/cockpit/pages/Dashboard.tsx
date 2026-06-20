@@ -31,15 +31,14 @@ type SortDir = "asc" | "desc";
 export default function CockpitDashboard() {
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+  const realOrders = useRealOrders();
   const {
     orders, isLoading, setSearchTerm,
-    getPayments, getTotalPaid, getAudit,
-    addPayment, editPayment, deletePayment,
-    getWeighings, addWeighing,
-    updateStatus, cancelOrder, cancellations,
+    cancellations,
     freightMap, getOrderFinancials, orderTypeMap,
     getSubOrderStatus,
-  } = useRealOrders();
+  } = realOrders;
+
 
   const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
   const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
