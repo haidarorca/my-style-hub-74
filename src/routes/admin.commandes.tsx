@@ -1,31 +1,32 @@
 // ═══════════════════════════════════════════════════════════════
 // /admin/commandes — Vue globale "commande client" (mère).
 //
-// Page TOTALEMENT INDÉPENDANTE du Cockpit :
-//   - n'écrit rien,
-//   - ne touche ni au workflow, ni aux drawers, ni à la pesée,
-//   - réutilise UNIQUEMENT les hooks/lib existants :
-//       useRealOrders, useSubOrderRows, getOrderFinancials,
-//       getOrderNumber, deriveManagedSubOrders (via useSubOrderRows).
-//
-// Une ligne = UNE commande mère (≠ Cockpit qui éclate par sous-commande).
+// Indépendante du Cockpit, mais réutilise SES composants :
+//   - useRealOrders / useSubOrderRows  → données
+//   - CockpitOrderDrawerHost           → drawer + workflow IDENTIQUES
+//   - workflow.ts (IMPORT_STEPS, …)    → libellés/calculs partagés
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  Search, Filter, Phone, MapPin, Calendar, Package,
+  Search, Filter, Phone, MapPin, Calendar as CalendarIcon, Package,
   CheckCircle2, Clock, AlertCircle, XCircle, Circle, ChevronRight,
 } from "lucide-react";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useSubOrderRows, type SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { STATUS_LABELS } from "@/cockpit/lib/workflow";
+import { CockpitOrderDrawerHost } from "@/cockpit/components/CockpitOrderDrawerHost";
+import { useAuth } from "@/hooks/use-auth";
+import { useCountries } from "@/hooks/use-countries";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 
@@ -52,14 +53,14 @@ type GlobalStatus =
   | "cancelled" | "delivered" | "awaiting_payment"
   | "ready_delivery" | "to_weigh" | "to_process" | "in_progress";
 
-const STATUS_BADGE: Record<GlobalStatus, { label: string; cls: string; tab: string }> = {
-  cancelled:        { label: "Annulée",            cls: "bg-red-100 text-red-700 border-red-200",          tab: "cancelled" },
-  delivered:        { label: "Terminée",           cls: "bg-emerald-100 text-emerald-700 border-emerald-200", tab: "delivered" },
-  awaiting_payment: { label: "En attente paiement", cls: "bg-orange-100 text-orange-700 border-orange-200",  tab: "awaiting_payment" },
-  ready_delivery:   { label: "Prête livraison",    cls: "bg-sky-100 text-sky-700 border-sky-200",            tab: "ready_delivery" },
-  to_weigh:         { label: "À peser",            cls: "bg-amber-100 text-amber-700 border-amber-200",     tab: "to_weigh" },
-  to_process:       { label: "À traiter",          cls: "bg-purple-100 text-purple-700 border-purple-200",  tab: "to_process" },
-  in_progress:      { label: "En cours",           cls: "bg-blue-100 text-blue-700 border-blue-200",        tab: "in_progress" },
+const STATUS_BADGE: Record<GlobalStatus, { label: string; cls: string }> = {
+  cancelled:        { label: "Annulée",            cls: "bg-red-100 text-red-700 border-red-200" },
+  delivered:        { label: "Terminée",           cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  awaiting_payment: { label: "En attente paiement", cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  ready_delivery:   { label: "Prête livraison",    cls: "bg-sky-100 text-sky-700 border-sky-200" },
+  to_weigh:         { label: "À peser",            cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  to_process:       { label: "À traiter",          cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  in_progress:      { label: "En cours",           cls: "bg-blue-100 text-blue-700 border-blue-200" },
 };
 
 const LINE_KIND_LABEL: Record<string, string> = {
@@ -82,9 +83,6 @@ const FLOW_STEPS: Record<string, string[]> = {
   IMPORT_UNKNOWN_WEIGHT: ["new", "confirmed", "ordered_supplier", "received_warehouse", "awaiting_weighing", "fees_calculated", "payment_fees", "ready_delivery", "shipped", "delivered"],
 };
 
-/** Progression d'UNE sous-commande dans son propre circuit.
- *  Retourne { step, total } — step = 1-indexed (statut atteint).
- *  `cancelled` → step = total. Statut inconnu → step = 1. */
 function subProgress(lineKind: string, status: string): { step: number; total: number } {
   const steps = FLOW_STEPS[lineKind] ?? FLOW_STEPS.LOCAL;
   const total = steps.length;
@@ -95,9 +93,6 @@ function subProgress(lineKind: string, status: string): { step: number; total: n
   return { step: idx + 1, total };
 }
 
-/** Dérive le statut global d'une commande mère à partir de ses sous-commandes
- *  visibles (managed). Aucune nouvelle règle métier : on mappe uniquement les
- *  statuts existants des sous-commandes + le `remaining` financier existant. */
 function deriveGlobalStatus(
   order: LogisticsOrderRow,
   subs: SubOrderRow[],
@@ -112,7 +107,6 @@ function deriveGlobalStatus(
   if (statuses.every(s => s === "cancelled")) return "cancelled";
   const live = statuses.filter(s => s !== "cancelled");
   if (live.length === 0) return "cancelled";
-  // TERMINÉE = toutes les sous-commandes livrées ET solde financier soldé.
   if (live.every(s => s === "delivered")) {
     if (remaining <= 0) return "delivered";
     return "awaiting_payment";
@@ -126,6 +120,53 @@ function deriveGlobalStatus(
   return "in_progress";
 }
 
+/* ─── Date helpers ─── */
+type DatePreset = "all" | "today" | "yesterday" | "this_week" | "this_month" | "this_quarter" | "custom";
+
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+
+function presetRange(p: DatePreset, custom?: { from?: Date; to?: Date }): { from: Date | null; to: Date | null } {
+  const now = new Date();
+  switch (p) {
+    case "today":      return { from: startOfDay(now), to: endOfDay(now) };
+    case "yesterday": {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      return { from: startOfDay(y), to: endOfDay(y) };
+    }
+    case "this_week": {
+      const d = new Date(now);
+      const day = (d.getDay() + 6) % 7; // lundi = 0
+      d.setDate(d.getDate() - day);
+      return { from: startOfDay(d), to: endOfDay(now) };
+    }
+    case "this_month":
+      return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(now) };
+    case "this_quarter": {
+      const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+      return { from: startOfDay(qStart), to: endOfDay(now) };
+    }
+    case "custom":
+      return {
+        from: custom?.from ? startOfDay(custom.from) : null,
+        to: custom?.to ? endOfDay(custom.to) : null,
+      };
+    case "all":
+    default:
+      return { from: null, to: null };
+  }
+}
+
+const PRESET_LABEL: Record<DatePreset, string> = {
+  all: "Toutes les dates",
+  today: "Aujourd'hui",
+  yesterday: "Hier",
+  this_week: "Cette semaine",
+  this_month: "Ce mois",
+  this_quarter: "Ce trimestre",
+  custom: "Personnalisé",
+};
+
 interface MotherView {
   order: LogisticsOrderRow;
   kz: string;
@@ -135,13 +176,14 @@ interface MotherView {
   done: number;
   globalStatus: GlobalStatus;
   lastActivity: string | null;
+  flag: string;
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /* Page                                                           */
 /* ────────────────────────────────────────────────────────────── */
 
-const TABS: { key: "all" | GlobalStatus | "in_progress" | "to_process"; label: string }[] = [
+const TABS: { key: "all" | GlobalStatus; label: string }[] = [
   { key: "all",              label: "Toutes" },
   { key: "in_progress",      label: "En cours" },
   { key: "to_process",       label: "À traiter" },
@@ -153,15 +195,55 @@ const TABS: { key: "all" | GlobalStatus | "in_progress" | "to_process"; label: s
 ];
 
 function CommandesPage() {
-  const { orders, getOrderFinancials, getSubOrderStatus, orderTypeMap, isLoading } = useRealOrders();
+  const { profile } = useAuth();
+  const adminName = profile?.full_name ?? profile?.email ?? "Admin";
+
+  const realOrders = useRealOrders();
+  const { orders, getOrderFinancials, getSubOrderStatus, orderTypeMap, isLoading } = realOrders;
   const { rows: subRows } = useSubOrderRows(orders, getSubOrderStatus);
+
+  // Mapping pays → drapeau emoji (via id ou nom).
+  const { data: countriesData } = useCountries();
+  const flagByCountry = useMemo(() => {
+    const byId = new Map<string, string>();
+    const byName = new Map<string, string>();
+    for (const c of countriesData ?? []) {
+      const flag = c.flag_emoji ?? "🏳️";
+      byId.set(c.id, flag);
+      byName.set(c.name.toLowerCase(), flag);
+    }
+    return { byId, byName };
+  }, [countriesData]);
+  const flagFor = (o: LogisticsOrderRow): string => {
+    if (o.destination_country_id && flagByCountry.byId.has(o.destination_country_id)) {
+      return flagByCountry.byId.get(o.destination_country_id)!;
+    }
+    if (o.destination_country_name) {
+      const f = flagByCountry.byName.get(o.destination_country_name.toLowerCase());
+      if (f) return f;
+    }
+    return "🏳️";
+  };
 
   // ── État filtres ──
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState<string>("all");
-  const [type, setType] = useState<string>("all");      // order_type : local / import / mixed
-  const [circuit, setCircuit] = useState<string>("all");// line_kind présent dans une sous-commande
+  const [type, setType] = useState<string>("all");
+  const [circuit, setCircuit] = useState<string>("all");
   const [tab, setTab] = useState<string>("all");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
+  const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+  const [dateOpen, setDateOpen] = useState(false);
+
+  const dateRange = useMemo(
+    () => presetRange(datePreset, { from: customFrom, to: customTo }),
+    [datePreset, customFrom, customTo],
+  );
+
+  // ── Sélection drawer ──
+  const [selectedOrder, setSelectedOrder] = useState<LogisticsOrderRow | null>(null);
+  const [selectedSubKey, setSelectedSubKey] = useState<string | undefined>(undefined);
 
   // ── Construction des "commandes mères" ──
   const mothers = useMemo<MotherView[]>(() => {
@@ -182,14 +264,9 @@ function CommandesPage() {
         const lastActivity =
           o.updated_at ?? o.shipped_at ?? o.weighed_at ?? o.warehouse_received_at ?? o.order_created_at ?? null;
         return {
-          order: o,
-          kz: getOrderNumber(oid),
-          subs,
-          fin,
-          total: subs.length,
-          done,
-          globalStatus,
-          lastActivity,
+          order: o, kz: getOrderNumber(oid), subs, fin,
+          total: subs.length, done, globalStatus, lastActivity,
+          flag: flagFor(o),
         };
       })
       .sort((a, b) => {
@@ -197,11 +274,13 @@ function CommandesPage() {
         const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
         return tb - ta;
       });
-  }, [orders, subRows, getOrderFinancials]);
+  }, [orders, subRows, getOrderFinancials, flagByCountry]);
 
   // ── Filtrage ──
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
+    const dFrom = dateRange.from?.getTime() ?? null;
+    const dTo = dateRange.to?.getTime() ?? null;
     return mothers.filter(m => {
       if (tab !== "all" && m.globalStatus !== tab) return false;
       if (country !== "all" && (m.order.destination_country_name ?? "") !== country) return false;
@@ -210,6 +289,11 @@ function CommandesPage() {
         if (t !== type) return false;
       }
       if (circuit !== "all" && !m.subs.some(sub => sub.line_kind === circuit)) return false;
+      if (dFrom !== null || dTo !== null) {
+        const t = m.order.order_created_at ? new Date(m.order.order_created_at).getTime() : 0;
+        if (dFrom !== null && t < dFrom) return false;
+        if (dTo !== null && t > dTo) return false;
+      }
       if (s) {
         const hay = [
           m.kz, m.order.order_id, m.order.customer_name, m.order.customer_phone,
@@ -219,23 +303,40 @@ function CommandesPage() {
       }
       return true;
     });
-  }, [mothers, tab, country, type, circuit, search, orderTypeMap]);
+  }, [mothers, tab, country, type, circuit, search, orderTypeMap, dateRange]);
 
-  // ── Compteurs onglets ──
   const tabCounts = useMemo(() => {
     const c: Record<string, number> = { all: mothers.length };
     for (const m of mothers) c[m.globalStatus] = (c[m.globalStatus] ?? 0) + 1;
     return c;
   }, [mothers]);
 
-  // ── Listes filtres ──
   const countries = useMemo(() => {
     const set = new Set<string>();
     for (const m of mothers) if (m.order.destination_country_name) set.add(m.order.destination_country_name);
     return Array.from(set).sort();
   }, [mothers]);
 
-  const reset = () => { setSearch(""); setCountry("all"); setType("all"); setCircuit("all"); setTab("all"); };
+  const reset = () => {
+    setSearch(""); setCountry("all"); setType("all"); setCircuit("all"); setTab("all");
+    setDatePreset("all"); setCustomFrom(undefined); setCustomTo(undefined);
+  };
+
+  const openOrder = (m: MotherView) => {
+    setSelectedOrder(m.order);
+    // Pré-sélection : première sous-commande managée si elle existe.
+    setSelectedSubKey(m.subs[0]?.sub_order_key);
+  };
+
+  const dateButtonLabel = (() => {
+    if (datePreset === "all") return "Toutes les dates";
+    if (datePreset === "custom") {
+      if (customFrom && customTo) return `${fmtDateShort(customFrom.toISOString())} → ${fmtDateShort(customTo.toISOString())}`;
+      if (customFrom) return `Depuis le ${fmtDateShort(customFrom.toISOString())}`;
+      return "Personnalisé";
+    }
+    return PRESET_LABEL[datePreset];
+  })();
 
   /* ─── RENDER ─── */
   return (
@@ -280,7 +381,7 @@ function CommandesPage() {
       </div>
 
       {/* Filtres */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
         <div className="col-span-2 lg:col-span-2 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -290,6 +391,57 @@ function CommandesPage() {
             className="pl-8 h-9"
           />
         </div>
+
+        {/* Date range */}
+        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="h-9 justify-start text-left font-normal text-xs col-span-2 lg:col-span-1">
+              <CalendarIcon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+              <span className="truncate">{dateButtonLabel}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <div className="flex">
+              <div className="border-r p-2 space-y-1 min-w-[150px]">
+                {(["all", "today", "yesterday", "this_week", "this_month", "this_quarter", "custom"] as DatePreset[]).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => { setDatePreset(p); if (p !== "custom") setDateOpen(false); }}
+                    className={cn(
+                      "w-full text-left px-2.5 py-1.5 text-xs rounded-md hover:bg-accent transition-colors",
+                      datePreset === p && "bg-accent font-semibold",
+                    )}
+                  >
+                    {PRESET_LABEL[p]}
+                  </button>
+                ))}
+              </div>
+              {datePreset === "custom" && (
+                <div className="p-2 flex gap-3">
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground mb-1 px-1">Début</div>
+                    <Calendar
+                      mode="single"
+                      selected={customFrom}
+                      onSelect={setCustomFrom}
+                      className={cn("pointer-events-auto")}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground mb-1 px-1">Fin</div>
+                    <Calendar
+                      mode="single"
+                      selected={customTo}
+                      onSelect={setCustomTo}
+                      className={cn("pointer-events-auto")}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <Select value={country} onValueChange={setCountry}>
           <SelectTrigger className="h-9"><SelectValue placeholder="Pays" /></SelectTrigger>
           <SelectContent>
@@ -334,7 +486,7 @@ function CommandesPage() {
       <div className="hidden lg:block">
         {filtered.length > 0 && (
           <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="grid grid-cols-[1.4fr_1.6fr_1fr_2fr_1.6fr_1.4fr_1fr_1.4fr] gap-3 px-4 py-2.5 border-b bg-muted/40 text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+            <div className="grid grid-cols-[1.4fr_1.6fr_1.2fr_2fr_1.6fr_1.4fr_1fr_1.4fr] gap-3 px-4 py-2.5 border-b bg-muted/40 text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
               <div>Commande</div>
               <div>Client</div>
               <div>Pays</div>
@@ -344,41 +496,25 @@ function CommandesPage() {
               <div>Progression</div>
               <div>Dernière activité</div>
             </div>
-            {filtered.map(m => <DesktopRow key={m.order.order_id} m={m} />)}
+            {filtered.map(m => <DesktopRow key={m.order.order_id} m={m} onOpen={openOrder} />)}
           </div>
         )}
       </div>
 
       {/* MOBILE : cartes */}
       <div className="lg:hidden space-y-2">
-        {filtered.map(m => <MobileCard key={m.order.order_id} m={m} />)}
+        {filtered.map(m => <MobileCard key={m.order.order_id} m={m} onOpen={openOrder} />)}
       </div>
 
-      {/* Légende */}
-      {filtered.length > 0 && (
-        <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-[11px] text-muted-foreground hidden lg:grid grid-cols-2 gap-3">
-          <div>
-            <div className="font-semibold text-foreground mb-1.5">Légende des statuts</div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              <Legend dot="bg-emerald-500" label="Terminé" />
-              <Legend dot="bg-orange-400" label="En cours / À traiter" />
-              <Legend dot="bg-amber-400" label="En attente paiement" />
-              <Legend dot="bg-sky-400" label="Prête livraison" />
-              <Legend dot="bg-gray-300" label="Non démarrée" />
-              <Legend dot="bg-red-500" label="Annulée" />
-            </div>
-          </div>
-          <div>
-            <div className="font-semibold text-foreground mb-1.5">Informations affichées</div>
-            <ul className="space-y-0.5 list-disc pl-4">
-              <li>Toutes les commandes dans une seule vue.</li>
-              <li>Regroupement automatique des sous-commandes.</li>
-              <li>Progression basée sur les sous-commandes terminées.</li>
-              <li>Filtrage par pays, type et circuit.</li>
-            </ul>
-          </div>
-        </div>
-      )}
+      {/* Drawer — réutilise EXACTEMENT le composant du Cockpit. */}
+      <CockpitOrderDrawerHost
+        realOrders={realOrders}
+        selectedOrder={selectedOrder}
+        selectedSubKey={selectedSubKey}
+        onSubOrderChange={(k) => setSelectedSubKey(k)}
+        onClose={() => setSelectedOrder(null)}
+        adminName={adminName}
+      />
     </div>
   );
 }
@@ -386,15 +522,6 @@ function CommandesPage() {
 /* ────────────────────────────────────────────────────────────── */
 /* Sous-composants                                                */
 /* ────────────────────────────────────────────────────────────── */
-
-function Legend({ dot, label }: { dot: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", dot)} />
-      {label}
-    </span>
-  );
-}
 
 function StatusBadge({ s }: { s: GlobalStatus }) {
   const b = STATUS_BADGE[s];
@@ -455,11 +582,14 @@ function SubLine({ s }: { s: SubOrderRow }) {
   );
 }
 
-function DesktopRow({ m }: { m: MotherView }) {
+function DesktopRow({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => void }) {
   const o = m.order;
-  const flag = o.destination_country_id ? "🏳️" : "";
   return (
-    <div className="grid grid-cols-[1.4fr_1.6fr_1fr_2fr_1.6fr_1.4fr_1fr_1.4fr] gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors text-xs">
+    <button
+      type="button"
+      onClick={() => onOpen(m)}
+      className="w-full text-left grid grid-cols-[1.4fr_1.6fr_1.2fr_2fr_1.6fr_1.4fr_1fr_1.4fr] gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors text-xs"
+    >
       {/* Commande */}
       <div>
         <div className="font-bold text-sm">{m.kz}</div>
@@ -479,10 +609,13 @@ function DesktopRow({ m }: { m: MotherView }) {
       </div>
       {/* Pays */}
       <div>
-        <div className="font-medium">{flag} {o.destination_country_name ?? "—"}</div>
+        <div className="font-medium flex items-center gap-1">
+          <span className="text-base leading-none">{m.flag}</span>
+          {o.destination_country_name ?? "—"}
+        </div>
         {o.customer_city && (
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <MapPin className="h-3 w-3" /> ({o.customer_city})
+            <MapPin className="h-3 w-3" /> {o.customer_city}
           </div>
         )}
       </div>
@@ -509,20 +642,24 @@ function DesktopRow({ m }: { m: MotherView }) {
         <div className="text-[11px] text-muted-foreground">{fmtDate(m.lastActivity)}</div>
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
       </div>
-    </div>
+    </button>
   );
 }
 
-function MobileCard({ m }: { m: MotherView }) {
+function MobileCard({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => void }) {
   const o = m.order;
   return (
-    <div className="rounded-xl border bg-card p-3 shadow-sm">
+    <button
+      type="button"
+      onClick={() => onOpen(m)}
+      className="w-full text-left rounded-xl border bg-card p-3 shadow-sm hover:bg-muted/30 transition-colors"
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
           <div className="font-bold text-sm">{m.kz}</div>
           <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <Calendar className="h-3 w-3" /> {fmtDateShort(o.order_created_at)}
+            <CalendarIcon className="h-3 w-3" /> {fmtDateShort(o.order_created_at)}
           </div>
         </div>
         <StatusBadge s={m.globalStatus} />
@@ -538,7 +675,8 @@ function MobileCard({ m }: { m: MotherView }) {
             </div>
           )}
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
-            <MapPin className="h-3 w-3 shrink-0" /> {o.destination_country_name ?? "—"}{o.customer_city ? ` (${o.customer_city})` : ""}
+            <span className="text-base leading-none">{m.flag}</span>
+            {o.destination_country_name ?? "—"}{o.customer_city ? ` (${o.customer_city})` : ""}
           </div>
         </div>
         <div className="text-right text-[11px] shrink-0">
@@ -566,6 +704,6 @@ function MobileCard({ m }: { m: MotherView }) {
         <span>Dernière activité : {fmtDateShort(m.lastActivity)}</span>
         <ChevronRight className="h-3.5 w-3.5" />
       </div>
-    </div>
+    </button>
   );
 }
