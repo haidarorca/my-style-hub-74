@@ -34,7 +34,7 @@ import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
-import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
+import { deriveManagedSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 import { EventTimeline } from "./EventTimeline";
