@@ -110,7 +110,7 @@ function deriveGlobalStatus(
   if (live.length === 0) return "cancelled";
   if (live.every(s => s === "delivered")) {
     if (remaining <= 0) return "delivered";
-    return "awaiting_payment";
+    return "delivered_unpaid";
   }
   if (remaining > 0 && live.some(s => s === "ready_delivery" || s === "awaiting_weighing" || s === "fees_calculated" || s === "payment_fees")) {
     return "awaiting_payment";
