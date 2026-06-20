@@ -48,16 +48,15 @@ export default function CockpitDashboard() {
   // Chaque row reçoit `effective_status` (sub_order_states ?? mother).
   const { rows: subOrderRows } = useSubOrderRows(orders, getSubOrderStatus);
 
-  // ─── Assessments scopés à chaque sous-commande (1 par sub_order_key) ───
-  const visibleOrderIdsAll = useMemo(
+  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
+  // Utilisé par PipelineView pour les badges. Le drawer recalcule son propre
+  // historique scopé à un id unique.
+  const visibleOrderIds = useMemo(
     () => [...new Set(subOrderRows.map(r => r.mother_order_id))],
     [subOrderRows],
   );
-  const { getAssessment } = useSubAssessments(visibleOrderIdsAll);
+  const { data: historyMap } = useSubOrderHistories(visibleOrderIds);
 
-  // ─── Phase B : historique métier (événements / décisions / mouvements) ───
-  const visibleOrderIds = visibleOrderIdsAll;
-  const { data: historyMap, isLoading: historyLoading } = useSubOrderHistories(visibleOrderIds);
 
   // ─── Profils vendeurs (nom boutique, pays vendeur, marchés autorisés) ───
   const visibleVendorIds = useMemo(
