@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, ChevronRight, ChevronDown, Home, Truck } from "lucide-react";
-import { getNextStep } from "@/cockpit/lib/workflow";
+import { getNextStep, IMPORT_STEPS_KNOWN } from "@/cockpit/lib/workflow";
 import type { NextStep } from "@/cockpit/lib/workflow";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 

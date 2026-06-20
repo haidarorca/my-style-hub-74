@@ -95,7 +95,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   // Si subOrderKey est passé, on est EN MODE SCOPÉ (sous-commande isolée)
   const isScoped = !!subOrderKey;
   // IMPORT_KNOWN_WEIGHT : tous les articles de la sous-commande ont weight_kg renseigné
-  const isKnownWeight = isScoped && scopedArticles.length > 0 && scopedArticles.every(
+  const isKnownWeight = isScoped && (scopedArticles?.length ?? 0) > 0 && (scopedArticles ?? []).every(
     a => (a as any).weight_kg != null && (a as any).weight_kg > 0
   );
   // Libellé : "KZ-000101 · 2/3 — Boutique B" quand scopé.
@@ -363,13 +363,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Historique d'audit unifié — masqué visuellement (redondant avec le circuit workflow) */}
-          {_h(
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
-            <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
-          </div>
-          )}
+          {/* Historique d'audit unifié — masqué visuellement (redondant avec le circuit workflow).
+              Bloc volontairement retiré ; le composant OrderAuditTimeline reste disponible si besoin. */}
 
           {/* Pesées */}
           {weighings.length > 0 && (
