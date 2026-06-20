@@ -50,17 +50,18 @@ const fmtDateShort = (iso?: string | null) => {
 };
 
 type GlobalStatus =
-  | "cancelled" | "delivered" | "awaiting_payment"
+  | "cancelled" | "delivered" | "delivered_unpaid" | "awaiting_payment"
   | "ready_delivery" | "to_weigh" | "to_process" | "in_progress";
 
 const STATUS_BADGE: Record<GlobalStatus, { label: string; cls: string }> = {
-  cancelled:        { label: "Annulée",            cls: "bg-red-100 text-red-700 border-red-200" },
-  delivered:        { label: "Terminée",           cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  awaiting_payment: { label: "En attente paiement", cls: "bg-orange-100 text-orange-700 border-orange-200" },
-  ready_delivery:   { label: "Prête livraison",    cls: "bg-sky-100 text-sky-700 border-sky-200" },
-  to_weigh:         { label: "À peser",            cls: "bg-amber-100 text-amber-700 border-amber-200" },
-  to_process:       { label: "À traiter",          cls: "bg-purple-100 text-purple-700 border-purple-200" },
-  in_progress:      { label: "En cours",           cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  cancelled:        { label: "Annulée",                cls: "bg-red-100 text-red-700 border-red-200" },
+  delivered:        { label: "Terminée",               cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  delivered_unpaid: { label: "Livrée — reste à payer", cls: "bg-amber-100 text-amber-800 border-amber-200" },
+  awaiting_payment: { label: "En attente paiement",    cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  ready_delivery:   { label: "Prête livraison",        cls: "bg-sky-100 text-sky-700 border-sky-200" },
+  to_weigh:         { label: "À peser",                cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  to_process:       { label: "À traiter",              cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  in_progress:      { label: "En cours",               cls: "bg-blue-100 text-blue-700 border-blue-200" },
 };
 
 const LINE_KIND_LABEL: Record<string, string> = {
@@ -109,7 +110,7 @@ function deriveGlobalStatus(
   if (live.length === 0) return "cancelled";
   if (live.every(s => s === "delivered")) {
     if (remaining <= 0) return "delivered";
-    return "awaiting_payment";
+    return "delivered_unpaid";
   }
   if (remaining > 0 && live.some(s => s === "ready_delivery" || s === "awaiting_weighing" || s === "fees_calculated" || s === "payment_fees")) {
     return "awaiting_payment";
@@ -174,6 +175,9 @@ interface MotherView {
   fin: { productTotal: number; freight: number; grandTotal: number; paid: number; remaining: number };
   total: number;
   done: number;
+  /** Progression opérationnelle agrégée : somme des étapes courantes / somme des étapes totales */
+  opSteps: number;
+  opTotalSteps: number;
   globalStatus: GlobalStatus;
   lastActivity: string | null;
   flag: string;
@@ -184,14 +188,15 @@ interface MotherView {
 /* ────────────────────────────────────────────────────────────── */
 
 const TABS: { key: "all" | GlobalStatus; label: string }[] = [
-  { key: "all",              label: "Toutes" },
-  { key: "in_progress",      label: "En cours" },
-  { key: "to_process",       label: "À traiter" },
-  { key: "awaiting_payment", label: "En attente paiement" },
-  { key: "to_weigh",         label: "À peser" },
-  { key: "ready_delivery",   label: "Prête livraison" },
-  { key: "delivered",        label: "Terminées" },
-  { key: "cancelled",        label: "Annulées" },
+  { key: "all",               label: "Toutes" },
+  { key: "in_progress",       label: "En cours" },
+  { key: "to_process",        label: "À traiter" },
+  { key: "awaiting_payment",  label: "En attente paiement" },
+  { key: "to_weigh",          label: "À peser" },
+  { key: "ready_delivery",    label: "Prête livraison" },
+  { key: "delivered_unpaid",  label: "Livrée — reste à payer" },
+  { key: "delivered",         label: "Terminées" },
+  { key: "cancelled",         label: "Annulées" },
 ];
 
 function CommandesPage() {
@@ -260,12 +265,19 @@ function CommandesPage() {
         const subs = (subsByOrder.get(oid) ?? []).slice().sort((a, b) => a.index - b.index);
         const fin = getOrderFinancials(o);
         const done = subs.filter(s => s.effective_status === "delivered").length;
+        let opSteps = 0;
+        let opTotalSteps = 0;
+        for (const s of subs) {
+          const p = subProgress(s.line_kind, s.effective_status);
+          opSteps += p.step;
+          opTotalSteps += p.total;
+        }
         const globalStatus = deriveGlobalStatus(o, subs, fin.remaining);
         const lastActivity =
           o.updated_at ?? o.shipped_at ?? o.weighed_at ?? o.warehouse_received_at ?? o.order_created_at ?? null;
         return {
           order: o, kz: getOrderNumber(oid), subs, fin,
-          total: subs.length, done, globalStatus, lastActivity,
+          total: subs.length, done, opSteps, opTotalSteps, globalStatus, lastActivity,
           flag: flagFor(o),
         };
       })
@@ -541,21 +553,29 @@ function StatusBadge({ s }: { s: GlobalStatus }) {
   );
 }
 
-function ProgressBar({ done, total }: { done: number; total: number }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+function ProgressBar({
+  done, total, opSteps, opTotalSteps,
+}: { done: number; total: number; opSteps: number; opTotalSteps: number }) {
+  const opPct = opTotalSteps > 0 ? Math.round((opSteps / opTotalSteps) * 100) : 0;
+  const allDone = total > 0 && done === total;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span className="font-mono font-bold text-foreground">{done}/{total || 1}</span>
-        <span>{pct}%</span>
+        <span className="font-mono font-bold text-foreground">
+          {opSteps}/{opTotalSteps || 1}
+          <span className="ml-2 font-normal text-muted-foreground">
+            · {done}/{total || 1} terminée{total > 1 ? "s" : ""}
+          </span>
+        </span>
+        <span>{opPct}%</span>
       </div>
       <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
         <div
           className={cn(
             "h-full transition-all",
-            pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-blue-500" : "bg-orange-400",
+            allDone ? "bg-emerald-500" : opPct >= 50 ? "bg-blue-500" : "bg-orange-400",
           )}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${opPct}%` }}
         />
       </div>
     </div>
@@ -636,7 +656,7 @@ function DesktopRow({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => v
       {/* Statut */}
       <div className="flex items-start"><StatusBadge s={m.globalStatus} /></div>
       {/* Progression */}
-      <div className="self-center"><ProgressBar done={m.done} total={m.total} /></div>
+      <div className="self-center"><ProgressBar done={m.done} total={m.total} opSteps={m.opSteps} opTotalSteps={m.opTotalSteps} /></div>
       {/* Dernière activité */}
       <div className="flex items-center justify-between gap-1">
         <div className="text-[11px] text-muted-foreground">{fmtDate(m.lastActivity)}</div>
@@ -697,7 +717,7 @@ function MobileCard({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => v
       )}
 
       {/* Progression */}
-      <ProgressBar done={m.done} total={m.total} />
+      <ProgressBar done={m.done} total={m.total} opSteps={m.opSteps} opTotalSteps={m.opTotalSteps} />
 
       {/* Dernière activité */}
       <div className="mt-2 pt-2 border-t flex items-center justify-between text-[10px] text-muted-foreground">
