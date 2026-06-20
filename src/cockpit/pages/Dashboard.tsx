@@ -112,11 +112,7 @@ export default function CockpitDashboard() {
 
 
   // Articles / handlers / dialogs : centralisés dans CockpitOrderDrawerHost.
-  const selectedIndex = useMemo(
-    () => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0,
-    [selectedOrder, orders],
-  );
-  void selectedIndex;
+
 
 
   const totalPaidMap = useMemo(() => {
