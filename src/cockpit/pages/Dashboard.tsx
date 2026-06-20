@@ -288,45 +288,15 @@ export default function CockpitDashboard() {
       </div>
 
       {/* Drawer */}
-      {selectedOrder && (() => {
-        // Vendor id de la sous-commande sélectionnée (pour getHistory) + assessment scopé.
-        const subVendorId = selectedSubKey ? selectedSubKey.split("::")[0] : null;
-        const subAss = selectedSubKey && selectedOrder.order_id
-          ? getAssessment(selectedOrder.order_id, selectedSubKey)
-          : null;
-        // Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère).
-        const effectiveSubStatus = selectedSubKey && selectedOrder.order_id
-          ? (getSubOrderStatus(selectedOrder.order_id, selectedSubKey, selectedOrder.logistics_status ?? null) ?? selectedOrder.logistics_status ?? "new")
-          : null;
-        return (
-        <OrderDrawer
-          order={selectedOrder} orderIndex={selectedIndex} payments={selPayments} audit={selAudit} weighings={selWeighings} financials={selFinancials}
-          onClose={handleCloseDrawer} onPayment={handlePayment} onEditPayment={editPayment} onDeletePayment={deletePayment}
-          onWeigh={handleWeigh} onStatusChange={handleStatus} onRequestCancel={() => setShowCancel(true)} onViewItems={() => setShowItemsPanel(true)} onFormInteraction={() => setHasChanges(true)}
-          articles={selectedArticles}
-          onStockBreak={handleStockBreak}
-          onArticleStatusChange={handleArticleStatusChange}
-          onPartialDeliver={handlePartialDeliver}
-          onSettleFinancial={handleSettleFinancial}
-          onResumeRestock={handleResumeRestock}
-          subOrderKey={selectedSubKey}
-          onSubOrderChange={setSelectedSubKey}
-          subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
-          effectiveSubStatus={effectiveSubStatus}
-          subOrderHistory={selectedOrder ? getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId) : undefined}
-          subOrderHistoryLoading={historyLoading}
-          dialogs={
-            <>
-              {showItemsPanel && (
-                <OrderItemsPanel orderId={selectedOrder.order_id ?? ""} onClose={() => setShowItemsPanel(false)} />
-              )}
-              <CancelDialog open={showCancel} onClose={() => setShowCancel(false)} onConfirm={doCancel} paidAmount={selTotalPaid} status={selectedOrder.logistics_status ?? "new"} kzNumber={getOrderNumber(selectedOrder.order_id ?? "")} />
-              <CloseConfirmDialog open={showCloseConfirm} onStay={() => setShowCloseConfirm(false)} onLeave={confirmClose} />
-            </>
-          }
-        />
-        );
-      })()}
+      <CockpitOrderDrawerHost
+        realOrders={realOrders}
+        selectedOrder={selectedOrder}
+        selectedSubKey={selectedSubKey}
+        onSubOrderChange={(k) => setSelectedSubKey(k)}
+        onClose={() => setSelectedOrder(null)}
+        adminName={adminName}
+      />
+
     </div>
   );
 }
