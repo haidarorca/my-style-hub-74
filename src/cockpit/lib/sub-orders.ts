@@ -17,6 +17,7 @@
 import type { OrderArticle } from "./article-states";
 import { aggregateOrder, type OrderAggregate } from "./order-aggregate";
 import { formatSubOrderLabel } from "./orderNumbers";
+import type { LineKind } from "@/lib/line-kind";
 
 export type SubOrderKind = "local" | "import" | "local_and_import";
 export type SubOrderCockpitScope = "kawzone" | "commission" | "autonomous";
@@ -29,6 +30,8 @@ export interface DerivedSubOrder {
   total: number;
   label: string;
   kind: SubOrderKind;
+  /** LineKind figé (= partie après "::" dans sub_order_key). */
+  line_kind: LineKind;
   articles: OrderArticle[];
   aggregate: OrderAggregate;
   /** Scope dérivé des articles — détermine la visibilité Cockpit. */

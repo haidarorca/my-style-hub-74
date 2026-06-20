@@ -181,6 +181,8 @@ export interface OrderArticle {
   sub_order_key?: string | null;
   /** Type de ligne : local | import_known_weight | import_unknown_weight. */
   line_kind?: string | null;
+  /** Fret figé au checkout (IMPORT_KNOWN_WEIGHT uniquement). */
+  freight_fee?: number;
   shop_type_label: string | null;
   origin_country?: string | null;
   origin_country_flag?: string | null;
