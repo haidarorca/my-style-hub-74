@@ -188,14 +188,15 @@ interface MotherView {
 /* ────────────────────────────────────────────────────────────── */
 
 const TABS: { key: "all" | GlobalStatus; label: string }[] = [
-  { key: "all",              label: "Toutes" },
-  { key: "in_progress",      label: "En cours" },
-  { key: "to_process",       label: "À traiter" },
-  { key: "awaiting_payment", label: "En attente paiement" },
-  { key: "to_weigh",         label: "À peser" },
-  { key: "ready_delivery",   label: "Prête livraison" },
-  { key: "delivered",        label: "Terminées" },
-  { key: "cancelled",        label: "Annulées" },
+  { key: "all",               label: "Toutes" },
+  { key: "in_progress",       label: "En cours" },
+  { key: "to_process",        label: "À traiter" },
+  { key: "awaiting_payment",  label: "En attente paiement" },
+  { key: "to_weigh",          label: "À peser" },
+  { key: "ready_delivery",    label: "Prête livraison" },
+  { key: "delivered_unpaid",  label: "Livrée — reste à payer" },
+  { key: "delivered",         label: "Terminées" },
+  { key: "cancelled",         label: "Annulées" },
 ];
 
 function CommandesPage() {
