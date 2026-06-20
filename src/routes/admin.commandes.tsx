@@ -20,6 +20,7 @@ import {
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useSubOrderRows, type SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
+import { STATUS_LABELS } from "@/cockpit/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
