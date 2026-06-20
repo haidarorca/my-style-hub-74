@@ -61,7 +61,8 @@ const NAV_GROUPS: NavGroup[] = [
     id: "sales",
     label: "Ventes & Logistique",
     items: [
-      { to: "/admin/orders", label: "Commandes", icon: ShoppingBag, perm: "orders" },
+      { to: "/admin/commandes", label: "Commandes", icon: ShoppingBag, perm: "orders", badge: "NEW" },
+      { to: "/admin/orders", label: "Commandes (legacy)", icon: ShoppingBag, perm: "orders" },
       { to: "/admin/logistics", label: "Logistique ERP", icon: Truck, perm: "orders" },
       { to: "/admin/workflow-center", label: "Workflow Center", icon: Zap, perm: "orders", badge: "BETA" },
       { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true, badge: "NEW" },
