@@ -34,7 +34,7 @@ import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
 import { aggregateOrder, buildNextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
-import { deriveSubOrders } from "@/cockpit/lib/sub-orders";
+import { deriveManagedSubOrders } from "@/cockpit/lib/sub-orders";
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import type { StockBreakSubmit } from "./StockBreakDialog";
 import { EventTimeline } from "./EventTimeline";
@@ -104,7 +104,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
   // ─── SCOPE PAR SOUS-COMMANDE (vendor_id + line_kind) ───
   const allSubs = useMemo(
-    () => deriveSubOrders(articles, status, order.order_id ?? undefined),
+    () => deriveManagedSubOrders(articles, status, order.order_id ?? undefined),
     [articles, status, order.order_id],
   );
   const currentSub = subOrderKey ? allSubs.find(s => s.sub_order_key === subOrderKey) : undefined;
