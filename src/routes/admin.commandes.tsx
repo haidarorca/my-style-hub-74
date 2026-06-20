@@ -74,6 +74,26 @@ function subDotColor(status: string): string {
   return "bg-orange-400";
 }
 
+/* ─── Workflows par circuit (alignés sur src/cockpit/lib/workflow.ts) ─── */
+const FLOW_STEPS: Record<string, string[]> = {
+  LOCAL: ["new", "confirmed", "preparing", "ready", "shipped", "delivered"],
+  IMPORT_KNOWN_WEIGHT: ["new", "confirmed", "ordered_supplier", "received_warehouse", "ready_delivery", "shipped", "delivered"],
+  IMPORT_UNKNOWN_WEIGHT: ["new", "confirmed", "ordered_supplier", "received_warehouse", "awaiting_weighing", "fees_calculated", "payment_fees", "ready_delivery", "shipped", "delivered"],
+};
+
+/** Progression d'UNE sous-commande dans son propre circuit.
+ *  Retourne { step, total } — step = 1-indexed (statut atteint).
+ *  `cancelled` → step = total. Statut inconnu → step = 1. */
+function subProgress(lineKind: string, status: string): { step: number; total: number } {
+  const steps = FLOW_STEPS[lineKind] ?? FLOW_STEPS.LOCAL;
+  const total = steps.length;
+  const s = (status || "new").trim();
+  if (s === "cancelled") return { step: total, total };
+  const idx = steps.indexOf(s);
+  if (idx < 0) return { step: 1, total };
+  return { step: idx + 1, total };
+}
+
 /** Dérive le statut global d'une commande mère à partir de ses sous-commandes
  *  visibles (managed). Aucune nouvelle règle métier : on mappe uniquement les
  *  statuts existants des sous-commandes + le `remaining` financier existant. */
