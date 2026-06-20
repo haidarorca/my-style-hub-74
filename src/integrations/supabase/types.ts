@@ -122,8 +122,10 @@ export type Database = {
           action: string
           actor_email: string | null
           actor_id: string | null
+          actor_role_keys: string[] | null
           created_at: string
           details: Json | null
+          from_page: string | null
           id: string
           target_id: string | null
           target_type: string | null
@@ -132,8 +134,10 @@ export type Database = {
           action: string
           actor_email?: string | null
           actor_id?: string | null
+          actor_role_keys?: string[] | null
           created_at?: string
           details?: Json | null
+          from_page?: string | null
           id?: string
           target_id?: string | null
           target_type?: string | null
@@ -142,8 +146,10 @@ export type Database = {
           action?: string
           actor_email?: string | null
           actor_id?: string | null
+          actor_role_keys?: string[] | null
           created_at?: string
           details?: Json | null
+          from_page?: string | null
           id?: string
           target_id?: string | null
           target_type?: string | null
@@ -189,6 +195,36 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: Json
+        }
+        Relationships: []
+      }
+      app_roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key?: string
+          label?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2492,6 +2528,38 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          action: string
+          allowed: boolean
+          created_at: string
+          resource: string
+          role_id: string
+        }
+        Insert: {
+          action: string
+          allowed?: boolean
+          created_at?: string
+          resource: string
+          role_id: string
+        }
+        Update: {
+          action?: string
+          allowed?: boolean
+          created_at?: string
+          resource?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sav_cases: {
         Row: {
           assigned_to: string | null
@@ -2939,6 +3007,95 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          assignee_role_key: string | null
+          assignee_user_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_at: string | null
+          id: string
+          order_id: string | null
+          payload: Json
+          priority: string
+          started_at: string | null
+          status: string
+          task_type: string
+          title: string | null
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          assignee_role_key?: string | null
+          assignee_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          priority?: string
+          started_at?: string | null
+          status?: string
+          task_type: string
+          title?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          assignee_role_key?: string | null
+          assignee_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          priority?: string
+          started_at?: string | null
+          status?: string
+          task_type?: string
+          title?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "tasks_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ui_overrides: {
         Row: {
           key: string
@@ -2962,6 +3119,35 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      user_role_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_role_assignments_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -3313,6 +3499,10 @@ export type Database = {
         }
         Returns: Json
       }
+      current_user_can: {
+        Args: { _action: string; _resource: string }
+        Returns: boolean
+      }
       current_user_has_permission: {
         Args: { _perm: Database["public"]["Enums"]["admin_permission"] }
         Returns: boolean
@@ -3497,6 +3687,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      user_can: {
+        Args: { _action: string; _resource: string; _user_id: string }
+        Returns: boolean
+      }
+      user_has_role_key: {
+        Args: { _role_key: string; _user_id: string }
+        Returns: boolean
       }
       vendor_contacts_visible: {
         Args: { _vendor_id: string }

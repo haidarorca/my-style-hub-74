@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -92,6 +92,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/countries", label: "Pays", icon: Globe, superOnly: true },
       { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
       { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
+      { to: "/admin/team", label: "Équipe & Rôles", icon: Shield, superOnly: true, badge: "NEW" },
       { to: "/admin/audit-logs", label: "Journal d'audit", icon: FileText, superOnly: true },
     ],
   },
