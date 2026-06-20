@@ -655,7 +655,7 @@ function DesktopRow({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => v
       {/* Statut */}
       <div className="flex items-start"><StatusBadge s={m.globalStatus} /></div>
       {/* Progression */}
-      <div className="self-center"><ProgressBar done={m.done} total={m.total} /></div>
+      <div className="self-center"><ProgressBar done={m.done} total={m.total} opSteps={m.opSteps} opTotalSteps={m.opTotalSteps} /></div>
       {/* Dernière activité */}
       <div className="flex items-center justify-between gap-1">
         <div className="text-[11px] text-muted-foreground">{fmtDate(m.lastActivity)}</div>
@@ -716,7 +716,7 @@ function MobileCard({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => v
       )}
 
       {/* Progression */}
-      <ProgressBar done={m.done} total={m.total} />
+      <ProgressBar done={m.done} total={m.total} opSteps={m.opSteps} opTotalSteps={m.opTotalSteps} />
 
       {/* Dernière activité */}
       <div className="mt-2 pt-2 border-t flex items-center justify-between text-[10px] text-muted-foreground">
