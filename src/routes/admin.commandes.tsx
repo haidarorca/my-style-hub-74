@@ -437,11 +437,20 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
 
 function SubLine({ s }: { s: SubOrderRow }) {
   const label = LINE_KIND_LABEL[s.line_kind] ?? s.line_kind;
+  const prog = subProgress(s.line_kind, s.effective_status);
+  const statusLabel = STATUS_LABELS[s.effective_status] ?? s.effective_status ?? "—";
+  const pct = Math.round((prog.step / prog.total) * 100);
   return (
     <div className="flex items-center gap-1.5 text-[11px]">
       <span className={cn("h-2 w-2 rounded-full shrink-0", subDotColor(s.effective_status))} />
-      <span className="font-mono text-muted-foreground">{s.index}/{s.total}</span>
-      <span className="truncate">{label}</span>
+      <span className="font-mono text-muted-foreground shrink-0">{s.index}/{s.total}</span>
+      <span className="truncate flex-1 min-w-0">{label}</span>
+      <span
+        className="font-mono text-[10px] text-muted-foreground shrink-0"
+        title={`${statusLabel} — étape ${prog.step}/${prog.total} (${pct}%)`}
+      >
+        · {prog.step}/{prog.total}
+      </span>
     </div>
   );
 }
