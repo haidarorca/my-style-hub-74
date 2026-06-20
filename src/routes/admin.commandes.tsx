@@ -20,6 +20,7 @@ import {
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useSubOrderRows, type SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
+import { STATUS_LABELS } from "@/cockpit/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,26 @@ function subDotColor(status: string): string {
   return "bg-orange-400";
 }
 
+/* ─── Workflows par circuit (alignés sur src/cockpit/lib/workflow.ts) ─── */
+const FLOW_STEPS: Record<string, string[]> = {
+  LOCAL: ["new", "confirmed", "preparing", "ready", "shipped", "delivered"],
+  IMPORT_KNOWN_WEIGHT: ["new", "confirmed", "ordered_supplier", "received_warehouse", "ready_delivery", "shipped", "delivered"],
+  IMPORT_UNKNOWN_WEIGHT: ["new", "confirmed", "ordered_supplier", "received_warehouse", "awaiting_weighing", "fees_calculated", "payment_fees", "ready_delivery", "shipped", "delivered"],
+};
+
+/** Progression d'UNE sous-commande dans son propre circuit.
+ *  Retourne { step, total } — step = 1-indexed (statut atteint).
+ *  `cancelled` → step = total. Statut inconnu → step = 1. */
+function subProgress(lineKind: string, status: string): { step: number; total: number } {
+  const steps = FLOW_STEPS[lineKind] ?? FLOW_STEPS.LOCAL;
+  const total = steps.length;
+  const s = (status || "new").trim();
+  if (s === "cancelled") return { step: total, total };
+  const idx = steps.indexOf(s);
+  if (idx < 0) return { step: 1, total };
+  return { step: idx + 1, total };
+}
+
 /** Dérive le statut global d'une commande mère à partir de ses sous-commandes
  *  visibles (managed). Aucune nouvelle règle métier : on mappe uniquement les
  *  statuts existants des sous-commandes + le `remaining` financier existant. */
@@ -91,7 +112,11 @@ function deriveGlobalStatus(
   if (statuses.every(s => s === "cancelled")) return "cancelled";
   const live = statuses.filter(s => s !== "cancelled");
   if (live.length === 0) return "cancelled";
-  if (live.every(s => s === "delivered")) return "delivered";
+  // TERMINÉE = toutes les sous-commandes livrées ET solde financier soldé.
+  if (live.every(s => s === "delivered")) {
+    if (remaining <= 0) return "delivered";
+    return "awaiting_payment";
+  }
   if (remaining > 0 && live.some(s => s === "ready_delivery" || s === "awaiting_weighing" || s === "fees_calculated" || s === "payment_fees")) {
     return "awaiting_payment";
   }
@@ -412,11 +437,20 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
 
 function SubLine({ s }: { s: SubOrderRow }) {
   const label = LINE_KIND_LABEL[s.line_kind] ?? s.line_kind;
+  const prog = subProgress(s.line_kind, s.effective_status);
+  const statusLabel = STATUS_LABELS[s.effective_status] ?? s.effective_status ?? "—";
+  const pct = Math.round((prog.step / prog.total) * 100);
   return (
     <div className="flex items-center gap-1.5 text-[11px]">
       <span className={cn("h-2 w-2 rounded-full shrink-0", subDotColor(s.effective_status))} />
-      <span className="font-mono text-muted-foreground">{s.index}/{s.total}</span>
-      <span className="truncate">{label}</span>
+      <span className="font-mono text-muted-foreground shrink-0">{s.index}/{s.total}</span>
+      <span className="truncate flex-1 min-w-0">{label}</span>
+      <span
+        className="font-mono text-[10px] text-muted-foreground shrink-0"
+        title={`${statusLabel} — étape ${prog.step}/${prog.total} (${pct}%)`}
+      >
+        · {prog.step}/{prog.total}
+      </span>
     </div>
   );
 }
