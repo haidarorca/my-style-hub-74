@@ -175,6 +175,9 @@ interface MotherView {
   fin: { productTotal: number; freight: number; grandTotal: number; paid: number; remaining: number };
   total: number;
   done: number;
+  /** Progression opérationnelle agrégée : somme des étapes courantes / somme des étapes totales */
+  opSteps: number;
+  opTotalSteps: number;
   globalStatus: GlobalStatus;
   lastActivity: string | null;
   flag: string;
