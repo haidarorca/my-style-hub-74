@@ -170,3 +170,26 @@ export function deriveSubOrders(
     label: formatSubOrderLabel(motherOrderId ?? "", i + 1, total),
   }));
 }
+
+/**
+ * Vue Cockpit : sous-commandes gérées par Kawzone uniquement, renumérotées
+ * sur ce sous-ensemble. SOURCE DE VÉRITÉ UNIQUE pour Cockpit + Drawer + chips.
+ * Les sous-commandes autonomes (vendeur sans commission Kawzone) sont exclues
+ * des compteurs X/Y, des "Sous-commandes liées" et de toute progression.
+ */
+export function deriveManagedSubOrders(
+  articles: OrderArticle[] | null | undefined,
+  orderStatus?: string,
+  motherOrderId?: string,
+): DerivedSubOrder[] {
+  const all = deriveSubOrders(articles, orderStatus, motherOrderId);
+  const managed = all.filter(s => s.is_kawzone_managed);
+  const total = managed.length;
+  return managed.map((s, i) => ({
+    ...s,
+    index: i + 1,
+    total,
+    label: formatSubOrderLabel(motherOrderId ?? "", i + 1, total),
+  }));
+}
+
