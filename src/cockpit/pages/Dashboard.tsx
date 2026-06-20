@@ -111,112 +111,13 @@ export default function CockpitDashboard() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
 
-  // ─── Article states ───
-  const articlesHook = useArticleStates(
-    selectedOrder?.order_id ?? null,
-    selectedOrder?.logistics_status ?? undefined
+  // Articles / handlers / dialogs : centralisés dans CockpitOrderDrawerHost.
+  const selectedIndex = useMemo(
+    () => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0,
+    [selectedOrder, orders],
   );
-  const selectedArticles = selectedOrder ? articlesHook.articles : undefined;
+  void selectedIndex;
 
-  const handleStockBreak = useCallback((productId: string, data: { reason: string; action: StockBreakAction }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const last_valid_status = art.status !== "no_stock" ? art.status : art.stock_break?.last_valid_status;
-    const decision: StockBreakDecision = {
-      reason: data.reason,
-      action: data.action,
-      action_label: data.action,
-      resolved: true,
-      created_at: new Date().toISOString(),
-      last_valid_status,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: "no_stock", stock_break: decision },
-      audit_action: `stock_break.${data.action}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handleResumeRestock = useCallback((productId: string) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art || !art.stock_break || art.stock_break.action !== "wait_restock") return;
-    const memorized = art.stock_break.last_valid_status;
-    const fallback: ArticleStatus = art.is_import ? "received" : "available";
-    const target: ArticleStatus = memorized ?? fallback;
-    const newSb: StockBreakDecision = {
-      ...art.stock_break,
-      resumed_at: new Date().toISOString(),
-      resumed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status: target, stock_break: newSb },
-      audit_action: "stock_break.resume_restock",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
-
-  const handleArticleStatusChange = useCallback((productId: string, status: ArticleStatus) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { status },
-      audit_action: `status.${status}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handlePartialDeliver = useCallback((productId: string, qty: number) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const newDelivered = (art.delivered_qty ?? 0) + qty;
-    const fullyDelivered = newDelivered >= art.quantity;
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: {
-        delivered_qty: newDelivered,
-        status: fullyDelivered ? "delivered" : art.status,
-      },
-      audit_action: "partial_deliver",
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook]);
-
-  const handleSettleFinancial = useCallback((productId: string, data: { type: Settlement["type"]; amount: number; cost_attribution: Settlement["cost_attribution"]; method?: string; reference?: string; note?: string; shared_split?: Settlement["shared_split"] }) => {
-    const art = selectedArticles?.find(a => a.product_id === productId);
-    if (!art) return;
-    const settlement: Settlement = {
-      type: data.type,
-      amount: data.amount,
-      cost_attribution: data.cost_attribution,
-      shared_split: data.shared_split,
-      method: data.method,
-      reference: data.reference,
-      note: data.note,
-      processed_at: new Date().toISOString(),
-      processed_by: adminName,
-    };
-    void articlesHook.mutate({
-      product_id: productId,
-      variant_id: art.variant_id,
-      patch: { settlement },
-      audit_action: `settlement.${data.type}`,
-      expected_version: art.version,
-    });
-  }, [selectedArticles, articlesHook, adminName]);
-
-  const selectedIndex = useMemo(() => selectedOrder ? orders.findIndex(o => o.order_id === selectedOrder.order_id) : 0, [selectedOrder, orders]);
-  const selPayments = selectedOrder ? getPayments(selectedOrder.order_id ?? "") : [];
-  const selAudit = selectedOrder ? getAudit(selectedOrder.order_id ?? "") : [];
-  const selWeighings = selectedOrder ? getWeighings(selectedOrder.order_id ?? "") : [];
-  const selTotalPaid = selectedOrder ? getTotalPaid(selectedOrder.order_id ?? "") : 0;
-  const selFinancials = selectedOrder ? getOrderFinancials(selectedOrder) : { productTotal: 0, freight: 0, grandTotal: 0, paid: 0, remaining: 0 };
 
   const totalPaidMap = useMemo(() => {
     const m: Record<string, number> = {};
