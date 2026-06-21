@@ -149,12 +149,7 @@ function ProductPage() {
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
-  const minOrderQty = Math.max(1, Math.round(Number((data as any)?.min_order_qty ?? 1) || 1));
-  // Ajuster qty si min change
-  useEffect(() => {
-    if (qty < minOrderQty) setQty(minOrderQty);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minOrderQty]);
+
 
   const [reportReason, setReportReason] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
