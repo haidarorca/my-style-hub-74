@@ -86,6 +86,10 @@ export interface WeighingRecord {
   finalFreight: number;
   weighedBy: string;
   timestamp: string;
+  /** Nom du service d'expédition utilisé au moment de la pesée (lecture seule). */
+  shippingServiceName?: string | null;
+  /** Unité tarifaire du service au moment de la pesée. */
+  pricingUnit?: "kg" | "m3" | null;
 }
 
 /** Informations d'annulation */
