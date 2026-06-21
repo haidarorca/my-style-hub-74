@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
