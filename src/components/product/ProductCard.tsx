@@ -34,6 +34,7 @@ interface Props {
 
 export function ProductCard({ product, onQuickAdd }: Props) {
   const { lang, t } = useI18n();
+  const fmt = useFormatDisplay();
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
