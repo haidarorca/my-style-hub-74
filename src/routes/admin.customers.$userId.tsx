@@ -40,9 +40,6 @@ function fmtDate(s: string | null | undefined) {
   if (!s) return "—";
   try { return format(new Date(s), "dd/MM/yyyy HH:mm"); } catch { return "—"; }
 }
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " FCFA";
-}
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
   new: "Nouvelle",

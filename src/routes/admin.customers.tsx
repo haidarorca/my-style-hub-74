@@ -359,6 +359,7 @@ type RowProps = {
 };
 
 const CustomerRowDesktop = memo(function CustomerRowDesktop({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  const fmtMoney = useFormatDisplay();
   return (
     <TableRow>
       <TableCell>
@@ -395,6 +396,7 @@ const CustomerRowDesktop = memo(function CustomerRowDesktop({ row, countryName, 
 });
 
 const CustomerCardMobile = memo(function CustomerCardMobile({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  const fmtMoney = useFormatDisplay();
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="flex items-start justify-between gap-2">
