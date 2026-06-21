@@ -70,7 +70,7 @@ export function ShippingServicePickerDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-blue-600" />
-            Choisir un service d'expédition
+            {currentServiceId ? "Modifier le mode d'expédition" : "Choisir un service d'expédition"}
           </DialogTitle>
         </DialogHeader>
 
