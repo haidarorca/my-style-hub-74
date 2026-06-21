@@ -158,6 +158,7 @@ function ProductPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedShippingServiceId, setSelectedShippingServiceId] = useState<string | null>(null);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
   // Customization state
   const [customImageFile, setCustomImageFile] = useState<File | null>(null);
