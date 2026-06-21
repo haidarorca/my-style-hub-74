@@ -215,7 +215,7 @@ export function CockpitOrderDrawerHost({
       onResumeRestock={handleResumeRestock}
       subOrderKey={selectedSubKey}
       onSubOrderChange={(k) => onSubOrderChange(k)}
-      subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status } : null}
+      subAssessment={subAss ? { id: subAss.id, air_freight_fee: subAss.air_freight_fee, status: subAss.status, shipping_service_id: subAss.shipping_service_id } : null}
       effectiveSubStatus={effectiveSubStatus}
       subOrderHistory={getHistory(historyMap, selectedOrder.order_id ?? "", subVendorId)}
       subOrderHistoryLoading={historyLoading}

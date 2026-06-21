@@ -23,6 +23,8 @@ export interface SubAssessment {
   service_fee: number | null;
   extra_fees: number | null;
   weight_mode: string | null;
+  shipping_service_id: string | null;
+  price_per_kg_snapshot: number | null;
 }
 
 export function useSubAssessments(orderIds: string[]) {
@@ -36,7 +38,7 @@ export function useSubAssessments(orderIds: string[]) {
     queryFn: async (): Promise<SubAssessment[]> => {
       const { data, error } = await (supabase as any)
         .from("order_shipment_assessments")
-        .select("id, order_id, sub_order_key, status, real_weight_kg, volumetric_weight_kg, air_freight_fee, service_fee, extra_fees, weight_mode")
+        .select("id, order_id, sub_order_key, status, real_weight_kg, volumetric_weight_kg, air_freight_fee, service_fee, extra_fees, weight_mode, shipping_service_id, price_per_kg_snapshot")
         .in("order_id", ids);
       if (error) return [];
       return (data ?? []) as SubAssessment[];
