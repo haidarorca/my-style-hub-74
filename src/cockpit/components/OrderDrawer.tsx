@@ -282,7 +282,14 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             );
           })()}
 
-          {/* ─── Historique métier (Événement → Décision → Mouvement) ─── */}
+          {/* ─── Historique métier (Événement → Décision → Mouvement) ───
+              MASQUÉ du drawer opérateur sur demande produit. Les données
+              restent intégralement stockées (sub_order_states, order_events,
+              order_decisions, audit) et continuent d'alimenter SAV, Finance,
+              KPI, Audit, automatisations, reporting, workflow, notifications.
+              Le composant <EventTimeline /> et <EventCaptureDialog /> sont
+              conservés et restent utilisables ailleurs. */}
+          {/*
           {isScoped && (
             <div className="space-y-2">
               <div className="flex justify-end">
@@ -306,6 +313,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               motherOrderIds={[order.order_id]}
             />
           )}
+          */}
+
 
 
           {/* AggregateDebugPanel : panneau de debug — MASQUÉ en production.
