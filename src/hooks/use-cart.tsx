@@ -288,6 +288,16 @@ export function useCart() {
 
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
+    // Lookup min_order_qty pour ce produit (via la ligne panier en cache)
+    try {
+      const cached = (items ?? []).find((it: any) => it.id === id || (it.__duplicate_ids ?? []).includes(id));
+      const minQ = Math.max(1, Math.round(Number(cached?.products?.min_order_qty ?? 1) || 1));
+      if (quantity < minQ) {
+        toast.error(`Quantité minimale de commande : ${minQ} unité${minQ > 1 ? "s" : ""}.`);
+        return;
+      }
+    } catch { /* noop */ }
+
     if (!user) {
       const current = readGuestCart();
       const anchor = current.find((l) => l.id === id);
