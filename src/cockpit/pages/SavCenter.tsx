@@ -177,7 +177,7 @@ export default function SavCenter() {
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="w-3 h-3"/>Impact financier</div>
-          <div className="text-2xl font-bold">{formatMoney(kpis.totalImpact, "XOF")}</div>
+          <div className="text-2xl font-bold">{fmtDisp(kpis.totalImpact)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Qui doit agir</div>
