@@ -7,7 +7,38 @@ import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { PaymentRecord, AuditEntry } from "@/cockpit/types";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import { STOCK_BREAK_ACTIONS } from "@/cockpit/lib/article-states";
-import { PAYMENT_METHOD_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { PAYMENT_METHOD_LABELS, fmtF, STATUS_LABELS } from "@/cockpit/lib/workflow";
+
+/* ─── Humanisation des entrées d'audit techniques ───────────────────
+   Le système enregistre certains événements sous forme courte type :
+     "[<uuid>::IMPORT_UNKNOWN_WEIGHT] Statut → confirmed"
+   Cette fonction transforme cette forme en libellé compréhensible :
+     "Article (Import) — Confirmée"
+   Les données d'origine restent inchangées en base. */
+const LINE_KIND_LABELS: Record<string, string> = {
+  IMPORT_KNOWN_WEIGHT: "Article import (poids connu)",
+  IMPORT_UNKNOWN_WEIGHT: "Article import (poids inconnu)",
+  IMPORT: "Article import",
+  LOCAL: "Article local",
+  COMMISSION: "Article commission",
+};
+
+function humanizeAuditAction(raw: string): { label: string; sub?: string } {
+  // Forme 1 : "[<uuid>::<LINE_KIND>] Statut → <status>"
+  const scoped = raw.match(/^\[[^:]+::([^\]]+)\]\s*Statut\s*→\s*(\S+)/i);
+  if (scoped) {
+    const kind = LINE_KIND_LABELS[scoped[1]] ?? "Article";
+    const status = STATUS_LABELS[scoped[2]] ?? scoped[2];
+    return { label: `${kind} — ${status}` };
+  }
+  // Forme 2 : "Statut → <status>"
+  const simple = raw.match(/^Statut\s*→\s*(\S+)/i);
+  if (simple) {
+    const status = STATUS_LABELS[simple[1]] ?? simple[1];
+    return { label: `Statut de la commande : ${status}` };
+  }
+  return { label: raw };
+}
 
 /* ═══════════════════════════════════════════════════════════════
    OrderAuditTimeline — historique unique regroupant toutes
