@@ -77,6 +77,8 @@ interface VariantInput {
   stock: number;
   price_override: string;
   image_file: File | null;
+  variant_ref: string;
+  measurements: Record<string, string>;
 }
 
 // Encoded selector value: "cat:UUID" (approved) or "req:UUID" (pending request).
