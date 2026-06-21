@@ -111,28 +111,48 @@ export const deleteShippingService = createServerFn({ method: "POST" })
 // Maritime / Express d'un coup d'œil.
 export const listEnabledShippingServices = createServerFn({ method: "GET" })
   .handler(async () => {
+    // Pas de FK déclarée entre shipping_services.source_country_id et
+    // countries.id — on évite tout embed PostgREST (qui échouerait) et on
+    // résout les pays en deux temps.
     const { data, error } = await (supabaseAdmin as any)
       .from("shipping_services")
       .select(
-        "id, name, price_per_kg, pricing_unit, description, position, delay_min_days, delay_max_days, source_country_id, source_country:countries!shipping_services_source_country_id_fkey(name, flag_emoji)",
+        "id, name, price_per_kg, pricing_unit, description, position, delay_min_days, delay_max_days, source_country_id",
       )
       .eq("is_enabled", true)
       .order("position", { ascending: true })
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []).map((s: any) => ({
-      id: s.id as string,
-      name: s.name as string,
-      price_per_kg: Number(s.price_per_kg),
-      pricing_unit: (s.pricing_unit ?? "kg") as "kg" | "m3",
-      description: (s.description ?? null) as string | null,
-      position: Number(s.position ?? 0),
-      delay_min_days: (s.delay_min_days ?? null) as number | null,
-      delay_max_days: (s.delay_max_days ?? null) as number | null,
-      source_country_id: (s.source_country_id ?? null) as string | null,
-      source_country_name: (s.source_country?.name ?? null) as string | null,
-      source_country_flag: (s.source_country?.flag_emoji ?? null) as string | null,
-    }));
+    const rows = data ?? [];
+    const countryIds = Array.from(
+      new Set(rows.map((r: any) => r.source_country_id).filter(Boolean)),
+    );
+    const countryMap = new Map<string, { name: string | null; flag: string | null }>();
+    if (countryIds.length > 0) {
+      const { data: countries } = await (supabaseAdmin as any)
+        .from("countries")
+        .select("id, name, flag_emoji")
+        .in("id", countryIds);
+      for (const c of countries ?? []) {
+        countryMap.set(c.id, { name: c.name ?? null, flag: c.flag_emoji ?? null });
+      }
+    }
+    return rows.map((s: any) => {
+      const c = s.source_country_id ? countryMap.get(s.source_country_id) : null;
+      return {
+        id: s.id as string,
+        name: s.name as string,
+        price_per_kg: Number(s.price_per_kg),
+        pricing_unit: (s.pricing_unit ?? "kg") as "kg" | "m3",
+        description: (s.description ?? null) as string | null,
+        position: Number(s.position ?? 0),
+        delay_min_days: (s.delay_min_days ?? null) as number | null,
+        delay_max_days: (s.delay_max_days ?? null) as number | null,
+        source_country_id: (s.source_country_id ?? null) as string | null,
+        source_country_name: c?.name ?? null,
+        source_country_flag: c?.flag ?? null,
+      };
+    });
   });
 
 // ADMIN: assign / change the shipping service of an order from the cockpit.
