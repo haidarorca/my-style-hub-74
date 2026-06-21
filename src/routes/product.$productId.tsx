@@ -662,7 +662,13 @@ function ProductPage() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9"
-                onClick={() => setQty(Math.max(1, qty - 1))}
+                onClick={() => {
+                  if (qty <= minOrderQty) {
+                    toast.error(`Quantité minimale de commande : ${minOrderQty} unité${minOrderQty > 1 ? "s" : ""}.`);
+                    return;
+                  }
+                  setQty(qty - 1);
+                }}
               >
                 <Minus className="h-4 w-4" />
               </Button>
@@ -676,7 +682,13 @@ function ProductPage() {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+            {minOrderQty > 1 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Quantité minimale de commande : {minOrderQty} unités.
+              </p>
+            )}
           </div>
+
 
           {productDescription && (
             <div>
