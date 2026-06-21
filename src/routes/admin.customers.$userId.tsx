@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 import { cn } from "@/lib/utils";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/admin/customers/$userId")({
   component: () => (
