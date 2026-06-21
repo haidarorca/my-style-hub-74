@@ -588,7 +588,8 @@ function NewProductPage() {
         const variantRows: Array<{
           product_id: string; size: string | null; color: string | null;
           color_hex: string | null; stock: number; price_override: number | null;
-          image_url: string | null;
+          image_url: string | null; variant_ref: string | null;
+          measurements: Record<string, number>;
         }> = [];
         for (let i = 0; i < variants.length; i++) {
           const v = variants[i];
@@ -607,6 +608,11 @@ function NewProductPage() {
             if (upErr) throw upErr;
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
+          const cleanMeasurements: Record<string, number> = {};
+          for (const [k, val] of Object.entries(v.measurements ?? {})) {
+            const n = Number(val);
+            if (Number.isFinite(n) && n > 0) cleanMeasurements[k] = n;
+          }
           variantRows.push({
             product_id: productId,
             size: v.size.trim() || null,
@@ -615,6 +621,8 @@ function NewProductPage() {
             stock: v.stock || 0,
             price_override: v.price_override ? Number(v.price_override) : null,
             image_url,
+            variant_ref: v.variant_ref.trim() || null,
+            measurements: cleanMeasurements,
           });
         }
         const { error: varErr } = await supabase.from("product_variants").insert(variantRows);
