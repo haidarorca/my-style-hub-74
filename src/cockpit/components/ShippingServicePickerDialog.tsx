@@ -120,7 +120,7 @@ export function ShippingServicePickerDialog({
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Rattacher à la commande
+            {currentServiceId ? "Mettre à jour" : "Rattacher à la commande"}
           </Button>
         </DialogFooter>
       </DialogContent>
