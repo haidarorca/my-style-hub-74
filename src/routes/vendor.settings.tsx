@@ -62,6 +62,8 @@ function VendorSettings() {
   const [waLocal, setWaLocal] = useState("");
   const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
   const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
+  const [defaultCurrency, setDefaultCurrency] = useState<string>("XOF");
+  const { currencies } = useCurrencies();
   const { compress } = useImageCompression();
 
   const DAY_T: Record<DayKey, string> = {
