@@ -183,6 +183,16 @@ function ProductPage() {
     },
   });
 
+  const minOrderQty = Math.max(1, Math.round(Number((data as any)?.min_order_qty ?? 1) || 1));
+  useEffect(() => {
+    if (qty < minOrderQty) setQty(minOrderQty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minOrderQty]);
+  const warrantyText = warrantyLabel((data as any)?.warranty_days ?? null);
+  const isFragile = !!(data as any)?.is_fragile;
+
+
+
   const variants = useMemo(
     () => (data?.product_variants ?? []) as Variant[],
     [data?.product_variants],
