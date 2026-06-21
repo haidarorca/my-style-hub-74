@@ -136,6 +136,9 @@ export const assignOrderShippingService = createServerFn({ method: "POST" })
       .object({
         order_id: z.string().uuid(),
         shipping_service_id: z.string().uuid(),
+        /** Si fourni, met à jour CETTE évaluation précise (sous-commande
+         *  d'une commande multi-buckets) au lieu de l'unique évaluation. */
+        assessment_id: z.string().uuid().nullable().optional(),
       })
       .parse(input),
   )
@@ -152,27 +155,40 @@ export const assignOrderShippingService = createServerFn({ method: "POST" })
     if (!svc) throw new Error("Service d'expédition introuvable");
     if (!svc.is_enabled) throw new Error("Service d'expédition désactivé");
 
-    // 2) Update the order.
+    // 2) Update the order header (kept for backward compat / single-bucket
+    //    orders). Le drawer privilégie l'évaluation, donc ce champ reste
+    //    informatif sur les commandes multi-buckets.
     const { error: ordErr } = await (supabaseAdmin as any)
       .from("orders")
       .update({ shipping_service_id: data.shipping_service_id })
       .eq("id", data.order_id);
     if (ordErr) throw new Error(ordErr.message);
 
-    // 3) Update the assessment snapshot if one exists.
-    const { data: assess } = await (supabaseAdmin as any)
-      .from("order_shipment_assessments")
-      .select("id")
-      .eq("order_id", data.order_id)
-      .maybeSingle();
-    if (assess?.id) {
+    // 3) Update the targeted assessment snapshot.
+    if (data.assessment_id) {
       await (supabaseAdmin as any)
         .from("order_shipment_assessments")
         .update({
           shipping_service_id: data.shipping_service_id,
           price_per_kg_snapshot: Number(svc.price_per_kg),
         })
-        .eq("id", assess.id);
+        .eq("id", data.assessment_id);
+    } else {
+      // Fallback : commande à un seul bucket — on met à jour l'unique
+      // évaluation rattachée.
+      const { data: assessList } = await (supabaseAdmin as any)
+        .from("order_shipment_assessments")
+        .select("id")
+        .eq("order_id", data.order_id);
+      if (Array.isArray(assessList) && assessList.length === 1) {
+        await (supabaseAdmin as any)
+          .from("order_shipment_assessments")
+          .update({
+            shipping_service_id: data.shipping_service_id,
+            price_per_kg_snapshot: Number(svc.price_per_kg),
+          })
+          .eq("id", assessList[0].id);
+      }
     }
 
     return { ok: true, price_per_kg: Number(svc.price_per_kg) };
