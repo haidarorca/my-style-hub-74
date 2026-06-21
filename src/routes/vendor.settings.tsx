@@ -23,7 +23,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CurrenciesProvider, useCurrencies } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/vendor/settings")({
-  component: VendorSettings,
+  component: () => (
+    <CurrenciesProvider>
+      <VendorSettings />
+    </CurrenciesProvider>
+  ),
 });
 
 type ShopFields = {
