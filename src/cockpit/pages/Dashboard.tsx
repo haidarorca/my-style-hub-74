@@ -17,7 +17,6 @@ import { useSubOrderRows } from "@/cockpit/hooks/useSubOrderRows";
 import { useSubOrderHistories } from "@/cockpit/hooks/useSubOrderHistories";
 import { useVendorProfiles } from "@/cockpit/hooks/useVendorProfiles";
 import { useCockpitFilters } from "@/cockpit/hooks/useCockpitFilters";
-import { fmtF } from "@/cockpit/lib/workflow";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";

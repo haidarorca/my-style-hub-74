@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useFormatDisplay } from "@/hooks/use-currencies";
+
 
 
 export const Route = createFileRoute("/vendor/")({
@@ -100,7 +102,8 @@ function VendorHome() {
 
   const localeMap: Record<string, string> = { fr: "fr-FR", en: "en-US", ar: "ar" };
   const locale = localeMap[lang] ?? "fr-FR";
-  const fmt = (n: number) => `${Math.round(n).toLocaleString(locale)} FCFA`;
+  void locale;
+  const fmt = useFormatDisplay();
   const statusLabel = (s: string) =>
     s === "new" ? t("vendor.dash.tile.pending")
     : s === "confirmed" ? t("vendor.ord.status.confirmed")
