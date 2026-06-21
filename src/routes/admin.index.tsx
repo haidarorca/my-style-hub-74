@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { getAdminStats } from "@/lib/admin-stats.functions";
 import { getLogisticsStats } from "@/lib/admin-logistics.functions";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
