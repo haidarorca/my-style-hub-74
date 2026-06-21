@@ -2323,6 +2323,8 @@ export type Database = {
       products: {
         Row: {
           archived_at: string | null
+          barcode: string | null
+          brand: string | null
           category_id: string | null
           code: string
           contact_override: Database["public"]["Enums"]["product_contact_override"]
@@ -2338,7 +2340,9 @@ export type Database = {
           id: string
           is_active: boolean
           is_edit: boolean
+          is_fragile: boolean
           length_cm: number | null
+          min_order_qty: number
           name: string
           name_i18n: Json | null
           origin_country_id: string | null
@@ -2350,18 +2354,24 @@ export type Database = {
           price: number
           rejection_reason: string | null
           requires_international_shipping: boolean
+          sku: string | null
           source_country_id: string | null
           status: Database["public"]["Enums"]["product_status"]
           translated_hash: string | null
           updated_at: string
+          variant_ref: string | null
           vendor_id: string
+          video_url: string | null
           views_count: number
+          warranty_days: number | null
           weight_kg: number | null
           weight_source: string | null
           width_cm: number | null
         }
         Insert: {
           archived_at?: string | null
+          barcode?: string | null
+          brand?: string | null
           category_id?: string | null
           code: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
@@ -2377,7 +2387,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_edit?: boolean
+          is_fragile?: boolean
           length_cm?: number | null
+          min_order_qty?: number
           name: string
           name_i18n?: Json | null
           origin_country_id?: string | null
@@ -2389,18 +2401,24 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
+          variant_ref?: string | null
           vendor_id: string
+          video_url?: string | null
           views_count?: number
+          warranty_days?: number | null
           weight_kg?: number | null
           weight_source?: string | null
           width_cm?: number | null
         }
         Update: {
           archived_at?: string | null
+          barcode?: string | null
+          brand?: string | null
           category_id?: string | null
           code?: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
@@ -2416,7 +2434,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_edit?: boolean
+          is_fragile?: boolean
           length_cm?: number | null
+          min_order_qty?: number
           name?: string
           name_i18n?: Json | null
           origin_country_id?: string | null
@@ -2428,12 +2448,16 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
+          variant_ref?: string | null
           vendor_id?: string
+          video_url?: string | null
           views_count?: number
+          warranty_days?: number | null
           weight_kg?: number | null
           weight_source?: string | null
           width_cm?: number | null

@@ -1,102 +1,72 @@
-## Finalisation du module Devises & Taux
+## Objectif
+Enrichir le formulaire produit vendeur avec des options avancées repliées, sans complexifier l'interface principale, et appliquer les règles métier associées (garantie, quantité min, SKU, etc.).
 
-Objectif : clore définitivement le chantier devises avec une UX client complète, une admin autonome, et un recalcul sécurisé.
+## 1. Base de données (migration)
+Ajouter à `public.products` les colonnes manquantes :
+- `brand text`
+- `barcode text` (EAN/UPC)
+- `warranty_months int` (0/7j stocké en jours? → on stocke `warranty_days int` pour couvrir 7j/30j/3mois/.../personnalisé)
+- `is_fragile boolean default false`
+- `min_order_qty int default 1 check (min_order_qty >= 1)`
+- `video_url text`
+- `sku text` (interne vendeur)
+- `variant_ref text` (interne vendeur)
 
----
+`origin_country_id`, `weight_kg`, dimensions existent déjà → réutilisés.
+Pas de colonne « type Local/Import » : déduction automatique conservée via `getLineKind()` (`src/lib/line-kind.ts`).
 
-### 1. Historique des taux — affichage propre
+## 2. Formulaire vendeur (`vendor.products.new.tsx` + `vendor.products.$productId.edit.tsx`)
+Garder le formulaire principal simple : nom, catégorie, prix, stock, images, description.
 
-Fichier : `src/routes/admin.settings.currencies.tsx`
+Ajouter un bouton **« Options avancées »** (Collapsible) qui révèle :
+- Marque
+- Code-barres / EAN / UPC
+- ☐ Ce produit bénéficie d'une garantie → si coché : select (7j / 30j / 3 mois / 6 mois / 1 an / 2 ans / personnalisé en jours)
+- Poids (kg) + dimensions (déjà partiellement présents)
+- URL Vidéo
+- Pays d'origine (CountrySelect, facultatif, liste complète des pays activés)
+- Fragilité : radio ☐ Produit fragile / ☐ Produit non fragile
+- Quantité minimale de commande (number, défaut 1)
+- SKU vendeur
+- Référence variante
 
-- Remplacer la `<table>` actuelle par une vue **double** :
-  - **Mobile (< sm)** : liste de cartes empilées (Date en haut, badges Taux/Marge, Note en pleine largeur avec `whitespace-pre-wrap break-words`).
-  - **Desktop (≥ sm)** : tableau avec colonnes fixes (`Date` 160px · `Utilisateur` 140px · `Taux` 100px right · `Marge` 80px right · `Note` flex).
-- `break-words` + `whitespace-pre-wrap` sur la note pour les longs textes.
-- Ajout d'un petit filtre `<Select>` "Toutes les devises / EUR / USD / …" au-dessus du bloc historique global (sera utile quand on déplacera l'historique hors des cartes — voir étape 3).
-- Conserver `max-h-[480px] overflow-y-auto` pour rester lisible avec plusieurs années.
+Aucun champ « Local / Import / Mixte » côté vendeur.
 
----
+## 3. Affichage client (`product.$productId.tsx` + `ProductCard.tsx`)
+- Badge garantie : `🛡 Garantie {label}` (calculé depuis `warranty_days`) sur la page produit.
+- Badge fragile « 🫧 Fragile » uniquement si `is_fragile = true`.
+- Badge LOCAL / IMPORT déjà géré via `LineKindBadge` — conservé tel quel.
+- Quantité minimale : indication « Quantité minimale : N unités » sous le sélecteur quantité.
+- SKU / variant_ref / barcode : **jamais affichés au client**.
 
-### 2. Expérience client multi-devises
+## 4. Règles panier / checkout
+- `use-cart.tsx` + `QuickAddSheet.tsx` : initialiser la quantité à `max(1, min_order_qty)` lors de l'ajout, bloquer décrément sous `min_order_qty`, toast « Quantité minimale de commande : N unités. »
+- Page panier : validation au checkout : si une ligne a `quantity < products.min_order_qty`, bloquer avec message.
 
-**Provider** : déjà mounté globalement (`CurrenciesProvider` dans `__root.tsx` à vérifier ; sinon l'ajouter).
+## 5. Visibilité interne (SKU, variant_ref, barcode)
+Affichés dans :
+- formulaire vendeur (édition)
+- pages admin produits (table produits admin)
+- Cockpit (OrderItemsPanel) — petite ligne « SKU: … » sous chaque item
+- SAV / logistique (déjà via les mêmes composants admin)
 
-**Sélecteur public** : nouveau composant léger `PublicCurrencySwitcher` (variante compacte du `CurrencySwitcher` existant, pas de label "admin") intégré dans :
+Jamais inclus dans les composants client (`ProductCard`, page produit publique).
 
-- `src/components/layout/AppHeader.tsx` — à côté de `LanguageSwitcher` (desktop + mobile).
+## 6. Hors périmètre
+- Pas de modification du champ « type » côté DB.
+- Pas de refonte du calcul de fret ni de la pesée.
+- Pas de toucher au workflow d'expédition récemment finalisé.
 
-**Affichage des prix** : remplacer toutes les occurrences de formatage FCFA en dur côté client par `useFormatDisplay()` :
+## Fichiers impactés
+- **Migration** : nouvelle, ajoute les colonnes ci-dessus + grants/policies inchangés (table déjà ouverte).
+- `src/routes/vendor.products.new.tsx` — refonte sections avec Collapsible « Options avancées ».
+- `src/routes/vendor.products.$productId.edit.tsx` — mêmes champs en édition.
+- `src/routes/product.$productId.tsx` — badge garantie + indication qty min.
+- `src/components/product/ProductCard.tsx` — badge garantie discret.
+- `src/components/product/QuickAddSheet.tsx` — quantité min.
+- `src/hooks/use-cart.tsx` — quantité min.
+- `src/routes/cart.tsx` — blocage checkout.
+- `src/cockpit/components/OrderItemsPanel.tsx` — affichage SKU/variant_ref interne.
+- `src/lib/warranty.ts` (nouveau) — helpers conversion jours ↔ label.
 
-- `src/components/product/ProductCard.tsx`
-- `src/components/product/QuickAddSheet.tsx`
-- `src/routes/product.$productId.tsx`
-- `src/routes/search.tsx`
-- `src/routes/c.$categoryId.tsx`
-- `src/routes/cart.tsx`
-- `src/routes/orders.tsx`
-- `src/routes/account.tsx` (si prix affichés)
-- `src/routes/shop.$vendorId.tsx`
-
-Le client ne voit jamais : `origin_rate_snapshot`, `origin_margin_snapshot`, `commission_rate`. Vérifier qu'aucun composant client ne lit ces colonnes (audit `rg`).
-
-**Important** : la conversion d'affichage utilise le taux brut **sans marge** (le hook `useFormatDisplay` le fait déjà correctement). Les paiements et totaux commande restent en XOF.
-
----
-
-### 3. Création/édition de devises depuis l'admin
-
-Fichier : `src/routes/admin.settings.currencies.tsx`
-
-- Bouton **➕ Nouvelle devise** en haut → ouvre un `Dialog` avec :
-  - `code` (ISO 4217, uppercase, unique, 3 lettres)
-  - `name`, `symbol`, `decimals` (0/2)
-  - `display_order` (number)
-  - `is_active` (switch, default true)
-  - `rate_to_base` + `safety_margin_pct` (saisis comme premier taux historique)
-- Bouton **✏️ Modifier** par carte → édite `name`, `symbol`, `decimals`, `display_order`, `is_active` (PAS le code, PAS `is_base`).
-- Bouton **🗄️ Archiver** = `is_active=false` (déjà géré via toggle).
-- **Migration nécessaire** : nouvelle fonction RPC `create_currency(_code, _name, _symbol, _decimals, _display_order, _rate, _margin)` SECURITY DEFINER, gated `is_super_admin`, qui insère dans `currencies` puis appelle `set_currency_rate`. Permet de contourner toute policy restrictive sur `currencies`.
-- Et `update_currency(_code, _name, _symbol, _decimals, _display_order, _is_active)` idem.
-
----
-
-### 4. Bouton "Recalculer les produits"
-
-Sur chaque carte devise non-base :
-
-- Bouton **🔄 Recalculer les produits utilisant cette devise**.
-- Ouvre un `Dialog` avec preview :
-
-```
-Produits concernés : 42
-Ancien total catalogue : 12 450 000 FCFA
-Nouveau total catalogue : 12 770 000 FCFA
-Différence : +320 000 FCFA (+2,57 %)
-```
-
-  Tableau scrollable : `Code | Produit | Ancien | Nouveau | Δ`.
-
-- Bouton **Confirmer le recalcul** → applique.
-
-**Migration nécessaire** :
-
-- `preview_currency_recompute(_code text)` — RETURNS TABLE(product_id, name, code, old_price, new_price). Calcule sans muter.
-- `apply_currency_recompute(_code text)` — UPDATE `products SET origin_price = origin_price` (déclenche le trigger `recompute_product_price_xof` qui met à jour `price`, `origin_rate_snapshot`, `origin_margin_snapshot`). Filtré sur `origin_currency_code = _code AND deleted_at IS NULL`. Gated super_admin. Retourne le nombre de lignes affectées.
-
-**Garantie** : aucune table `order_items` n'est touchée ; les snapshots commandes restent figés (trigger `snapshot_order_item_currency` ne s'applique qu'à l'INSERT).
-
----
-
-### 5. Audit final (livré dans la réponse, pas dans le code)
-
-Une fois 1→4 terminés, je fournis un récap : terminé / restant / risques / améliorations recommandées, pour clore le chantier.
-
----
-
-### Ordre d'exécution
-
-1. Migration SQL (RPC create_currency / update_currency / preview_currency_recompute / apply_currency_recompute) — **un seul appel à la tool migration**.
-2. Refonte `admin.settings.currencies.tsx` (historique + dialogs création/édition + dialog recalcul).
-3. `PublicCurrencySwitcher` + intégration `AppHeader`.
-4. Remplacement des formatages FCFA en dur dans les pages client listées.
-5. Audit final en message texte.
+Aucune logique métier existante n'est supprimée.
