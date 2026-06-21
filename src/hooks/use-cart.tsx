@@ -165,12 +165,26 @@ export function useCart() {
   };
 
   const addToCart = async (input: AddToCartInput) => {
-    const qty = input.quantity ?? 1;
+    let qty = input.quantity ?? 1;
+    // Récupère la quantité minimale exigée par le produit (publique, sans auth).
+    try {
+      const { data: prodInfo } = await supabase
+        .from("products")
+        .select("min_order_qty")
+        .eq("id", input.productId)
+        .maybeSingle();
+      const minQ = Math.max(1, Math.round(Number((prodInfo as any)?.min_order_qty ?? 1) || 1));
+      if (qty < minQ) {
+        qty = minQ;
+        toast.message(`Quantité ajustée au minimum requis : ${minQ} unité${minQ > 1 ? "s" : ""}.`);
+      }
+    } catch { /* ignore — fallback to qty as-is */ }
     // Customization client UNIQUEMENT (text/image/font/color…). __shipping_service_id
     // n'est plus stocké ici : le choix de transport est fait au panier (par section)
     // et au checkout (par ligne). Cela garantit que les ajouts identiques se mergent.
     const baseCustomization = stripCartInternalMetadata(input.customization);
     const customization = baseCustomization;
+
 
     if (!user) {
       // Guest cart
