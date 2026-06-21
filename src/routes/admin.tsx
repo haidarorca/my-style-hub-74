@@ -243,6 +243,7 @@ function AdminLayout() {
             </div>
           </div>
 
+          <CurrencySwitcher className="hidden sm:block" />
           <AdminNotificationBell />
         </div>
 
