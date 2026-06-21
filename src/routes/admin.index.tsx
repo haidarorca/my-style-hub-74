@@ -237,7 +237,7 @@ function ActionCenter() {
               <DollarSign className="h-5 w-5 text-destructive shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Reste à payer global</p>
-                <p className="text-lg font-semibold font-bold text-destructive">{ls.total_remaining.toLocaleString("fr-FR")} FCFA</p>
+                <p className="text-lg font-semibold font-bold text-destructive">{fmtMoney(ls.total_remaining)}</p>
               </div>
             </div>
           )}
