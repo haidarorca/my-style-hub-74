@@ -530,6 +530,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               orderId={order.order_id ?? ""}
               subOrderKey={subOrderKey!}
               assessmentId={subAssessment?.id ?? null}
+              shippingServiceId={order.shipping_service_id ?? null}
               unknownArticles={scopedArticles ?? []}
               onWeigh={onWeigh}
               onFormInteraction={onFormInteraction}
