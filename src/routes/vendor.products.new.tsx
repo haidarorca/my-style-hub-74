@@ -455,7 +455,9 @@ function NewProductPage() {
           code: cleanCode,
           designation: designation.trim() || null,
           description: description.trim() || null,
-          price: priceNum,
+          price: priceNum, // recalculé par le trigger si origin_currency != XOF
+          origin_price: priceNum,
+          origin_currency_code: currencyCode,
           category_id,
           pending_category_request_id,
           weight_kg: w && w > 0 ? w : null,
