@@ -57,7 +57,7 @@ function fromExisting(v: ExistingVariant): VariantDraft {
   const m: Record<string, string> = {};
   if (v.measurements && typeof v.measurements === "object") {
     for (const [k, val] of Object.entries(v.measurements)) {
-      if (val != null && val !== "") m[k] = String(val);
+      if (val != null && String(val) !== "") m[k] = String(val);
     }
   }
   return {
