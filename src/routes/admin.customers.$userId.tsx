@@ -61,6 +61,7 @@ const ORDER_STATUS_CLS: Record<string, string> = {
 };
 
 function CustomerDetailPage() {
+  const fmtMoney = useFormatDisplay();
   const { userId } = Route.useParams();
   const qc = useQueryClient();
   const fetchDetail = useServerFn(getCustomerDetail);
