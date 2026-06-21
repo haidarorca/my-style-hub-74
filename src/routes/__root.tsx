@@ -189,6 +189,7 @@ function RootComponent() {
           <SiteSettingsProvider>
             <UiOverridesProvider>
               <DeliveryCountryProvider>
+                <CurrenciesProvider>
                 <AuthInvalidator />
                 <PromoBar />
                 <ErrorBoundary label="Application" resetKey={pathname}>
@@ -197,6 +198,7 @@ function RootComponent() {
                 <MobileBottomNav />
                 <AutoUpdatePrompt />
                 <Toaster richColors position="top-center" />
+                </CurrenciesProvider>
               </DeliveryCountryProvider>
             </UiOverridesProvider>
           </SiteSettingsProvider>
