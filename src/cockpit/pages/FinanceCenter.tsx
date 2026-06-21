@@ -42,6 +42,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
   gain_vendor: "Gain vendeur",
 };
 
+// `fmt` legacy gardé pour les lignes journal multi-devise (r.currency déjà précisé).
 function fmt(amount: number, currency = "XOF"): string {
   if (!amount) return "—";
   try {
