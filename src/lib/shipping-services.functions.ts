@@ -103,3 +103,77 @@ export const deleteShippingService = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// PUBLIC list of enabled services (used by the cockpit weighing form
+// to let the operator assign a shipping service when none has been
+// chosen at checkout). Returns only safe display fields.
+export const listEnabledShippingServices = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { data, error } = await (supabaseAdmin as any)
+      .from("shipping_services")
+      .select("id, name, price_per_kg, pricing_unit, description, position")
+      .eq("is_enabled", true)
+      .order("position", { ascending: true })
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Array<{
+      id: string;
+      name: string;
+      price_per_kg: number;
+      pricing_unit: "kg" | "m3";
+      description: string | null;
+      position: number;
+    }>;
+  });
+
+// ADMIN: assign / change the shipping service of an order from the cockpit.
+// Also propagates the new tariff snapshot on the related shipment assessment
+// (so the weighing reads the right rate immediately).
+export const assignOrderShippingService = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        order_id: z.string().uuid(),
+        shipping_service_id: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "orders");
+
+    // 1) Verify the service exists & is enabled.
+    const { data: svc, error: svcErr } = await (supabaseAdmin as any)
+      .from("shipping_services")
+      .select("id, price_per_kg, is_enabled")
+      .eq("id", data.shipping_service_id)
+      .maybeSingle();
+    if (svcErr) throw new Error(svcErr.message);
+    if (!svc) throw new Error("Service d'expédition introuvable");
+    if (!svc.is_enabled) throw new Error("Service d'expédition désactivé");
+
+    // 2) Update the order.
+    const { error: ordErr } = await (supabaseAdmin as any)
+      .from("orders")
+      .update({ shipping_service_id: data.shipping_service_id })
+      .eq("id", data.order_id);
+    if (ordErr) throw new Error(ordErr.message);
+
+    // 3) Update the assessment snapshot if one exists.
+    const { data: assess } = await (supabaseAdmin as any)
+      .from("order_shipment_assessments")
+      .select("id")
+      .eq("order_id", data.order_id)
+      .maybeSingle();
+    if (assess?.id) {
+      await (supabaseAdmin as any)
+        .from("order_shipment_assessments")
+        .update({
+          shipping_service_id: data.shipping_service_id,
+          price_per_kg_snapshot: Number(svc.price_per_kg),
+        })
+        .eq("id", assess.id);
+    }
+
+    return { ok: true, price_per_kg: Number(svc.price_per_kg) };
+  });
