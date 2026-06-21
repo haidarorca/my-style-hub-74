@@ -439,7 +439,23 @@ function ProductPage() {
             )}
           </div>
 
+          {(warrantyText || isFragile) && (
+            <div className="flex flex-wrap gap-2">
+              {warrantyText && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Garantie {warrantyText}
+                </span>
+              )}
+              {isFragile && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Fragile
+                </span>
+              )}
+            </div>
+          )}
+
           <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
+
 
           <EstimatedShippingPanel
             product={{
