@@ -18,15 +18,27 @@ import { toast } from "sonner";
 interface Props {
   open: boolean;
   orderId: string;
+  /** Si fourni, l'assignation cible cette évaluation (sous-commande) et met
+   *  à jour `order_shipment_assessments.shipping_service_id` + snapshot. */
+  assessmentId?: string | null;
+  /** ID du service actuellement rattaché — pré-sélectionné dans la liste. */
+  currentServiceId?: string | null;
   onClose: () => void;
   onAssigned?: () => void;
 }
 
-export function ShippingServicePickerDialog({ open, orderId, onClose, onAssigned }: Props) {
+export function ShippingServicePickerDialog({
+  open,
+  orderId,
+  assessmentId,
+  currentServiceId,
+  onClose,
+  onAssigned,
+}: Props) {
   const list = useServerFn(listEnabledShippingServices);
   const assign = useServerFn(assignOrderShippingService);
   const qc = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(currentServiceId ?? null);
 
   const { data: services, isLoading } = useQuery({
     queryKey: ["enabled-shipping-services"],
@@ -36,14 +48,20 @@ export function ShippingServicePickerDialog({ open, orderId, onClose, onAssigned
 
   const mutation = useMutation({
     mutationFn: (shipping_service_id: string) =>
-      assign({ data: { order_id: orderId, shipping_service_id } }),
+      assign({
+        data: {
+          order_id: orderId,
+          shipping_service_id,
+          ...(assessmentId ? { assessment_id: assessmentId } : {}),
+        },
+      }),
     onSuccess: () => {
-      toast.success("Service d'expédition rattaché à la commande");
+      toast.success("Mode d'expédition mis à jour");
       qc.invalidateQueries();
       onAssigned?.();
       onClose();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Échec de l'assignation"),
+    onError: (e: any) => toast.error(e?.message ?? "Échec de la mise à jour"),
   });
 
   return (
