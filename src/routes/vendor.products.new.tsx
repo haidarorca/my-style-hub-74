@@ -45,7 +45,9 @@ import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialo
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
-import { ChevronDown, Settings2 } from "lucide-react";
+import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
+import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
 
