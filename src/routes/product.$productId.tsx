@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
