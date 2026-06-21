@@ -60,6 +60,7 @@ export default function FinanceCenter() {
   const journalFn = useServerFn(listJournal);
   const summaryFn = useServerFn(getFinanceSummary);
   const outstandingFn = useServerFn(listOutstanding);
+  const fmtDisp = useFormatDisplay();
 
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState<string>("");
