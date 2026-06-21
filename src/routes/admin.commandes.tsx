@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/admin/commandes")({
   component: CommandesPage,
@@ -38,7 +39,6 @@ export const Route = createFileRoute("/admin/commandes")({
 /* Helpers                                                        */
 /* ────────────────────────────────────────────────────────────── */
 
-const fmtF = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 const fmtDate = (iso?: string | null) => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -603,6 +603,7 @@ function SubLine({ s }: { s: SubOrderRow }) {
 }
 
 function DesktopRow({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => void }) {
+  const fmtF = useFormatDisplay();
   const o = m.order;
   return (
     <button
@@ -667,6 +668,7 @@ function DesktopRow({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => v
 }
 
 function MobileCard({ m, onOpen }: { m: MotherView; onOpen: (m: MotherView) => void }) {
+  const fmtF = useFormatDisplay();
   const o = m.order;
   return (
     <button

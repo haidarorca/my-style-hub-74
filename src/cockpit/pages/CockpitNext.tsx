@@ -26,7 +26,6 @@ import {
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useOrderAggregatesBatch, type OrderWithAggregate } from "@/cockpit/hooks/useOrderAggregatesBatch";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
-import { fmtF as fmtFBase } from "@/cockpit/lib/workflow";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { NEXT_ACTION_LABELS, type AggregateNextAction } from "@/cockpit/lib/order-aggregate";
 
