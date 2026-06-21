@@ -662,6 +662,8 @@ function WeightFormUnknownSub({
       <ShippingServicePickerDialog
         open={pickerOpen}
         orderId={orderId}
+        assessmentId={assessmentId}
+        currentServiceId={shippingServiceId}
         onClose={() => setPickerOpen(false)}
       />
     </div>
