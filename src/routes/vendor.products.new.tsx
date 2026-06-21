@@ -468,6 +468,20 @@ function NewProductPage() {
       const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
       const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
       const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
+
+      // Options avancées
+      let warrantyDays: number | null = null;
+      if (warrantyEnabled) {
+        if (warrantyPreset === "custom") {
+          const d = Number(warrantyCustomDays);
+          warrantyDays = Number.isFinite(d) && d > 0 ? Math.round(d) : null;
+        } else {
+          const d = Number(warrantyPreset);
+          warrantyDays = Number.isFinite(d) && d > 0 ? d : null;
+        }
+      }
+      const minQty = Math.max(1, Math.round(Number(minOrderQty) || 1));
+
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -486,8 +500,20 @@ function NewProductPage() {
           width_cm: wi && wi > 0 ? wi : null,
           height_cm: h && h > 0 ? h : null,
           weight_source: w && w > 0 ? "vendor_declared" : null,
+          brand: brand.trim() || null,
+          barcode: barcode.trim() || null,
+          warranty_days: warrantyDays,
+          is_fragile: fragileChoice === "yes",
+          min_order_qty: minQty,
+          video_url: videoUrl.trim() || null,
+          origin_country_id: originCountryId,
+          sku: sku.trim() || null,
+          variant_ref: variantRef.trim() || null,
           status: "pending",
         } as any)
+        .select("id")
+        .single();
+
         .select("id")
         .single();
       if (prodErr) {
