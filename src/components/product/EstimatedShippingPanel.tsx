@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { Plane, Check } from "lucide-react";
 import { useEstimatedShipping, formatDelay } from "@/hooks/use-estimated-shipping";
 import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 interface Props {
   product: EstimatedShippingProduct;
@@ -21,6 +22,7 @@ interface Props {
 
 export function EstimatedShippingPanel({ product, productPrice, selectedServiceId, onSelectService }: Props) {
   const est = useEstimatedShipping(product);
+  const fmt = useFormatDisplay();
 
   useEffect(() => {
     const cheapestId = est.cheapest?.service.id;
@@ -52,7 +54,7 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
             Total estimé (produit + transport)
           </p>
           <p className="mt-0.5 text-2xl font-extrabold text-emerald-900">
-            {total.toLocaleString("fr-FR")} FCFA
+            {fmt(total)}
           </p>
         </div>
       )}
@@ -96,7 +98,7 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold text-emerald-900">
-                    {opt.price.toLocaleString("fr-FR")} FCFA
+                    {fmt(opt.price)}
                   </div>
                 </div>
               </button>

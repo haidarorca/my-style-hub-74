@@ -15,11 +15,13 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
-function SearchPriceTag({ productId, currency }: { productId: string; currency: string }) {
+function SearchPriceTag({ productId }: { productId: string; currency?: string }) {
   const dp = useProductDisplayPrice(productId);
+  const fmt = useFormatDisplay();
   if (!dp) return <Skeleton className="inline-block h-3.5 w-16 align-middle" />;
-  return <>{dp.final_price.toLocaleString("fr-FR")} {currency}</>;
+  return <>{fmt(dp.final_price)}</>;
 }
 
 export const Route = createFileRoute("/search")({

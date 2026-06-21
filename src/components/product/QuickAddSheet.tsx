@@ -10,6 +10,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pickI18n } from "@/lib/i18n/localized";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 interface Variant {
   id: string;
@@ -28,6 +29,7 @@ interface Props {
 export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
   const { addToCart } = useCart();
   const { lang, t } = useI18n();
+  const fmt = useFormatDisplay();
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -118,7 +120,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
                 <p className="line-clamp-2 text-sm font-medium">{productName}</p>
                 {resolvedPrice !== null ? (
                   <p className="mt-1 text-lg font-bold text-primary">
-                    {Number(resolvedPrice).toLocaleString("fr-FR")} {t("misc.currency")}
+                    {fmt(Number(resolvedPrice))}
                   </p>
                 ) : (
                   <Skeleton className="mt-1 h-6 w-24" />
