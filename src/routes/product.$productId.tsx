@@ -456,7 +456,7 @@ function ProductPage() {
             )}
           </div>
 
-          {(warrantyText || isFragile) && (
+          {(warrantyText || isFragile || fitInfo || (isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)))) && (
             <div className="flex flex-wrap gap-2">
               {warrantyText && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
@@ -468,8 +468,83 @@ function ProductPage() {
                   <AlertTriangle className="h-3.5 w-3.5" /> Fragile
                 </span>
               )}
+              {fitInfo && (
+                <span
+                  title={fitInfo.description}
+                  className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800"
+                >
+                  {fitInfo.label}
+                </span>
+              )}
+              {isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)) && (
+                <button
+                  type="button"
+                  onClick={() => setSizeGuideOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                >
+                  <Ruler className="h-3.5 w-3.5" /> 📏 Guide des tailles
+                </button>
+              )}
             </div>
           )}
+
+          {fitInfo && (
+            <p className="text-[11px] text-muted-foreground">{fitInfo.description}</p>
+          )}
+
+          <Dialog open={sizeGuideOpen} onOpenChange={setSizeGuideOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4" /> Guide des tailles
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Mesures réelles fournies par le vendeur (en cm). Choisissez la taille la plus proche de vos mensurations.
+                </p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/60 text-left">
+                      <tr>
+                        <th className="p-2">Taille</th>
+                        {variants.some((v) => v.color) && <th className="p-2">Variante</th>}
+                        {measurementFields.map((f) => (
+                          <th key={f.key} className="p-2 whitespace-nowrap">{f.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variants
+                        .filter((v) => hasAnyMeasurement(v.measurements))
+                        .map((v) => (
+                          <tr key={v.id} className="border-t">
+                            <td className="p-2 font-semibold">{v.size ?? "—"}</td>
+                            {variants.some((x) => x.color) && (
+                              <td className="p-2 text-muted-foreground">{v.color ?? "—"}</td>
+                            )}
+                            {measurementFields.map((f) => {
+                              const n = Number((v.measurements as any)?.[f.key]);
+                              return (
+                                <td key={f.key} className="p-2 whitespace-nowrap">
+                                  {Number.isFinite(n) && n > 0 ? `${n} cm` : "—"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                {fitInfo && (
+                  <p className="text-[11px] text-muted-foreground">
+                    <b>Coupe :</b> {fitInfo.label} — {fitInfo.description}
+                  </p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
 
           <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
 
