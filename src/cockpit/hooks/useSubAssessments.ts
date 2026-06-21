@@ -23,6 +23,8 @@ export interface SubAssessment {
   service_fee: number | null;
   extra_fees: number | null;
   weight_mode: string | null;
+  shipping_service_id: string | null;
+  price_per_kg_snapshot: number | null;
 }
 
 export function useSubAssessments(orderIds: string[]) {
