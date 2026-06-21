@@ -399,6 +399,8 @@ function NewProductPage() {
         stock: 0,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file: file,
+        variant_ref: "",
+        measurements: {},
       };
     });
     setImages((prev) => {
