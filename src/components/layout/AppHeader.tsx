@@ -9,7 +9,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { useI18n } from "@/hooks/use-i18n";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
-import { CurrencySwitcher } from "@/components/CurrencySwitcher";
+
 import { SearchAutocomplete } from "@/components/layout/SearchAutocomplete";
 import { Button } from "@/components/ui/button";
 import { getUnreadCount } from "@/lib/support.functions";
@@ -73,7 +73,7 @@ export function AppHeader() {
         )}
 
         <div className="flex items-center gap-1 sm:gap-1.5">
-          <CurrencySwitcher />
+          
           <LanguageSwitcher />
           <Link to="/cart" className="relative">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
