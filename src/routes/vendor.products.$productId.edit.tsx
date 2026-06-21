@@ -297,6 +297,14 @@ function EditProductPage() {
       const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
       const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
       const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
+
+      let warrantyDays: number | null = null;
+      if (warrantyEnabled) {
+        const d = warrantyPreset === "custom" ? Number(warrantyCustomDays) : Number(warrantyPreset);
+        warrantyDays = Number.isFinite(d) && d > 0 ? Math.round(d) : null;
+      }
+      const minQty = Math.max(1, Math.round(Number(minOrderQty) || 1));
+
       const updatePayload: any = {
         name: name.trim(),
         designation: designation.trim() || null,
@@ -307,10 +315,20 @@ function EditProductPage() {
         width_cm: wi && wi > 0 ? wi : null,
         height_cm: h && h > 0 ? h : null,
         weight_source: w && w > 0 ? "vendor_declared" : null,
+        brand: brand.trim() || null,
+        barcode: barcode.trim() || null,
+        warranty_days: warrantyDays,
+        is_fragile: fragileChoice === "yes",
+        min_order_qty: minQty,
+        video_url: videoUrl.trim() || null,
+        origin_country_id: originCountryId,
+        sku: sku.trim() || null,
+        variant_ref: variantRef.trim() || null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
       };
+
       const { error: updErr } = await supabase.from("products").update(updatePayload).eq("id", productId);
       if (updErr) throw updErr;
 
