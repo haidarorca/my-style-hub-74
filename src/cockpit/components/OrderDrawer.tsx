@@ -16,6 +16,7 @@ import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
+import { ShippingServicePickerDialog } from "./ShippingServicePickerDialog";
 import { PaymentHistory } from "./PaymentHistory";
 import { OrderAuditTimeline } from "./OrderAuditTimeline";
 import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
