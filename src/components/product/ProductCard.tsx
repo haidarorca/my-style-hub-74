@@ -83,7 +83,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
                   Total estimé
                 </p>
                 <p className="mt-0.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                  {total!.toLocaleString("fr-FR")} {t("misc.currency")}
+                  {fmt(total!)}
                 </p>
                 <p className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
                   produit + transport
