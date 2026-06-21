@@ -142,6 +142,7 @@ function ProductPage() {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { lang, t, dir } = useI18n();
+  const fmt = useFormatDisplay();
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
