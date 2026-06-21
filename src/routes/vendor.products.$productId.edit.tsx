@@ -164,10 +164,18 @@ function EditProductPage() {
     }
     setVideoUrl((p as any).video_url ?? "");
     setOriginCountryId((p as any).origin_country_id ?? null);
-    setFragileChoice((p as any).is_fragile ? "yes" : "no");
+    setIsFragile(!!(p as any).is_fragile);
     setMinOrderQty(String((p as any).min_order_qty ?? 1));
     setSku((p as any).sku ?? "");
-    setVariantRef((p as any).variant_ref ?? "");
+    setFitType((p as any).fit_type ?? "");
+
+    // Charger le nom de la catégorie pour la détection vêtement
+    const catId = (p as any).category_id;
+    if (catId) {
+      void supabase.from("categories").select("name").eq("id", catId).maybeSingle().then(({ data: c }) => {
+        setCategoryName((c as any)?.name ?? "");
+      });
+    }
 
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
