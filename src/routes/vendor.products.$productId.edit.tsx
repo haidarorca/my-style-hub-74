@@ -207,6 +207,9 @@ function EditProductPage() {
     });
   };
 
+  const isClothing = isClothingContext(categoryName, name);
+  const measurementFields = getMeasurementFields(categoryName, name);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !data?.product) return;
@@ -217,6 +220,18 @@ function EditProductPage() {
     if (existingImages.length + newImages.length === 0) {
       toast.error("Au moins une image est requise.");
       return;
+    }
+    if (isClothing) {
+      const hasMeasurements = variants.some((v) =>
+        Object.values(v.measurements ?? {}).some((val) => {
+          const n = Number(val);
+          return Number.isFinite(n) && n > 0;
+        }),
+      );
+      if (!hasMeasurements) {
+        toast.error("Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante.");
+        return;
+      }
     }
     setSubmitting(true);
     try {
