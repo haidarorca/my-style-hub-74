@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanst
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield, Coins,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { StuckLoadingDetector } from "@/components/admin/StuckLoadingDetector";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { CurrenciesProvider } from "@/hooks/use-currencies";
+import { CurrencySwitcher } from "@/components/CurrencySwitcher";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -91,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/contact-settings", label: "Contacts & support", icon: Phone, superOnly: true },
       { to: "/admin/countries", label: "Pays", icon: Globe, superOnly: true },
       { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
+      { to: "/admin/settings/currencies", label: "Devises & taux", icon: Coins, superOnly: true, badge: "NEW" },
       { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
       { to: "/admin/team", label: "Équipe & Rôles", icon: Shield, superOnly: true, badge: "NEW" },
       { to: "/admin/audit-logs", label: "Journal d'audit", icon: FileText, superOnly: true },
@@ -134,6 +137,7 @@ function AdminLayout() {
   const activeGroup = visibleGroups.find((g) => g.items.some(isActive)) ?? visibleGroups[0];
 
   return (
+    <CurrenciesProvider>
     <div className="min-h-screen bg-gradient-to-b from-muted/40 via-muted/20 to-background">
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-xl pt-safe">
         {/* Top bar */}
@@ -240,6 +244,7 @@ function AdminLayout() {
             </div>
           </div>
 
+          <CurrencySwitcher className="hidden sm:block" />
           <AdminNotificationBell />
         </div>
 
@@ -314,5 +319,6 @@ function AdminLayout() {
         </ErrorBoundary>
       </main>
     </div>
+    </CurrenciesProvider>
   );
 }

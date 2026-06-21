@@ -603,6 +603,83 @@ export type Database = {
         }
         Relationships: []
       }
+      currencies: {
+        Row: {
+          code: string
+          created_at: string
+          decimals: number
+          display_order: number
+          is_active: boolean
+          is_base: boolean
+          name: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          decimals?: number
+          display_order?: number
+          is_active?: boolean
+          is_base?: boolean
+          name: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          decimals?: number
+          display_order?: number
+          is_active?: boolean
+          is_base?: boolean
+          name?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      currency_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          effective_from: string
+          id: string
+          note: string | null
+          rate_to_base: number
+          safety_margin_pct: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          currency_code: string
+          effective_from?: string
+          id?: string
+          note?: string | null
+          rate_to_base: number
+          safety_margin_pct?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          effective_from?: string
+          id?: string
+          note?: string | null
+          rate_to_base?: number
+          safety_margin_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "currency_rates_currency_code_fkey"
+            columns: ["currency_code"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       customer_addresses: {
         Row: {
           address: string
@@ -1416,6 +1493,9 @@ export type Database = {
           id: string
           is_admin_shop_snapshot: boolean | null
           order_id: string
+          origin_currency_code: string | null
+          origin_rate_snapshot: number | null
+          origin_unit_price: number | null
           product_code: string
           product_id: string
           product_image_url: string | null
@@ -1441,6 +1521,9 @@ export type Database = {
           id?: string
           is_admin_shop_snapshot?: boolean | null
           order_id: string
+          origin_currency_code?: string | null
+          origin_rate_snapshot?: number | null
+          origin_unit_price?: number | null
           product_code: string
           product_id: string
           product_image_url?: string | null
@@ -1466,6 +1549,9 @@ export type Database = {
           id?: string
           is_admin_shop_snapshot?: boolean | null
           order_id?: string
+          origin_currency_code?: string | null
+          origin_rate_snapshot?: number | null
+          origin_unit_price?: number | null
           product_code?: string
           product_id?: string
           product_image_url?: string | null
@@ -1487,6 +1573,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_origin_currency_code_fkey"
+            columns: ["origin_currency_code"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -1688,6 +1781,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           destination_country_id: string | null
+          display_currency_code: string | null
           forwarded_to_vendor_at: string | null
           id: string
           is_commission: boolean
@@ -1707,6 +1801,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           destination_country_id?: string | null
+          display_currency_code?: string | null
           forwarded_to_vendor_at?: string | null
           id?: string
           is_commission?: boolean
@@ -1726,6 +1821,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           destination_country_id?: string | null
+          display_currency_code?: string | null
           forwarded_to_vendor_at?: string | null
           id?: string
           is_commission?: boolean
@@ -1742,6 +1838,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "countries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_display_currency_code_fkey"
+            columns: ["display_currency_code"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -2239,6 +2342,10 @@ export type Database = {
           name: string
           name_i18n: Json | null
           origin_country_id: string | null
+          origin_currency_code: string | null
+          origin_margin_snapshot: number | null
+          origin_price: number | null
+          origin_rate_snapshot: number | null
           pending_category_request_id: string | null
           price: number
           rejection_reason: string | null
@@ -2274,6 +2381,10 @@ export type Database = {
           name: string
           name_i18n?: Json | null
           origin_country_id?: string | null
+          origin_currency_code?: string | null
+          origin_margin_snapshot?: number | null
+          origin_price?: number | null
+          origin_rate_snapshot?: number | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -2309,6 +2420,10 @@ export type Database = {
           name?: string
           name_i18n?: Json | null
           origin_country_id?: string | null
+          origin_currency_code?: string | null
+          origin_margin_snapshot?: number | null
+          origin_price?: number | null
+          origin_rate_snapshot?: number | null
           pending_category_request_id?: string | null
           price?: number
           rejection_reason?: string | null
@@ -2344,6 +2459,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "countries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_origin_currency_code_fkey"
+            columns: ["origin_currency_code"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "products_pending_category_request_id_fkey"
@@ -2393,6 +2515,7 @@ export type Database = {
           blocked_reason: string | null
           contact_mode: Database["public"]["Enums"]["shop_contact_mode"]
           created_at: string
+          default_currency_code: string | null
           deleted_at: string | null
           deleted_by: string | null
           email: string | null
@@ -2438,6 +2561,7 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
+          default_currency_code?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
@@ -2483,6 +2607,7 @@ export type Database = {
           blocked_reason?: string | null
           contact_mode?: Database["public"]["Enums"]["shop_contact_mode"]
           created_at?: string
+          default_currency_code?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
@@ -2519,6 +2644,13 @@ export type Database = {
           vendor_status?: Database["public"]["Enums"]["vendor_account_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_default_currency_code_fkey"
+            columns: ["default_currency_code"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "profiles_source_country_id_fkey"
             columns: ["source_country_id"]
@@ -3483,6 +3615,10 @@ export type Database = {
         Returns: string
       }
       compute_text_hash: { Args: { _t: string }; Returns: string }
+      convert_amount: {
+        Args: { _amount: number; _from: string; _to: string }
+        Returns: number
+      }
       create_imported_product_atomic: {
         Args: {
           _category_id: string
@@ -3498,6 +3634,13 @@ export type Database = {
           _variants: Json
         }
         Returns: Json
+      }
+      current_currency_rate: {
+        Args: { _code: string }
+        Returns: {
+          margin: number
+          rate: number
+        }[]
       }
       current_user_can: {
         Args: { _action: string; _resource: string }
@@ -3644,6 +3787,10 @@ export type Database = {
           show_phone: boolean
           show_whatsapp: boolean
         }[]
+      }
+      set_currency_rate: {
+        Args: { _code: string; _margin?: number; _note?: string; _rate: number }
+        Returns: string
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
