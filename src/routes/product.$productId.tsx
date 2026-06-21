@@ -195,6 +195,18 @@ function ProductPage() {
   }, [minOrderQty]);
   const warrantyText = warrantyLabel((data as any)?.warranty_days ?? null);
   const isFragile = !!(data as any)?.is_fragile;
+  const categoryName: string | null = (() => {
+    const c = (data as any)?.categories;
+    if (!c) return null;
+    if (Array.isArray(c)) return c[0]?.name ?? null;
+    return (c as any)?.name ?? null;
+  })();
+  const fitInfo = fitTypeOption((data as any)?.fit_type ?? null);
+  const isClothing = isClothingContext(categoryName, (data as any)?.name ?? null);
+  const measurementFields = useMemo(
+    () => getMeasurementFields(categoryName, (data as any)?.name ?? null),
+    [categoryName, data],
+  );
 
 
 
