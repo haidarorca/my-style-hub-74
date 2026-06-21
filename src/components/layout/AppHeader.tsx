@@ -73,7 +73,7 @@ export function AppHeader() {
         )}
 
         <div className="flex items-center gap-1 sm:gap-1.5">
-          <CurrencySwitcher />
+          
           <LanguageSwitcher />
           <Link to="/cart" className="relative">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
