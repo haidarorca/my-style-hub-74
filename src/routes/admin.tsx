@@ -12,6 +12,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { StuckLoadingDetector } from "@/components/admin/StuckLoadingDetector";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { CurrenciesProvider } from "@/hooks/use-currencies";
+import { CurrencySwitcher } from "@/components/CurrencySwitcher";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
