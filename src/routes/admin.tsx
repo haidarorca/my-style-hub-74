@@ -91,6 +91,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/contact-settings", label: "Contacts & support", icon: Phone, superOnly: true },
       { to: "/admin/countries", label: "Pays", icon: Globe, superOnly: true },
       { to: "/admin/settings", label: "Paramètres du site", icon: Settings, superOnly: true },
+      { to: "/admin/settings/currencies", label: "Devises & taux", icon: Coins, superOnly: true, badge: "NEW" },
       { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
       { to: "/admin/team", label: "Équipe & Rôles", icon: Shield, superOnly: true, badge: "NEW" },
       { to: "/admin/audit-logs", label: "Journal d'audit", icon: FileText, superOnly: true },
