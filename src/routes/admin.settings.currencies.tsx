@@ -24,7 +24,7 @@ type Row = Currency & { rate: number | null; margin: number | null };
 function CurrenciesPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
-  const [history, setHistory] = useState<CurrencyRate[]>([]);
+  const [history, setHistory] = useState<(CurrencyRate & { author?: string | null })[]>([]);
   const [editing, setEditing] = useState<Record<string, { rate: string; margin: string; note: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [openHistory, setOpenHistory] = useState<string | null>(null);
@@ -38,8 +38,19 @@ function CurrenciesPage() {
         .from("currency_rates")
         .select("*")
         .order("effective_from", { ascending: false });
+      const rates = (rs as any[]) || [];
+      const authorIds = Array.from(new Set(rates.map((r) => r.created_by).filter(Boolean)));
+      let authors: Record<string, string> = {};
+      if (authorIds.length) {
+        const { data: profs } = await (supabase as any)
+          .from("profiles").select("id, full_name, email").in("id", authorIds);
+        for (const p of (profs as any[]) || []) {
+          authors[p.id] = p.full_name || p.email || p.id.slice(0, 8);
+        }
+      }
+      const enriched = rates.map((r) => ({ ...r, author: r.created_by ? (authors[r.created_by] || "—") : "—" }));
       const latest: Record<string, { rate: number; margin: number }> = {};
-      for (const r of (rs as any[]) || []) {
+      for (const r of rates) {
         if (!latest[r.currency_code]) latest[r.currency_code] = { rate: Number(r.rate_to_base), margin: Number(r.safety_margin_pct) };
       }
       const built: Row[] = ((cs as Currency[]) || []).map((c) => ({
@@ -48,7 +59,8 @@ function CurrenciesPage() {
         margin: latest[c.code]?.margin ?? null,
       }));
       setRows(built);
-      setHistory((rs as CurrencyRate[]) || []);
+      setHistory(enriched as any);
+
       const ed: typeof editing = {};
       for (const b of built) {
         ed[b.code] = {
