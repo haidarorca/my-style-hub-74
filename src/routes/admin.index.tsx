@@ -53,6 +53,8 @@ export const Route = createFileRoute("/admin/")({
 function ActionCenter() {
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
+  const fmtMoney = useFormatDisplay();
+
 
   const [selectedOrder, setSelectedOrder] = useState<OrderCardData | null>(null);
 
