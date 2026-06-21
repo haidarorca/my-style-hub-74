@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
 import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
@@ -141,6 +142,7 @@ function ProductPage() {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { lang, t, dir } = useI18n();
+  const fmt = useFormatDisplay();
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -402,7 +404,7 @@ function ProductPage() {
             {displayPrice !== null ? (
               <>
                 <p className="text-xl font-extrabold text-primary">
-                  {Number(displayPrice).toLocaleString("fr-FR")} FCFA
+                  {fmt(Number(displayPrice))}
                 </p>
                 {transportIncluded && (
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5">

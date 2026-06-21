@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { cn } from "@/lib/utils";
@@ -92,8 +93,7 @@ const normalizeStatus = (s: string): StatusKey => {
   return "new";
 };
 
-const fmtFcfa = (n: number) =>
-  `${Math.round(Number(n) || 0).toLocaleString("fr-FR")} FCFA`;
+// fmtFcfa devenu hook-based : voir OrdersPage (useFormatDisplay).
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, "").replace(/^00/, "+");
 
@@ -176,6 +176,7 @@ function OrdersPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const settings = useSiteSettings();
+  const fmtFcfa = useFormatDisplay();
   const [filter, setFilter] = useState<"all" | StatusKey>("all");
   const [openOrder, setOpenOrder] = useState<any | null>(null);
   const [confirmAction, setConfirmAction] = useState<

@@ -5,6 +5,7 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export interface ProductCardProduct {
   id: string;
@@ -33,6 +34,7 @@ interface Props {
 
 export function ProductCard({ product, onQuickAdd }: Props) {
   const { lang, t } = useI18n();
+  const fmt = useFormatDisplay();
   const img = product.product_images?.[0]?.url;
   const displayName = pickI18n(product.name, product.name_i18n as Record<string, string> | null, lang);
   const dp = useProductDisplayPrice(product.id);
@@ -81,7 +83,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
                   Total estimé
                 </p>
                 <p className="mt-0.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                  {total!.toLocaleString("fr-FR")} {t("misc.currency")}
+                  {fmt(total!)}
                 </p>
                 <p className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
                   produit + transport
@@ -89,7 +91,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
               </div>
             ) : (
               <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
+                {fmt(dp.final_price)}
               </p>
             )
           ) : (

@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useDeliveryCountry } from "@/hooks/use-delivery-country";
@@ -77,6 +78,7 @@ function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
+  const fmt = useFormatDisplay();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
   const router = useRouter();
@@ -997,7 +999,7 @@ function CartPage() {
                                           const lineTotal = price * it.quantity + lf;
                                           return (
                                             <p className="text-sm font-bold text-primary">
-                                              {lineTotal.toLocaleString("fr-FR")} FCFA
+                                              {fmt(lineTotal)}
                                             </p>
                                           );
                                         })() : (
@@ -1067,7 +1069,7 @@ function CartPage() {
               </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
-                  <>{(grandTotal + cartFreightTotal).toLocaleString("fr-FR")} FCFA</>
+                  <>{fmt(grandTotal + cartFreightTotal)}</>
                 ) : (
                   <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
                 )}
