@@ -518,11 +518,18 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
           </div>
 
-          {/* Historique d'audit unifié */}
+          {/* Historique d'audit unifié — MASQUÉ du drawer opérateur sur
+              demande produit. Les données d'audit (order_events, order_status_history,
+              admin_action_log, sub_order_states, order_decisions, payment_audit)
+              restent intactes et continuent d'alimenter SAV, Finance, KPI,
+              Audit, reporting, automatisations et notifications. */}
+          {/*
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
             <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
           </div>
+          */}
+
 
           {/* Pesées */}
           {weighings.length > 0 && (
