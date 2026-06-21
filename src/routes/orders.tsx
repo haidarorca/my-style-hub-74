@@ -176,6 +176,7 @@ function OrdersPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const settings = useSiteSettings();
+  const fmtFcfa = useFormatDisplay();
   const [filter, setFilter] = useState<"all" | StatusKey>("all");
   const [openOrder, setOpenOrder] = useState<any | null>(null);
   const [confirmAction, setConfirmAction] = useState<
