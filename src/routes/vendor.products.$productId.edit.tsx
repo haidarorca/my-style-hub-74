@@ -16,7 +16,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
-import { ChevronDown, Settings2 } from "lucide-react";
+import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
+import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
 
@@ -33,6 +35,8 @@ type ExistingVariant = {
   stock: number;
   price_override: number | null;
   image_url: string | null;
+  variant_ref: string | null;
+  measurements: Record<string, number> | null;
 };
 
 type VariantDraft = {
@@ -45,9 +49,17 @@ type VariantDraft = {
   image_url: string | null; // existing url
   image_file: File | null; // new replacement
   remove_image: boolean;
+  variant_ref: string;
+  measurements: Record<string, string>;
 };
 
 function fromExisting(v: ExistingVariant): VariantDraft {
+  const m: Record<string, string> = {};
+  if (v.measurements && typeof v.measurements === "object") {
+    for (const [k, val] of Object.entries(v.measurements)) {
+      if (val != null && String(val) !== "") m[k] = String(val);
+    }
+  }
   return {
     id: v.id,
     size: v.size ?? "",
@@ -58,11 +70,13 @@ function fromExisting(v: ExistingVariant): VariantDraft {
     image_url: v.image_url,
     image_file: null,
     remove_image: false,
+    variant_ref: v.variant_ref ?? "",
+    measurements: m,
   };
 }
 
 function emptyVariant(): VariantDraft {
-  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false };
+  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false, variant_ref: "", measurements: {} };
 }
 
 function EditProductPage() {
@@ -88,10 +102,11 @@ function EditProductPage() {
   const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
   const [videoUrl, setVideoUrl] = useState("");
   const [originCountryId, setOriginCountryId] = useState<string | null>(null);
-  const [fragileChoice, setFragileChoice] = useState<"none" | "yes" | "no">("none");
+  const [isFragile, setIsFragile] = useState(false);
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
-  const [variantRef, setVariantRef] = useState("");
+  const [fitType, setFitType] = useState<string>("");
+  const [categoryName, setCategoryName] = useState<string>("");
 
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
@@ -149,10 +164,18 @@ function EditProductPage() {
     }
     setVideoUrl((p as any).video_url ?? "");
     setOriginCountryId((p as any).origin_country_id ?? null);
-    setFragileChoice((p as any).is_fragile ? "yes" : "no");
+    setIsFragile(!!(p as any).is_fragile);
     setMinOrderQty(String((p as any).min_order_qty ?? 1));
     setSku((p as any).sku ?? "");
-    setVariantRef((p as any).variant_ref ?? "");
+    setFitType((p as any).fit_type ?? "");
+
+    // Charger le nom de la catégorie pour la détection vêtement
+    const catId = (p as any).category_id;
+    if (catId) {
+      void supabase.from("categories").select("name").eq("id", catId).maybeSingle().then(({ data: c }) => {
+        setCategoryName((c as any)?.name ?? "");
+      });
+    }
 
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
@@ -184,6 +207,9 @@ function EditProductPage() {
     });
   };
 
+  const isClothing = isClothingContext(categoryName, name);
+  const measurementFields = getMeasurementFields(categoryName, name);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !data?.product) return;
@@ -194,6 +220,18 @@ function EditProductPage() {
     if (existingImages.length + newImages.length === 0) {
       toast.error("Au moins une image est requise.");
       return;
+    }
+    if (isClothing) {
+      const hasMeasurements = variants.some((v) =>
+        Object.values(v.measurements ?? {}).some((val) => {
+          const n = Number(val);
+          return Number.isFinite(n) && n > 0;
+        }),
+      );
+      if (!hasMeasurements) {
+        toast.error("Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante.");
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -238,6 +276,11 @@ function EditProductPage() {
           if (upErr) throw upErr;
           image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
         }
+        const cleanMeasurements: Record<string, number> = {};
+        for (const [k, val] of Object.entries(v.measurements ?? {})) {
+          const n = Number(val);
+          if (Number.isFinite(n) && n > 0) cleanMeasurements[k] = n;
+        }
         const payload = {
           product_id: productId,
           size: v.size.trim() || null,
@@ -246,6 +289,8 @@ function EditProductPage() {
           stock: Number(v.stock) || 0,
           price_override: v.price_override ? Number(v.price_override) : null,
           image_url,
+          variant_ref: v.variant_ref.trim() || null,
+          measurements: cleanMeasurements,
         };
         if (v.id) {
           const { error } = await supabase.from("product_variants").update(payload).eq("id", v.id);
@@ -318,12 +363,12 @@ function EditProductPage() {
         brand: brand.trim() || null,
         barcode: barcode.trim() || null,
         warranty_days: warrantyDays,
-        is_fragile: fragileChoice === "yes",
+        is_fragile: isFragile,
         min_order_qty: minQty,
         video_url: videoUrl.trim() || null,
         origin_country_id: originCountryId,
         sku: sku.trim() || null,
-        variant_ref: variantRef.trim() || null,
+        fit_type: fitType || null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
@@ -451,6 +496,34 @@ function EditProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Variantes (taille / couleur / modèle)</CardTitle></CardHeader>
         <CardContent className="space-y-2">
+          {isClothing && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <Ruler className="h-3.5 w-3.5" /> Vêtement détecté — coupe & mesures
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                <div>
+                  <Label className="text-[11px]">Type de coupe</Label>
+                  <Select value={fitType} onValueChange={setFitType}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                    <SelectContent>
+                      {FIT_TYPES.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <p className="text-[11px] text-muted-foreground">
+                    {fitTypeOption(fitType)?.description ?? "Sélectionnez le type de coupe pour aider le client."}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Mesures réelles (cm) par variante affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
+              </p>
+            </div>
+          )}
           {variants.length === 0 && (
             <p className="text-xs text-muted-foreground">Aucune variante. Ajoutez-en une si vous proposez plusieurs tailles, couleurs ou modèles.</p>
           )}
@@ -487,6 +560,36 @@ function EditProductPage() {
                     </Button>
                   </div>
                 </div>
+                <div>
+                  <Label className="text-[10px]">Référence variante (interne)</Label>
+                  <Input
+                    className="h-8 font-mono"
+                    value={v.variant_ref}
+                    onChange={(e) => updateVariant(i, { variant_ref: e.target.value })}
+                    placeholder="Ex. REF-001-R-S"
+                  />
+                </div>
+                {isClothing && (
+                  <div className="rounded border bg-muted/30 p-2 space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wide">Mesures réelles (cm)</Label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {measurementFields.map((f) => (
+                        <div key={f.key}>
+                          <Label className="text-[10px]">{f.label}</Label>
+                          <Input
+                            className="h-8"
+                            type="number" min={0} step="0.5"
+                            value={v.measurements?.[f.key] ?? ""}
+                            onChange={(e) => updateVariant(i, {
+                              measurements: { ...(v.measurements ?? {}), [f.key]: e.target.value },
+                            })}
+                            placeholder="—"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   {previewUrl ? (
                     <div className="relative h-14 w-14 overflow-hidden rounded border">
@@ -562,30 +665,28 @@ function EditProductPage() {
                 <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir un pays (facultatif)" allowNull nullLabel="— Non précisé —" />
               </div>
 
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                <Label className="text-xs">Fragilité</Label>
-                <div className="flex flex-col gap-1.5">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "yes"} onCheckedChange={(v) => setFragileChoice(v ? "yes" : "none")} /> Produit fragile
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "no"} onCheckedChange={(v) => setFragileChoice(v ? "no" : "none")} /> Produit non fragile
-                  </label>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                <Checkbox checked={isFragile} onCheckedChange={(v) => setIsFragile(!!v)} />
+                <span>
+                  Produit fragile
+                  <span className="block text-[11px] font-normal text-muted-foreground">
+                    Si non coché, le produit est considéré comme non fragile.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <Label className="text-xs">Quantité minimale de commande</Label>
                 <Input type="number" min={1} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div><Label className="text-xs">SKU vendeur</Label><Input value={sku} onChange={(e) => setSku(e.target.value)} /></div>
-                <div><Label className="text-xs">Référence variante</Label><Input value={variantRef} onChange={(e) => setVariantRef(e.target.value)} /></div>
+              <div>
+                <Label className="text-xs">SKU vendeur (interne)</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Référence interne globale. Les références variantes se renseignent sur chaque ligne de variante. Jamais affiché aux clients.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Les références internes ne sont jamais affichées aux clients.
-              </p>
             </CardContent>
           </Card>
         </CollapsibleContent>

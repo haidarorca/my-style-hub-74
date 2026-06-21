@@ -45,7 +45,9 @@ import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialo
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
-import { ChevronDown, Settings2 } from "lucide-react";
+import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
+import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
 
@@ -75,6 +77,8 @@ interface VariantInput {
   stock: number;
   price_override: string;
   image_file: File | null;
+  variant_ref: string;
+  measurements: Record<string, string>;
 }
 
 // Encoded selector value: "cat:UUID" (approved) or "req:UUID" (pending request).
@@ -128,10 +132,10 @@ function NewProductPage() {
   const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
   const [videoUrl, setVideoUrl] = useState("");
   const [originCountryId, setOriginCountryId] = useState<string | null>(null);
-  const [fragileChoice, setFragileChoice] = useState<"none" | "yes" | "no">("none");
+  const [isFragile, setIsFragile] = useState(false);
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
-  const [variantRef, setVariantRef] = useState("");
+  const [fitType, setFitType] = useState<string>("");
 
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
@@ -240,6 +244,25 @@ function NewProductPage() {
   // The "deepest" pick determines what goes onto the product
   const deepestPick = pick3 || pick2 || pick1 || "";
 
+  // Nom des catégories sélectionnées (utilisé pour détecter les vêtements)
+  const pickedCategoryNames = useMemo(() => {
+    const all = cats ?? [];
+    const get = (p: Pick) => {
+      if (!p || isReq(p)) return null;
+      const c = all.find((x) => x.id === idOf(p));
+      return c ? pickI18n(c.name, c.name_i18n, lang) : null;
+    };
+    return [get(pick1), get(pick2), get(pick3)];
+  }, [cats, pick1, pick2, pick3, lang]);
+  const isClothing = useMemo(
+    () => isClothingContext(...pickedCategoryNames, name),
+    [pickedCategoryNames, name],
+  );
+  const measurementFields = useMemo(
+    () => getMeasurementFields(...pickedCategoryNames, name),
+    [pickedCategoryNames, name],
+  );
+
   // Appliquer une categorie detectee par l'IA
   const handleCategoryApply = useCallback((categoryId: string) => {
     const allCats = cats ?? [];
@@ -320,7 +343,7 @@ function NewProductPage() {
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
   const addVariant = () =>
-    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
+    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null, variant_ref: "", measurements: {} }]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
@@ -395,6 +418,8 @@ function NewProductPage() {
         stock: 0,
         price_override: v.price_xof_detected > 0 ? String(v.price_xof_detected) : "",
         image_file: file,
+        variant_ref: "",
+        measurements: {},
       };
     });
     setImages((prev) => {
@@ -445,6 +470,22 @@ function NewProductPage() {
     if (!deepestPick) {
       toast.error("Choisissez une catégorie.");
       return;
+    }
+
+    // Vêtements : blocage publication si aucune variante n'a de mesures réelles.
+    if (isClothing) {
+      const hasMeasurements = variants.some((v) =>
+        Object.values(v.measurements ?? {}).some((val) => {
+          const n = Number(val);
+          return Number.isFinite(n) && n > 0;
+        }),
+      );
+      if (!hasMeasurements) {
+        toast.error(
+          "Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante (poitrine, longueur, tour de taille…).",
+        );
+        return;
+      }
     }
 
     const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
@@ -503,12 +544,12 @@ function NewProductPage() {
           brand: brand.trim() || null,
           barcode: barcode.trim() || null,
           warranty_days: warrantyDays,
-          is_fragile: fragileChoice === "yes",
+          is_fragile: isFragile,
           min_order_qty: minQty,
           video_url: videoUrl.trim() || null,
           origin_country_id: originCountryId,
           sku: sku.trim() || null,
-          variant_ref: variantRef.trim() || null,
+          fit_type: fitType || null,
           status: "pending",
         } as any)
         .select("id")
@@ -547,7 +588,8 @@ function NewProductPage() {
         const variantRows: Array<{
           product_id: string; size: string | null; color: string | null;
           color_hex: string | null; stock: number; price_override: number | null;
-          image_url: string | null;
+          image_url: string | null; variant_ref: string | null;
+          measurements: Record<string, number>;
         }> = [];
         for (let i = 0; i < variants.length; i++) {
           const v = variants[i];
@@ -566,6 +608,11 @@ function NewProductPage() {
             if (upErr) throw upErr;
             image_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
           }
+          const cleanMeasurements: Record<string, number> = {};
+          for (const [k, val] of Object.entries(v.measurements ?? {})) {
+            const n = Number(val);
+            if (Number.isFinite(n) && n > 0) cleanMeasurements[k] = n;
+          }
           variantRows.push({
             product_id: productId,
             size: v.size.trim() || null,
@@ -574,6 +621,8 @@ function NewProductPage() {
             stock: v.stock || 0,
             price_override: v.price_override ? Number(v.price_override) : null,
             image_url,
+            variant_ref: v.variant_ref.trim() || null,
+            measurements: cleanMeasurements,
           });
         }
         const { error: varErr } = await supabase.from("product_variants").insert(variantRows);
@@ -811,6 +860,36 @@ function NewProductPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">{t("vendor.new.variants_help")}</p>
+
+          {isClothing && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <Ruler className="h-3.5 w-3.5" /> Vêtement détecté — coupe & mesures
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                <div>
+                  <Label className="text-[11px]">Type de coupe</Label>
+                  <Select value={fitType} onValueChange={setFitType}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                    <SelectContent>
+                      {FIT_TYPES.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <p className="text-[11px] text-muted-foreground">
+                    {fitTypeOption(fitType)?.description ?? "Sélectionnez le type de coupe pour aider le client à choisir sa taille."}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Les mesures réelles (cm) renseignées sur chaque variante seront affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
+              </p>
+            </div>
+          )}
+
           {variants.map((v, i) => (
             <div key={i} className="rounded-lg border bg-background p-2 space-y-2">
               <div className="grid grid-cols-12 items-end gap-2">
@@ -840,6 +919,36 @@ function NewProductPage() {
                   </Button>
                 </div>
               </div>
+              <div>
+                <Label className="text-[10px]">Référence variante (interne)</Label>
+                <Input
+                  className="h-8 font-mono"
+                  value={v.variant_ref}
+                  onChange={(e) => updateVariant(i, { variant_ref: e.target.value })}
+                  placeholder="Ex. REF-001-R-S"
+                />
+              </div>
+              {isClothing && (
+                <div className="rounded border bg-muted/30 p-2 space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wide">Mesures réelles (cm)</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {measurementFields.map((f) => (
+                      <div key={f.key}>
+                        <Label className="text-[10px]">{f.label}</Label>
+                        <Input
+                          className="h-8"
+                          type="number" min={0} step="0.5"
+                          value={v.measurements?.[f.key] ?? ""}
+                          onChange={(e) => updateVariant(i, {
+                            measurements: { ...(v.measurements ?? {}), [f.key]: e.target.value },
+                          })}
+                          placeholder="—"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 {v.image_file ? (
                   <div className="relative h-14 w-14 overflow-hidden rounded border">
@@ -1014,19 +1123,15 @@ function NewProductPage() {
                 <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir un pays (facultatif)" allowNull nullLabel="— Non précisé —" />
               </div>
 
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                <Label className="text-xs">Fragilité</Label>
-                <div className="flex flex-col gap-1.5">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "yes"} onCheckedChange={(v) => setFragileChoice(v ? "yes" : "none")} />
-                    Produit fragile
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "no"} onCheckedChange={(v) => setFragileChoice(v ? "no" : "none")} />
-                    Produit non fragile
-                  </label>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                <Checkbox checked={isFragile} onCheckedChange={(v) => setIsFragile(!!v)} />
+                <span>
+                  Produit fragile
+                  <span className="block text-[11px] font-normal text-muted-foreground">
+                    Si non coché, le produit est considéré comme non fragile.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <Label className="text-xs">Quantité minimale de commande</Label>
@@ -1039,19 +1144,13 @@ function NewProductPage() {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs">SKU vendeur (interne)</Label>
-                  <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
-                </div>
-                <div>
-                  <Label className="text-xs">Référence variante (interne)</Label>
-                  <Input value={variantRef} onChange={(e) => setVariantRef(e.target.value)} placeholder="—" />
-                </div>
+              <div>
+                <Label className="text-xs">SKU vendeur (interne)</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Référence interne globale du produit. Les références variantes se renseignent directement sur chaque ligne de variante. Jamais affiché aux clients.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Les références internes ne sont jamais affichées aux clients. Elles servent à la gestion du stock, des commandes et du SAV.
-              </p>
             </CardContent>
           </Card>
         </CollapsibleContent>

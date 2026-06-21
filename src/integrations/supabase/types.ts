@@ -2283,10 +2283,12 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          measurements: Json
           price_override: number | null
           product_id: string
           size: string | null
           stock: number
+          variant_ref: string | null
         }
         Insert: {
           color?: string | null
@@ -2294,10 +2296,12 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          measurements?: Json
           price_override?: number | null
           product_id: string
           size?: string | null
           stock?: number
+          variant_ref?: string | null
         }
         Update: {
           color?: string | null
@@ -2305,10 +2309,12 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          measurements?: Json
           price_override?: number | null
           product_id?: string
           size?: string | null
           stock?: number
+          variant_ref?: string | null
         }
         Relationships: [
           {
@@ -2336,6 +2342,7 @@ export type Database = {
           description_i18n: Json | null
           designation: string | null
           designation_i18n: Json | null
+          fit_type: string | null
           height_cm: number | null
           id: string
           is_active: boolean
@@ -2359,7 +2366,6 @@ export type Database = {
           status: Database["public"]["Enums"]["product_status"]
           translated_hash: string | null
           updated_at: string
-          variant_ref: string | null
           vendor_id: string
           video_url: string | null
           views_count: number
@@ -2383,6 +2389,7 @@ export type Database = {
           description_i18n?: Json | null
           designation?: string | null
           designation_i18n?: Json | null
+          fit_type?: string | null
           height_cm?: number | null
           id?: string
           is_active?: boolean
@@ -2406,7 +2413,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
-          variant_ref?: string | null
           vendor_id: string
           video_url?: string | null
           views_count?: number
@@ -2430,6 +2436,7 @@ export type Database = {
           description_i18n?: Json | null
           designation?: string | null
           designation_i18n?: Json | null
+          fit_type?: string | null
           height_cm?: number | null
           id?: string
           is_active?: boolean
@@ -2453,7 +2460,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["product_status"]
           translated_hash?: string | null
           updated_at?: string
-          variant_ref?: string | null
           vendor_id?: string
           video_url?: string | null
           views_count?: number

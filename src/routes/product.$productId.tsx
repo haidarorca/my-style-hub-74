@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler } from "lucide-react";
 import { warrantyLabel } from "@/lib/warranty";
+import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
+import { fitTypeOption } from "@/lib/fit-types";
 
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
@@ -106,6 +108,7 @@ interface Variant {
   color_hex: string | null;
   price_override: number | null;
   image_url: string | null;
+  measurements?: Record<string, number> | null;
 }
 
 interface Customization {
@@ -155,6 +158,7 @@ function ProductPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedShippingServiceId, setSelectedShippingServiceId] = useState<string | null>(null);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
   // Customization state
   const [customImageFile, setCustomImageFile] = useState<File | null>(null);
@@ -169,11 +173,12 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id,
+           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type,
 
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
+           categories:category_id(name, slug),
            profiles:vendor_id(full_name, shop_name, source_country_id)`,
         )
         .eq("id", productId)
@@ -190,6 +195,18 @@ function ProductPage() {
   }, [minOrderQty]);
   const warrantyText = warrantyLabel((data as any)?.warranty_days ?? null);
   const isFragile = !!(data as any)?.is_fragile;
+  const categoryName: string | null = (() => {
+    const c = (data as any)?.categories;
+    if (!c) return null;
+    if (Array.isArray(c)) return c[0]?.name ?? null;
+    return (c as any)?.name ?? null;
+  })();
+  const fitInfo = fitTypeOption((data as any)?.fit_type ?? null);
+  const isClothing = isClothingContext(categoryName, (data as any)?.name ?? null);
+  const measurementFields = useMemo(
+    () => getMeasurementFields(categoryName, (data as any)?.name ?? null),
+    [categoryName, data],
+  );
 
 
 
@@ -439,7 +456,7 @@ function ProductPage() {
             )}
           </div>
 
-          {(warrantyText || isFragile) && (
+          {(warrantyText || isFragile || fitInfo || (isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)))) && (
             <div className="flex flex-wrap gap-2">
               {warrantyText && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
@@ -451,8 +468,83 @@ function ProductPage() {
                   <AlertTriangle className="h-3.5 w-3.5" /> Fragile
                 </span>
               )}
+              {fitInfo && (
+                <span
+                  title={fitInfo.description}
+                  className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800"
+                >
+                  {fitInfo.label}
+                </span>
+              )}
+              {isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)) && (
+                <button
+                  type="button"
+                  onClick={() => setSizeGuideOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                >
+                  <Ruler className="h-3.5 w-3.5" /> 📏 Guide des tailles
+                </button>
+              )}
             </div>
           )}
+
+          {fitInfo && (
+            <p className="text-[11px] text-muted-foreground">{fitInfo.description}</p>
+          )}
+
+          <Dialog open={sizeGuideOpen} onOpenChange={setSizeGuideOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4" /> Guide des tailles
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Mesures réelles fournies par le vendeur (en cm). Choisissez la taille la plus proche de vos mensurations.
+                </p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/60 text-left">
+                      <tr>
+                        <th className="p-2">Taille</th>
+                        {variants.some((v) => v.color) && <th className="p-2">Variante</th>}
+                        {measurementFields.map((f) => (
+                          <th key={f.key} className="p-2 whitespace-nowrap">{f.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variants
+                        .filter((v) => hasAnyMeasurement(v.measurements))
+                        .map((v) => (
+                          <tr key={v.id} className="border-t">
+                            <td className="p-2 font-semibold">{v.size ?? "—"}</td>
+                            {variants.some((x) => x.color) && (
+                              <td className="p-2 text-muted-foreground">{v.color ?? "—"}</td>
+                            )}
+                            {measurementFields.map((f) => {
+                              const n = Number((v.measurements as any)?.[f.key]);
+                              return (
+                                <td key={f.key} className="p-2 whitespace-nowrap">
+                                  {Number.isFinite(n) && n > 0 ? `${n} cm` : "—"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                {fitInfo && (
+                  <p className="text-[11px] text-muted-foreground">
+                    <b>Coupe :</b> {fitInfo.label} — {fitInfo.description}
+                  </p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
 
           <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
 
