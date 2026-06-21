@@ -332,10 +332,14 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
-          {/* Action suivante */}
-          {nextActionInfo && (
+          {/* Action suivante — MASQUÉE du drawer opérateur sur demande produit.
+              Le calcul (buildNextActionBannerPayload + aggregateOrder) reste
+              actif et continue d'alimenter le WorkflowControlPanel, les KPIs,
+              les filtres et les automatisations en aval. */}
+          {/* {nextActionInfo && (
             <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
-          )}
+          )} */}
+
 
           {/* Workflow : 1 par sous-commande. Le workflow dépend du line_kind
               de la sous-commande affichée (KNOWN ≠ UNKNOWN). */}
