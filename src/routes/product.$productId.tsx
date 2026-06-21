@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler } from "lucide-react";
 import { warrantyLabel } from "@/lib/warranty";
+import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
+import { fitTypeOption } from "@/lib/fit-types";
 
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
