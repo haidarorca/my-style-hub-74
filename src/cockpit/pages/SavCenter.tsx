@@ -37,6 +37,7 @@ import {
   ArrowUpRight, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 const OWNER_LABEL: Record<SavOwnerParty, string> = {
   kawzone: "Kawzone",
@@ -100,6 +101,7 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 export default function SavCenter() {
+  const fmtDisp = useFormatDisplay();
   const list = useServerFn(listSavCases);
   const update = useServerFn(updateSavCase);
   const qc = useQueryClient();
