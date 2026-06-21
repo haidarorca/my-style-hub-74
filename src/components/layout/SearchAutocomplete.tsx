@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 const RECENT_KEY = "kawzone.recent_searches.v1";
 const MAX_RECENT = 6;
@@ -44,8 +45,10 @@ function useDebounced<T>(value: T, ms = 180) {
 export function SearchAutocomplete() {
   const router = useRouter();
   const { t, lang } = useI18n();
+  const fmt = useFormatDisplay();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { vendorIds: deliverableVendorIds, countryId } = useDeliverableVendorIds();
+
 
   const urlQ = useRouterState({
     select: (s) => (s.location.pathname === "/search" ? ((s.location.search as { q?: string })?.q ?? "") : ""),
@@ -334,7 +337,7 @@ export function SearchAutocomplete() {
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-sm">{name}</div>
                                   <div className="text-[11px] font-semibold text-primary">
-                                    {Number(p.price).toLocaleString("fr-FR")} {t("misc.currency")}
+                                    {fmt(Number(p.price))}
                                   </div>
                                 </div>
                               </button>
