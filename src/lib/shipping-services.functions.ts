@@ -106,24 +106,33 @@ export const deleteShippingService = createServerFn({ method: "POST" })
 
 // PUBLIC list of enabled services (used by the cockpit weighing form
 // to let the operator assign a shipping service when none has been
-// chosen at checkout). Returns only safe display fields.
+// chosen at checkout). Returns enriched display fields : délai estimé,
+// pays de départ, drapeau — pour que l'opérateur distingue Avion /
+// Maritime / Express d'un coup d'œil.
 export const listEnabledShippingServices = createServerFn({ method: "GET" })
   .handler(async () => {
     const { data, error } = await (supabaseAdmin as any)
       .from("shipping_services")
-      .select("id, name, price_per_kg, pricing_unit, description, position")
+      .select(
+        "id, name, price_per_kg, pricing_unit, description, position, delay_min_days, delay_max_days, source_country_id, source_country:countries!shipping_services_source_country_id_fkey(name, flag_emoji)",
+      )
       .eq("is_enabled", true)
       .order("position", { ascending: true })
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []) as Array<{
-      id: string;
-      name: string;
-      price_per_kg: number;
-      pricing_unit: "kg" | "m3";
-      description: string | null;
-      position: number;
-    }>;
+    return (data ?? []).map((s: any) => ({
+      id: s.id as string,
+      name: s.name as string,
+      price_per_kg: Number(s.price_per_kg),
+      pricing_unit: (s.pricing_unit ?? "kg") as "kg" | "m3",
+      description: (s.description ?? null) as string | null,
+      position: Number(s.position ?? 0),
+      delay_min_days: (s.delay_min_days ?? null) as number | null,
+      delay_max_days: (s.delay_max_days ?? null) as number | null,
+      source_country_id: (s.source_country_id ?? null) as string | null,
+      source_country_name: (s.source_country?.name ?? null) as string | null,
+      source_country_flag: (s.source_country?.flag_emoji ?? null) as string | null,
+    }));
   });
 
 // ADMIN: assign / change the shipping service of an order from the cockpit.
