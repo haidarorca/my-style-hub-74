@@ -3,7 +3,6 @@
 import {
   AlertTriangle, Package, ShoppingCart, Phone, Search,
   Scale, Wallet, Truck, CheckCircle, CheckCircle2, PackageCheck,
-  Target,
 } from "lucide-react";
 import type { NextActionInfo } from "@/cockpit/lib/article-states";
 import type { NextActionBannerPayload } from "@/cockpit/lib/order-aggregate";
@@ -14,14 +13,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 interface Props {
-  /** Payload du bandeau — accepte legacy (NextActionInfo) ou agrégateur (NextActionBannerPayload). */
+  /** Payload du bandeau — accepte legacy (NextActionInfo) ou agrégateur (NextActionBannerPayload).
+      Les champs « pourquoi / article moteur » restent dans le payload mais ne sont plus affichés
+      pour garder une présentation simple et orientée action. */
   action: NextActionInfo | NextActionBannerPayload;
   onClick?: () => void;
 }
 
-function isAggregatePayload(a: NextActionInfo | NextActionBannerPayload): a is NextActionBannerPayload {
-  return "why" in a || "driver_label" in a;
-}
 
 export function NextActionBanner({ action, onClick }: Props) {
   const Icon = ICON_MAP[action.icon] ?? Package;
