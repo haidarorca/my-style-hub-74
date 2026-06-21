@@ -175,26 +175,53 @@ export function WeightForm({
         <Scale className="h-4 w-4 text-orange-600" />Pesée
       </h3>
 
-      {/* Bloc TARIF : lecture seule, alimenté par shipping_services */}
-      <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-blue-700 flex items-center gap-1">
-            <Truck className="h-3.5 w-3.5" />Service d'expédition
-          </span>
-          <span className="font-semibold text-blue-900">{shippingService!.name}</span>
+      {/* Bloc TARIF : lecture seule. Deux états — service rattaché ou non. */}
+      {hasService ? (
+        <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-blue-700 flex items-center gap-1">
+              <Truck className="h-3.5 w-3.5" />Service d'expédition
+            </span>
+            <span className="font-semibold text-blue-900">{shippingService!.name}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-blue-700 flex items-center gap-1">
+              <Lock className="h-3 w-3" />Tarif appliqué
+            </span>
+            <span className="font-bold text-blue-900">
+              {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
+            </span>
+          </div>
+          <div className="text-[10px] text-blue-700/80 italic pt-0.5">
+            Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-blue-700 flex items-center gap-1">
-            <Lock className="h-3 w-3" />Tarif appliqué
-          </span>
-          <span className="font-bold text-blue-900">
-            {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
-          </span>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-semibold mb-0.5">Aucun service d'expédition rattaché</div>
+              <div className="text-[11px]">
+                Vous pouvez peser le colis maintenant (étape logistique).
+                Les frais seront calculés automatiquement dès qu'un service sera
+                rattaché à la commande (étape commerciale).
+              </div>
+            </div>
+          </div>
+          {onPickShippingService && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8 border-amber-300 text-amber-900 hover:bg-amber-100"
+              onClick={onPickShippingService}
+            >
+              <Truck className="h-3.5 w-3.5 mr-1.5" />Choisir un service d'expédition
+            </Button>
+          )}
         </div>
-        <div className="text-[10px] text-blue-700/80 italic pt-0.5">
-          Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
-        </div>
-      </div>
+      )}
+
 
       <div className="flex gap-1 bg-gray-100 rounded p-1">
         <button
