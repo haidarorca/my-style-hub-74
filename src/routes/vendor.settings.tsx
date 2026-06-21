@@ -204,6 +204,23 @@ function VendorSettings() {
           <p className="text-[11px] font-medium text-destructive">Champ obligatoire.</p>
         )}
 
+        <div className="pt-3 space-y-2">
+          <Label className="text-base font-semibold">Devise principale *</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Devise utilisée par défaut pour saisir le prix de vos produits. Le prix FCFA est calculé automatiquement.
+          </p>
+          <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {currencies.filter((c) => c.is_active).map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.symbol} · {c.name} ({c.code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="pt-2 space-y-2">
           <Label className="text-base font-semibold">Mode commission</Label>
           <div className="rounded-xl border border-border bg-muted/30 p-3">
