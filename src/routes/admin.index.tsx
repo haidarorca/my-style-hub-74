@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { getAdminStats } from "@/lib/admin-stats.functions";
 import { getLogisticsStats } from "@/lib/admin-logistics.functions";
 import { listLogisticsOrders } from "@/lib/admin-logistics.functions";
@@ -52,6 +53,8 @@ export const Route = createFileRoute("/admin/")({
 function ActionCenter() {
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
+  const fmtMoney = useFormatDisplay();
+
 
   const [selectedOrder, setSelectedOrder] = useState<OrderCardData | null>(null);
 
@@ -234,7 +237,7 @@ function ActionCenter() {
               <DollarSign className="h-5 w-5 text-destructive shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Reste à payer global</p>
-                <p className="text-lg font-semibold font-bold text-destructive">{ls.total_remaining.toLocaleString("fr-FR")} FCFA</p>
+                <p className="text-lg font-semibold font-bold text-destructive">{fmtMoney(ls.total_remaining)}</p>
               </div>
             </div>
           )}

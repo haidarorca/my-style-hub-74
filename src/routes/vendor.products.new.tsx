@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { CurrenciesProvider, useCurrencies } from "@/hooks/use-currencies";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,11 @@ import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialo
 
 
 export const Route = createFileRoute("/vendor/products/new")({
-  component: NewProductPage,
+  component: () => (
+    <CurrenciesProvider>
+      <NewProductPage />
+    </CurrenciesProvider>
+  ),
 });
 
 const FONT_OPTIONS = [
@@ -75,11 +80,12 @@ type CatRow = { id: string; name: string; level: number; parent_id: string | nul
 type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
 
 function NewProductPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { t, lang } = useI18n();
   const { compress, compressMultiple } = useImageCompression();
   const router = useRouter();
   const qc = useQueryClient();
+  const { currencies, rates } = useCurrencies();
 
   // Basic
   const [name, setName] = useState("");
@@ -87,6 +93,20 @@ function NewProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
+  const [currencyCode, setCurrencyCode] = useState<string>("XOF");
+  useEffect(() => {
+    const dc = (profile as any)?.default_currency_code;
+    if (dc) setCurrencyCode(dc);
+  }, [profile]);
+  const previewFcfa = useMemo(() => {
+    const n = Number(price);
+    if (!n || !isFinite(n)) return null;
+    if (currencyCode === "XOF") return Math.round(n);
+    const r = rates[currencyCode];
+    if (!r) return null;
+    return Math.round(n * r.rate * (1 + (r.margin || 0) / 100));
+  }, [price, currencyCode, rates]);
+  const activeCurrency = currencies.find((c) => c.code === currencyCode);
   // Logistique : poids + dimensions (tous optionnels)
   const [weightKg, setWeightKg] = useState<string>("");
   const [lengthCm, setLengthCm] = useState<string>("");
@@ -435,7 +455,9 @@ function NewProductPage() {
           code: cleanCode,
           designation: designation.trim() || null,
           description: description.trim() || null,
-          price: priceNum,
+          price: priceNum, // recalculé par le trigger si origin_currency != XOF
+          origin_price: priceNum,
+          origin_currency_code: currencyCode,
           category_id,
           pending_category_request_id,
           weight_kg: w && w > 0 ? w : null,
@@ -608,10 +630,30 @@ function NewProductPage() {
           </div>
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Ce prix sera affiché tel quel au client (FCFA).
-            </p>
+            <div className="flex gap-2">
+              <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="flex-1" />
+              <Select value={currencyCode} onValueChange={setCurrencyCode}>
+                <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {currencies.filter((c) => c.is_active).map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.symbol} {c.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {currencyCode !== "XOF" && previewFcfa != null && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                ≈ <b>{previewFcfa.toLocaleString("fr-FR")} FCFA</b>
+                {rates[currencyCode] && (
+                  <> · taux {rates[currencyCode].rate} · marge {rates[currencyCode].margin}%</>
+                )}
+              </p>
+            )}
+            {currencyCode === "XOF" && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Prix affiché tel quel au client (FCFA).
+              </p>
+            )}
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
             <div>

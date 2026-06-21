@@ -19,9 +19,15 @@ import {
 } from "@/lib/phone-countries";
 import { CountrySelect } from "@/components/CountrySelect";
 import { SmartImageUpload } from "@/components/images/SmartImageUpload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrenciesProvider, useCurrencies } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/vendor/settings")({
-  component: VendorSettings,
+  component: () => (
+    <CurrenciesProvider>
+      <VendorSettings />
+    </CurrenciesProvider>
+  ),
 });
 
 type ShopFields = {
@@ -56,6 +62,8 @@ function VendorSettings() {
   const [waLocal, setWaLocal] = useState("");
   const [sourceCountryId, setSourceCountryId] = useState<string | null>(null);
   const [vendorMode, setVendorMode] = useState<"commission" | "no_commission">("no_commission");
+  const [defaultCurrency, setDefaultCurrency] = useState<string>("XOF");
+  const { currencies } = useCurrencies();
   const { compress } = useImageCompression();
 
   const DAY_T: Record<DayKey, string> = {
@@ -87,6 +95,7 @@ function VendorSettings() {
     setSchedule(normalizeSchedule(p.shop_hours_schedule));
     setSourceCountryId((p.source_country_id as string | null) ?? null);
     setVendorMode(((p.vendor_mode as "commission" | "no_commission" | undefined) ?? "no_commission"));
+    setDefaultCurrency(((p.default_currency_code as string | undefined) ?? "XOF"));
   }, [profile]);
 
   const updateDay = (day: DayKey, patch: Partial<ShopSchedule[DayKey]>) =>
@@ -113,7 +122,7 @@ function VendorSettings() {
     setSaving(true);
     const phoneFull = joinPhone(phoneCountry, phoneLocal);
     const waFull = joinPhone(waCountry, waLocal);
-    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId, vendor_mode: vendorMode };
+    const payload = { ...f, phone: phoneFull, shop_whatsapp: waFull, shop_hours_schedule: schedule, source_country_id: sourceCountryId, vendor_mode: vendorMode, default_currency_code: defaultCurrency };
     const { error } = await supabase.from("profiles").update(payload as never).eq("id", user.id);
     setSaving(false);
     if (error) {
@@ -194,6 +203,23 @@ function VendorSettings() {
         {!sourceCountryId && (
           <p className="text-[11px] font-medium text-destructive">Champ obligatoire.</p>
         )}
+
+        <div className="pt-3 space-y-2">
+          <Label className="text-base font-semibold">Devise principale *</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Devise utilisée par défaut pour saisir le prix de vos produits. Le prix FCFA est calculé automatiquement.
+          </p>
+          <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {currencies.filter((c) => c.is_active).map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.symbol} · {c.name} ({c.code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="pt-2 space-y-2">
           <Label className="text-base font-semibold">Mode commission</Label>
