@@ -999,7 +999,7 @@ function CartPage() {
                                           const lineTotal = price * it.quantity + lf;
                                           return (
                                             <p className="text-sm font-bold text-primary">
-                                              {lineTotal.toLocaleString("fr-FR")} FCFA
+                                              {fmt(lineTotal)}
                                             </p>
                                           );
                                         })() : (
