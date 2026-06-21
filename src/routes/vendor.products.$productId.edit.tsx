@@ -348,12 +348,12 @@ function EditProductPage() {
         brand: brand.trim() || null,
         barcode: barcode.trim() || null,
         warranty_days: warrantyDays,
-        is_fragile: fragileChoice === "yes",
+        is_fragile: isFragile,
         min_order_qty: minQty,
         video_url: videoUrl.trim() || null,
         origin_country_id: originCountryId,
         sku: sku.trim() || null,
-        variant_ref: variantRef.trim() || null,
+        fit_type: fitType || null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
