@@ -11,6 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CountrySelect } from "@/components/CountrySelect";
+import { WARRANTY_PRESETS } from "@/lib/warranty";
+import { ChevronDown, Settings2 } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/vendor/products/$productId/edit")({
