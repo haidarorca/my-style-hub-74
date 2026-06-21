@@ -472,6 +472,22 @@ function NewProductPage() {
       return;
     }
 
+    // Vêtements : blocage publication si aucune variante n'a de mesures réelles.
+    if (isClothing) {
+      const hasMeasurements = variants.some((v) =>
+        Object.values(v.measurements ?? {}).some((val) => {
+          const n = Number(val);
+          return Number.isFinite(n) && n > 0;
+        }),
+      );
+      if (!hasMeasurements) {
+        toast.error(
+          "Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante (poitrine, longueur, tour de taille…).",
+        );
+        return;
+      }
+    }
+
     const category_id = isReq(deepestPick) ? null : idOf(deepestPick);
     const pending_category_request_id = isReq(deepestPick) ? idOf(deepestPick) : null;
 
