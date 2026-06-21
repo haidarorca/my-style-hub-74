@@ -535,13 +535,25 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {weighings.length > 0 && (
             <div className="bg-gray-50 rounded-lg p-3 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Package className="h-4 w-4" />Historique pesées</h3>
-              {weighings.map(w => (
-                <div key={w.id} className="text-xs bg-white rounded p-2">
-                  <div className="font-medium">{w.chargeableWeightKg.toFixed(2)} kg facturé → {fmtF(w.finalFreight)}</div>
-                  <div className="text-gray-500">Réel: {w.realWeightKg}kg / Vol: {w.volumetricWeightKg.toFixed(2)}kg</div>
-                  <div className="text-gray-400">{new Date(w.timestamp).toLocaleDateString("fr-FR")} — {w.weighedBy}</div>
-                </div>
-              ))}
+              {weighings.map(w => {
+                const unit = w.pricingUnit ?? "kg";
+                const d = new Date(w.timestamp);
+                return (
+                  <div key={w.id} className="text-xs bg-white rounded p-2 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-500">{d.toLocaleDateString("fr-FR")} {d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} — {w.weighedBy}</div>
+                      <div className="font-bold text-emerald-700">{fmtF(w.finalFreight)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-1 text-[11px]">
+                      <div className="text-gray-500">Service : <span className="text-gray-800 font-medium">{w.shippingServiceName ?? "—"}</span></div>
+                      <div className="text-gray-500">Tarif : <span className="text-gray-800 font-medium">{w.freightRatePerKg > 0 ? `${fmtF(w.freightRatePerKg)} / ${unit}` : "—"}</span></div>
+                      <div className="text-gray-500">Poids réel : <span className="text-gray-800 font-medium">{Number(w.realWeightKg).toFixed(2)} kg</span></div>
+                      <div className="text-gray-500">Poids vol. : <span className="text-gray-800 font-medium">{Number(w.volumetricWeightKg).toFixed(2)} kg</span></div>
+                      <div className="text-gray-500 col-span-2">Poids facturable : <span className="text-orange-700 font-semibold">{Number(w.chargeableWeightKg).toFixed(2)} kg</span></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
