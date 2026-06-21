@@ -93,8 +93,7 @@ const normalizeStatus = (s: string): StatusKey => {
   return "new";
 };
 
-const fmtFcfa = (n: number) =>
-  `${Math.round(Number(n) || 0).toLocaleString("fr-FR")} FCFA`;
+// fmtFcfa devenu hook-based : voir OrdersPage (useFormatDisplay).
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, "").replace(/^00/, "+");
 
