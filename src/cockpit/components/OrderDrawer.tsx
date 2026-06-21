@@ -16,6 +16,7 @@ import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
 import { WeightForm } from "./WeightForm";
+import { ShippingServicePickerDialog } from "./ShippingServicePickerDialog";
 import { PaymentHistory } from "./PaymentHistory";
 import { OrderAuditTimeline } from "./OrderAuditTimeline";
 import { PartialDeliveryBanner } from "./PartialDeliveryBanner";
@@ -530,6 +531,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               orderId={order.order_id ?? ""}
               subOrderKey={subOrderKey!}
               assessmentId={subAssessment?.id ?? null}
+              shippingServiceId={order.shipping_service_id ?? null}
               unknownArticles={scopedArticles ?? []}
               onWeigh={onWeigh}
               onFormInteraction={onFormInteraction}
@@ -582,11 +584,13 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
 /** Pesée scopée à une sous-commande IMPORT_UNKNOWN_WEIGHT.
  *  - N'écrit JAMAIS sur une autre assessment.
- *  - La liste à peser provient des `scopedArticles` (déjà filtrés par sub_order_key). */
+ *  - La liste à peser provient des `scopedArticles` (déjà filtrés par sub_order_key).
+ *  - Le tarif/kg est lu en lecture seule depuis shipping_services (jamais saisi). */
 function WeightFormUnknownSub({
   orderId,
   subOrderKey,
   assessmentId,
+  shippingServiceId,
   unknownArticles,
   onWeigh,
   onFormInteraction,
@@ -594,10 +598,29 @@ function WeightFormUnknownSub({
   orderId: string;
   subOrderKey: string;
   assessmentId: string | null;
+  shippingServiceId: string | null;
   unknownArticles: OrderArticle[];
   onWeigh: Props["onWeigh"];
   onFormInteraction?: () => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Tarif lu depuis shipping_services (source unique de vérité) — jamais saisi.
+  const { data: shippingService } = useQuery({
+    queryKey: ["shipping-service", shippingServiceId],
+    queryFn: async () => {
+      if (!shippingServiceId) return null;
+      const { data, error } = await (supabase as any)
+        .from("shipping_services")
+        .select("id, name, price_per_kg, pricing_unit, description")
+        .eq("id", shippingServiceId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!shippingServiceId,
+  });
+
   const items: UnknownItem[] = unknownArticles.map(a => ({
     id: `${a.product_id}::${a.variant_id ?? ""}`,
     name: a.product_name,
@@ -612,7 +635,14 @@ function WeightFormUnknownSub({
         assessmentId={assessmentId}
         declaredFreight={0}
         unknownItems={items}
+        shippingService={shippingService ?? null}
+        onPickShippingService={() => setPickerOpen(true)}
         onWeigh={(r) => onWeigh({ ...r, assessmentId, subOrderKey })}
+      />
+      <ShippingServicePickerDialog
+        open={pickerOpen}
+        orderId={orderId}
+        onClose={() => setPickerOpen(false)}
       />
     </div>
   );

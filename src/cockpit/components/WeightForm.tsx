@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { Scale, Plus, Trash2, Package as PkgIcon } from "lucide-react";
+import { Scale, Package as PkgIcon, AlertTriangle, Truck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fmtF, calcVolumetricWeight, calcFreight, FREIGHT_RATE_PER_KG } from "@/cockpit/lib/workflow";
+import { fmtF, calcVolumetricWeight, calcFreight } from "@/cockpit/lib/workflow";
 import type { WeighingRecord } from "@/cockpit/types";
 
 export interface UnknownItem {
@@ -13,6 +13,14 @@ export interface UnknownItem {
   quantity: number;
 }
 
+export interface ShippingServiceLite {
+  id: string;
+  name: string;
+  price_per_kg: number;
+  pricing_unit?: "kg" | "m3" | null;
+  description?: string | null;
+}
+
 interface Props {
   orderId: string;
   /** Fret déjà figé au checkout pour les articles à poids déclaré (FCFA). 0 si aucun. */
@@ -21,14 +29,30 @@ interface Props {
   assessmentId?: string | null;
   /** Liste des articles à PESER (produits sans poids déclaré uniquement). */
   unknownItems?: UnknownItem[];
+  /** Service d'expédition choisi par le client / assigné par l'admin (lecture seule). */
+  shippingService?: ShippingServiceLite | null;
+  /** Callback à appeler quand l'opérateur doit choisir un service (commande sans service). */
+  onPickShippingService?: () => void;
   onWeigh: (record: Omit<WeighingRecord, "id" | "timestamp"> & { assessmentId?: string | null }) => void;
 }
 
 type Mode = "global" | "per_item";
 
-export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknownItems = [], onWeigh }: Props) {
+export function WeightForm({
+  orderId,
+  declaredFreight = 0,
+  assessmentId,
+  unknownItems = [],
+  shippingService,
+  onPickShippingService,
+  onWeigh,
+}: Props) {
   const [mode, setMode] = useState<Mode>("global");
-  const [rate, setRate] = useState(String(FREIGHT_RATE_PER_KG));
+
+  // ── Tarif/kg : lecture seule, provient EXCLUSIVEMENT de shipping_services. ──
+  // Aucun champ de saisie n'est exposé à l'opérateur (logique métier KawZone).
+  const ratePerKg = Number(shippingService?.price_per_kg ?? 0);
+  const hasService = !!shippingService && ratePerKg > 0;
 
   // ── Mode global ──
   const [realWeight, setRealWeight] = useState("");
@@ -44,7 +68,6 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
 
   const realW = parseFloat(realWeight) || 0;
   const chargeableGlobal = Math.max(realW, volWeight);
-  const ratePerKg = parseFloat(rate) || FREIGHT_RATE_PER_KG;
   const freightGlobal = calcFreight(chargeableGlobal, ratePerKg);
 
   // ── Mode per_item : map id → { real_kg, l_cm, w_cm, h_cm } ──
@@ -59,7 +82,6 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
     });
   }, [unknownItems]);
 
-  /** Poids facturable par article = max(réel, volumétrique). qty appliquée. */
   const perItemBreakdown = useMemo(() => {
     return unknownItems.map((it) => {
       const inp = perItemInputs[it.id] ?? blankPI;
@@ -87,11 +109,10 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
     [perItemBreakdown],
   );
   const freightPerItem = calcFreight(perItemTotalKg, ratePerKg);
-  /** Tous les articles doivent avoir un poids réel saisi (dimensions optionnelles). */
   const perItemReady = perItemBreakdown.length > 0 && perItemBreakdown.every(b => b.real > 0);
 
   const handleSubmitGlobal = () => {
-    if (!realW || !chargeableGlobal) return;
+    if (!hasService || !realW || !chargeableGlobal) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
@@ -110,7 +131,7 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
   };
 
   const handleSubmitPerItem = () => {
-    if (!perItemReady) return;
+    if (!hasService || !perItemReady) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
@@ -122,26 +143,83 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
       estimatedFreight: freightPerItem,
       finalFreight: freightPerItem,
       weighedBy: "Admin",
-      // Détail par article (persisté côté backend si le schéma le permet).
       perItemWeights: perItemBreakdown.reduce((acc, b) => {
-        acc[b.id] = { real_kg: b.real, l_cm: parseFloat(perItemInputs[b.id]?.l || "0") || 0,
-                      w_cm: parseFloat(perItemInputs[b.id]?.w || "0") || 0,
-                      h_cm: parseFloat(perItemInputs[b.id]?.h || "0") || 0,
-                      chargeable_kg: b.chargeable };
+        acc[b.id] = {
+          real_kg: b.real,
+          l_cm: parseFloat(perItemInputs[b.id]?.l || "0") || 0,
+          w_cm: parseFloat(perItemInputs[b.id]?.w || "0") || 0,
+          h_cm: parseFloat(perItemInputs[b.id]?.h || "0") || 0,
+          chargeable_kg: b.chargeable,
+        };
         return acc;
       }, {} as Record<string, { real_kg: number; l_cm: number; w_cm: number; h_cm: number; chargeable_kg: number }>),
     } as any);
     setPerItemInputs({});
   };
 
-
   const totalFreightPreview = (mode === "global" ? freightGlobal : freightPerItem) + declaredFreight;
+
+  // ─────────────────────────────────────────────────────────────
+  // Cas bloquant : aucun service d'expédition rattaché à la commande.
+  // ─────────────────────────────────────────────────────────────
+  if (!hasService) {
+    return (
+      <div className="bg-white border rounded-lg p-3 space-y-3" onClick={e => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <Scale className="h-4 w-4 text-orange-600" />Pesée
+        </h3>
+        <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-semibold mb-0.5">Pesée bloquée</div>
+              <div>
+                Aucun service d'expédition n'est rattaché à cette commande.
+                Le tarif/kg est défini par le service choisi — l'opérateur ne saisit jamais
+                de tarif manuellement.
+              </div>
+            </div>
+          </div>
+          {onPickShippingService && (
+            <Button
+              size="sm"
+              className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={onPickShippingService}
+            >
+              <Truck className="h-4 w-4 mr-1.5" />Choisir un service d'expédition
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border rounded-lg p-3 space-y-3" onClick={e => e.stopPropagation()}>
       <h3 className="text-sm font-semibold flex items-center gap-1.5">
         <Scale className="h-4 w-4 text-orange-600" />Pesée
       </h3>
+
+      {/* Bloc TARIF : lecture seule, alimenté par shipping_services */}
+      <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-blue-700 flex items-center gap-1">
+            <Truck className="h-3.5 w-3.5" />Service d'expédition
+          </span>
+          <span className="font-semibold text-blue-900">{shippingService!.name}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-blue-700 flex items-center gap-1">
+            <Lock className="h-3 w-3" />Tarif appliqué
+          </span>
+          <span className="font-bold text-blue-900">
+            {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
+          </span>
+        </div>
+        <div className="text-[10px] text-blue-700/80 italic pt-0.5">
+          Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
+        </div>
+      </div>
 
       <div className="flex gap-1 bg-gray-100 rounded p-1">
         <button
@@ -154,11 +232,6 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
           disabled={unknownItems.length === 0}
           title={unknownItems.length === 0 ? "Aucun article à poids inconnu" : ""}
         >Par article inconnu ({unknownItems.length})</button>
-      </div>
-
-      <div>
-        <label className="text-[10px] text-gray-500">Tarif/kg (FCFA)</label>
-        <Input type="number" value={rate} onChange={e => setRate(e.target.value)} className="h-9 text-sm" />
       </div>
 
       {declaredFreight > 0 && (
@@ -179,11 +252,12 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
           </div>
           {(realW > 0 || volWeight > 0) && (
             <div className="bg-gray-50 rounded p-2 space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Poids réel:</span><span className="font-medium">{realW.toFixed(3)} kg</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Poids vol:</span><span className="font-medium">{volWeight.toFixed(3)} kg</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Poids facturé:</span><span className="font-bold text-orange-700">{chargeableGlobal.toFixed(3)} kg</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Fret pesé:</span><span className="font-medium">{fmtF(freightGlobal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Poids facturable:</span><span className="font-bold text-orange-700">{chargeableGlobal.toFixed(3)} kg</span></div>
+              <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span><span className="font-bold text-emerald-700">{fmtF(freightGlobal)}</span></div>
               {declaredFreight > 0 && (
-                <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
               )}
             </div>
           )}
@@ -259,18 +333,21 @@ export function WeightForm({ orderId, declaredFreight = 0, assessmentId, unknown
               </div>
               {perItemTotalKg > 0 && (
                 <div className="bg-gray-50 rounded p-2 space-y-1 text-sm">
+                  <div className="flex justify-between"><span className="text-gray-500">Poids réel total:</span><span className="font-medium">{perItemRealTotalKg.toFixed(3)} kg</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Poids volumétrique total:</span><span className="font-medium">{perItemVolTotalKg.toFixed(3)} kg</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Poids facturable total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Fret inconnu calculé:</span><span className="font-medium">{fmtF(freightPerItem)}</span></div>
+                  <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span><span className="font-bold text-emerald-700">{fmtF(freightPerItem)}</span></div>
                   {declaredFreight > 0 && (
                     <div className="flex justify-between"><span className="text-gray-500">Fret déclaré (figé):</span><span className="font-medium">{fmtF(declaredFreight)}</span></div>
                   )}
-                  <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
+                  {declaredFreight > 0 && (
+                    <div className="flex justify-between"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
+                  )}
                 </div>
               )}
               <Button size="sm" className="w-full h-10 bg-orange-600 hover:bg-orange-700" onClick={handleSubmitPerItem} disabled={!perItemReady}>
                 Enregistrer la pesée
               </Button>
-
             </>
           )}
         </>
