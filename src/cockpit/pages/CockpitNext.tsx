@@ -26,7 +26,8 @@ import {
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useOrderAggregatesBatch, type OrderWithAggregate } from "@/cockpit/hooks/useOrderAggregatesBatch";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
-import { fmtF } from "@/cockpit/lib/workflow";
+import { fmtF as fmtFBase } from "@/cockpit/lib/workflow";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { NEXT_ACTION_LABELS, type AggregateNextAction } from "@/cockpit/lib/order-aggregate";
 
 // ─── Staleness (proxy basé sur order_created_at) ───
@@ -70,6 +71,7 @@ function isActionable(a: AggregateNextAction): boolean {
 type Filter = "all" | "blocked" | "money" | "ready" | "stale";
 
 export default function CockpitNext() {
+  const fmtF = useFormatDisplay();
   const { orders, isLoading } = useRealOrders();
   const enriched = useOrderAggregatesBatch(orders);
 
@@ -478,6 +480,7 @@ interface FinRow {
 }
 
 function FinancialCommitments({ enriched }: { enriched: OrderWithAggregate[] }) {
+  const fmtF = useFormatDisplay();
   const { rows, totals } = useMemo(() => {
     const rows: FinRow[] = [];
     let refund = 0, credit = 0, extra = 0;
