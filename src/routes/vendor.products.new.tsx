@@ -42,6 +42,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CountrySelect } from "@/components/CountrySelect";
+import { WARRANTY_PRESETS } from "@/lib/warranty";
+import { ChevronDown, Settings2 } from "lucide-react";
+
+
 
 
 export const Route = createFileRoute("/vendor/products/new")({
