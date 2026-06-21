@@ -45,7 +45,11 @@ import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialo
 
 
 export const Route = createFileRoute("/vendor/products/new")({
-  component: NewProductPage,
+  component: () => (
+    <CurrenciesProvider>
+      <NewProductPage />
+    </CurrenciesProvider>
+  ),
 });
 
 const FONT_OPTIONS = [
