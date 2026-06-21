@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
