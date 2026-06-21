@@ -19,6 +19,7 @@ import { SiteSettingsProvider } from "@/hooks/use-site-settings";
 import { UiOverridesProvider } from "@/hooks/use-ui-overrides";
 import { I18nProvider } from "@/hooks/use-i18n";
 import { DeliveryCountryProvider } from "@/hooks/use-delivery-country";
+import { CurrenciesProvider } from "@/hooks/use-currencies";
 import { PromoBar } from "@/components/layout/PromoBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { SwipeNavigator } from "@/components/layout/SwipeNavigator";
