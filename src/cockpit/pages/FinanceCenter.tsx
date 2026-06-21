@@ -236,9 +236,9 @@ export default function FinanceCenter() {
                     <TableCell className="font-mono text-xs">
                       {r.order_id.slice(0, 8)}… / {r.vendor_id.slice(0, 8)}…
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(Number(r.outstanding_to_refund_client))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(Number(r.outstanding_credit_to_issue))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(Number(r.commission_to_remit_vendor))}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtDisp(Number(r.outstanding_to_refund_client))}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtDisp(Number(r.outstanding_credit_to_issue))}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtDisp(Number(r.commission_to_remit_vendor))}</TableCell>
                     <TableCell>
                       <Link to="/admin/cockpit" search={{ orderId: r.order_id, focus: "money" }}>
                         <Button size="sm" variant="ghost"><ArrowUpRight className="w-3 h-3"/></Button>
