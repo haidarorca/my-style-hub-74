@@ -91,7 +91,7 @@ export function ProductCard({ product, onQuickAdd }: Props) {
               </div>
             ) : (
               <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                {dp.final_price.toLocaleString("fr-FR")} {t("misc.currency")}
+                {fmt(dp.final_price)}
               </p>
             )
           ) : (
