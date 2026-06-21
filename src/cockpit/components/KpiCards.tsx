@@ -15,6 +15,7 @@ interface Props {
 }
 
 export function KpiCards({ newCount, pendingPayment, toWeigh, ready, shipped, totalDebt, activeFilter, onFilter }: Props) {
+  const fmtDisplay = useFormatDisplay();
   const items = [
     { key: "new" as KpiFilter, count: newCount, icon: ClipboardList },
     { key: "payment_pending" as KpiFilter, count: pendingPayment, icon: AlertTriangle },
