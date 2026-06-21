@@ -3606,6 +3606,7 @@ export type Database = {
       }
     }
     Functions: {
+      apply_currency_recompute: { Args: { _code: string }; Returns: number }
       can_insert_order_item: {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
@@ -3618,6 +3619,19 @@ export type Database = {
       convert_amount: {
         Args: { _amount: number; _from: string; _to: string }
         Returns: number
+      }
+      create_currency: {
+        Args: {
+          _code: string
+          _decimals?: number
+          _display_order?: number
+          _is_active?: boolean
+          _margin?: number
+          _name: string
+          _rate?: number
+          _symbol: string
+        }
+        Returns: string
       }
       create_imported_product_atomic: {
         Args: {
@@ -3755,6 +3769,17 @@ export type Database = {
         Returns: string
       }
       migrate_customer_addresses: { Args: never; Returns: number }
+      preview_currency_recompute: {
+        Args: { _code: string }
+        Returns: {
+          code: string
+          name: string
+          new_price: number
+          old_price: number
+          origin_price: number
+          product_id: string
+        }[]
+      }
       product_code_exists_in_shop: {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
@@ -3799,6 +3824,17 @@ export type Database = {
       taobao_session_mark_expired: { Args: never; Returns: undefined }
       taobao_session_save: {
         Args: { _cookies: Json; _key: string; _nickname: string; _ua: string }
+        Returns: undefined
+      }
+      update_currency: {
+        Args: {
+          _code: string
+          _decimals?: number
+          _display_order?: number
+          _is_active?: boolean
+          _name?: string
+          _symbol?: string
+        }
         Returns: undefined
       }
       upsert_commission_rule: {

@@ -1,143 +1,102 @@
-## Système Multi-Devises Kawzone — Architecture Proposée
+## Finalisation du module Devises & Taux
 
-Objectif : permettre à chaque vendeur de saisir ses prix dans sa devise d'origine (FCFA, USD, RMB, EUR, TRY…) tout en gardant FCFA comme devise comptable de référence. Les taux sont **manuels et contrôlés par le Super Admin** (jamais d'API externe automatique).
-
----
-
-### 1. Impact base de données
-
-#### 1.1 Nouvelle table `currencies` (référentiel)
-| Champ | Type | Notes |
-|---|---|---|
-| `code` (PK) | text | `XOF`, `USD`, `RMB`, `EUR`, `TRY` — ISO 4217 quand possible |
-| `name` | text | "Franc CFA", "US Dollar"… |
-| `symbol` | text | "FCFA", "$", "¥", "€", "₺" |
-| `decimals` | int | 0 pour XOF, 2 pour le reste |
-| `is_active` | bool | |
-| `is_base` | bool | un seul `true` → XOF |
-| `display_order` | int | |
-
-#### 1.2 Nouvelle table `currency_rates` (historique des taux manuels)
-| Champ | Type | Notes |
-|---|---|---|
-| `id` uuid PK | | |
-| `currency_code` | text FK → currencies | |
-| `rate_to_base` | numeric(18,6) | ex. 1 USD = 585 XOF |
-| `safety_margin_pct` | numeric(5,2) | ex. 5.00 |
-| `effective_from` | timestamptz | défaut now() |
-| `created_by` | uuid | super admin |
-| `note` | text | |
-
-Le taux courant = ligne la plus récente par devise. Historique conservé.
-
-Fonctions SQL :
-- `current_currency_rate(code)` → `(rate, margin)`
-- `convert_amount(amount, from_code, to_code)` → numeric (utilise XOF comme pivot, applique la marge **uniquement à l'entrée vendeur**, pas aux conversions d'affichage stats)
-
-#### 1.3 Modifications `profiles` (vendeur)
-- `default_currency_code` text FK → currencies, défaut `'XOF'`
-
-#### 1.4 Modifications `products`
-- `origin_price` numeric(14,2) — prix saisi par le vendeur
-- `origin_currency_code` text FK → currencies
-- `origin_rate_snapshot` numeric(18,6) — taux figé au moment de la dernière conversion
-- `origin_margin_snapshot` numeric(5,2)
-- `price_xof` numeric(14,2) — prix recalculé en FCFA (= colonne `price` existante, on la garde et on l'alimente via trigger pour zéro casse)
-
-Trigger `recompute_product_price_xof` : sur INSERT/UPDATE de `origin_price` ou `origin_currency_code`, recalcule `price = round(origin_price × rate × (1 + margin/100), decimals_xof)`.
-
-#### 1.5 Modifications `orders` / `order_items` (snapshot devise)
-- `orders.display_currency_code` text — devise d'affichage choisie à la commande (informational, le compta reste en XOF)
-- `order_items.origin_currency_code`, `origin_unit_price`, `origin_rate_snapshot` — pour traçabilité import (PARTIE 5 : on garde le coût fournisseur en devise d'origine pour les commandes import)
-
-Aucune migration sur `auth.*`, `storage.*`.
+Objectif : clore définitivement le chantier devises avec une UX client complète, une admin autonome, et un recalcul sécurisé.
 
 ---
 
-### 2. Permissions / RLS
+### 1. Historique des taux — affichage propre
 
-- `currencies` : SELECT public (anon + authenticated). INSERT/UPDATE réservé super_admin.
-- `currency_rates` : SELECT authenticated. INSERT réservé super_admin (via fonction `set_currency_rate(code, rate, margin, note)`).
-- `profiles.default_currency_code` : modifiable par le vendeur lui-même + admin.
-- `products.origin_*` : modifiable par le vendeur propriétaire + admin. `price` (xof) devient read-only côté vendeur (calculé par trigger).
+Fichier : `src/routes/admin.settings.currencies.tsx`
 
----
-
-### 3. Écrans concernés
-
-| Écran | Changement |
-|---|---|
-| **Admin → Paramètres → Devises** (NOUVEAU `/admin/settings/currencies`) | CRUD devises + édition taux/marge + historique |
-| **Vendor settings** | Sélecteur "Devise principale" |
-| **Vendor → Nouveau produit / Édition** | Saisie `origin_price` + sélecteur devise (préfilled). Affichage temps réel "≈ X FCFA (taux Y, marge Z%)" |
-| **Admin → Produits** | Colonnes "Prix origine" + "Prix FCFA" |
-| **Dashboard / Cockpit / Finance / Rapports** | Nouveau sélecteur global de devise d'affichage (header). Conversion via `current_currency_rate` sans marge. Stockage XOF inchangé. |
-| **Drawer commande / Détail import** | Pour les commandes import : affichage prix fournisseur en devise d'origine + équivalent FCFA |
-
-Hook React `useDisplayCurrency()` + `formatMoney(amount_xof, target_code)` partagé entre cockpit et admin pour cohérence.
+- Remplacer la `<table>` actuelle par une vue **double** :
+  - **Mobile (< sm)** : liste de cartes empilées (Date en haut, badges Taux/Marge, Note en pleine largeur avec `whitespace-pre-wrap break-words`).
+  - **Desktop (≥ sm)** : tableau avec colonnes fixes (`Date` 160px · `Utilisateur` 140px · `Taux` 100px right · `Marge` 80px right · `Note` flex).
+- `break-words` + `whitespace-pre-wrap` sur la note pour les longs textes.
+- Ajout d'un petit filtre `<Select>` "Toutes les devises / EUR / USD / …" au-dessus du bloc historique global (sera utile quand on déplacera l'historique hors des cartes — voir étape 3).
+- Conserver `max-h-[480px] overflow-y-auto` pour rester lisible avec plusieurs années.
 
 ---
 
-### 4. Workflow import (PARTIE 5)
+### 2. Expérience client multi-devises
 
-Le système devises **n'altère pas** le workflow existant. Il ajoute juste :
-- Le prix produit fournisseur reste exprimé en devise d'origine.
-- Le paiement client #1 (produits) utilise `price` (XOF déjà converti avec marge) → aucun changement.
-- Les frais de transport (paiement #2) restent calculés en XOF par l'admin (poids × tarif XOF/kg).
-- La page logistique import affiche pour chaque ligne : "Coût fournisseur : 100 RMB (≈ 8 200 XOF, marge +8% → 8 856 XOF facturé)".
+**Provider** : déjà mounté globalement (`CurrenciesProvider` dans `__root.tsx` à vérifier ; sinon l'ajouter).
 
----
+**Sélecteur public** : nouveau composant léger `PublicCurrencySwitcher` (variante compacte du `CurrencySwitcher` existant, pas de label "admin") intégré dans :
 
-### 5. Risques et mitigations
+- `src/components/layout/AppHeader.tsx` — à côté de `LanguageSwitcher` (desktop + mobile).
 
-| Risque | Mitigation |
-|---|---|
-| Trigger recalcul casse les produits existants | Migration backfill : tous les produits existants reçoivent `origin_currency_code='XOF'`, `origin_price = price`, rate=1, margin=0. `price` reste identique. |
-| Variations de taux modifient rétroactivement les prix catalogue | Le recalcul ne se déclenche qu'à l'UPDATE explicite du vendeur OU via un bouton admin "Recalculer tous les produits en RMB" sur la page devises. Sinon `price` reste figé. |
-| Affichage stats incohérent entre pages | Hook unique `useDisplayCurrency` + helper SQL `convert_amount` réutilisés partout. |
-| Devise affichage ≠ devise comptable | FCFA reste source de vérité ; conversion display = lecture seule, jamais persistée dans les agrégats. |
-| RLS oublié sur nouvelles tables | Migration suit le pattern `CREATE TABLE → GRANT → ENABLE RLS → POLICY`. |
+**Affichage des prix** : remplacer toutes les occurrences de formatage FCFA en dur côté client par `useFormatDisplay()` :
 
----
+- `src/components/product/ProductCard.tsx`
+- `src/components/product/QuickAddSheet.tsx`
+- `src/routes/product.$productId.tsx`
+- `src/routes/search.tsx`
+- `src/routes/c.$categoryId.tsx`
+- `src/routes/cart.tsx`
+- `src/routes/orders.tsx`
+- `src/routes/account.tsx` (si prix affichés)
+- `src/routes/shop.$vendorId.tsx`
 
-### 6. Architecture future (PARTIE 6)
+Le client ne voit jamais : `origin_rate_snapshot`, `origin_margin_snapshot`, `commission_rate`. Vérifier qu'aucun composant client ne lit ces colonnes (audit `rg`).
 
-- Ajout d'une nouvelle devise = 1 INSERT dans `currencies` + 1 taux. Zéro code.
-- Ajout d'un nouveau pays fournisseur = lien `countries.default_currency_code` (ajout optionnel plus tard).
-- Commission Kawzone : déjà compatible (commission calculée sur `price` XOF, indépendante de la devise d'origine).
-- Marketplace locale : vendeurs FCFA = cas trivial (rate=1, margin=0).
+**Important** : la conversion d'affichage utilise le taux brut **sans marge** (le hook `useFormatDisplay` le fait déjà correctement). Les paiements et totaux commande restent en XOF.
 
 ---
 
-### 7. Plan d'exécution (après validation)
+### 3. Création/édition de devises depuis l'admin
 
-**Étape A — Fondation DB** (1 migration)
-1. Tables `currencies`, `currency_rates` + GRANT + RLS + policies
-2. Seed des 5 devises (XOF base, USD, RMB, EUR, TRY) avec taux par défaut (585, 82, 656, 18)
-3. Colonnes `profiles.default_currency_code`, `products.origin_*`, `orders.display_currency_code`, `order_items.origin_*`
-4. Fonctions `current_currency_rate`, `convert_amount`, `set_currency_rate`
-5. Trigger `recompute_product_price_xof`
-6. Backfill produits existants
+Fichier : `src/routes/admin.settings.currencies.tsx`
 
-**Étape B — Admin Paramètres Devises**
-- `/admin/settings/currencies` : tableau + édition inline + bouton "Recalculer produits"
-
-**Étape C — Vendor + Produits**
-- Sélecteur devise dans profil vendeur
-- Saisie `origin_price + currency` dans le formulaire produit (preview temps réel)
-
-**Étape D — Sélecteur devise d'affichage**
-- Hook `useDisplayCurrency` + composant `<CurrencySwitcher />` dans le header admin
-- Branchement Dashboard, Cockpit (KPI cards, finance, rapports)
-
-**Étape E — Vue import**
-- Affichage devise d'origine dans drawer/logistique import
+- Bouton **➕ Nouvelle devise** en haut → ouvre un `Dialog` avec :
+  - `code` (ISO 4217, uppercase, unique, 3 lettres)
+  - `name`, `symbol`, `decimals` (0/2)
+  - `display_order` (number)
+  - `is_active` (switch, default true)
+  - `rate_to_base` + `safety_margin_pct` (saisis comme premier taux historique)
+- Bouton **✏️ Modifier** par carte → édite `name`, `symbol`, `decimals`, `display_order`, `is_active` (PAS le code, PAS `is_base`).
+- Bouton **🗄️ Archiver** = `is_active=false` (déjà géré via toggle).
+- **Migration nécessaire** : nouvelle fonction RPC `create_currency(_code, _name, _symbol, _decimals, _display_order, _rate, _margin)` SECURITY DEFINER, gated `is_super_admin`, qui insère dans `currencies` puis appelle `set_currency_rate`. Permet de contourner toute policy restrictive sur `currencies`.
+- Et `update_currency(_code, _name, _symbol, _decimals, _display_order, _is_active)` idem.
 
 ---
 
-### Questions avant exécution
+### 4. Bouton "Recalculer les produits"
 
-1. Confirmes-tu les 5 devises initiales (XOF, USD, RMB, EUR, TRY) ?
-2. Pour les produits existants : on les laisse en XOF (rate=1, margin=0) — OK ?
-3. La marge de sécurité s'applique-t-elle aussi quand un vendeur sénégalais saisit en FCFA ? (Recommandation : non, margin=0 pour XOF.)
-4. Le sélecteur de devise d'affichage doit-il être global (persisté par utilisateur) ou par page ?
+Sur chaque carte devise non-base :
+
+- Bouton **🔄 Recalculer les produits utilisant cette devise**.
+- Ouvre un `Dialog` avec preview :
+
+```
+Produits concernés : 42
+Ancien total catalogue : 12 450 000 FCFA
+Nouveau total catalogue : 12 770 000 FCFA
+Différence : +320 000 FCFA (+2,57 %)
+```
+
+  Tableau scrollable : `Code | Produit | Ancien | Nouveau | Δ`.
+
+- Bouton **Confirmer le recalcul** → applique.
+
+**Migration nécessaire** :
+
+- `preview_currency_recompute(_code text)` — RETURNS TABLE(product_id, name, code, old_price, new_price). Calcule sans muter.
+- `apply_currency_recompute(_code text)` — UPDATE `products SET origin_price = origin_price` (déclenche le trigger `recompute_product_price_xof` qui met à jour `price`, `origin_rate_snapshot`, `origin_margin_snapshot`). Filtré sur `origin_currency_code = _code AND deleted_at IS NULL`. Gated super_admin. Retourne le nombre de lignes affectées.
+
+**Garantie** : aucune table `order_items` n'est touchée ; les snapshots commandes restent figés (trigger `snapshot_order_item_currency` ne s'applique qu'à l'INSERT).
+
+---
+
+### 5. Audit final (livré dans la réponse, pas dans le code)
+
+Une fois 1→4 terminés, je fournis un récap : terminé / restant / risques / améliorations recommandées, pour clore le chantier.
+
+---
+
+### Ordre d'exécution
+
+1. Migration SQL (RPC create_currency / update_currency / preview_currency_recompute / apply_currency_recompute) — **un seul appel à la tool migration**.
+2. Refonte `admin.settings.currencies.tsx` (historique + dialogs création/édition + dialog recalcul).
+3. `PublicCurrencySwitcher` + intégration `AppHeader`.
+4. Remplacement des formatages FCFA en dur dans les pages client listées.
+5. Audit final en message texte.
