@@ -467,6 +467,11 @@ export const getOrderItems = createServerFn({ method: "POST" })
         sub_order_key: subOrderKey,
         origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
+        sku: (prod as any)?.sku ?? null,
+        variant_ref: (prod as any)?.variant_ref ?? null,
+        barcode: (prod as any)?.barcode ?? null,
+        brand: (prod as any)?.brand ?? null,
+
         vendor: it.vendor_id && vendor ? {
           vendor_id: it.vendor_id,
           shop_name: vendor.shop_name ?? null,
