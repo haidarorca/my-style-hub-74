@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SiteSettings } from "@/hooks/use-site-settings";
 import { BannersManager } from "@/components/admin/BannersManager";
 
-export const Route = createFileRoute("/admin/settings")({
+export const Route = createFileRoute("/admin/settings/")({
   component: () => <PermissionGate superOnly><SettingsPage /></PermissionGate>,
 });
 
