@@ -5,6 +5,7 @@ import { pickI18n } from "@/lib/i18n/localized";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export interface ProductCardProduct {
   id: string;
