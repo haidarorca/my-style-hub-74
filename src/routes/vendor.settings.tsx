@@ -19,6 +19,8 @@ import {
 } from "@/lib/phone-countries";
 import { CountrySelect } from "@/components/CountrySelect";
 import { SmartImageUpload } from "@/components/images/SmartImageUpload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrenciesProvider, useCurrencies } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/vendor/settings")({
   component: VendorSettings,
