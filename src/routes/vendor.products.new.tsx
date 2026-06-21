@@ -324,7 +324,7 @@ function NewProductPage() {
   };
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
   const addVariant = () =>
-    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null }]);
+    setVariants((v) => [...v, { size: "", color: "", color_hex: "", stock: 0, price_override: "", image_file: null, variant_ref: "", measurements: {} }]);
   const updateVariant = (i: number, patch: Partial<VariantInput>) =>
     setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
