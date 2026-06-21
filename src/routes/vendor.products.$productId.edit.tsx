@@ -496,6 +496,34 @@ function EditProductPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Variantes (taille / couleur / modèle)</CardTitle></CardHeader>
         <CardContent className="space-y-2">
+          {isClothing && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <Ruler className="h-3.5 w-3.5" /> Vêtement détecté — coupe & mesures
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                <div>
+                  <Label className="text-[11px]">Type de coupe</Label>
+                  <Select value={fitType} onValueChange={setFitType}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                    <SelectContent>
+                      {FIT_TYPES.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <p className="text-[11px] text-muted-foreground">
+                    {fitTypeOption(fitType)?.description ?? "Sélectionnez le type de coupe pour aider le client."}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Mesures réelles (cm) par variante affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
+              </p>
+            </div>
+          )}
           {variants.length === 0 && (
             <p className="text-xs text-muted-foreground">Aucune variante. Ajoutez-en une si vous proposez plusieurs tailles, couleurs ou modèles.</p>
           )}
@@ -532,6 +560,36 @@ function EditProductPage() {
                     </Button>
                   </div>
                 </div>
+                <div>
+                  <Label className="text-[10px]">Référence variante (interne)</Label>
+                  <Input
+                    className="h-8 font-mono"
+                    value={v.variant_ref}
+                    onChange={(e) => updateVariant(i, { variant_ref: e.target.value })}
+                    placeholder="Ex. REF-001-R-S"
+                  />
+                </div>
+                {isClothing && (
+                  <div className="rounded border bg-muted/30 p-2 space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wide">Mesures réelles (cm)</Label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {measurementFields.map((f) => (
+                        <div key={f.key}>
+                          <Label className="text-[10px]">{f.label}</Label>
+                          <Input
+                            className="h-8"
+                            type="number" min={0} step="0.5"
+                            value={v.measurements?.[f.key] ?? ""}
+                            onChange={(e) => updateVariant(i, {
+                              measurements: { ...(v.measurements ?? {}), [f.key]: e.target.value },
+                            })}
+                            placeholder="—"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   {previewUrl ? (
                     <div className="relative h-14 w-14 overflow-hidden rounded border">
