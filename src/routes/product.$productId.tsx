@@ -404,7 +404,7 @@ function ProductPage() {
             {displayPrice !== null ? (
               <>
                 <p className="text-xl font-extrabold text-primary">
-                  {Number(displayPrice).toLocaleString("fr-FR")} FCFA
+                  {fmt(Number(displayPrice))}
                 </p>
                 {transportIncluded && (
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
