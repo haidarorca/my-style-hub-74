@@ -628,10 +628,30 @@ function NewProductPage() {
           </div>
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Ce prix sera affiché tel quel au client (FCFA).
-            </p>
+            <div className="flex gap-2">
+              <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="flex-1" />
+              <Select value={currencyCode} onValueChange={setCurrencyCode}>
+                <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {currencies.filter((c) => c.is_active).map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.symbol} {c.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {currencyCode !== "XOF" && previewFcfa != null && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                ≈ <b>{previewFcfa.toLocaleString("fr-FR")} FCFA</b>
+                {rates[currencyCode] && (
+                  <> · taux {rates[currencyCode].rate} · marge {rates[currencyCode].margin}%</>
+                )}
+              </p>
+            )}
+            {currencyCode === "XOF" && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Prix affiché tel quel au client (FCFA).
+              </p>
+            )}
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
             <div>
