@@ -514,6 +514,8 @@ function AccountPage() {
           </ul>
         )}
 
+        <DisplayCurrencyCard />
+
         <div className="mt-6">
           <ChangePasswordCard />
         </div>
