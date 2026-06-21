@@ -235,10 +235,51 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </div>
           )}
 
-          {/* ─── Rentabilité & responsabilité Kawzone (scopé uniquement) ─── */}
-          {isScoped && currentSub && (
+          {/* ─── Rentabilité sous-commande : MASQUÉE de la vue opérateur ───
+              La logique (commission, marge, coût réel, remboursements, avoirs)
+              reste calculée et accessible dans Finance Center et les rapports.
+              On garde l'import + le composant pour ne rien casser ailleurs. */}
+          {/* {isScoped && currentSub && (
             <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
-          )}
+          )} */}
+
+          {/* ─── Indicateurs critiques (compact) : uniquement ce qui demande une action ─── */}
+          {isScoped && currentSub && (() => {
+            const blocked = currentSub.financials.blocked_count;
+            const pendingMoney = currentSub.aggregate.pending_money.total_abs;
+            const waitingAction =
+              (currentSub.aggregate.counters.waiting_supplier ?? 0) +
+              (currentSub.aggregate.counters.waiting_restock ?? 0) +
+              (currentSub.aggregate.counters.waiting_money ?? 0);
+            const partial = (scopedArticles ?? []).filter(
+              (a) => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity,
+            ).length;
+            if (blocked === 0 && pendingMoney === 0 && waitingAction === 0 && partial === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {blocked > 0 && (
+                  <span className="text-[11px] bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">
+                    ⚠ Bloqués : {blocked}
+                  </span>
+                )}
+                {pendingMoney > 0 && (
+                  <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+                    💰 Paiement en attente : {fmtF(pendingMoney)}
+                  </span>
+                )}
+                {waitingAction > 0 && (
+                  <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">
+                    ⏳ Articles en attente : {waitingAction}
+                  </span>
+                )}
+                {partial > 0 && (
+                  <span className="text-[11px] bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">
+                    📦 Livraison partielle : {partial}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ─── Historique métier (Événement → Décision → Mouvement) ─── */}
           {isScoped && (
@@ -266,8 +307,10 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           )}
 
 
-          {/* Agrégateur (debug) — sur les articles scopés. */}
-          <AggregateDebugPanel articles={scopedArticles} orderStatus={status} />
+          {/* AggregateDebugPanel : panneau de debug — MASQUÉ en production.
+              La logique aggregateOrder() reste utilisée par NextActionBanner,
+              KPIs, filtres workflow. Ne pas supprimer le composant. */}
+          {/* <AggregateDebugPanel articles={scopedArticles} orderStatus={status} /> */}
 
           {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
           {!isScoped && (
