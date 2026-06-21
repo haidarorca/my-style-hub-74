@@ -112,7 +112,7 @@ export function WeightForm({
   const perItemReady = perItemBreakdown.length > 0 && perItemBreakdown.every(b => b.real > 0);
 
   const handleSubmitGlobal = () => {
-    if (!hasService || !realW || !chargeableGlobal) return;
+    if (!realW || !chargeableGlobal) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
@@ -122,6 +122,8 @@ export function WeightForm({
       heightCm: parseFloat(height) || 0,
       volumetricWeightKg: volWeight,
       chargeableWeightKg: chargeableGlobal,
+      // Tarif & fret : 0 tant qu'aucun service n'est rattaché — recalculés
+      // automatiquement lorsque l'opérateur rattache un service.
       freightRatePerKg: ratePerKg,
       estimatedFreight: freightGlobal,
       finalFreight: freightGlobal,
@@ -131,7 +133,7 @@ export function WeightForm({
   };
 
   const handleSubmitPerItem = () => {
-    if (!hasService || !perItemReady) return;
+    if (!perItemReady) return;
     onWeigh({
       orderId,
       assessmentId: assessmentId ?? null,
@@ -159,40 +161,13 @@ export function WeightForm({
 
   const totalFreightPreview = (mode === "global" ? freightGlobal : freightPerItem) + declaredFreight;
 
-  // ─────────────────────────────────────────────────────────────
-  // Cas bloquant : aucun service d'expédition rattaché à la commande.
-  // ─────────────────────────────────────────────────────────────
-  if (!hasService) {
-    return (
-      <div className="bg-white border rounded-lg p-3 space-y-3" onClick={e => e.stopPropagation()}>
-        <h3 className="text-sm font-semibold flex items-center gap-1.5">
-          <Scale className="h-4 w-4 text-orange-600" />Pesée
-        </h3>
-        <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900 space-y-2">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div>
-              <div className="font-semibold mb-0.5">Pesée bloquée</div>
-              <div>
-                Aucun service d'expédition n'est rattaché à cette commande.
-                Le tarif/kg est défini par le service choisi — l'opérateur ne saisit jamais
-                de tarif manuellement.
-              </div>
-            </div>
-          </div>
-          {onPickShippingService && (
-            <Button
-              size="sm"
-              className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={onPickShippingService}
-            >
-              <Truck className="h-4 w-4 mr-1.5" />Choisir un service d'expédition
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // NOTE : la pesée n'est JAMAIS bloquée par l'absence de service d'expédition.
+  // C'est une étape logistique (réception colis). Le choix du transporteur est
+  // une étape commerciale distincte. Si aucun service n'est rattaché, on
+  // affiche un bandeau d'information + bouton "Choisir un service" mais on
+  // laisse l'opérateur saisir le poids et les dimensions. Les frais sont alors
+  // recalculés automatiquement dès qu'un service est rattaché.
+
 
   return (
     <div className="bg-white border rounded-lg p-3 space-y-3" onClick={e => e.stopPropagation()}>
@@ -200,26 +175,53 @@ export function WeightForm({
         <Scale className="h-4 w-4 text-orange-600" />Pesée
       </h3>
 
-      {/* Bloc TARIF : lecture seule, alimenté par shipping_services */}
-      <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-blue-700 flex items-center gap-1">
-            <Truck className="h-3.5 w-3.5" />Service d'expédition
-          </span>
-          <span className="font-semibold text-blue-900">{shippingService!.name}</span>
+      {/* Bloc TARIF : lecture seule. Deux états — service rattaché ou non. */}
+      {hasService ? (
+        <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-blue-700 flex items-center gap-1">
+              <Truck className="h-3.5 w-3.5" />Service d'expédition
+            </span>
+            <span className="font-semibold text-blue-900">{shippingService!.name}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-blue-700 flex items-center gap-1">
+              <Lock className="h-3 w-3" />Tarif appliqué
+            </span>
+            <span className="font-bold text-blue-900">
+              {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
+            </span>
+          </div>
+          <div className="text-[10px] text-blue-700/80 italic pt-0.5">
+            Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-blue-700 flex items-center gap-1">
-            <Lock className="h-3 w-3" />Tarif appliqué
-          </span>
-          <span className="font-bold text-blue-900">
-            {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
-          </span>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-semibold mb-0.5">Aucun service d'expédition rattaché</div>
+              <div className="text-[11px]">
+                Vous pouvez peser le colis maintenant (étape logistique).
+                Les frais seront calculés automatiquement dès qu'un service sera
+                rattaché à la commande (étape commerciale).
+              </div>
+            </div>
+          </div>
+          {onPickShippingService && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8 border-amber-300 text-amber-900 hover:bg-amber-100"
+              onClick={onPickShippingService}
+            >
+              <Truck className="h-3.5 w-3.5 mr-1.5" />Choisir un service d'expédition
+            </Button>
+          )}
         </div>
-        <div className="text-[10px] text-blue-700/80 italic pt-0.5">
-          Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
-        </div>
-      </div>
+      )}
+
 
       <div className="flex gap-1 bg-gray-100 rounded p-1">
         <button
@@ -255,7 +257,7 @@ export function WeightForm({
               <div className="flex justify-between"><span className="text-gray-500">Poids réel:</span><span className="font-medium">{realW.toFixed(3)} kg</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Poids vol:</span><span className="font-medium">{volWeight.toFixed(3)} kg</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Poids facturable:</span><span className="font-bold text-orange-700">{chargeableGlobal.toFixed(3)} kg</span></div>
-              <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span><span className="font-bold text-emerald-700">{fmtF(freightGlobal)}</span></div>
+              <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span>{hasService ? <span className="font-bold text-emerald-700">{fmtF(freightGlobal)}</span> : <span className="text-amber-700 text-xs italic">à calculer (service requis)</span>}</div>
               {declaredFreight > 0 && (
                 <div className="flex justify-between"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
               )}
@@ -336,7 +338,7 @@ export function WeightForm({
                   <div className="flex justify-between"><span className="text-gray-500">Poids réel total:</span><span className="font-medium">{perItemRealTotalKg.toFixed(3)} kg</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Poids volumétrique total:</span><span className="font-medium">{perItemVolTotalKg.toFixed(3)} kg</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Poids facturable total:</span><span className="font-bold text-orange-700">{perItemTotalKg.toFixed(3)} kg</span></div>
-                  <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span><span className="font-bold text-emerald-700">{fmtF(freightPerItem)}</span></div>
+                  <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span>{hasService ? <span className="font-bold text-emerald-700">{fmtF(freightPerItem)}</span> : <span className="text-amber-700 text-xs italic">à calculer (service requis)</span>}</div>
                   {declaredFreight > 0 && (
                     <div className="flex justify-between"><span className="text-gray-500">Fret déclaré (figé):</span><span className="font-medium">{fmtF(declaredFreight)}</span></div>
                   )}
