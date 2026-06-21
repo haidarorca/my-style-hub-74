@@ -78,6 +78,7 @@ function CartPage() {
   const { user, profile } = useAuth();
   const { items, updateQuantity, removeItem, refresh } = useCart();
   const { lang, t } = useI18n();
+  const fmt = useFormatDisplay();
   const { countryId: destinationCountryId, setCountryId: setDestinationCountryId } = useDeliveryCountry();
   const settings = useSiteSettings();
   const router = useRouter();
