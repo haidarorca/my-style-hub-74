@@ -257,7 +257,7 @@ export function WeightForm({
               <div className="flex justify-between"><span className="text-gray-500">Poids réel:</span><span className="font-medium">{realW.toFixed(3)} kg</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Poids vol:</span><span className="font-medium">{volWeight.toFixed(3)} kg</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Poids facturable:</span><span className="font-bold text-orange-700">{chargeableGlobal.toFixed(3)} kg</span></div>
-              <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span><span className="font-bold text-emerald-700">{fmtF(freightGlobal)}</span></div>
+              <div className="flex justify-between border-t pt-1"><span className="text-gray-500">Montant calculé:</span>{hasService ? <span className="font-bold text-emerald-700">{fmtF(freightGlobal)}</span> : <span className="text-amber-700 text-xs italic">à calculer (service requis)</span>}</div>
               {declaredFreight > 0 && (
                 <div className="flex justify-between"><span className="text-gray-500">Fret total:</span><span className="font-bold text-emerald-700">{fmtF(totalFreightPreview)}</span></div>
               )}
