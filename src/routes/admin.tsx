@@ -319,5 +319,6 @@ function AdminLayout() {
         </ErrorBoundary>
       </main>
     </div>
+    </CurrenciesProvider>
   );
 }
