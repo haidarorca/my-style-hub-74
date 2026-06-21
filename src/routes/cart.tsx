@@ -1069,7 +1069,7 @@ function CartPage() {
               </p>
               <p className="text-lg font-extrabold text-primary min-h-7">
                 {pricesReady ? (
-                  <>{(grandTotal + cartFreightTotal).toLocaleString("fr-FR")} FCFA</>
+                  <>{fmt(grandTotal + cartFreightTotal)}</>
                 ) : (
                   <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" />
                 )}
