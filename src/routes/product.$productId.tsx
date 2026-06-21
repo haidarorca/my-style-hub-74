@@ -108,6 +108,7 @@ interface Variant {
   color_hex: string | null;
   price_override: number | null;
   image_url: string | null;
+  measurements?: Record<string, number> | null;
 }
 
 interface Customization {
