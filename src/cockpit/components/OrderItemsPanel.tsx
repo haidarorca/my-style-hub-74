@@ -251,9 +251,21 @@ function ProductDetail({
           </div>
         )}
 
+          {/* ─── Références internes (jamais visibles client) ─── */}
+          {(item.sku || item.variant_ref || item.barcode || item.brand) && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1.5">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Références internes</h4>
+              {item.brand && <div className="flex justify-between text-xs"><span className="text-slate-500">Marque</span><span className="font-semibold">{item.brand}</span></div>}
+              {item.sku && <div className="flex justify-between text-xs"><span className="text-slate-500">SKU</span><span className="font-mono font-semibold">{item.sku}</span></div>}
+              {item.variant_ref && <div className="flex justify-between text-xs"><span className="text-slate-500">Réf. variante</span><span className="font-mono font-semibold">{item.variant_ref}</span></div>}
+              {item.barcode && <div className="flex justify-between text-xs"><span className="text-slate-500">Code-barres</span><span className="font-mono font-semibold">{item.barcode}</span></div>}
+            </div>
+          )}
+
           {/* ─── Prix & Commission ─── */}
           <div className="bg-gray-50 rounded-xl p-4 space-y-3">
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Détail financier</h4>
+
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Quantité commandée</span>
               <span className="text-sm font-bold">{item.quantity}</span>

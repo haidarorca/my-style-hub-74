@@ -237,7 +237,12 @@ export interface OrderItemDetail {
   vendor: VendorFullInfo | null;
   origin_country: string | null;
   origin_country_flag: string | null;
+  sku?: string | null;
+  variant_ref?: string | null;
+  barcode?: string | null;
+  brand?: string | null;
 }
+
 
 export interface OrderItemsResult {
   items: OrderItemDetail[];
@@ -289,7 +294,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, variant_ref, barcode, brand").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
         ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
@@ -462,6 +467,11 @@ export const getOrderItems = createServerFn({ method: "POST" })
         sub_order_key: subOrderKey,
         origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
+        sku: (prod as any)?.sku ?? null,
+        variant_ref: (prod as any)?.variant_ref ?? null,
+        barcode: (prod as any)?.barcode ?? null,
+        brand: (prod as any)?.brand ?? null,
+
         vendor: it.vendor_id && vendor ? {
           vendor_id: it.vendor_id,
           shop_name: vendor.shop_name ?? null,

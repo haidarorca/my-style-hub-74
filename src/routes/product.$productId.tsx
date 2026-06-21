@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X } from "lucide-react";
+import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle } from "lucide-react";
+import { warrantyLabel } from "@/lib/warranty";
+
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -147,6 +149,8 @@ function ProductPage() {
   const [color, setColor] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
+
+
   const [reportReason, setReportReason] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -165,7 +169,8 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm,
+           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id,
+
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
@@ -177,6 +182,16 @@ function ProductPage() {
       return data;
     },
   });
+
+  const minOrderQty = Math.max(1, Math.round(Number((data as any)?.min_order_qty ?? 1) || 1));
+  useEffect(() => {
+    if (qty < minOrderQty) setQty(minOrderQty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minOrderQty]);
+  const warrantyText = warrantyLabel((data as any)?.warranty_days ?? null);
+  const isFragile = !!(data as any)?.is_fragile;
+
+
 
   const variants = useMemo(
     () => (data?.product_variants ?? []) as Variant[],
@@ -424,7 +439,23 @@ function ProductPage() {
             )}
           </div>
 
+          {(warrantyText || isFragile) && (
+            <div className="flex flex-wrap gap-2">
+              {warrantyText && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Garantie {warrantyText}
+                </span>
+              )}
+              {isFragile && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Fragile
+                </span>
+              )}
+            </div>
+          )}
+
           <DeliveryAvailabilityBadge vendorId={data.vendor_id} />
+
 
           <EstimatedShippingPanel
             product={{
@@ -631,7 +662,13 @@ function ProductPage() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9"
-                onClick={() => setQty(Math.max(1, qty - 1))}
+                onClick={() => {
+                  if (qty <= minOrderQty) {
+                    toast.error(`Quantité minimale de commande : ${minOrderQty} unité${minOrderQty > 1 ? "s" : ""}.`);
+                    return;
+                  }
+                  setQty(qty - 1);
+                }}
               >
                 <Minus className="h-4 w-4" />
               </Button>
@@ -645,7 +682,13 @@ function ProductPage() {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+            {minOrderQty > 1 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Quantité minimale de commande : {minOrderQty} unités.
+              </p>
+            )}
           </div>
+
 
           {productDescription && (
             <div>

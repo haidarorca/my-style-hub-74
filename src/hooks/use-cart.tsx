@@ -68,7 +68,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     supabase
       .from("products")
       .select(
-        `id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)`,
+        `id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, min_order_qty, warranty_days, is_fragile, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)`,
       )
       .in("id", productIds),
     variantIds.length
@@ -115,7 +115,7 @@ export function useCart() {
           .from("cart_items")
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
-             products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
+             products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, min_order_qty, warranty_days, is_fragile, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
              product_variants(id, size, color, color_hex, price_override)`,
           )
           .order("created_at", { ascending: false });
@@ -165,12 +165,26 @@ export function useCart() {
   };
 
   const addToCart = async (input: AddToCartInput) => {
-    const qty = input.quantity ?? 1;
+    let qty = input.quantity ?? 1;
+    // Récupère la quantité minimale exigée par le produit (publique, sans auth).
+    try {
+      const { data: prodInfo } = await supabase
+        .from("products")
+        .select("min_order_qty")
+        .eq("id", input.productId)
+        .maybeSingle();
+      const minQ = Math.max(1, Math.round(Number((prodInfo as any)?.min_order_qty ?? 1) || 1));
+      if (qty < minQ) {
+        qty = minQ;
+        toast.message(`Quantité ajustée au minimum requis : ${minQ} unité${minQ > 1 ? "s" : ""}.`);
+      }
+    } catch { /* ignore — fallback to qty as-is */ }
     // Customization client UNIQUEMENT (text/image/font/color…). __shipping_service_id
     // n'est plus stocké ici : le choix de transport est fait au panier (par section)
     // et au checkout (par ligne). Cela garantit que les ajouts identiques se mergent.
     const baseCustomization = stripCartInternalMetadata(input.customization);
     const customization = baseCustomization;
+
 
     if (!user) {
       // Guest cart
@@ -274,6 +288,16 @@ export function useCart() {
 
   const updateQuantity = async (id: string, quantity: number) => {
     if (quantity <= 0) return removeItem(id);
+    // Lookup min_order_qty pour ce produit (via la ligne panier en cache)
+    try {
+      const cached = (items ?? []).find((it: any) => it.id === id || (it.__duplicate_ids ?? []).includes(id));
+      const minQ = Math.max(1, Math.round(Number(cached?.products?.min_order_qty ?? 1) || 1));
+      if (quantity < minQ) {
+        toast.error(`Quantité minimale de commande : ${minQ} unité${minQ > 1 ? "s" : ""}.`);
+        return;
+      }
+    } catch { /* noop */ }
+
     if (!user) {
       const current = readGuestCart();
       const anchor = current.find((l) => l.id === id);

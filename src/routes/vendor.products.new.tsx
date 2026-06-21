@@ -42,6 +42,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AiCopyGeneratorDialog } from "@/components/product/AiCopyGeneratorDialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CountrySelect } from "@/components/CountrySelect";
+import { WARRANTY_PRESETS } from "@/lib/warranty";
+import { ChevronDown, Settings2 } from "lucide-react";
+
+
 
 
 export const Route = createFileRoute("/vendor/products/new")({
@@ -112,6 +118,21 @@ function NewProductPage() {
   const [lengthCm, setLengthCm] = useState<string>("");
   const [widthCm, setWidthCm] = useState<string>("");
   const [heightCm, setHeightCm] = useState<string>("");
+
+  // ── Options avancées (cachées par défaut) ──
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [brand, setBrand] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [warrantyEnabled, setWarrantyEnabled] = useState(false);
+  const [warrantyPreset, setWarrantyPreset] = useState<string>("180"); // jours, ou "custom"
+  const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [originCountryId, setOriginCountryId] = useState<string | null>(null);
+  const [fragileChoice, setFragileChoice] = useState<"none" | "yes" | "no">("none");
+  const [minOrderQty, setMinOrderQty] = useState<string>("1");
+  const [sku, setSku] = useState("");
+  const [variantRef, setVariantRef] = useState("");
+
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
   const [pick1, setPick1] = useState<Pick>("");
@@ -447,6 +468,20 @@ function NewProductPage() {
       const l = lengthCm.trim() ? Math.round(Number(lengthCm)) : null;
       const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
       const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
+
+      // Options avancées
+      let warrantyDays: number | null = null;
+      if (warrantyEnabled) {
+        if (warrantyPreset === "custom") {
+          const d = Number(warrantyCustomDays);
+          warrantyDays = Number.isFinite(d) && d > 0 ? Math.round(d) : null;
+        } else {
+          const d = Number(warrantyPreset);
+          warrantyDays = Number.isFinite(d) && d > 0 ? d : null;
+        }
+      }
+      const minQty = Math.max(1, Math.round(Number(minOrderQty) || 1));
+
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
@@ -465,10 +500,21 @@ function NewProductPage() {
           width_cm: wi && wi > 0 ? wi : null,
           height_cm: h && h > 0 ? h : null,
           weight_source: w && w > 0 ? "vendor_declared" : null,
+          brand: brand.trim() || null,
+          barcode: barcode.trim() || null,
+          warranty_days: warrantyDays,
+          is_fragile: fragileChoice === "yes",
+          min_order_qty: minQty,
+          video_url: videoUrl.trim() || null,
+          origin_country_id: originCountryId,
+          sku: sku.trim() || null,
+          variant_ref: variantRef.trim() || null,
           status: "pending",
         } as any)
         .select("id")
         .single();
+
+
       if (prodErr) {
         if (prodErr.message.includes("products_vendor_code_unique")) {
           throw new Error("Ce code-barres existe déjà dans votre boutique.");
@@ -902,6 +948,116 @@ function NewProductPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ═══ Options avancées (cachées par défaut) ═══ */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3 text-sm font-semibold hover:bg-accent"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Settings2 className="h-4 w-4" /> Options avancées
+              <span className="text-[11px] font-normal text-muted-foreground">(facultatif)</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2">
+          <Card>
+            <CardContent className="space-y-4 pt-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">Marque</Label>
+                  <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ex. Samsung, Adidas…" />
+                </div>
+                <div>
+                  <Label className="text-xs">Code-barres / EAN / UPC</Label>
+                  <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="—" />
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox checked={warrantyEnabled} onCheckedChange={(v) => setWarrantyEnabled(!!v)} className="mt-0.5" />
+                  <span>Ce produit bénéficie d'une garantie</span>
+                </label>
+                {warrantyEnabled && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Select value={warrantyPreset} onValueChange={setWarrantyPreset}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {WARRANTY_PRESETS.map((p) => (
+                          <SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>
+                        ))}
+                        <SelectItem value="custom">Personnalisé (jours)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {warrantyPreset === "custom" && (
+                      <Input
+                        type="number" min={1} value={warrantyCustomDays}
+                        onChange={(e) => setWarrantyCustomDays(e.target.value)}
+                        placeholder="Nombre de jours"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs">URL Vidéo (YouTube, Vimeo…)</Label>
+                <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…" />
+              </div>
+
+              <div>
+                <Label className="text-xs">Pays d'origine</Label>
+                <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir un pays (facultatif)" allowNull nullLabel="— Non précisé —" />
+              </div>
+
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <Label className="text-xs">Fragilité</Label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={fragileChoice === "yes"} onCheckedChange={(v) => setFragileChoice(v ? "yes" : "none")} />
+                    Produit fragile
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={fragileChoice === "no"} onCheckedChange={(v) => setFragileChoice(v ? "no" : "none")} />
+                    Produit non fragile
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs">Quantité minimale de commande</Label>
+                <Input
+                  type="number" min={1} value={minOrderQty}
+                  onChange={(e) => setMinOrderQty(e.target.value)}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Le client ne pourra pas ajouter moins que cette quantité au panier.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">SKU vendeur (interne)</Label>
+                  <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                </div>
+                <div>
+                  <Label className="text-xs">Référence variante (interne)</Label>
+                  <Input value={variantRef} onChange={(e) => setVariantRef(e.target.value)} placeholder="—" />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Les références internes ne sont jamais affichées aux clients. Elles servent à la gestion du stock, des commandes et du SAV.
+              </p>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+
 
       <Dialog open={ocrOpen} onOpenChange={setOcrOpen}>
         <DialogContent className="max-w-lg">
