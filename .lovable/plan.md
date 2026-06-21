@@ -1,72 +1,83 @@
 ## Objectif
-Enrichir le formulaire produit vendeur avec des options avancées repliées, sans complexifier l'interface principale, et appliquer les règles métier associées (garantie, quantité min, SKU, etc.).
+Corriger 7 problèmes de logique métier sur le formulaire produit vendeur avant validation finale.
 
-## 1. Base de données (migration)
-Ajouter à `public.products` les colonnes manquantes :
-- `brand text`
-- `barcode text` (EAN/UPC)
-- `warranty_months int` (0/7j stocké en jours? → on stocke `warranty_days int` pour couvrir 7j/30j/3mois/.../personnalisé)
-- `is_fragile boolean default false`
-- `min_order_qty int default 1 check (min_order_qty >= 1)`
-- `video_url text`
-- `sku text` (interne vendeur)
-- `variant_ref text` (interne vendeur)
+## 1. Référence variante au niveau variante (pas produit)
 
-`origin_country_id`, `weight_kg`, dimensions existent déjà → réutilisés.
-Pas de colonne « type Local/Import » : déduction automatique conservée via `getLineKind()` (`src/lib/line-kind.ts`).
+**Migration DB** :
+- `ALTER TABLE public.product_variants ADD COLUMN variant_ref text` (référence interne par variante).
+- Supprimer `variant_ref` de `public.products` (ou conserver inutilisé — préférence : DROP COLUMN).
 
-## 2. Formulaire vendeur (`vendor.products.new.tsx` + `vendor.products.$productId.edit.tsx`)
-Garder le formulaire principal simple : nom, catégorie, prix, stock, images, description.
+**Formulaire vendeur** (`vendor.products.new.tsx` + `edit.tsx`) :
+- Retirer le champ "Référence variante" du bloc Options avancées.
+- Ajouter un champ `variant_ref` (input court) sur chaque ligne du tableau de variantes, à côté du SKU/stock/prix.
+- Garder `sku` au niveau produit (inchangé).
 
-Ajouter un bouton **« Options avancées »** (Collapsible) qui révèle :
-- Marque
-- Code-barres / EAN / UPC
-- ☐ Ce produit bénéficie d'une garantie → si coché : select (7j / 30j / 3 mois / 6 mois / 1 an / 2 ans / personnalisé en jours)
-- Poids (kg) + dimensions (déjà partiellement présents)
-- URL Vidéo
-- Pays d'origine (CountrySelect, facultatif, liste complète des pays activés)
-- Fragilité : radio ☐ Produit fragile / ☐ Produit non fragile
-- Quantité minimale de commande (number, défaut 1)
-- SKU vendeur
-- Référence variante
+**Cockpit** (`OrderItemsPanel.tsx`) :
+- Afficher `variant_ref` de la variante quand présente, en plus du SKU produit.
 
-Aucun champ « Local / Import / Mixte » côté vendeur.
+## 2. Fragile : une seule case
 
-## 3. Affichage client (`product.$productId.tsx` + `ProductCard.tsx`)
-- Badge garantie : `🛡 Garantie {label}` (calculé depuis `warranty_days`) sur la page produit.
-- Badge fragile « 🫧 Fragile » uniquement si `is_fragile = true`.
-- Badge LOCAL / IMPORT déjà géré via `LineKindBadge` — conservé tel quel.
-- Quantité minimale : indication « Quantité minimale : N unités » sous le sélecteur quantité.
-- SKU / variant_ref / barcode : **jamais affichés au client**.
+**Formulaire vendeur** :
+- Remplacer le `RadioGroup` (fragile/non fragile) par une simple `Checkbox` "☐ Produit fragile".
+- Non coché ⇒ `is_fragile = false`.
 
-## 4. Règles panier / checkout
-- `use-cart.tsx` + `QuickAddSheet.tsx` : initialiser la quantité à `max(1, min_order_qty)` lors de l'ajout, bloquer décrément sous `min_order_qty`, toast « Quantité minimale de commande : N unités. »
-- Page panier : validation au checkout : si une ligne a `quantity < products.min_order_qty`, bloquer avec message.
+## 3. Catégories vêtements : détection
 
-## 5. Visibilité interne (SKU, variant_ref, barcode)
-Affichés dans :
-- formulaire vendeur (édition)
-- pages admin produits (table produits admin)
-- Cockpit (OrderItemsPanel) — petite ligne « SKU: … » sous chaque item
-- SAV / logistique (déjà via les mêmes composants admin)
+**Nouveau helper** `src/lib/clothing-categories.ts` :
+- Liste des slugs/keywords de catégories vêtements (t-shirts, chemises, polos, pulls, vestes, pantalons, jeans, robes, jupes, ensembles, abayas, pyjamas, sous-vêtements, maillots, uniformes, vêtements enfants).
+- Fonction `isClothingCategory(categorySlug | categoryName)`.
+- Fonction `getMeasurementFields(subType)` → retourne champs spécifiques (T-shirt : poitrine+longueur, pantalon : tour de taille+longueur jambe, robe : poitrine+taille+longueur, défaut : poitrine+longueur).
 
-Jamais inclus dans les composants client (`ProductCard`, page produit publique).
+## 4. Mesures réelles par variante (vêtements)
 
-## 6. Hors périmètre
-- Pas de modification du champ « type » côté DB.
-- Pas de refonte du calcul de fret ni de la pesée.
-- Pas de toucher au workflow d'expédition récemment finalisé.
+**Migration DB** :
+- `ALTER TABLE public.product_variants ADD COLUMN measurements jsonb DEFAULT '{}'::jsonb`.
+  - Stockage : `{ "chest_cm": 50, "length_cm": 70, "waist_cm": null, "leg_length_cm": null, ... }`.
+
+**Formulaire vendeur** :
+- Si catégorie vêtement détectée : section "Mesures réelles (cm)" pliable sur chaque ligne variante, avec les champs dérivés de la sous-catégorie.
+- Champs `number`, optionnels individuellement mais au moins une variante doit avoir des mesures (voir §7).
+
+## 5. Type de coupe
+
+**Migration DB** :
+- `ALTER TABLE public.products ADD COLUMN fit_type text` (valeurs : `slim`, `regular`, `oversize`, `large`, `ajuste`).
+
+**Helper** `src/lib/fit-types.ts` :
+- Liste avec `value`, `label`, `description` (Slim : "Coupe près du corps", Regular : "Coupe classique standard", Oversize : "Coupe volontairement large", Large : "Coupe plus ample qu'une coupe classique", Ajusté : "Entre Slim Fit et Regular Fit").
+
+**Formulaire vendeur (vêtements uniquement)** :
+- Select "Type de coupe" + texte d'aide qui change selon le choix (description visible).
+
+**Page produit client** :
+- Si `fit_type` défini : afficher badge + description courte sous le titre.
+
+## 6. Guide des tailles client
+
+**Page produit** (`product.$productId.tsx`) :
+- Si catégorie vêtement ET au moins une variante a des `measurements` non vides : bouton "📏 Guide des tailles".
+- Ouvre un `Dialog` listant chaque variante (par taille) avec ses mesures réelles formatées : "Taille S — Poitrine 48 cm, Longueur 68 cm".
+
+## 7. Blocage publication (vêtements)
+
+**Validation côté client** dans `vendor.products.new.tsx` + `edit.tsx` :
+- Si catégorie vêtement et `status = 'active'` :
+  - Au moins une variante doit avoir des mesures non vides.
+  - Sinon : toast d'erreur "Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante." et blocage du submit.
+- Brouillon (`draft`) : autorisé sans mesures.
+
+**Validation côté serveur** (trigger) :
+- `CREATE TRIGGER` sur `products` BEFORE UPDATE/INSERT : si `status = 'active'` et catégorie vêtement et aucune variante n'a de measurements non vides → `RAISE EXCEPTION`.
+- Sécurité défense en profondeur (l'opérateur admin pourrait sinon contourner).
 
 ## Fichiers impactés
-- **Migration** : nouvelle, ajoute les colonnes ci-dessus + grants/policies inchangés (table déjà ouverte).
-- `src/routes/vendor.products.new.tsx` — refonte sections avec Collapsible « Options avancées ».
-- `src/routes/vendor.products.$productId.edit.tsx` — mêmes champs en édition.
-- `src/routes/product.$productId.tsx` — badge garantie + indication qty min.
-- `src/components/product/ProductCard.tsx` — badge garantie discret.
-- `src/components/product/QuickAddSheet.tsx` — quantité min.
-- `src/hooks/use-cart.tsx` — quantité min.
-- `src/routes/cart.tsx` — blocage checkout.
-- `src/cockpit/components/OrderItemsPanel.tsx` — affichage SKU/variant_ref interne.
-- `src/lib/warranty.ts` (nouveau) — helpers conversion jours ↔ label.
+- **Migration** (nouvelle) : `variant_ref` + `measurements` sur `product_variants`, `fit_type` sur `products`, DROP `variant_ref` sur `products`, trigger validation publication.
+- `src/lib/clothing-categories.ts` (nouveau)
+- `src/lib/fit-types.ts` (nouveau)
+- `src/routes/vendor.products.new.tsx`
+- `src/routes/vendor.products.$productId.edit.tsx`
+- `src/routes/product.$productId.tsx` (bouton + dialog guide des tailles + badge coupe)
+- `src/cockpit/components/OrderItemsPanel.tsx` (variant_ref par ligne)
+- `src/lib/cockpit-payments.functions.ts` (inclure variant_ref dans la requête getOrderItems)
 
-Aucune logique métier existante n'est supprimée.
+Aucune logique métier existante n'est retirée. Tous les calculs de fret/pesée/expédition restent intacts.
