@@ -185,25 +185,33 @@ function CurrenciesPage() {
                         )}
                       </div>
                       {openHistory === c.code && (
-                        <div className="rounded-md border bg-muted/30 p-2">
+                        <div className="overflow-x-auto rounded-md border bg-muted/30">
                           <table className="w-full text-xs">
-                            <thead className="text-muted-foreground">
-                              <tr><th className="px-1 text-left">Date</th><th className="text-right">Taux</th><th className="text-right">Marge</th><th className="text-left">Note</th></tr>
+                            <thead className="bg-muted/60 text-muted-foreground">
+                              <tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:font-medium">
+                                <th className="text-left">Date</th>
+                                <th className="text-left">Utilisateur</th>
+                                <th className="text-right">Taux</th>
+                                <th className="text-right">Marge</th>
+                                <th className="text-left">Note</th>
+                              </tr>
                             </thead>
                             <tbody>
-                              {hist.map((h) => (
-                                <tr key={h.id} className="border-t">
-                                  <td className="px-1 py-1">{new Date(h.effective_from).toLocaleString("fr-FR")}</td>
-                                  <td className="text-right">{Number(h.rate_to_base)}</td>
-                                  <td className="text-right">{Number(h.safety_margin_pct)}%</td>
-                                  <td>{h.note ?? "—"}</td>
+                              {hist.map((h: any) => (
+                                <tr key={h.id} className="border-t [&>td]:px-2 [&>td]:py-1.5">
+                                  <td className="whitespace-nowrap">{new Date(h.effective_from).toLocaleString("fr-FR")}</td>
+                                  <td className="whitespace-nowrap">{h.author ?? "—"}</td>
+                                  <td className="text-right font-mono">{Number(h.rate_to_base)}</td>
+                                  <td className="text-right font-mono">{Number(h.safety_margin_pct)}%</td>
+                                  <td className="text-muted-foreground">{h.note ?? "—"}</td>
                                 </tr>
                               ))}
-                              {hist.length === 0 && (<tr><td colSpan={4} className="py-2 text-center text-muted-foreground">Aucun historique</td></tr>)}
+                              {hist.length === 0 && (<tr><td colSpan={5} className="py-3 text-center text-muted-foreground">Aucun historique</td></tr>)}
                             </tbody>
                           </table>
                         </div>
                       )}
+
                     </>
                   )}
                 </CardContent>
