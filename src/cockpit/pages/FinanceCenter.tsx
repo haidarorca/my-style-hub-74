@@ -118,24 +118,24 @@ export default function FinanceCenter() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3 text-emerald-600"/>Entrées</div>
-          <div className="text-2xl font-bold text-emerald-700">{fmt(summary?.total_in ?? 0)}</div>
+          <div className="text-2xl font-bold text-emerald-700">{fmtDisp(summary?.total_in ?? 0)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><TrendingDown className="w-3 h-3 text-red-600"/>Sorties</div>
-          <div className="text-2xl font-bold text-red-700">{fmt(summary?.total_out ?? 0)}</div>
+          <div className="text-2xl font-bold text-red-700">{fmtDisp(summary?.total_out ?? 0)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Net</div>
           <div className={`text-2xl font-bold ${(summary?.net ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-            {fmt(summary?.net ?? 0)}
+            {fmtDisp(summary?.net ?? 0)}
           </div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3"/>Engagements</div>
           <div className="text-sm mt-1 space-y-0.5">
-            <div>À rembourser : <span className="font-semibold">{fmt(summary?.pending_refund_to_client ?? 0)}</span></div>
-            <div>Avoirs à émettre : <span className="font-semibold">{fmt(summary?.pending_credit_to_client ?? 0)}</span></div>
-            <div>Comm. vendeur : <span className="font-semibold">{fmt(summary?.pending_commission_to_vendor ?? 0)}</span></div>
+            <div>À rembourser : <span className="font-semibold">{fmtDisp(summary?.pending_refund_to_client ?? 0)}</span></div>
+            <div>Avoirs à émettre : <span className="font-semibold">{fmtDisp(summary?.pending_credit_to_client ?? 0)}</span></div>
+            <div>Comm. vendeur : <span className="font-semibold">{fmtDisp(summary?.pending_commission_to_vendor ?? 0)}</span></div>
           </div>
         </CardContent></Card>
       </div>
