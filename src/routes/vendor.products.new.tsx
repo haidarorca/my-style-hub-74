@@ -514,8 +514,7 @@ function NewProductPage() {
         .select("id")
         .single();
 
-        .select("id")
-        .single();
+
       if (prodErr) {
         if (prodErr.message.includes("products_vendor_code_unique")) {
           throw new Error("Ce code-barres existe déjà dans votre boutique.");
