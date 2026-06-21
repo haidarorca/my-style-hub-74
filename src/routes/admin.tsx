@@ -137,6 +137,7 @@ function AdminLayout() {
   const activeGroup = visibleGroups.find((g) => g.items.some(isActive)) ?? visibleGroups[0];
 
   return (
+    <CurrenciesProvider>
     <div className="min-h-screen bg-gradient-to-b from-muted/40 via-muted/20 to-background">
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-xl pt-safe">
         {/* Top bar */}
