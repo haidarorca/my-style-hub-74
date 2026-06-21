@@ -128,6 +128,8 @@ export function WeightForm({
       estimatedFreight: freightGlobal,
       finalFreight: freightGlobal,
       weighedBy: "Admin",
+      shippingServiceName: shippingService?.name ?? null,
+      pricingUnit: (shippingService?.pricing_unit ?? null) as "kg" | "m3" | null,
     });
     setRealWeight(""); setLength(""); setWidth(""); setHeight("");
   };
