@@ -78,6 +78,21 @@ function EditProductPage() {
   const [lengthCm, setLengthCm] = useState<string>("");
   const [widthCm, setWidthCm] = useState<string>("");
   const [heightCm, setHeightCm] = useState<string>("");
+
+  // ── Options avancées ──
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [brand, setBrand] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [warrantyEnabled, setWarrantyEnabled] = useState(false);
+  const [warrantyPreset, setWarrantyPreset] = useState<string>("180");
+  const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [originCountryId, setOriginCountryId] = useState<string | null>(null);
+  const [fragileChoice, setFragileChoice] = useState<"none" | "yes" | "no">("none");
+  const [minOrderQty, setMinOrderQty] = useState<string>("1");
+  const [sku, setSku] = useState("");
+  const [variantRef, setVariantRef] = useState("");
+
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
