@@ -294,10 +294,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, variant_ref, barcode, brand").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, barcode, brand").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
-        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url").in("id", variantIds)
+        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements").in("id", variantIds)
         : Promise.resolve({ data: [] }),
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
