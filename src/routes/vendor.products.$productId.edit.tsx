@@ -35,6 +35,8 @@ type ExistingVariant = {
   stock: number;
   price_override: number | null;
   image_url: string | null;
+  variant_ref: string | null;
+  measurements: Record<string, number> | null;
 };
 
 type VariantDraft = {
@@ -47,9 +49,17 @@ type VariantDraft = {
   image_url: string | null; // existing url
   image_file: File | null; // new replacement
   remove_image: boolean;
+  variant_ref: string;
+  measurements: Record<string, string>;
 };
 
 function fromExisting(v: ExistingVariant): VariantDraft {
+  const m: Record<string, string> = {};
+  if (v.measurements && typeof v.measurements === "object") {
+    for (const [k, val] of Object.entries(v.measurements)) {
+      if (val != null && val !== "") m[k] = String(val);
+    }
+  }
   return {
     id: v.id,
     size: v.size ?? "",
@@ -60,11 +70,13 @@ function fromExisting(v: ExistingVariant): VariantDraft {
     image_url: v.image_url,
     image_file: null,
     remove_image: false,
+    variant_ref: v.variant_ref ?? "",
+    measurements: m,
   };
 }
 
 function emptyVariant(): VariantDraft {
-  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false };
+  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false, variant_ref: "", measurements: {} };
 }
 
 function EditProductPage() {
