@@ -470,7 +470,7 @@ function CartPage() {
                   </div>
                   <div className="text-right shrink-0">
                     {est != null ? (
-                      <div className="text-sm font-bold text-blue-700">{est.toLocaleString("fr-FR")} FCFA</div>
+                      <div className="text-sm font-bold text-blue-700">{fmt(est)}</div>
                     ) : (
                       <div className="text-[11px] text-muted-foreground">—</div>
                     )}
@@ -529,7 +529,7 @@ function CartPage() {
                   <div className="text-right shrink-0">
                     {rate > 0 ? (
                       <div className="text-sm font-bold text-orange-700">
-                        {rate.toLocaleString("fr-FR")} FCFA/kg
+                        {fmt(rate)}/kg
                       </div>
                     ) : (
                       <div className="text-[11px] text-muted-foreground">tarif sur devis</div>
