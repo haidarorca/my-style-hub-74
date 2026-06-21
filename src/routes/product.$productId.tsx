@@ -169,11 +169,12 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id,
+           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type,
 
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
+           categories:category_id(name, slug),
            profiles:vendor_id(full_name, shop_name, source_country_id)`,
         )
         .eq("id", productId)
