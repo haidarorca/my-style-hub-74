@@ -136,6 +136,24 @@ function EditProductPage() {
     setLengthCm((p as any).length_cm != null ? String((p as any).length_cm) : "");
     setWidthCm((p as any).width_cm != null ? String((p as any).width_cm) : "");
     setHeightCm((p as any).height_cm != null ? String((p as any).height_cm) : "");
+    setBrand((p as any).brand ?? "");
+    setBarcode((p as any).barcode ?? "");
+    const wd = (p as any).warranty_days as number | null;
+    if (wd && wd > 0) {
+      setWarrantyEnabled(true);
+      const preset = WARRANTY_PRESETS.find((x) => x.value === wd);
+      if (preset) { setWarrantyPreset(String(preset.value)); setWarrantyCustomDays(""); }
+      else { setWarrantyPreset("custom"); setWarrantyCustomDays(String(wd)); }
+    } else {
+      setWarrantyEnabled(false);
+    }
+    setVideoUrl((p as any).video_url ?? "");
+    setOriginCountryId((p as any).origin_country_id ?? null);
+    setFragileChoice((p as any).is_fragile ? "yes" : "no");
+    setMinOrderQty(String((p as any).min_order_qty ?? 1));
+    setSku((p as any).sku ?? "");
+    setVariantRef((p as any).variant_ref ?? "");
+
     setStatus((["pending","approved","rejected"].includes(p.status as string) ? p.status : "pending") as typeof status);
     setExistingImages(data.images);
     const drafts = data.variants.map(fromExisting);
