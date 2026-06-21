@@ -80,11 +80,12 @@ type CatRow = { id: string; name: string; level: number; parent_id: string | nul
 type ReqRow = { id: string; name: string; level: number; parent_id: string | null; parent_request_id: string | null; status: string };
 
 function NewProductPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { t, lang } = useI18n();
   const { compress, compressMultiple } = useImageCompression();
   const router = useRouter();
   const qc = useQueryClient();
+  const { currencies, rates } = useCurrencies();
 
   // Basic
   const [name, setName] = useState("");
@@ -92,6 +93,20 @@ function NewProductPage() {
   const [designation, setDesignation] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
+  const [currencyCode, setCurrencyCode] = useState<string>("XOF");
+  useEffect(() => {
+    const dc = (profile as any)?.default_currency_code;
+    if (dc) setCurrencyCode(dc);
+  }, [profile]);
+  const previewFcfa = useMemo(() => {
+    const n = Number(price);
+    if (!n || !isFinite(n)) return null;
+    if (currencyCode === "XOF") return Math.round(n);
+    const r = rates[currencyCode];
+    if (!r) return null;
+    return Math.round(n * r.rate * (1 + (r.margin || 0) / 100));
+  }, [price, currencyCode, rates]);
+  const activeCurrency = currencies.find((c) => c.code === currencyCode);
   // Logistique : poids + dimensions (tous optionnels)
   const [weightKg, setWeightKg] = useState<string>("");
   const [lengthCm, setLengthCm] = useState<string>("");
