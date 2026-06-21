@@ -1,5 +1,6 @@
 import { ClipboardList, AlertTriangle, Scale, PackageCheck, Truck, TrendingDown } from "lucide-react";
 import { KPI_COLORS, KPI_LABELS, fmtF } from "@/cockpit/lib/workflow";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 import type { KpiFilter } from "@/cockpit/types";
 
 interface Props {
