@@ -15,6 +15,8 @@ import {
   respondToShipmentAssessment,
 } from "@/lib/shipment-assessments.functions";
 
+import { useFormatDisplay } from "@/hooks/use-currencies";
+
 export const Route = createFileRoute("/orders/$orderId/validate-shipment")({
   component: ValidateShipmentPage,
   head: () => ({
@@ -25,18 +27,18 @@ export const Route = createFileRoute("/orders/$orderId/validate-shipment")({
   }),
 });
 
-const fmt = (n: number | null | undefined) =>
-  n == null ? "—" : `${Number(n).toLocaleString("fr-FR")} FCFA`;
-
 function ValidateShipmentPage() {
   const { orderId } = Route.useParams();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const fmtDisplay = useFormatDisplay();
+  const fmt = (n: number | null | undefined) => (n == null ? "—" : fmtDisplay(Number(n)));
   const getFn = useServerFn(getMyShipmentAssessment);
   const respondFn = useServerFn(respondToShipmentAssessment);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["my-shipment", orderId],
