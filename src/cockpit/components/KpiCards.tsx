@@ -39,7 +39,7 @@ export function KpiCards({ newCount, pendingPayment, toWeigh, ready, shipped, to
             <item.icon className={`h-4 w-4 ${colors.text} mx-auto mb-1`} />
             <div className={`text-[9px] font-semibold ${colors.text} leading-tight`}>{KPI_LABELS[item.key ?? ""]}</div>
             <div className={`text-lg font-bold ${colors.text}`}>
-              {item.amount !== undefined ? fmtF(item.amount) : item.count}
+              {item.amount !== undefined ? fmtDisplay(item.amount) : item.count}
             </div>
           </button>
         );
