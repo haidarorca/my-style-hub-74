@@ -592,30 +592,28 @@ function EditProductPage() {
                 <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir un pays (facultatif)" allowNull nullLabel="— Non précisé —" />
               </div>
 
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                <Label className="text-xs">Fragilité</Label>
-                <div className="flex flex-col gap-1.5">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "yes"} onCheckedChange={(v) => setFragileChoice(v ? "yes" : "none")} /> Produit fragile
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={fragileChoice === "no"} onCheckedChange={(v) => setFragileChoice(v ? "no" : "none")} /> Produit non fragile
-                  </label>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                <Checkbox checked={isFragile} onCheckedChange={(v) => setIsFragile(!!v)} />
+                <span>
+                  Produit fragile
+                  <span className="block text-[11px] font-normal text-muted-foreground">
+                    Si non coché, le produit est considéré comme non fragile.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <Label className="text-xs">Quantité minimale de commande</Label>
                 <Input type="number" min={1} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div><Label className="text-xs">SKU vendeur</Label><Input value={sku} onChange={(e) => setSku(e.target.value)} /></div>
-                <div><Label className="text-xs">Référence variante</Label><Input value={variantRef} onChange={(e) => setVariantRef(e.target.value)} /></div>
+              <div>
+                <Label className="text-xs">SKU vendeur (interne)</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Référence interne globale. Les références variantes se renseignent sur chaque ligne de variante. Jamais affiché aux clients.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Les références internes ne sont jamais affichées aux clients.
-              </p>
             </CardContent>
           </Card>
         </CollapsibleContent>
