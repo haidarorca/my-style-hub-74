@@ -180,7 +180,7 @@ export function WeightForm({
         <div className="bg-blue-50 border border-blue-200 rounded p-2.5 space-y-1 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-blue-700 flex items-center gap-1">
-              <Truck className="h-3.5 w-3.5" />Service d'expédition
+              <Truck className="h-3.5 w-3.5" />Mode d'expédition (choix client)
             </span>
             <span className="font-semibold text-blue-900">{shippingService!.name}</span>
           </div>
@@ -192,8 +192,19 @@ export function WeightForm({
               {fmtF(ratePerKg)} / {shippingService!.pricing_unit ?? "kg"}
             </span>
           </div>
-          <div className="text-[10px] text-blue-700/80 italic pt-0.5">
-            Tarif défini par l'admin via la grille tarifaire. Non modifiable depuis le Cockpit.
+          <div className="flex items-center justify-between pt-1">
+            <div className="text-[10px] text-blue-700/80 italic">
+              Tarif issu de la grille admin. Non modifiable manuellement.
+            </div>
+            {onPickShippingService && (
+              <button
+                type="button"
+                onClick={onPickShippingService}
+                className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline"
+              >
+                Modifier
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -201,11 +212,11 @@ export function WeightForm({
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
-              <div className="font-semibold mb-0.5">Aucun service d'expédition rattaché</div>
+              <div className="font-semibold mb-0.5">Mode d'expédition non défini</div>
               <div className="text-[11px]">
                 Vous pouvez peser le colis maintenant (étape logistique).
-                Les frais seront calculés automatiquement dès qu'un service sera
-                rattaché à la commande (étape commerciale).
+                Les frais seront calculés automatiquement dès qu'un mode
+                d'expédition sera défini.
               </div>
             </div>
           </div>
@@ -216,11 +227,12 @@ export function WeightForm({
               className="w-full h-8 border-amber-300 text-amber-900 hover:bg-amber-100"
               onClick={onPickShippingService}
             >
-              <Truck className="h-3.5 w-3.5 mr-1.5" />Choisir un service d'expédition
+              <Truck className="h-3.5 w-3.5 mr-1.5" />Choisir le mode d'expédition
             </Button>
           )}
         </div>
       )}
+
 
 
       <div className="flex gap-1 bg-gray-100 rounded p-1">
