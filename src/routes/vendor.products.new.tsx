@@ -244,6 +244,25 @@ function NewProductPage() {
   // The "deepest" pick determines what goes onto the product
   const deepestPick = pick3 || pick2 || pick1 || "";
 
+  // Nom des catégories sélectionnées (utilisé pour détecter les vêtements)
+  const pickedCategoryNames = useMemo(() => {
+    const all = cats ?? [];
+    const get = (p: Pick) => {
+      if (!p || isReq(p)) return null;
+      const c = all.find((x) => x.id === idOf(p));
+      return c ? pickI18n(c.name, c.name_i18n, lang) : null;
+    };
+    return [get(pick1), get(pick2), get(pick3)];
+  }, [cats, pick1, pick2, pick3, lang]);
+  const isClothing = useMemo(
+    () => isClothingContext(...pickedCategoryNames, name),
+    [pickedCategoryNames, name],
+  );
+  const measurementFields = useMemo(
+    () => getMeasurementFields(...pickedCategoryNames, name),
+    [pickedCategoryNames, name],
+  );
+
   // Appliquer une categorie detectee par l'IA
   const handleCategoryApply = useCallback((categoryId: string) => {
     const allCats = cats ?? [];
