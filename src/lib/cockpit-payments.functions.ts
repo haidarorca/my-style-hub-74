@@ -237,7 +237,12 @@ export interface OrderItemDetail {
   vendor: VendorFullInfo | null;
   origin_country: string | null;
   origin_country_flag: string | null;
+  sku?: string | null;
+  variant_ref?: string | null;
+  barcode?: string | null;
+  brand?: string | null;
 }
+
 
 export interface OrderItemsResult {
   items: OrderItemDetail[];
