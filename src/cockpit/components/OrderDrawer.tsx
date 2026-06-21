@@ -81,7 +81,7 @@ interface Props {
   /** Navigation vers une autre sous-commande de la même commande mère. */
   onSubOrderChange?: (subOrderKey: string) => void;
   /** Assessment scopé à la sous-commande affichée (uniquement IMPORT_UNKNOWN_WEIGHT). */
-  subAssessment?: { id: string; air_freight_fee: number | null; status: string | null } | null;
+  subAssessment?: { id: string; air_freight_fee: number | null; status: string | null; shipping_service_id?: string | null } | null;
   /** Statut RÉEL de la sous-commande affichée (sub_order_states ?? mère). */
   effectiveSubStatus?: string | null;
   /** Phase B : historique métier de la sous-commande affichée. */
