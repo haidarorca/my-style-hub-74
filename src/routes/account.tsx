@@ -27,6 +27,44 @@ import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
 import { useServerFn } from "@tanstack/react-start";
 import { removeVendorAccount } from "@/lib/vendor-offboarding.functions";
 import { UpdateAppButton } from "@/components/UpdateAppButton";
+import { useCurrencies } from "@/hooks/use-currencies";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Coins } from "lucide-react";
+
+function DisplayCurrencyCard() {
+  const { currencies, displayCurrency, setDisplayCurrency, loading } = useCurrencies();
+  const active = currencies.filter((c) => c.is_active);
+  const current = active.find((c) => c.code === displayCurrency);
+  return (
+    <div className="mt-6 rounded-xl border bg-card p-4">
+      <div className="flex items-center gap-2">
+        <Coins className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">Devise d'affichage</h3>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Choisissez la devise dans laquelle les prix sont affichés sur tout le site. La comptabilité reste en FCFA.
+      </p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="text-sm">
+          <span className="text-muted-foreground">Devise actuelle : </span>
+          <span className="font-semibold">{current ? `${current.symbol} · ${current.code}` : displayCurrency}</span>
+        </div>
+        <Select value={displayCurrency} onValueChange={setDisplayCurrency} disabled={loading || active.length === 0}>
+          <SelectTrigger className="h-9 w-[160px]">
+            <SelectValue placeholder="Choisir" />
+          </SelectTrigger>
+          <SelectContent>
+            {active.map((c) => (
+              <SelectItem key={c.code} value={c.code}>
+                {c.symbol} · {c.code} — {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
@@ -475,6 +513,8 @@ function AccountPage() {
             ))}
           </ul>
         )}
+
+        <DisplayCurrencyCard />
 
         <div className="mt-6">
           <ChangePasswordCard />

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Currency } from "@/lib/currencies";
 import { BASE_CURRENCY } from "@/lib/currencies";
@@ -25,10 +25,19 @@ export function CurrenciesProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return BASE_CURRENCY;
     return window.localStorage.getItem(STORAGE_KEY) || BASE_CURRENCY;
   });
+  const userIdRef = useRef<string | null>(null);
 
   const setDisplayCurrency = useCallback((code: string) => {
     setDisplayCurrencyState(code);
     try { window.localStorage.setItem(STORAGE_KEY, code); } catch {}
+    const uid = userIdRef.current;
+    if (uid) {
+      // Persist asynchronously to user's profile (fire & forget)
+      void (supabase as any)
+        .from("profiles")
+        .update({ default_currency_code: code })
+        .eq("id", uid);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -61,6 +70,36 @@ export function CurrenciesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Sync with user profile preference when signed in
+  useEffect(() => {
+    let cancelled = false;
+    const loadFromProfile = async (uid: string) => {
+      userIdRef.current = uid;
+      const { data } = await (supabase as any)
+        .from("profiles")
+        .select("default_currency_code")
+        .eq("id", uid)
+        .maybeSingle();
+      if (cancelled) return;
+      const code = (data?.default_currency_code as string | null) || null;
+      if (code) {
+        setDisplayCurrencyState(code);
+        try { window.localStorage.setItem(STORAGE_KEY, code); } catch {}
+      }
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      const uid = data.session?.user?.id;
+      if (uid) void loadFromProfile(uid);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const uid = session?.user?.id ?? null;
+      userIdRef.current = uid;
+      if (uid) void loadFromProfile(uid);
+    });
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+  }, []);
+
   const value = useMemo<Ctx>(() => ({
     loading, currencies, rates, displayCurrency, setDisplayCurrency, refresh,
   }), [loading, currencies, rates, displayCurrency, setDisplayCurrency, refresh]);
@@ -71,7 +110,6 @@ export function CurrenciesProvider({ children }: { children: ReactNode }) {
 export function useCurrencies() {
   const ctx = useContext(CurrenciesContext);
   if (!ctx) {
-    // Fallback safe default when provider not mounted
     return {
       loading: false,
       currencies: [] as Currency[],
