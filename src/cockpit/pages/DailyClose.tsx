@@ -14,13 +14,10 @@ import {
   Wallet, Users, AlertTriangle, ShieldAlert, Lock, Calendar, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-function fmt(n: number): string {
-  if (!n) return "0 FCFA";
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export default function DailyClose() {
+  const fmt = useFormatDisplay();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
   const fn = useServerFn(getDailyClose);

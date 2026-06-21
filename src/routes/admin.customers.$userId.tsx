@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 import { cn } from "@/lib/utils";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 export const Route = createFileRoute("/admin/customers/$userId")({
   component: () => (
@@ -38,9 +39,6 @@ export const Route = createFileRoute("/admin/customers/$userId")({
 function fmtDate(s: string | null | undefined) {
   if (!s) return "—";
   try { return format(new Date(s), "dd/MM/yyyy HH:mm"); } catch { return "—"; }
-}
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " FCFA";
 }
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
@@ -63,6 +61,7 @@ const ORDER_STATUS_CLS: Record<string, string> = {
 };
 
 function CustomerDetailPage() {
+  const fmtMoney = useFormatDisplay();
   const { userId } = Route.useParams();
   const qc = useQueryClient();
   const fetchDetail = useServerFn(getCustomerDetail);

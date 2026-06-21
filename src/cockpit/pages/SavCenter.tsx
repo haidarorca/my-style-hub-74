@@ -37,6 +37,7 @@ import {
   ArrowUpRight, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 const OWNER_LABEL: Record<SavOwnerParty, string> = {
   kawzone: "Kawzone",
@@ -100,6 +101,7 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 export default function SavCenter() {
+  const fmtDisp = useFormatDisplay();
   const list = useServerFn(listSavCases);
   const update = useServerFn(updateSavCase);
   const qc = useQueryClient();
@@ -177,7 +179,7 @@ export default function SavCenter() {
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="w-3 h-3"/>Impact financier</div>
-          <div className="text-2xl font-bold">{formatMoney(kpis.totalImpact, "XOF")}</div>
+          <div className="text-2xl font-bold">{fmtDisp(kpis.totalImpact)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Qui doit agir</div>

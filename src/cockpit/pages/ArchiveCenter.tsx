@@ -18,15 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Archive as ArchiveIcon, ArrowUpRight, Filter } from "lucide-react";
-
-function fmt(amount: number, currency = "XOF"): string {
-  if (!amount) return "—";
-  try {
-    return new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
-  } catch {
-    return `${amount.toLocaleString("fr-FR")} ${currency}`;
-  }
-}
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "2-digit" });
@@ -34,6 +26,7 @@ function fmtDate(iso: string): string {
 
 export default function ArchiveCenter() {
   const listFn = useServerFn(listArchive);
+  const fmt = useFormatDisplay();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "delivered" | "cancelled">("all");
   const [from, setFrom] = useState("");

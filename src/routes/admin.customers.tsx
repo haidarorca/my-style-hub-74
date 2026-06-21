@@ -33,6 +33,7 @@ import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useFormatDisplay } from "@/hooks/use-currencies";
 
 const searchSchema = z.object({
   page: fallback(z.number().int().min(1), 1).default(1),
@@ -73,11 +74,9 @@ function fmtDate(s: string | null | undefined) {
   if (!s) return "—";
   try { return format(new Date(s), "dd/MM/yyyy"); } catch { return "—"; }
 }
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " FCFA";
-}
 
 function CustomersPage() {
+  const fmtMoney = useFormatDisplay();
   const qc = useQueryClient();
   const navigate = useNavigate({ from: "/admin/customers" });
   const search = Route.useSearch();
@@ -360,6 +359,7 @@ type RowProps = {
 };
 
 const CustomerRowDesktop = memo(function CustomerRowDesktop({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  const fmtMoney = useFormatDisplay();
   return (
     <TableRow>
       <TableCell>
@@ -396,6 +396,7 @@ const CustomerRowDesktop = memo(function CustomerRowDesktop({ row, countryName, 
 });
 
 const CustomerCardMobile = memo(function CustomerCardMobile({ row, countryName, busy, onToggleBlock, onDelete }: RowProps) {
+  const fmtMoney = useFormatDisplay();
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="flex items-start justify-between gap-2">
