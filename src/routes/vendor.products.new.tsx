@@ -132,10 +132,10 @@ function NewProductPage() {
   const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
   const [videoUrl, setVideoUrl] = useState("");
   const [originCountryId, setOriginCountryId] = useState<string | null>(null);
-  const [fragileChoice, setFragileChoice] = useState<"none" | "yes" | "no">("none");
+  const [isFragile, setIsFragile] = useState(false);
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
-  const [variantRef, setVariantRef] = useState("");
+  const [fitType, setFitType] = useState<string>("");
 
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
