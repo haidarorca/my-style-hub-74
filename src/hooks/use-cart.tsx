@@ -115,7 +115,7 @@ export function useCart() {
           .from("cart_items")
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
-             products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
+             products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, min_order_qty, warranty_days, is_fragile, product_images(url), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
              product_variants(id, size, color, color_hex, price_override)`,
           )
           .order("created_at", { ascending: false });
