@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { useFormatDisplay } from "@/hooks/use-currencies";
+import { ProductBadges } from "./ProductBadges";
+import type { CompositionItem } from "@/lib/textile-materials";
 
 export interface ProductCardProduct {
   id: string;
@@ -20,6 +22,16 @@ export interface ProductCardProduct {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
+  // Badges optionnels (affichés seulement si fournis)
+  warranty_days?: number | null;
+  material?: string | null;
+  material_composition_items?: CompositionItem[] | null;
+  min_order_qty?: number | null;
+  origin_country?:
+    | { name?: string | null; flag_emoji?: string | null }
+    | Array<{ name?: string | null; flag_emoji?: string | null }>
+    | null;
+  product_variants?: Array<{ measurements?: Record<string, unknown> | null }> | null;
   // PostgREST renvoie un objet ou un tableau selon le type de relation.
   profiles?:
     | { source_country_id?: string | null }
