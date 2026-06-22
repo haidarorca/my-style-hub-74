@@ -41,13 +41,15 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, product_images(url), product_variants(*)")
+        .select("id, name, name_i18n, price, code, min_order_qty, product_images(url), product_variants(*)")
         .eq("id", productId!)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
+
+  const minOrderQty = Math.max(1, Math.round(Number((data as any)?.min_order_qty ?? 1) || 1));
 
   useEffect(() => {
     if (open) {
