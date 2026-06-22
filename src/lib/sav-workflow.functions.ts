@@ -350,6 +350,13 @@ export const vendorRecommend = createServerFn({ method: "POST" })
       to_state: { vendor_recommendation: data.recommendation },
       note: data.note ?? null,
     });
+    await notifySav(sb, {
+      case_id: data.case_id,
+      event: "vendor.recommended",
+      title: "Recommandation vendeur",
+      message: `Le vendeur a répondu : ${data.recommendation}`,
+      notify_admins: true,
+    });
     return { ok: true };
   });
 
