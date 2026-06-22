@@ -72,7 +72,12 @@ export function SavCaseList({ cases, role, loading, onChanged }: Props) {
             {filtered.map((c) => (
               <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelected(c)}>
                 <TableCell>
-                  <div className="font-medium">{c.title}</div>
+                  <div className="font-medium flex items-center gap-2">
+                    {c.title}
+                    {c.on_behalf_of_user_id && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Admin pour client</span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">{c.order_id.slice(0, 8)}…</div>
                 </TableCell>
                 <TableCell><CaseTypeBadge type={c.case_type} /></TableCell>
