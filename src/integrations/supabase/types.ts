@@ -1301,29 +1301,38 @@ export type Database = {
       }
       notifications: {
         Row: {
+          channel: string
           created_at: string
+          event_key: string | null
           id: string
           is_read: boolean
           link: string | null
           message: string
+          payload: Json | null
           title: string
           user_id: string
         }
         Insert: {
+          channel?: string
           created_at?: string
+          event_key?: string | null
           id?: string
           is_read?: boolean
           link?: string | null
           message: string
+          payload?: Json | null
           title: string
           user_id: string
         }
         Update: {
+          channel?: string
           created_at?: string
+          event_key?: string | null
           id?: string
           is_read?: boolean
           link?: string | null
           message?: string
+          payload?: Json | null
           title?: string
           user_id?: string
         }
@@ -1517,8 +1526,10 @@ export type Database = {
           commission_rule_id: string | null
           created_at: string
           customization: Json | null
+          exchange_source_case_id: string | null
           id: string
           is_admin_shop_snapshot: boolean | null
+          is_exchange_replacement: boolean
           order_id: string
           origin_currency_code: string | null
           origin_rate_snapshot: number | null
@@ -1533,6 +1544,7 @@ export type Database = {
           shop_name_snapshot: string | null
           shop_type_snapshot: string | null
           size: string | null
+          source_exchange_id: string | null
           unit_price: number
           variant_id: string | null
           vendor_id: string
@@ -1545,8 +1557,10 @@ export type Database = {
           commission_rule_id?: string | null
           created_at?: string
           customization?: Json | null
+          exchange_source_case_id?: string | null
           id?: string
           is_admin_shop_snapshot?: boolean | null
+          is_exchange_replacement?: boolean
           order_id: string
           origin_currency_code?: string | null
           origin_rate_snapshot?: number | null
@@ -1561,6 +1575,7 @@ export type Database = {
           shop_name_snapshot?: string | null
           shop_type_snapshot?: string | null
           size?: string | null
+          source_exchange_id?: string | null
           unit_price?: number
           variant_id?: string | null
           vendor_id: string
@@ -1573,8 +1588,10 @@ export type Database = {
           commission_rule_id?: string | null
           created_at?: string
           customization?: Json | null
+          exchange_source_case_id?: string | null
           id?: string
           is_admin_shop_snapshot?: boolean | null
+          is_exchange_replacement?: boolean
           order_id?: string
           origin_currency_code?: string | null
           origin_rate_snapshot?: number | null
@@ -1589,11 +1606,19 @@ export type Database = {
           shop_name_snapshot?: string | null
           shop_type_snapshot?: string | null
           size?: string | null
+          source_exchange_id?: string | null
           unit_price?: number
           variant_id?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "order_items_exchange_source_case_id_fkey"
+            columns: ["exchange_source_case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_items_order_id_fkey"
             columns: ["order_id"]
@@ -1607,6 +1632,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "currencies"
             referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "order_items_source_exchange_id_fkey"
+            columns: ["source_exchange_id"]
+            isOneToOne: false
+            referencedRelation: "sav_exchanges"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4143,6 +4175,10 @@ export type Database = {
     }
     Functions: {
       apply_currency_recompute: { Args: { _code: string }; Returns: number }
+      apply_stock_delta: {
+        Args: { _delta: number; _reason?: string; _variant_id: string }
+        Returns: number
+      }
       can_insert_order_item: {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
@@ -4266,6 +4302,15 @@ export type Database = {
           final_price: number
           product_id: string
           variant_id: string
+        }[]
+      }
+      get_sav_counts: {
+        Args: { _scope: string }
+        Returns: {
+          new_count: number
+          pending_count: number
+          total_count: number
+          urgent_count: number
         }[]
       }
       get_shop_product_stats: {

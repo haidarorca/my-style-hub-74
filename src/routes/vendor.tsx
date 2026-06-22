@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag, FileSpreadsheet } from "lucide-react";
+import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +15,7 @@ export const Route = createFileRoute("/vendor")({
 const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/vendor", labelKey: "vendor.dashboard", icon: LayoutDashboard, exact: true },
   { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
+  { to: "/vendor/sav", labelKey: "vendor.sav", icon: AlertTriangle },
   { to: "/vendor/products", labelKey: "vendor.products", icon: Package, exact: true },
   { to: "/vendor/products/new", labelKey: "vendor.products.new_title", icon: Plus },
   { to: "/vendor/import-export", labelKey: "vendor.import_export", icon: FileSpreadsheet },

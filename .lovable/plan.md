@@ -1,150 +1,125 @@
 
-# Vague 2 — Verrouillage de la logique métier SAV
+# Vague 3 — Système SAV exploitable en production
 
-Objectif : compléter le modèle de données et le moteur de règles pour couvrir tous les scénarios réels (annulations par étape, imports, échanges typés, garanties, ventilation des frais, administration assistée) **avant** de construire les notifications, compteurs, menus et écrans finaux.
+Avant le code, audit de cohérence avec les Vagues 1-2 et plan d'exécution. Aucun doublon ne sera créé : tout réutilise `sav-workflow.functions.ts`, `SavCaseDrawer`, `SavCaseList`, `resolve_sav_rules`, `sav_fee_charges`.
 
-## 1. Audit du modèle actuel vs scénarios demandés
+## 0. Audit anti-contournement / anti-duplication
 
-Légende : ✅ couvert · ⚠️ partiel · ❌ manquant
-
-| Scénario | État actuel | Action |
+| Risque | Vérification | Statut |
 |---|---|---|
-| Annulation par étape (11 cas) | ⚠️ `case_type=cancellation` existe, mais aucune politique par étape, aucun snapshot de l'étape déclenchante, pas de calcul automatique du remboursable | Ajouter rule_key `cancellation_policy` + colonne `cancellation_stage` |
-| Qui paie / part remboursable | ⚠️ `shipping_cost_attribution` global unique | Ventilation détaillée via nouvelle table `sav_fee_charges` |
-| Produits importés (CN/TR/LB) | ❌ Pas de scope `source_country`, pas de notion de disposition (liquidation/destruction/revente) | Étendre `sav_rule_scope` + nouvelles rule_keys `import_returns_policy`, `disposition_default` |
-| Échanges typés (taille/couleur/variante/produit) | ⚠️ `sav_exchanges` stocke le remplacement mais pas le **type** ni l'intention | Ajouter colonne `exchange_kind` enum |
-| Garantie vendeur vs constructeur vs réparation | ⚠️ `warranty` unique, `repair` n'existe qu'en `resolution`, pas en `case_type` | Ajouter `repair` à `sav_case_type` + colonne `warranty_scope` (vendor/manufacturer/none) |
-| Frais (livraison, retour, emballage, préparation, import, manutention) | ❌ Un seul rule_key global | Table `sav_fee_charges` (case_id, fee_kind, payer_party, amount) + rule_keys par type |
-| Transporteur comme partie payante | ❌ `sav_party` n'inclut pas `carrier` | Ajouter `carrier` à `sav_party` + `sav_owner_party` |
-| Administration assistée (Sénégal) | ⚠️ `on_behalf_of_user_id` existe, mais pas de canal ni de raison | Ajouter `assisted_channel`, `assisted_reason` |
+| Décision finale court-circuitée | Seul `adminDecide`/`adminOverride` mute `decided_resolution` ; vendeur reste sur `vendor_recommendation` | ✅ déjà OK, on garde |
+| Logique d'annulation codée en dur | Toute lecture de la politique passe par `resolveRules()` → `cancellation_policy` | À enforcer dans la nouvelle `cancelOrder` |
+| Imports : règles ignorées | `openSavCase` lit déjà `returns_enabled`/`exchanges_enabled`. Manque le scope `source_country` dans l'appel | À corriger dans `resolveRules` côté TS |
+| Stock contourné lors d'un échange | Aucun écrit sur `product_variants.stock` aujourd'hui | À créer via `acceptExchange` |
+| Notifications dupliquées | Une seule fonction `notifySav()` interne, jamais d'`INSERT notifications` éparpillé | À créer |
+| Compteurs sidebar dispersés | Un unique server fn `getSavCounts()` consommé par tous les espaces | À créer |
 
-## 2. Politique d'annulation par étape (rule engine)
+## 1. Workflow d'échange complet
 
-Une seule rule `cancellation_policy` (JSONB) résolue par cascade Produit → Catégorie → Boutique → Pays → Global. Structure :
+Nouveaux server fns dans `sav-workflow.functions.ts` :
 
-```json
-{
-  "new":               {"allowed": true,  "decider": "client",  "fees_to": "none",     "refund_pct": 100},
-  "confirmed":         {"allowed": true,  "decider": "client",  "fees_to": "none",     "refund_pct": 100},
-  "preparing":         {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 95},
-  "ordered_supplier":  {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 80},
-  "received_warehouse":{"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 70},
-  "awaiting_weighing": {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 70},
-  "fees_calculated":   {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 70},
-  "payment_fees":      {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 70},
-  "ready_delivery":    {"allowed": true,  "decider": "admin",   "fees_to": "client",   "refund_pct": 60},
-  "shipped":           {"allowed": false, "decider": "admin",   "fees_to": "client",   "refund_pct": 0},
-  "delivered":         {"allowed": false, "decider": "admin",   "fees_to": "none",     "refund_pct": 0, "fallback": "return"}
-}
-```
+- `acceptExchange({ exchange_id })` (admin) : passe `sav_exchanges.status='accepted'`, calcule `surcharge_amount`/`partial_refund_amount` selon `delta_amount`, crée automatiquement les `sav_fee_charges` selon les règles `fee_*_payer_default`, génère un `order_items` de remplacement (lié à l'`order_id` d'origine, flag `is_exchange_replacement=true`), décrémente le stock variant si présent.
+- `shipExchange({ exchange_id, tracking? })` : `status='shipped'`.
+- `markExchangeDelivered({ exchange_id })` : `status='delivered'` + clôture du `sav_case` parent.
+- `cancelExchange({ exchange_id, reason })` : `status='cancelled'` + restock.
 
-`delivered` bascule automatiquement le case_type vers `return` (pas d'annulation post-livraison).
+Règles consultées (lecture seule, jamais codées en dur) : `exchange_size_free`, `exchange_color_free`, `exchange_variant_requires_approval`, `exchange_different_product_requires_approval`. Si `_requires_approval=true` et admin n'a pas le perm `sav.decide` → refus.
 
-Snapshot : à l'ouverture du cas on remplit `sav_cases.cancellation_stage` (= `orders.status` instantané) → la décision reste rejouable même si la commande progresse.
+Migration mineure :
+- `ALTER TABLE order_items ADD COLUMN is_exchange_replacement boolean DEFAULT false, exchange_source_case_id uuid REFERENCES sav_cases(id)`
+- `ALTER TABLE order_items ADD COLUMN source_exchange_id uuid REFERENCES sav_exchanges(id)`
 
-## 3. Politique produits importés
+Stock : utilise `product_variants.stock` (déjà présent). Si la variante n'a pas de stock géré, on n'écrit rien (compat futur module stock vendeur). Toute modif passe par une RPC `apply_stock_delta(_variant_id, _delta, _reason)` SECURITY DEFINER pour préserver l'audit.
 
-Nouveau scope `source_country` (rattaché aux pays sources CN/TR/LB via `countries`). Nouvelles rule_keys :
+## 2. Annulation pilotée par règle
 
-- `import_returns_policy` : `{"allowed": false}` ou `{"allowed": true, "client_pays_return": true}`
-- `import_exchanges_policy` : idem
-- `disposition_default` : `"liquidation_local" | "destruction" | "resale" | "return_to_supplier"`
-- `refund_policy` : `{"mode": "partial", "max_pct": 50}` quand retour impossible
+Nouveau server fn `cancelOrderItem({ order_item_id, reason })` :
+1. Lit `orders.status` → `cancellation_stage`.
+2. `resolveRules(product_id, destination_country, vendor_id, source_country)` → `cancellation_policy[stage]`.
+3. Si `allowed=false` → refus + suggestion fallback (`return` post-livraison).
+4. Si `decider='client'` et appelant = buyer → exécution directe ; sinon création d'un `sav_case` `case_type='cancellation'` avec `decided_resolution='refund'`, `requested_resolution='refund'`, status `accepted` si auto, sinon `open` (admin tranche).
+5. Calcul automatique des `sav_refunds` (`amount = paid * refund_pct/100`) et `sav_fee_charges` (`fees_to`).
 
-Résolution finale : Produit > Catégorie > Boutique > **source_country** > Pays destination > Global.
+## 3. Centre SAV cockpit (production)
 
-## 4. Échanges typés
+Refonte `src/cockpit/pages/SavCenter.tsx` (réutilise `SavCaseList` + `SavCaseDrawer` existants) :
+- **KPI header** : `open`, `vendor_responded`, `escalated`, `in_arbitration`, SLA dépassé, à clôturer aujourd'hui.
+- **Filtres** : client (search), vendeur, boutique, produit, catégorie, pays source, pays destination, statut[], type[], priorité, période, "uniquement assistés admin".
+- **Indicateur de priorité** calculé : urgent si `sla_deadline_at < now()+24h`, bloqué si `vendor_responded` depuis >72h sans décision, litige si `case_type='dispute'`. Badge couleur sur chaque ligne.
+- Actions bulk (admin uniquement) : assigner, clôturer, escalader.
 
-Ajouter à `sav_exchanges` :
+## 4. Administration assistée — UI
 
-```sql
-exchange_kind sav_exchange_kind NOT NULL DEFAULT 'variant'
--- enum: size_only, color_only, variant, different_product, repair_replacement
-surcharge_amount numeric -- si delta > 0
-partial_refund_amount numeric -- si delta < 0
-```
+Nouveau composant `<AdminAssistedSavDialog>` dans le drawer admin :
+- Recherche client (orders.buyer_id ou nom/tel).
+- Sélection commande → article.
+- Type de dossier + canal d'assistance (`assisted_channel`) + raison (`assisted_reason`).
+- Appelle `openSavCase` avec `on_behalf_of_user_id` rempli.
+- Badge "Créé par admin pour [client]" visible partout (drawer header + liste).
 
-Le `delta_amount` existant reste la source de vérité financière, les deux colonnes ci-dessus servent au reporting et à la résolution de règles (un échange taille seul peut être gratuit, un échange produit différent jamais).
+`SavCaseList` ajoute colonne `Source` : `Client` / `Vendeur` / `Admin (pour X)`.
 
-Rules associées : `exchange_size_free`, `exchange_color_free`, `exchange_variant_requires_approval`, `exchange_different_product_requires_approval`.
+## 5. Notifications in-app
 
-## 5. Garantie / SAV / réparation
+Une fonction interne `notifySav(case_id, event)` dans `sav-workflow.functions.ts` insérant dans `notifications` (table existante). Événements :
 
-- Ajouter `repair` à `sav_case_type` (case_type final, pas seulement résolution).
-- Ajouter colonne `warranty_scope sav_warranty_scope` à `sav_cases` (`none | vendor | manufacturer | kawzone_commercial`).
-- Nouvelles rule_keys : `warranty_vendor_months`, `warranty_manufacturer_months`, `repair_allowed`, `repair_pays_party` (`client|vendor|kawzone`).
+| Événement | Client | Vendeur | Admin |
+|---|---|---|---|
+| `case.opened` | ✓ (si admin a ouvert pour lui) | ✓ | ✓ (tous admins avec perm `sav.view`) |
+| `vendor.recommended` | — | — | ✓ |
+| `admin.decided` | ✓ | ✓ | — |
+| `admin.requested_info` | ✓ | — | — |
+| `refund.issued` | ✓ | ✓ | — |
+| `exchange.proposed` | ✓ | ✓ | — |
+| `exchange.shipped` | ✓ | — | — |
+| `case.closed` | ✓ | ✓ | — |
+| `sla.breached` | — | ✓ | ✓ |
 
-Distinction métier :
-- **retour commercial** = `case_type=return`, fenêtre `return_window_days`
-- **échange** = `case_type=exchange`, kind selon §4
-- **SAV/dispute** = `case_type=dispute`
-- **réparation** = `case_type=repair`
-- **garantie vendeur** = `case_type=warranty`, `warranty_scope=vendor`
-- **garantie constructeur** = `case_type=warranty`, `warranty_scope=manufacturer`
+Appelée systématiquement aux endroits déjà existants (`adminDecide`, `vendorRecommend`, `adminIssueRefund`, etc.), pas de duplication.
 
-## 6. Ventilation des frais
+Architecture canaux : table `notifications` reste seule source de vérité. Champs `payload jsonb` + `channel text default 'in_app'` (migration mineure) pour préparer WhatsApp/Email plus tard sans changer le code appelant.
 
-Nouvelle table `sav_fee_charges` (append-only via trigger existant) :
+## 6. Sidebars + compteurs dynamiques
 
-```sql
-case_id          uuid not null
-fee_kind         sav_fee_kind not null
-  -- enum: shipping_outbound, shipping_return, packaging,
-  --       preparation, import_logistics, handling, restocking
-payer_party      sav_party not null  -- client|vendor|admin|carrier|kawzone
-amount           numeric not null
-currency         text not null default 'XOF'
-reason           text
-created_by       uuid
-created_at       timestamptz
-```
+Nouveau server fn `getSavCounts({ scope: 'client'|'vendor'|'admin' })` retournant `{ new, pending, urgent, total }`.
 
-Rule_keys associés (par fee_kind) : `fee_{kind}_payer_default`. Le moteur produit automatiquement les lignes `sav_fee_charges` à la décision admin (overridable).
+Hook `useSavCounts(scope)` (TanStack Query, refetch toutes les 60s, `realtime` channel sur `sav_cases` pour invalider).
 
-Ajouter `carrier` à `sav_party` et `sav_owner_party`.
+Intégration :
+- **Client** : `src/routes/account.tsx` (lien existant) → badge `new+urgent`. `MobileBottomNav` reste inchangé.
+- **Vendeur** : `src/routes/vendor.tsx` sidebar → entrée "SAV" avec badge `new+pending`.
+- **Admin** : `src/routes/admin.tsx` (déjà "Centre SAV") + `CockpitShell` → badge urgent, ajout entrée "Règles SAV" sous Settings.
 
-## 7. Administration assistée
+## 7. Logique import — vérification
 
-Sur `sav_cases` :
-- `assisted_channel sav_assisted_channel` (`phone | whatsapp | in_person | email | other`)
-- `assisted_reason text`
-- `on_behalf_of_user_id` déjà présent ✅
+Patch `resolveRules()` côté TS pour passer `source_country_id` (lu sur `profiles.source_country_id` du vendeur). Test : depuis le simulateur de `admin.sav-rules.tsx`, on doit voir une règle posée sur `source_country=Chine` apparaître pour un produit dont le vendeur a `source_country_id=Chine`. Ajout d'un onglet "Pays source" dans `admin.sav-rules.tsx`.
 
-Garantie d'audit : `sav_actions` capture déjà l'acteur réel ; on filtre les listings admin par `on_behalf_of_user_id IS NOT NULL` pour reporting "dossiers ouverts pour le client".
+## 8. Garde-fous récapitulatifs
 
-## 8. Migration unique proposée (étapes SQL)
+- `adminDecide`/`adminOverride` restent les seules portes vers `decided_resolution`.
+- `acceptExchange` exige `sav.decide`.
+- `cancelOrderItem` exige `sav.decide` quand `decider='admin'`.
+- Toutes les écritures stock passent par `apply_stock_delta`.
+- Toutes les notifications passent par `notifySav`.
+- Trigger `tg_append_only_guard` reste actif sur `sav_actions`, `sav_fee_charges`.
 
-1. `ALTER TYPE sav_case_type ADD VALUE 'repair'`
-2. `ALTER TYPE sav_party ADD VALUE 'carrier'` + idem `sav_owner_party`
-3. `ALTER TYPE sav_rule_scope ADD VALUE 'source_country'`
-4. `ALTER TYPE sav_rule_key ADD VALUE` × N (cancellation_policy, import_*, disposition_default, refund_policy, exchange_*, warranty_*_months, repair_*, fee_*_payer_default)
-5. `CREATE TYPE sav_exchange_kind`, `sav_warranty_scope`, `sav_assisted_channel`, `sav_fee_kind`
-6. `ALTER TABLE sav_cases ADD COLUMN cancellation_stage text, warranty_scope sav_warranty_scope, assisted_channel sav_assisted_channel, assisted_reason text`
-7. `ALTER TABLE sav_exchanges ADD COLUMN exchange_kind, surcharge_amount, partial_refund_amount`
-8. `CREATE TABLE sav_fee_charges (...)` + GRANT + RLS (admin write, client/vendor read own) + trigger append-only
-9. Seed étendu : politique d'annulation par défaut (cf. §2), politiques imports CN/TR/LB par défaut, frais par défaut
-10. Mise à jour `resolve_sav_rules` pour intégrer le scope `source_country` (Produit > Catégorie > Boutique > source_country > Pays destination > Global)
+## 9. Découpage en livraisons
 
-## 9. Ce qu'on ne touche PAS encore (volontairement)
+1. **Migration mineure** : `is_exchange_replacement`, `source_exchange_id`, `exchange_source_case_id` sur `order_items` ; RPC `apply_stock_delta`.
+2. **Server fns** : `acceptExchange` + `shipExchange` + `markExchangeDelivered` + `cancelExchange` + `cancelOrderItem` + `getSavCounts` + `notifySav` (interne).
+3. **Patch `resolveRules` TS** pour `source_country_id`.
+4. **Refonte SavCenter** (KPI + filtres + priorité + bulk).
+5. **`AdminAssistedSavDialog`** + colonne Source dans `SavCaseList`.
+6. **Hook `useSavCounts`** + badges dans `admin.tsx` / `vendor.tsx` / `account.tsx` / `CockpitShell`.
+7. **Onglet "Pays source"** dans `admin.sav-rules.tsx`.
 
-- Notifications in-app et compteurs
-- Liens sidebar / badges
-- Cron SLA
-- Workflow d'échange (création auto des `order_items` de remplacement)
-- Écrans finaux client/vendeur/admin
-- PDF avoirs
+## 10. Hors périmètre Vague 3 (volontairement)
 
-Tout cela sera construit en Vague 3 **après** validation de cette migration et de la politique par défaut.
+- Module stock vendeur complet (interface plein-écran de gestion stock).
+- WhatsApp / Email réels (architecture posée, intégration plus tard).
+- Cron SLA (le calcul `urgent` se fait côté lecture).
+- PDF avoirs.
 
-## 10. Validation demandée avant exécution
+---
 
-Réponds par OUI/NON/ajustement sur :
-
-1. Politique d'annulation par étape proposée au §2 (pourcentages, qui paie) — convient-elle comme défaut global modifiable par règle ?
-2. Ajout du scope `source_country` (au lieu de réutiliser `country`) pour les imports — d'accord ?
-3. Ajout de `repair` comme `case_type` distinct de `warranty` — d'accord ?
-4. Table `sav_fee_charges` avec ventilation par `payer_party` (incluant `carrier`) — d'accord ?
-5. Ajout des champs `assisted_channel` / `assisted_reason` sur `sav_cases` — d'accord ?
-6. Migration unique englobant tous ces changements (vs plusieurs petites migrations) — d'accord ?
-
-Dès que tu valides (même partiellement), j'exécute la migration et je seede les politiques par défaut. Aucun écran final ne sera touché avant.
+Je commence l'implémentation point par point dès validation, en respectant strictement l'ordre du §9 pour ne casser aucun écran existant.
