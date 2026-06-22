@@ -173,7 +173,7 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type,
+           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition,
 
            product_images(url, position),
            product_variants(*),
@@ -470,10 +470,9 @@ function ProductPage() {
               )}
               {fitInfo && (
                 <span
-                  title={fitInfo.description}
                   className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800"
                 >
-                  {fitInfo.label}
+                  {fitInfo.label} — {fitInfo.description}
                 </span>
               )}
               {isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)) && (
@@ -490,6 +489,22 @@ function ProductPage() {
 
           {fitInfo && (
             <p className="text-[11px] text-muted-foreground">{fitInfo.description}</p>
+          )}
+
+          {(((data as any).material) || ((data as any).material_composition)) && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                Matière
+              </p>
+              {(data as any).material && (
+                <p className="text-sm font-semibold">{(data as any).material}</p>
+              )}
+              {(data as any).material_composition && (
+                <p className="text-xs text-muted-foreground">
+                  Composition : {(data as any).material_composition}
+                </p>
+              )}
+            </div>
           )}
 
           <Dialog open={sizeGuideOpen} onOpenChange={setSizeGuideOpen}>
