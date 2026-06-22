@@ -47,6 +47,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
 import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { MATERIAL_PRESETS } from "@/lib/materials";
 import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
@@ -136,6 +137,9 @@ function NewProductPage() {
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
   const [fitType, setFitType] = useState<string>("");
+  const [material, setMaterial] = useState<string>("");
+  const [materialCustom, setMaterialCustom] = useState<string>("");
+  const [materialComposition, setMaterialComposition] = useState<string>("");
 
 
   // Category picks (3 levels, each "cat:UUID" or "req:UUID")
