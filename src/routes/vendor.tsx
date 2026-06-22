@@ -15,6 +15,7 @@ export const Route = createFileRoute("/vendor")({
 const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/vendor", labelKey: "vendor.dashboard", icon: LayoutDashboard, exact: true },
   { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
+  { to: "/vendor/sav", labelKey: "vendor.sav", icon: AlertTriangle },
   { to: "/vendor/products", labelKey: "vendor.products", icon: Package, exact: true },
   { to: "/vendor/products/new", labelKey: "vendor.products.new_title", icon: Plus },
   { to: "/vendor/import-export", labelKey: "vendor.import_export", icon: FileSpreadsheet },
