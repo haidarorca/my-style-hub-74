@@ -174,6 +174,8 @@ export const openSavCase = createServerFn({ method: "POST" })
     description?: string | null;
     problem_type?: string;
     on_behalf_of_user_id?: string | null; // admin only
+    assisted_channel?: "phone" | "whatsapp" | "in_person" | "email" | "other" | null;
+    assisted_reason?: string | null;
   }) => input)
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
