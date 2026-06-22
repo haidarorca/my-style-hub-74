@@ -2773,13 +2773,111 @@ export type Database = {
           },
         ]
       }
+      sav_actions: {
+        Row: {
+          action_type: Database["public"]["Enums"]["sav_action_type"]
+          actor_id: string | null
+          actor_role: Database["public"]["Enums"]["sav_party"]
+          case_id: string
+          created_at: string
+          from_state: Json | null
+          id: string
+          note: string | null
+          to_state: Json | null
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["sav_action_type"]
+          actor_id?: string | null
+          actor_role: Database["public"]["Enums"]["sav_party"]
+          case_id: string
+          created_at?: string
+          from_state?: Json | null
+          id?: string
+          note?: string | null
+          to_state?: Json | null
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["sav_action_type"]
+          actor_id?: string | null
+          actor_role?: Database["public"]["Enums"]["sav_party"]
+          case_id?: string
+          created_at?: string
+          from_state?: Json | null
+          id?: string
+          note?: string | null
+          to_state?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_actions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sav_attachments: {
+        Row: {
+          caption: string | null
+          case_id: string
+          created_at: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          uploader_id: string | null
+          uploader_role: Database["public"]["Enums"]["sav_party"]
+        }
+        Insert: {
+          caption?: string | null
+          case_id: string
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          uploader_id?: string | null
+          uploader_role: Database["public"]["Enums"]["sav_party"]
+        }
+        Update: {
+          caption?: string | null
+          case_id?: string
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          uploader_id?: string | null
+          uploader_role?: Database["public"]["Enums"]["sav_party"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_attachments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sav_cases: {
         Row: {
+          admin_decided_at: string | null
+          admin_decided_by: string | null
+          admin_decision: Database["public"]["Enums"]["sav_admin_decision"]
+          admin_decision_reason: string | null
           assigned_to: string | null
+          case_type: Database["public"]["Enums"]["sav_case_type"]
+          client_visible: boolean
           closed_at: string | null
           created_at: string
           created_by: string | null
+          decided_resolution:
+            | Database["public"]["Enums"]["sav_resolution"]
+            | null
           description: string | null
+          evidence_count: number
           financial_impact_amount: number
           financial_impact_currency: string
           id: string
@@ -2789,19 +2887,38 @@ export type Database = {
           order_item_id: string | null
           owner_party: Database["public"]["Enums"]["sav_owner_party"]
           problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          requested_by_party: Database["public"]["Enums"]["sav_party"]
+          requested_resolution: Database["public"]["Enums"]["sav_resolution"]
+          resolved_at: string | null
+          rules_snapshot: Json | null
+          scope: Database["public"]["Enums"]["sav_scope"]
+          sla_deadline_at: string | null
           source_decision_id: string | null
           source_event_id: string | null
           status: Database["public"]["Enums"]["sav_status"]
           title: string
           updated_at: string
           vendor_id: string | null
+          vendor_recommendation: Database["public"]["Enums"]["sav_vendor_recommendation"]
+          vendor_recommendation_note: string | null
+          vendor_responded_at: string | null
         }
         Insert: {
+          admin_decided_at?: string | null
+          admin_decided_by?: string | null
+          admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
+          admin_decision_reason?: string | null
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["sav_case_type"]
+          client_visible?: boolean
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_resolution?:
+            | Database["public"]["Enums"]["sav_resolution"]
+            | null
           description?: string | null
+          evidence_count?: number
           financial_impact_amount?: number
           financial_impact_currency?: string
           id?: string
@@ -2811,19 +2928,38 @@ export type Database = {
           order_item_id?: string | null
           owner_party?: Database["public"]["Enums"]["sav_owner_party"]
           problem_type: Database["public"]["Enums"]["sav_problem_type"]
+          requested_by_party?: Database["public"]["Enums"]["sav_party"]
+          requested_resolution?: Database["public"]["Enums"]["sav_resolution"]
+          resolved_at?: string | null
+          rules_snapshot?: Json | null
+          scope?: Database["public"]["Enums"]["sav_scope"]
+          sla_deadline_at?: string | null
           source_decision_id?: string | null
           source_event_id?: string | null
           status?: Database["public"]["Enums"]["sav_status"]
           title: string
           updated_at?: string
           vendor_id?: string | null
+          vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
+          vendor_recommendation_note?: string | null
+          vendor_responded_at?: string | null
         }
         Update: {
+          admin_decided_at?: string | null
+          admin_decided_by?: string | null
+          admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
+          admin_decision_reason?: string | null
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["sav_case_type"]
+          client_visible?: boolean
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_resolution?:
+            | Database["public"]["Enums"]["sav_resolution"]
+            | null
           description?: string | null
+          evidence_count?: number
           financial_impact_amount?: number
           financial_impact_currency?: string
           id?: string
@@ -2833,12 +2969,21 @@ export type Database = {
           order_item_id?: string | null
           owner_party?: Database["public"]["Enums"]["sav_owner_party"]
           problem_type?: Database["public"]["Enums"]["sav_problem_type"]
+          requested_by_party?: Database["public"]["Enums"]["sav_party"]
+          requested_resolution?: Database["public"]["Enums"]["sav_resolution"]
+          resolved_at?: string | null
+          rules_snapshot?: Json | null
+          scope?: Database["public"]["Enums"]["sav_scope"]
+          sla_deadline_at?: string | null
           source_decision_id?: string | null
           source_event_id?: string | null
           status?: Database["public"]["Enums"]["sav_status"]
           title?: string
           updated_at?: string
           vendor_id?: string | null
+          vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
+          vendor_recommendation_note?: string | null
+          vendor_responded_at?: string | null
         }
         Relationships: [
           {
@@ -2891,6 +3036,236 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sav_exchanges: {
+        Row: {
+          case_id: string
+          created_at: string
+          created_by: string | null
+          delta_amount: number
+          delta_currency: string
+          id: string
+          note: string | null
+          original_item_id: string | null
+          replacement_order_item_id: string | null
+          replacement_product_id: string | null
+          replacement_quantity: number
+          replacement_variant_id: string | null
+          status: Database["public"]["Enums"]["sav_exchange_status"]
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          delta_amount?: number
+          delta_currency?: string
+          id?: string
+          note?: string | null
+          original_item_id?: string | null
+          replacement_order_item_id?: string | null
+          replacement_product_id?: string | null
+          replacement_quantity?: number
+          replacement_variant_id?: string | null
+          status?: Database["public"]["Enums"]["sav_exchange_status"]
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          delta_amount?: number
+          delta_currency?: string
+          id?: string
+          note?: string | null
+          original_item_id?: string | null
+          replacement_order_item_id?: string | null
+          replacement_product_id?: string | null
+          replacement_quantity?: number
+          replacement_variant_id?: string | null
+          status?: Database["public"]["Enums"]["sav_exchange_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_exchanges_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_exchanges_original_item_id_fkey"
+            columns: ["original_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_exchanges_replacement_order_item_id_fkey"
+            columns: ["replacement_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_exchanges_replacement_product_id_fkey"
+            columns: ["replacement_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_exchanges_replacement_variant_id_fkey"
+            columns: ["replacement_variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sav_messages: {
+        Row: {
+          body: string
+          case_id: string
+          created_at: string
+          id: string
+          is_internal_note: boolean
+          sender_id: string | null
+          sender_role: Database["public"]["Enums"]["sav_party"]
+        }
+        Insert: {
+          body: string
+          case_id: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean
+          sender_id?: string | null
+          sender_role: Database["public"]["Enums"]["sav_party"]
+        }
+        Update: {
+          body?: string
+          case_id?: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean
+          sender_id?: string | null
+          sender_role?: Database["public"]["Enums"]["sav_party"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sav_refunds: {
+        Row: {
+          amount: number
+          case_id: string
+          created_at: string
+          currency: string
+          direction: Database["public"]["Enums"]["sav_refund_direction"]
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          linked_movement_id: string | null
+          method: Database["public"]["Enums"]["sav_refund_method"]
+          reference: string | null
+          status: Database["public"]["Enums"]["sav_refund_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          case_id: string
+          created_at?: string
+          currency?: string
+          direction: Database["public"]["Enums"]["sav_refund_direction"]
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          linked_movement_id?: string | null
+          method: Database["public"]["Enums"]["sav_refund_method"]
+          reference?: string | null
+          status?: Database["public"]["Enums"]["sav_refund_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          case_id?: string
+          created_at?: string
+          currency?: string
+          direction?: Database["public"]["Enums"]["sav_refund_direction"]
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          linked_movement_id?: string | null
+          method?: Database["public"]["Enums"]["sav_refund_method"]
+          reference?: string | null
+          status?: Database["public"]["Enums"]["sav_refund_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_refunds_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_refunds_linked_movement_id_fkey"
+            columns: ["linked_movement_id"]
+            isOneToOne: false
+            referencedRelation: "financial_movements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sav_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          note: string | null
+          priority: number
+          rule_key: Database["public"]["Enums"]["sav_rule_key"]
+          scope: Database["public"]["Enums"]["sav_rule_scope"]
+          scope_id: string | null
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          note?: string | null
+          priority?: number
+          rule_key: Database["public"]["Enums"]["sav_rule_key"]
+          scope: Database["public"]["Enums"]["sav_rule_scope"]
+          scope_id?: string | null
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          note?: string | null
+          priority?: number
+          rule_key?: Database["public"]["Enums"]["sav_rule_key"]
+          scope?: Database["public"]["Enums"]["sav_rule_scope"]
+          scope_id?: string | null
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       shipping_services: {
         Row: {
@@ -3894,6 +4269,14 @@ export type Database = {
           show_whatsapp: boolean
         }[]
       }
+      resolve_sav_rules: {
+        Args: {
+          _destination_country_id?: string
+          _product_id?: string
+          _shop_id?: string
+        }
+        Returns: Json
+      }
       set_currency_rate: {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
@@ -4054,7 +4437,49 @@ export type Database = {
         | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
+      sav_action_type:
+        | "open"
+        | "client_response"
+        | "vendor_recommend"
+        | "admin_decide"
+        | "admin_override"
+        | "escalate"
+        | "close"
+        | "reopen"
+        | "refund_issued"
+        | "exchange_proposed"
+        | "exchange_shipped"
+        | "attachment_added"
+        | "message_added"
+        | "sla_breached"
+        | "rule_applied"
+        | "assignment_changed"
+        | "status_changed"
+      sav_admin_decision:
+        | "pending"
+        | "accepted"
+        | "refused"
+        | "partially_accepted"
+        | "escalated"
+        | "overridden"
+      sav_case_type:
+        | "cancellation"
+        | "return"
+        | "exchange"
+        | "warranty"
+        | "dispute"
+        | "refund"
+        | "credit_note"
+        | "admin_exception"
+        | "other"
+      sav_exchange_status:
+        | "proposed"
+        | "accepted"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
       sav_owner_party: "kawzone" | "vendor" | "supplier" | "client"
+      sav_party: "client" | "vendor" | "admin" | "system"
       sav_problem_type:
         | "stock_break"
         | "product_deleted"
@@ -4064,7 +4489,62 @@ export type Database = {
         | "delivery_blocked"
         | "supplier_unavailable"
         | "other"
-      sav_status: "open" | "in_progress" | "waiting" | "resolved" | "closed"
+      sav_refund_direction: "to_client" | "from_vendor" | "from_kawzone"
+      sav_refund_method:
+        | "wave"
+        | "orange_money"
+        | "cash"
+        | "bank_transfer"
+        | "credit_note"
+        | "other"
+      sav_refund_status: "pending" | "issued" | "failed" | "cancelled"
+      sav_resolution:
+        | "refund"
+        | "exchange"
+        | "repair"
+        | "credit"
+        | "replacement"
+        | "partial_refund"
+        | "none"
+      sav_rule_key:
+        | "returns_enabled"
+        | "exchanges_enabled"
+        | "warranty_enabled"
+        | "return_window_days"
+        | "warranty_months"
+        | "requires_evidence"
+        | "auto_accept_under_amount"
+        | "refund_method_default"
+        | "shipping_cost_attribution"
+        | "restocking_fee_percent"
+        | "return_address_id"
+      sav_rule_scope: "global" | "country" | "category" | "shop" | "product"
+      sav_scope: "item" | "order"
+      sav_status:
+        | "open"
+        | "in_progress"
+        | "waiting"
+        | "resolved"
+        | "closed"
+        | "draft"
+        | "in_review"
+        | "vendor_responded"
+        | "in_arbitration"
+        | "accepted"
+        | "refused"
+        | "partially_accepted"
+        | "in_execution"
+        | "waiting_client"
+        | "waiting_vendor"
+        | "escalated"
+        | "reopened"
+      sav_vendor_recommendation:
+        | "accept"
+        | "refuse"
+        | "propose_refund"
+        | "propose_exchange"
+        | "propose_other"
+        | "none"
       shipment_assessment_status:
         | "pending_arrival"
         | "awaiting_weighing"
@@ -4311,7 +4791,53 @@ export const Constants = {
       ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
+      sav_action_type: [
+        "open",
+        "client_response",
+        "vendor_recommend",
+        "admin_decide",
+        "admin_override",
+        "escalate",
+        "close",
+        "reopen",
+        "refund_issued",
+        "exchange_proposed",
+        "exchange_shipped",
+        "attachment_added",
+        "message_added",
+        "sla_breached",
+        "rule_applied",
+        "assignment_changed",
+        "status_changed",
+      ],
+      sav_admin_decision: [
+        "pending",
+        "accepted",
+        "refused",
+        "partially_accepted",
+        "escalated",
+        "overridden",
+      ],
+      sav_case_type: [
+        "cancellation",
+        "return",
+        "exchange",
+        "warranty",
+        "dispute",
+        "refund",
+        "credit_note",
+        "admin_exception",
+        "other",
+      ],
+      sav_exchange_status: [
+        "proposed",
+        "accepted",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
       sav_owner_party: ["kawzone", "vendor", "supplier", "client"],
+      sav_party: ["client", "vendor", "admin", "system"],
       sav_problem_type: [
         "stock_break",
         "product_deleted",
@@ -4322,7 +4848,67 @@ export const Constants = {
         "supplier_unavailable",
         "other",
       ],
-      sav_status: ["open", "in_progress", "waiting", "resolved", "closed"],
+      sav_refund_direction: ["to_client", "from_vendor", "from_kawzone"],
+      sav_refund_method: [
+        "wave",
+        "orange_money",
+        "cash",
+        "bank_transfer",
+        "credit_note",
+        "other",
+      ],
+      sav_refund_status: ["pending", "issued", "failed", "cancelled"],
+      sav_resolution: [
+        "refund",
+        "exchange",
+        "repair",
+        "credit",
+        "replacement",
+        "partial_refund",
+        "none",
+      ],
+      sav_rule_key: [
+        "returns_enabled",
+        "exchanges_enabled",
+        "warranty_enabled",
+        "return_window_days",
+        "warranty_months",
+        "requires_evidence",
+        "auto_accept_under_amount",
+        "refund_method_default",
+        "shipping_cost_attribution",
+        "restocking_fee_percent",
+        "return_address_id",
+      ],
+      sav_rule_scope: ["global", "country", "category", "shop", "product"],
+      sav_scope: ["item", "order"],
+      sav_status: [
+        "open",
+        "in_progress",
+        "waiting",
+        "resolved",
+        "closed",
+        "draft",
+        "in_review",
+        "vendor_responded",
+        "in_arbitration",
+        "accepted",
+        "refused",
+        "partially_accepted",
+        "in_execution",
+        "waiting_client",
+        "waiting_vendor",
+        "escalated",
+        "reopened",
+      ],
+      sav_vendor_recommendation: [
+        "accept",
+        "refuse",
+        "propose_refund",
+        "propose_exchange",
+        "propose_other",
+        "none",
+      ],
       shipment_assessment_status: [
         "pending_arrival",
         "awaiting_weighing",
