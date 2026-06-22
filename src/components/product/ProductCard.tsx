@@ -109,6 +109,29 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           ) : (
             <Skeleton className="mt-1.5 h-4 w-1/2" />
           )}
+          {(() => {
+            const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
+            const hasSizeGuide = (product.product_variants ?? []).some((v: any) => {
+              const m = v?.measurements;
+              if (!m || typeof m !== "object") return false;
+              return Object.values(m).some((n) => Number(n) > 0);
+            });
+            return (
+              <ProductBadges
+                size="xs"
+                className="mt-1.5"
+                data={{
+                  warranty_days: product.warranty_days ?? null,
+                  origin_country_name: oc?.name ?? null,
+                  origin_country_flag: oc?.flag_emoji ?? null,
+                  material: product.material ?? null,
+                  material_composition_items: (product.material_composition_items as any) ?? null,
+                  min_order_qty: product.min_order_qty ?? null,
+                  has_size_guide: hasSizeGuide,
+                }}
+              />
+            );
+          })()}
         </div>
       </Link>
 
