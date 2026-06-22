@@ -613,8 +613,14 @@ function EditProductPage() {
                   />
                 </div>
                 {isClothing && (
-                  <div className="rounded border bg-muted/30 p-2 space-y-1.5">
-                    <Label className="text-[10px] uppercase tracking-wide">Mesures réelles (cm)</Label>
+                  <div className="rounded-md border-2 border-primary/40 bg-primary/5 p-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                      <Ruler className="h-3.5 w-3.5" />
+                      📏 Mesures réelles de cette variante (cm) — obligatoire
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Chaque taille/couleur a ses propres mesures. Ces valeurs alimentent le guide des tailles côté client.
+                    </p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {measurementFields.map((f) => (
                         <div key={f.key}>
