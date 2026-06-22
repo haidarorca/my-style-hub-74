@@ -183,6 +183,7 @@ function ProductPage() {
            product_customizations(*),
            categories:category_id(name, slug),
            brands:brand_id(name),
+           origin_country:countries!products_origin_country_id_fkey(name, flag_emoji),
            profiles:vendor_id(full_name, shop_name, source_country_id)`,
         )
         .eq("id", productId)
