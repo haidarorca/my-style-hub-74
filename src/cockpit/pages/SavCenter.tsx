@@ -38,8 +38,6 @@ export default function SavCenter() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const counts = useSavCounts("admin");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ["sav-all", { includeClosed, search, fromDate, toDate }],
