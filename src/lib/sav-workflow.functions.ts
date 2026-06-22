@@ -679,17 +679,21 @@ export const acceptExchange = createServerFn({ method: "POST" })
     }
 
     // Créer l'article de remplacement
-    const { data: newItem, error: iErr } = await supabaseAdmin.from("order_items").insert({
+    const { data: prodMeta } = await sb.from("products").select("name, code").eq("id", (ex as any).replacement_product_id).single();
+    const insertPayload: any = {
       order_id: (original as any).order_id,
       product_id: (ex as any).replacement_product_id,
       variant_id: (ex as any).replacement_variant_id,
       vendor_id: (original as any).vendor_id,
       quantity: (ex as any).replacement_quantity,
       unit_price: unitPrice,
+      product_name: (prodMeta as any)?.name ?? "Échange",
+      product_code: (prodMeta as any)?.code ?? "",
       is_exchange_replacement: true,
       exchange_source_case_id: (ex as any).case_id,
       source_exchange_id: (ex as any).id,
-    }).select("id").single();
+    };
+    const { data: newItem, error: iErr } = await supabaseAdmin.from("order_items").insert(insertPayload).select("id").single();
     if (iErr) throw iErr;
 
     // Facturer les frais selon les règles (préparation + outbound)
