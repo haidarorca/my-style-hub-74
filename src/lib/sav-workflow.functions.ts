@@ -252,6 +252,8 @@ export const openSavCase = createServerFn({ method: "POST" })
       rules_snapshot: rules,
       created_by: context.userId,
       on_behalf_of_user_id: data.on_behalf_of_user_id ?? null,
+      assisted_channel: isOnBehalf ? (data.assisted_channel ?? "other") : null,
+      assisted_reason: isOnBehalf ? (data.assisted_reason ?? null) : null,
       last_activity_at: new Date().toISOString(),
     };
 
@@ -262,9 +264,19 @@ export const openSavCase = createServerFn({ method: "POST" })
       case_id: (row as any).id,
       actor_id: context.userId,
       actor_role: isOnBehalf ? "admin" : "client",
-      action_type: isOnBehalf ? "open" : "open",
+      action_type: "open",
       to_state: { status: "open", case_type: data.case_type },
-      note: isOnBehalf ? "Dossier ouvert par l'administration pour le client" : null,
+      note: isOnBehalf ? `Dossier ouvert par l'admin pour le client (${data.assisted_channel ?? "n/a"})` : null,
+    });
+
+    await notifySav(sb, {
+      case_id: (row as any).id,
+      event: "case.opened",
+      title: "Nouveau dossier SAV",
+      message: data.title,
+      notify_client: isOnBehalf,
+      notify_vendor: true,
+      notify_admins: true,
     });
 
     return row as SavCaseRow;
