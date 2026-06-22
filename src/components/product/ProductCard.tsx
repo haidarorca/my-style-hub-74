@@ -25,7 +25,7 @@ export interface ProductCardProduct {
   // Badges optionnels (affichés seulement si fournis)
   warranty_days?: number | null;
   material?: string | null;
-  material_composition_items?: CompositionItem[] | null;
+  material_composition_items?: CompositionItem[] | unknown | null;
   min_order_qty?: number | null;
   origin_country?:
     | { name?: string | null; flag_emoji?: string | null }
