@@ -884,7 +884,12 @@ function NewProductPage() {
                     <SelectTrigger className="h-8"><SelectValue placeholder="Choisir…" /></SelectTrigger>
                     <SelectContent>
                       {FIT_TYPES.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        <SelectItem key={f.value} value={f.value}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{f.label}</span>
+                            <span className="text-[11px] text-muted-foreground">{f.description}</span>
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -895,6 +900,39 @@ function NewProductPage() {
                   </p>
                 </div>
               </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="text-[11px]">Matière principale <span className="text-destructive">*</span></Label>
+                  <Select value={material} onValueChange={setMaterial}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Ex. 100% coton" /></SelectTrigger>
+                    <SelectContent>
+                      {MATERIAL_PRESETS.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Autre (préciser)…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {material === "__custom__" && (
+                    <Input
+                      className="mt-1 h-8"
+                      value={materialCustom}
+                      onChange={(e) => setMaterialCustom(e.target.value)}
+                      placeholder="Précisez la matière"
+                    />
+                  )}
+                </div>
+                <div>
+                  <Label className="text-[11px]">Composition détaillée (facultatif)</Label>
+                  <Input
+                    className="h-8"
+                    value={materialComposition}
+                    onChange={(e) => setMaterialComposition(e.target.value)}
+                    placeholder="Ex. 80% coton, 15% polyester, 5% élasthanne"
+                  />
+                </div>
+              </div>
+
               <p className="text-[11px] text-muted-foreground">
                 Les mesures réelles (cm) renseignées sur chaque variante seront affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
               </p>
