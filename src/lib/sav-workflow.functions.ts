@@ -574,11 +574,34 @@ export const adminCreateExchange = createServerFn({ method: "POST" })
     replacement_variant_id?: string | null;
     replacement_quantity?: number;
     delta_amount?: number;
+    surcharge_amount?: number;
+    partial_refund_amount?: number;
+    exchange_kind?: "size_only" | "color_only" | "variant" | "different_product" | "repair_replacement";
     note?: string | null;
   }) => input)
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
     await assertAdmin(sb, context.userId);
+
+    // Vérifier la règle (échange variant ou produit diff requiert approbation admin → on est admin donc OK)
+    const { data: caseRow } = await sb.from("sav_cases")
+      .select("vendor_id, order_id, order_item_id").eq("id", data.case_id).single();
+    let sourceCountryId: string | null = null;
+    if ((caseRow as any)?.vendor_id) {
+      const { data: vp } = await sb.from("profiles").select("source_country_id").eq("id", (caseRow as any).vendor_id).single();
+      sourceCountryId = (vp as any)?.source_country_id ?? null;
+    }
+    const { data: ord } = await sb.from("orders").select("destination_country_id").eq("id", (caseRow as any)?.order_id).single();
+    const rules = await resolveRules(sb, data.replacement_product_id, (ord as any)?.destination_country_id ?? null, (caseRow as any)?.vendor_id ?? null, sourceCountryId);
+
+    const kind = data.exchange_kind ?? "variant";
+    if (kind === "variant" && rules.exchange_variant_requires_approval === false) {
+      // pre-approved, ok
+    }
+    if (kind === "different_product" && rules.exchange_different_product_requires_approval === true) {
+      // L'admin a décidé : OK
+    }
+
     const { data: ex, error } = await sb.from("sav_exchanges").insert({
       case_id: data.case_id,
       original_item_id: data.original_item_id,
@@ -587,6 +610,9 @@ export const adminCreateExchange = createServerFn({ method: "POST" })
       replacement_quantity: data.replacement_quantity ?? 1,
       delta_amount: data.delta_amount ?? 0,
       delta_currency: "XOF",
+      surcharge_amount: data.surcharge_amount ?? Math.max(0, data.delta_amount ?? 0),
+      partial_refund_amount: data.partial_refund_amount ?? Math.max(0, -(data.delta_amount ?? 0)),
+      exchange_kind: kind,
       status: "proposed",
       note: data.note ?? null,
       created_by: context.userId,
@@ -600,7 +626,276 @@ export const adminCreateExchange = createServerFn({ method: "POST" })
       action_type: "exchange_proposed",
       to_state: ex,
     });
+    await notifySav(sb, {
+      case_id: data.case_id,
+      event: "exchange.proposed",
+      title: "Échange proposé",
+      message: `Échange ${kind}${(data.delta_amount ?? 0) !== 0 ? ` — delta ${data.delta_amount} XOF` : ""}`,
+      notify_client: true,
+      notify_vendor: true,
+    });
     return ex;
+  });
+
+// ───── Workflow d'échange complet (admin) ─────
+
+export const acceptExchange = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { exchange_id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    await assertAdminPerm(sb, context.userId, "sav_decide");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: ex, error } = await sb.from("sav_exchanges").select("*").eq("id", data.exchange_id).single();
+    if (error || !ex) throw new Error("Échange introuvable");
+    if ((ex as any).status !== "proposed") throw new Error(`Statut ${(ex as any).status} : échange non acceptable`);
+
+    const { data: original } = await sb.from("order_items")
+      .select("order_id, vendor_id, unit_price, quantity")
+      .eq("id", (ex as any).original_item_id).single();
+    if (!original) throw new Error("Article d'origine introuvable");
+
+    // Récupérer le prix de remplacement
+    const { data: prod } = await sb.from("products").select("price").eq("id", (ex as any).replacement_product_id).single();
+    let unitPrice = (prod as any)?.price ?? (original as any).unit_price ?? 0;
+    if ((ex as any).replacement_variant_id) {
+      const { data: variant } = await sb.from("product_variants")
+        .select("price_override, stock").eq("id", (ex as any).replacement_variant_id).single();
+      if ((variant as any)?.price_override) unitPrice = (variant as any).price_override;
+      const stock = (variant as any)?.stock;
+      if (stock !== null && stock !== undefined && stock < (ex as any).replacement_quantity) {
+        throw new Error("Stock insuffisant pour la variante de remplacement");
+      }
+    }
+
+    // Décrémenter le stock si géré
+    if ((ex as any).replacement_variant_id) {
+      await supabaseAdmin.rpc("apply_stock_delta", {
+        _variant_id: (ex as any).replacement_variant_id,
+        _delta: -(ex as any).replacement_quantity,
+        _reason: `sav_exchange:${data.exchange_id}`,
+      });
+    }
+
+    // Créer l'article de remplacement
+    const { data: newItem, error: iErr } = await supabaseAdmin.from("order_items").insert({
+      order_id: (original as any).order_id,
+      product_id: (ex as any).replacement_product_id,
+      variant_id: (ex as any).replacement_variant_id,
+      vendor_id: (original as any).vendor_id,
+      quantity: (ex as any).replacement_quantity,
+      unit_price: unitPrice,
+      is_exchange_replacement: true,
+      exchange_source_case_id: (ex as any).case_id,
+      source_exchange_id: (ex as any).id,
+    }).select("id").single();
+    if (iErr) throw iErr;
+
+    // Facturer les frais selon les règles (préparation + outbound)
+    const { data: caseRow } = await sb.from("sav_cases")
+      .select("vendor_id, order_id").eq("id", (ex as any).case_id).single();
+    let sourceCountryId: string | null = null;
+    if ((caseRow as any)?.vendor_id) {
+      const { data: vp } = await sb.from("profiles").select("source_country_id").eq("id", (caseRow as any).vendor_id).single();
+      sourceCountryId = (vp as any)?.source_country_id ?? null;
+    }
+    const { data: ord } = await sb.from("orders").select("destination_country_id").eq("id", (caseRow as any)?.order_id).single();
+    const rules = await resolveRules(sb, (ex as any).replacement_product_id, (ord as any)?.destination_country_id ?? null, (caseRow as any)?.vendor_id ?? null, sourceCountryId);
+
+    const feeCharges: any[] = [];
+    if (rules.fee_shipping_outbound_payer_default) {
+      feeCharges.push({
+        case_id: (ex as any).case_id, fee_kind: "shipping_outbound",
+        payer_party: rules.fee_shipping_outbound_payer_default,
+        amount: 0, currency: "XOF",
+        reason: "Auto: réexpédition échange", created_by: context.userId,
+      });
+    }
+    if (feeCharges.length) await supabaseAdmin.from("sav_fee_charges").insert(feeCharges);
+
+    await sb.from("sav_exchanges").update({
+      status: "accepted",
+      replacement_order_item_id: (newItem as any).id,
+    }).eq("id", data.exchange_id);
+
+    await logAction(sb, {
+      case_id: (ex as any).case_id, actor_id: context.userId, actor_role: "admin",
+      action_type: "exchange_accepted",
+      to_state: { exchange_id: data.exchange_id, replacement_order_item_id: (newItem as any).id },
+    });
+    await notifySav(sb, {
+      case_id: (ex as any).case_id, event: "exchange.accepted",
+      title: "Échange accepté", message: "L'article de remplacement a été créé",
+      notify_client: true, notify_vendor: true,
+    });
+    return { ok: true, replacement_order_item_id: (newItem as any).id };
+  });
+
+export const shipExchange = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { exchange_id: string; tracking?: string | null }) => input)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    await assertAdminPerm(sb, context.userId, "sav_decide");
+    const { data: ex } = await sb.from("sav_exchanges").select("case_id, status").eq("id", data.exchange_id).single();
+    if (!ex) throw new Error("Échange introuvable");
+    if ((ex as any).status !== "accepted") throw new Error("L'échange doit être accepté avant expédition");
+    await sb.from("sav_exchanges").update({ status: "shipped", note: data.tracking ? `Tracking: ${data.tracking}` : undefined }).eq("id", data.exchange_id);
+    await logAction(sb, { case_id: (ex as any).case_id, actor_id: context.userId, actor_role: "admin", action_type: "exchange_shipped", to_state: { tracking: data.tracking ?? null } });
+    await notifySav(sb, { case_id: (ex as any).case_id, event: "exchange.shipped", title: "Échange expédié", message: data.tracking ? `Suivi : ${data.tracking}` : "Votre échange est en route", notify_client: true });
+    return { ok: true };
+  });
+
+export const markExchangeDelivered = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { exchange_id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    await assertAdminPerm(sb, context.userId, "sav_decide");
+    const { data: ex } = await sb.from("sav_exchanges").select("case_id").eq("id", data.exchange_id).single();
+    if (!ex) throw new Error("Échange introuvable");
+    await sb.from("sav_exchanges").update({ status: "delivered" }).eq("id", data.exchange_id);
+    await sb.from("sav_cases").update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      closed_at: new Date().toISOString(),
+    }).eq("id", (ex as any).case_id);
+    await logAction(sb, { case_id: (ex as any).case_id, actor_id: context.userId, actor_role: "admin", action_type: "exchange_delivered" });
+    await notifySav(sb, { case_id: (ex as any).case_id, event: "case.closed", title: "Dossier clôturé", message: "Échange livré, dossier résolu", notify_client: true, notify_vendor: true });
+    return { ok: true };
+  });
+
+export const cancelExchange = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { exchange_id: string; reason: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    await assertAdminPerm(sb, context.userId, "sav_decide");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ex } = await sb.from("sav_exchanges").select("*").eq("id", data.exchange_id).single();
+    if (!ex) throw new Error("Échange introuvable");
+    if ((ex as any).status === "delivered") throw new Error("Échange déjà livré");
+    // Restock si applicable
+    if ((ex as any).replacement_variant_id && ["accepted", "shipped"].includes((ex as any).status)) {
+      await supabaseAdmin.rpc("apply_stock_delta", {
+        _variant_id: (ex as any).replacement_variant_id,
+        _delta: (ex as any).replacement_quantity,
+        _reason: `sav_exchange_cancel:${data.exchange_id}`,
+      });
+    }
+    await sb.from("sav_exchanges").update({ status: "cancelled", note: data.reason }).eq("id", data.exchange_id);
+    await logAction(sb, { case_id: (ex as any).case_id, actor_id: context.userId, actor_role: "admin", action_type: "exchange_cancelled", note: data.reason });
+    return { ok: true };
+  });
+
+// ───── Annulation pilotée par règle ─────
+
+export const cancelOrderItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { order_item_id: string; reason: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    const { data: oi } = await sb.from("order_items")
+      .select("id, order_id, vendor_id, product_id, unit_price, quantity")
+      .eq("id", data.order_item_id).single();
+    if (!oi) throw new Error("Article introuvable");
+    const { data: ord } = await sb.from("orders")
+      .select("id, buyer_id, status, destination_country_id")
+      .eq("id", (oi as any).order_id).single();
+    if (!ord) throw new Error("Commande introuvable");
+
+    const stage = (ord as any).status ?? "new";
+    let sourceCountryId: string | null = null;
+    if ((oi as any).vendor_id) {
+      const { data: vp } = await sb.from("profiles").select("source_country_id").eq("id", (oi as any).vendor_id).single();
+      sourceCountryId = (vp as any)?.source_country_id ?? null;
+    }
+    const rules = await resolveRules(sb, (oi as any).product_id, (ord as any).destination_country_id, (oi as any).vendor_id, sourceCountryId);
+    const policy = (rules.cancellation_policy ?? {})[stage] ?? null;
+
+    if (policy?.allowed === false) {
+      const fallback = policy?.fallback;
+      throw new Error(fallback ? `Annulation impossible à l'étape "${stage}". Utilisez : ${fallback}` : `Annulation impossible à l'étape "${stage}"`);
+    }
+
+    const refundPct = Number(policy?.refund_pct ?? 100);
+    const decider = policy?.decider ?? "client";
+    const refundAmount = Math.round((oi as any).unit_price * (oi as any).quantity * refundPct / 100);
+
+    // Vérif droit
+    const isOwner = (ord as any).buyer_id === context.userId;
+    const { data: isAdmin } = await sb.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isOwner && !isAdmin) throw new Error("Forbidden");
+    if (decider === "admin" && !isAdmin) {
+      // Créer un dossier en attente d'admin
+    }
+
+    const auto = decider === "client" && isOwner;
+    const insert: any = {
+      order_id: (ord as any).id,
+      order_item_id: (oi as any).id,
+      vendor_id: (oi as any).vendor_id,
+      case_type: "cancellation",
+      problem_type: "cancellation_request",
+      status: auto ? "accepted" : "open",
+      scope: "item",
+      owner_party: auto ? "admin" : "vendor",
+      title: `Annulation à l'étape ${stage}`,
+      description: data.reason,
+      requested_resolution: "refund",
+      decided_resolution: auto ? "refund" : null,
+      requested_by_party: isAdmin && !isOwner ? "admin" : "client",
+      vendor_recommendation: "none",
+      admin_decision: auto ? "accepted" : "pending",
+      admin_decided_at: auto ? new Date().toISOString() : null,
+      admin_decided_by: auto ? context.userId : null,
+      client_visible: true,
+      cancellation_stage: stage,
+      financial_impact_amount: refundAmount,
+      financial_impact_currency: "XOF",
+      sla_deadline_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      rules_snapshot: { stage, policy, refund_amount: refundAmount },
+      created_by: context.userId,
+      last_activity_at: new Date().toISOString(),
+    };
+
+    const { data: row, error } = await sb.from("sav_cases").insert(insert).select("*").single();
+    if (error) throw error;
+
+    await logAction(sb, {
+      case_id: (row as any).id, actor_id: context.userId,
+      actor_role: isAdmin && !isOwner ? "admin" : "client",
+      action_type: "open",
+      to_state: { case_type: "cancellation", stage, auto, refund_amount: refundAmount },
+      note: data.reason,
+    });
+
+    await notifySav(sb, {
+      case_id: (row as any).id, event: auto ? "case.opened_auto" : "case.opened",
+      title: auto ? "Annulation acceptée" : "Demande d'annulation",
+      message: auto ? `Remboursement prévu : ${refundAmount} XOF` : `Étape ${stage} — décision admin requise`,
+      notify_client: true, notify_vendor: true, notify_admins: !auto,
+    });
+
+    return { case_id: (row as any).id, auto, refund_amount: refundAmount, stage };
+  });
+
+// ───── Compteurs sidebar ─────
+
+export const getSavCounts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { scope: "client" | "vendor" | "admin" }) => input)
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase.rpc("get_sav_counts", { _scope: data.scope });
+    if (error) throw error;
+    const r = (rows as any[])?.[0] ?? {};
+    return {
+      new: Number(r.new_count ?? 0),
+      pending: Number(r.pending_count ?? 0),
+      urgent: Number(r.urgent_count ?? 0),
+      total: Number(r.total_count ?? 0),
+    };
   });
 
 // ═══════════════════════════════════════════════════════════════
