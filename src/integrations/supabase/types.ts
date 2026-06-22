@@ -228,6 +228,33 @@ export type Database = {
         }
         Relationships: []
       }
+      brands: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -2328,9 +2355,12 @@ export type Database = {
       }
       products: {
         Row: {
+          age_group: string | null
           archived_at: string | null
           barcode: string | null
           brand: string | null
+          brand_id: string | null
+          care_instructions: string[] | null
           category_id: string | null
           code: string
           contact_override: Database["public"]["Enums"]["product_contact_override"]
@@ -2343,6 +2373,7 @@ export type Database = {
           designation: string | null
           designation_i18n: Json | null
           fit_type: string | null
+          gender: string | null
           height_cm: number | null
           id: string
           is_active: boolean
@@ -2351,6 +2382,7 @@ export type Database = {
           length_cm: number | null
           material: string | null
           material_composition: string | null
+          material_composition_items: Json | null
           min_order_qty: number
           name: string
           name_i18n: Json | null
@@ -2363,6 +2395,7 @@ export type Database = {
           price: number
           rejection_reason: string | null
           requires_international_shipping: boolean
+          season: string | null
           sku: string | null
           source_country_id: string | null
           status: Database["public"]["Enums"]["product_status"]
@@ -2377,9 +2410,12 @@ export type Database = {
           width_cm: number | null
         }
         Insert: {
+          age_group?: string | null
           archived_at?: string | null
           barcode?: string | null
           brand?: string | null
+          brand_id?: string | null
+          care_instructions?: string[] | null
           category_id?: string | null
           code: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
@@ -2392,6 +2428,7 @@ export type Database = {
           designation?: string | null
           designation_i18n?: Json | null
           fit_type?: string | null
+          gender?: string | null
           height_cm?: number | null
           id?: string
           is_active?: boolean
@@ -2400,6 +2437,7 @@ export type Database = {
           length_cm?: number | null
           material?: string | null
           material_composition?: string | null
+          material_composition_items?: Json | null
           min_order_qty?: number
           name: string
           name_i18n?: Json | null
@@ -2412,6 +2450,7 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          season?: string | null
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -2426,9 +2465,12 @@ export type Database = {
           width_cm?: number | null
         }
         Update: {
+          age_group?: string | null
           archived_at?: string | null
           barcode?: string | null
           brand?: string | null
+          brand_id?: string | null
+          care_instructions?: string[] | null
           category_id?: string | null
           code?: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
@@ -2441,6 +2483,7 @@ export type Database = {
           designation?: string | null
           designation_i18n?: Json | null
           fit_type?: string | null
+          gender?: string | null
           height_cm?: number | null
           id?: string
           is_active?: boolean
@@ -2449,6 +2492,7 @@ export type Database = {
           length_cm?: number | null
           material?: string | null
           material_composition?: string | null
+          material_composition_items?: Json | null
           min_order_qty?: number
           name?: string
           name_i18n?: Json | null
@@ -2461,6 +2505,7 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          season?: string | null
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -2475,6 +2520,13 @@ export type Database = {
           width_cm?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_category_id_categories_fkey"
             columns: ["category_id"]

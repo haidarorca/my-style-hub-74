@@ -1,83 +1,132 @@
 ## Objectif
-Corriger 7 problèmes de logique métier sur le formulaire produit vendeur avant validation finale.
 
-## 1. Référence variante au niveau variante (pas produit)
+Évolution majeure du formulaire produit vendeur : composition textile structurée, marques anti-doublon, pays d'origine intelligent, garantie améliorée, vidéo multi-source, et champs dynamiques par catégorie (saison/genre/âge/entretien pour vêtements). Conserver toute la logique métier existante (fret, mesures, fit, etc.).
 
-**Migration DB** :
-- `ALTER TABLE public.product_variants ADD COLUMN variant_ref text` (référence interne par variante).
-- Supprimer `variant_ref` de `public.products` (ou conserver inutilisé — préférence : DROP COLUMN).
+---
 
-**Formulaire vendeur** (`vendor.products.new.tsx` + `edit.tsx`) :
-- Retirer le champ "Référence variante" du bloc Options avancées.
-- Ajouter un champ `variant_ref` (input court) sur chaque ligne du tableau de variantes, à côté du SKU/stock/prix.
-- Garder `sku` au niveau produit (inchangé).
+## 1. Composition textile structurée
 
-**Cockpit** (`OrderItemsPanel.tsx`) :
-- Afficher `variant_ref` de la variante quand présente, en plus du SKU produit.
+**DB** (migration) :
+- `ALTER TABLE products ADD COLUMN material_composition_items jsonb DEFAULT '[]'::jsonb`
+  - Format : `[{ "material": "Coton", "percent": 70 }, { "material": "Polyester", "percent": 25 }, ...]`
+- Garder `material` (matière principale dérivée) et déprécier `material_composition` texte (lecture seule legacy).
 
-## 2. Fragile : une seule case
+**Helper** `src/lib/textile-materials.ts` :
+- Liste : Coton, Polyester, Élasthanne, Viscose, Lin, Laine, Soie, Denim, Cuir, Nylon, Acrylique, Cachemire, Satin, Velours, Mélange, Autre.
+- `formatComposition(items)` → "70% coton, 25% polyester, 5% élasthanne".
+- `validateComposition(items)` → vérifie total = 100, pas de doublons.
 
-**Formulaire vendeur** :
-- Remplacer le `RadioGroup` (fragile/non fragile) par une simple `Checkbox` "☐ Produit fragile".
-- Non coché ⇒ `is_fragile = false`.
-
-## 3. Catégories vêtements : détection
-
-**Nouveau helper** `src/lib/clothing-categories.ts` :
-- Liste des slugs/keywords de catégories vêtements (t-shirts, chemises, polos, pulls, vestes, pantalons, jeans, robes, jupes, ensembles, abayas, pyjamas, sous-vêtements, maillots, uniformes, vêtements enfants).
-- Fonction `isClothingCategory(categorySlug | categoryName)`.
-- Fonction `getMeasurementFields(subType)` → retourne champs spécifiques (T-shirt : poitrine+longueur, pantalon : tour de taille+longueur jambe, robe : poitrine+taille+longueur, défaut : poitrine+longueur).
-
-## 4. Mesures réelles par variante (vêtements)
-
-**Migration DB** :
-- `ALTER TABLE public.product_variants ADD COLUMN measurements jsonb DEFAULT '{}'::jsonb`.
-  - Stockage : `{ "chest_cm": 50, "length_cm": 70, "waist_cm": null, "leg_length_cm": null, ... }`.
-
-**Formulaire vendeur** :
-- Si catégorie vêtement détectée : section "Mesures réelles (cm)" pliable sur chaque ligne variante, avec les champs dérivés de la sous-catégorie.
-- Champs `number`, optionnels individuellement mais au moins une variante doit avoir des mesures (voir §7).
-
-## 5. Type de coupe
-
-**Migration DB** :
-- `ALTER TABLE public.products ADD COLUMN fit_type text` (valeurs : `slim`, `regular`, `oversize`, `large`, `ajuste`).
-
-**Helper** `src/lib/fit-types.ts` :
-- Liste avec `value`, `label`, `description` (Slim : "Coupe près du corps", Regular : "Coupe classique standard", Oversize : "Coupe volontairement large", Large : "Coupe plus ample qu'une coupe classique", Ajusté : "Entre Slim Fit et Regular Fit").
-
-**Formulaire vendeur (vêtements uniquement)** :
-- Select "Type de coupe" + texte d'aide qui change selon le choix (description visible).
+**Formulaire vendeur** (vêtements uniquement) :
+- Composant `CompositionEditor` : lignes (Select matière + Input %) + bouton "➕ Ajouter une matière".
+- Aperçu live de la chaîne formatée.
+- Total affiché : "Total : 100%" (vert) ou "Total : 95% – doit être 100%" (rouge).
+- Blocage publication si total ≠ 100 (vêtements actifs).
+- `material` principal = matière avec le plus haut %.
 
 **Page produit client** :
-- Si `fit_type` défini : afficher badge + description courte sous le titre.
+- Section "Composition" affichée sous forme de liste claire.
 
-## 6. Guide des tailles client
+## 2. Marques (anti-doublon)
 
-**Page produit** (`product.$productId.tsx`) :
-- Si catégorie vêtement ET au moins une variante a des `measurements` non vides : bouton "📏 Guide des tailles".
-- Ouvre un `Dialog` listant chaque variante (par taille) avec ses mesures réelles formatées : "Taille S — Poitrine 48 cm, Longueur 68 cm".
+**DB** (migration) :
+- `CREATE TABLE brands (id uuid pk, name text not null, slug text unique not null, created_by uuid, created_at, updated_at)`
+- GRANT SELECT TO anon, authenticated ; INSERT TO authenticated.
+- RLS : lecture publique, insertion par utilisateur authentifié.
+- `ALTER TABLE products ADD COLUMN brand_id uuid REFERENCES brands(id)`. Garder `brand` text legacy.
+- Trigger : normalise `slug = lower(unaccent(trim(name)))` à l'insert. Doublons rejetés via unique slug.
 
-## 7. Blocage publication (vêtements)
+**Formulaire vendeur** :
+- Combobox "Marque" : recherche dans `brands` (debounced). Si aucune correspondance exacte → bouton "Créer la marque {nom}".
+- À la sauvegarde : insert dans `brands` (slug normalisé), puis assigne `brand_id`.
 
-**Validation côté client** dans `vendor.products.new.tsx` + `edit.tsx` :
-- Si catégorie vêtement et `status = 'active'` :
-  - Au moins une variante doit avoir des mesures non vides.
-  - Sinon : toast d'erreur "Pour publier un vêtement, renseignez les mesures réelles d'au moins une variante." et blocage du submit.
-- Brouillon (`draft`) : autorisé sans mesures.
+## 3. Pays d'origine intelligent
 
-**Validation côté serveur** (trigger) :
-- `CREATE TRIGGER` sur `products` BEFORE UPDATE/INSERT : si `status = 'active'` et catégorie vêtement et aucune variante n'a de measurements non vides → `RAISE EXCEPTION`.
-- Sécurité défense en profondeur (l'opérateur admin pourrait sinon contourner).
+**Formulaire** :
+- Combobox `CountryCombobox` (recherche par nom, drapeau, code) basé sur `useCountries`.
+- Champ déjà séparé du pays vendeur — on précise dans le helper text : "Lieu de fabrication réel du produit (pas votre pays)".
+- Pré-rempli avec pays vendeur mais éditable.
+
+## 4. Garantie améliorée
+
+**Formulaire vendeur** :
+- Checkbox "✅ Ce produit bénéficie d'une garantie".
+- Si coché → 2 selects : Durée (1, 3, 6, 12, 24, 36, personnalisé) + Unité (mois / ans) → convertit en jours pour `warranty_days` existant.
+- Option "Personnalisé" → input number + select unité.
+
+**Page client** :
+- Badge déjà géré par `warrantyLabel` ; ajout icône 🛡.
+
+## 5. Vidéo multi-source
+
+**DB** : déjà `video_url` text. Pas de migration.
+
+**Helper** `src/lib/product-video.ts` :
+- `parseVideoUrl(url)` → `{ provider: 'youtube'|'vimeo'|'tiktok'|'direct'|'unknown', embedUrl }`.
+- Regex YouTube (watch/shorts/youtu.be), Vimeo, TikTok.
+
+**Formulaire** :
+- Input URL + aperçu instantané (iframe pour YT/Vimeo/TikTok, `<video>` pour fichier direct .mp4).
+- Phase 2 (upload direct) : nouveau bucket `product-videos` (privé puis public). Pour cette itération : URL uniquement + détection plateforme. Note dans UI : "Upload direct bientôt disponible".
+
+## 6. Attributs vêtements (saison / genre / âge / entretien)
+
+**DB** (migration) :
+- `ALTER TABLE products ADD COLUMN season text` (ete, hiver, printemps, automne, toutes_saisons)
+- `ADD COLUMN gender text` (homme, femme, mixte, garcon, fille, bebe)
+- `ADD COLUMN age_group text` (bebe, enfant, ado, adulte)
+- `ADD COLUMN care_instructions text[]` (lavage_machine, lavage_main, repassage, nettoyage_sec, eau_froide, pas_seche_linge, etc.)
+
+**Helpers** `src/lib/clothing-attributes.ts` : labels + icônes pour chaque enum.
+
+**Formulaire** (vêtements uniquement, dans bloc dédié) :
+- Select Saison, Select Genre, Select Tranche d'âge, multi-checkbox Entretien.
+
+**Page client** : Section "Détails vêtement" avec badges (Saison · Genre · Âge) + liste entretien.
+
+## 7. Type de coupe — descriptions vendeur + client
+
+Déjà fait via `FIT_TYPES` avec descriptions. Vérifier que la description est bien affichée sous le Select dans le formulaire (texte d'aide live) et sous le badge sur la page produit (déjà OK). Ajustement mineur si manquant.
+
+## 8. Formulaire dynamique par catégorie
+
+Helper `src/lib/category-fields.ts` :
+- `getCategoryFieldGroups(category)` → renvoie quels blocs afficher : `clothing`, `electronics` (marque, modèle, garantie), `furniture` (dimensions, matériaux), `cosmetic` (composition, DLU).
+- Détection via keywords sur catégorie/sous-catégorie (extension de `isClothingContext`).
+
+Pour cette itération : implémenter `clothing` complet + activer garantie & marque pour tous (universels). Les blocs `furniture`/`cosmetic` resteront extensibles plus tard sans casser l'existant.
+
+---
 
 ## Fichiers impactés
-- **Migration** (nouvelle) : `variant_ref` + `measurements` sur `product_variants`, `fit_type` sur `products`, DROP `variant_ref` sur `products`, trigger validation publication.
-- `src/lib/clothing-categories.ts` (nouveau)
-- `src/lib/fit-types.ts` (nouveau)
+
+**Nouvelle migration** (une seule) :
+- Ajout `material_composition_items jsonb`, `season`, `gender`, `age_group`, `care_instructions text[]`, `brand_id uuid` sur `products`.
+- Création table `brands` + RLS + GRANT + trigger slug.
+
+**Nouveaux helpers** :
+- `src/lib/textile-materials.ts`
+- `src/lib/clothing-attributes.ts`
+- `src/lib/product-video.ts`
+- `src/lib/category-fields.ts` (extension)
+
+**Nouveaux composants** :
+- `src/components/product/CompositionEditor.tsx`
+- `src/components/product/BrandCombobox.tsx`
+- `src/components/product/CountryCombobox.tsx` (ou réutiliser existant si présent)
+- `src/components/product/VideoUrlInput.tsx`
+- `src/components/product/WarrantyPicker.tsx`
+
+**Fichiers modifiés** :
 - `src/routes/vendor.products.new.tsx`
 - `src/routes/vendor.products.$productId.edit.tsx`
-- `src/routes/product.$productId.tsx` (bouton + dialog guide des tailles + badge coupe)
-- `src/cockpit/components/OrderItemsPanel.tsx` (variant_ref par ligne)
-- `src/lib/cockpit-payments.functions.ts` (inclure variant_ref dans la requête getOrderItems)
+- `src/routes/product.$productId.tsx` (affichage composition, attributs vêtement, badge garantie 🛡, vidéo embed)
 
-Aucune logique métier existante n'est retirée. Tous les calculs de fret/pesée/expédition restent intacts.
+**Aucune logique existante retirée.** Fret, pesée, mesures, fit, SKU, variantes, blocage publication restent identiques. Les nouveaux champs sont additifs.
+
+---
+
+## Validations bloquantes (publication vêtement actif)
+
+En plus de l'existant (mesures + matière) :
+- Composition : total = 100% si au moins 1 ligne saisie. Si vide → utiliser ancien champ `material`.
+- À terme (phase suivante) : composition obligatoire pour vêtements. Pour cette itération : optionnelle mais validée si présente.

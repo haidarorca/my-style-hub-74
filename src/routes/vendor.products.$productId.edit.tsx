@@ -15,10 +15,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CountrySelect } from "@/components/CountrySelect";
-import { WARRANTY_PRESETS } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
 import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
-import { MATERIAL_PRESETS } from "@/lib/materials";
+import { CompositionEditor } from "@/components/product/CompositionEditor";
+import { BrandCombobox } from "@/components/product/BrandCombobox";
+import { VideoUrlInput } from "@/components/product/VideoUrlInput";
+import { WarrantyPicker, warrantyValueToDays, warrantyDaysToValue, type WarrantyValue } from "@/components/product/WarrantyPicker";
+import { ClothingExtraFields } from "@/components/product/ClothingExtraFields";
+import { type CompositionItem, isValidComposition, primaryMaterial, formatComposition } from "@/lib/textile-materials";
 import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
@@ -97,19 +101,20 @@ function EditProductPage() {
   // ── Options avancées ──
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [brand, setBrand] = useState("");
+  const [brandId, setBrandId] = useState<string | null>(null);
   const [barcode, setBarcode] = useState("");
-  const [warrantyEnabled, setWarrantyEnabled] = useState(false);
-  const [warrantyPreset, setWarrantyPreset] = useState<string>("180");
-  const [warrantyCustomDays, setWarrantyCustomDays] = useState<string>("");
+  const [warranty, setWarranty] = useState<WarrantyValue>({ enabled: false, preset: "12", customAmount: "", customUnit: "mois" });
   const [videoUrl, setVideoUrl] = useState("");
   const [originCountryId, setOriginCountryId] = useState<string | null>(null);
   const [isFragile, setIsFragile] = useState(false);
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
   const [fitType, setFitType] = useState<string>("");
-  const [material, setMaterial] = useState<string>("");
-  const [materialCustom, setMaterialCustom] = useState<string>("");
-  const [materialComposition, setMaterialComposition] = useState<string>("");
+  const [compositionItems, setCompositionItems] = useState<CompositionItem[]>([]);
+  const [season, setSeason] = useState<string>("");
+  const [gender, setGender] = useState<string>("");
+  const [ageGroup, setAgeGroup] = useState<string>("");
+  const [careInstructions, setCareInstructions] = useState<string[]>([]);
   const [categoryName, setCategoryName] = useState<string>("");
 
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
@@ -156,34 +161,22 @@ function EditProductPage() {
     setWidthCm((p as any).width_cm != null ? String((p as any).width_cm) : "");
     setHeightCm((p as any).height_cm != null ? String((p as any).height_cm) : "");
     setBrand((p as any).brand ?? "");
+    setBrandId((p as any).brand_id ?? null);
     setBarcode((p as any).barcode ?? "");
-    const wd = (p as any).warranty_days as number | null;
-    if (wd && wd > 0) {
-      setWarrantyEnabled(true);
-      const preset = WARRANTY_PRESETS.find((x) => x.value === wd);
-      if (preset) { setWarrantyPreset(String(preset.value)); setWarrantyCustomDays(""); }
-      else { setWarrantyPreset("custom"); setWarrantyCustomDays(String(wd)); }
-    } else {
-      setWarrantyEnabled(false);
-    }
+    setWarranty(warrantyDaysToValue((p as any).warranty_days ?? null));
     setVideoUrl((p as any).video_url ?? "");
     setOriginCountryId((p as any).origin_country_id ?? null);
     setIsFragile(!!(p as any).is_fragile);
     setMinOrderQty(String((p as any).min_order_qty ?? 1));
     setSku((p as any).sku ?? "");
     setFitType((p as any).fit_type ?? "");
-    const mat = ((p as any).material as string | null) ?? "";
-    if (mat && MATERIAL_PRESETS.includes(mat)) {
-      setMaterial(mat);
-      setMaterialCustom("");
-    } else if (mat) {
-      setMaterial("__custom__");
-      setMaterialCustom(mat);
-    } else {
-      setMaterial("");
-      setMaterialCustom("");
-    }
-    setMaterialComposition((p as any).material_composition ?? "");
+    const items = (p as any).material_composition_items;
+    setCompositionItems(Array.isArray(items) ? items as CompositionItem[] : []);
+    setSeason((p as any).season ?? "");
+    setGender((p as any).gender ?? "");
+    setAgeGroup((p as any).age_group ?? "");
+    const care = (p as any).care_instructions;
+    setCareInstructions(Array.isArray(care) ? care : []);
 
     // Charger le nom de la catégorie pour la détection vêtement
     const catId = (p as any).category_id;
@@ -237,10 +230,16 @@ function EditProductPage() {
       toast.error("Au moins une image est requise.");
       return;
     }
-    const resolvedMaterial = (material === "__custom__" ? materialCustom : material).trim();
+    const hasComposition = compositionItems.length > 0;
+    if (hasComposition && !isValidComposition(compositionItems)) {
+      toast.error("Composition invalide : le total des matières doit être exactement 100%.");
+      return;
+    }
+    const derivedMaterial = hasComposition ? (primaryMaterial(compositionItems) ?? null) : null;
+    const derivedCompositionText = hasComposition ? formatComposition(compositionItems) : null;
     if (isClothing && status === "approved") {
-      if (!resolvedMaterial) {
-        toast.error("Pour publier un vêtement, indiquez la matière principale (ex. 100% coton).");
+      if (!hasComposition) {
+        toast.error("Pour publier un vêtement, renseignez la composition du tissu (100%).");
         return;
       }
       const hasMeasurements = variants.some((v) =>
@@ -364,11 +363,7 @@ function EditProductPage() {
       const wi = widthCm.trim() ? Math.round(Number(widthCm)) : null;
       const h = heightCm.trim() ? Math.round(Number(heightCm)) : null;
 
-      let warrantyDays: number | null = null;
-      if (warrantyEnabled) {
-        const d = warrantyPreset === "custom" ? Number(warrantyCustomDays) : Number(warrantyPreset);
-        warrantyDays = Number.isFinite(d) && d > 0 ? Math.round(d) : null;
-      }
+      const warrantyDays = warrantyValueToDays(warranty);
       const minQty = Math.max(1, Math.round(Number(minOrderQty) || 1));
 
       const updatePayload: any = {
@@ -382,6 +377,7 @@ function EditProductPage() {
         height_cm: h && h > 0 ? h : null,
         weight_source: w && w > 0 ? "vendor_declared" : null,
         brand: brand.trim() || null,
+        brand_id: brandId,
         barcode: barcode.trim() || null,
         warranty_days: warrantyDays,
         is_fragile: isFragile,
@@ -390,8 +386,13 @@ function EditProductPage() {
         origin_country_id: originCountryId,
         sku: sku.trim() || null,
         fit_type: fitType || null,
-        material: isClothing ? (resolvedMaterial || null) : ((material === "__custom__" ? materialCustom : material).trim() || null),
-        material_composition: materialComposition.trim() || null,
+        material: derivedMaterial,
+        material_composition: derivedCompositionText,
+        material_composition_items: hasComposition ? compositionItems : [],
+        season: season || null,
+        gender: gender || null,
+        age_group: ageGroup || null,
+        care_instructions: careInstructions.length > 0 ? careInstructions : null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
@@ -548,40 +549,21 @@ function EditProductPage() {
                 </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <Label className="text-[11px]">Matière principale <span className="text-destructive">*</span></Label>
-                  <Select value={material} onValueChange={setMaterial}>
-                    <SelectTrigger className="h-8"><SelectValue placeholder="Ex. 100% coton" /></SelectTrigger>
-                    <SelectContent>
-                      {MATERIAL_PRESETS.map((m) => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">Autre (préciser)…</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {material === "__custom__" && (
-                    <Input
-                      className="mt-1 h-8"
-                      value={materialCustom}
-                      onChange={(e) => setMaterialCustom(e.target.value)}
-                      placeholder="Précisez la matière"
-                    />
-                  )}
-                </div>
-                <div>
-                  <Label className="text-[11px]">Composition détaillée (facultatif)</Label>
-                  <Input
-                    className="h-8"
-                    value={materialComposition}
-                    onChange={(e) => setMaterialComposition(e.target.value)}
-                    placeholder="Ex. 80% coton, 15% polyester, 5% élasthanne"
-                  />
-                </div>
-              </div>
+              <CompositionEditor items={compositionItems} onChange={setCompositionItems} />
+
+              <ClothingExtraFields
+                season={season}
+                gender={gender}
+                ageGroup={ageGroup}
+                careInstructions={careInstructions}
+                onSeason={setSeason}
+                onGender={setGender}
+                onAgeGroup={setAgeGroup}
+                onCareInstructions={setCareInstructions}
+              />
 
               <p className="text-[11px] text-muted-foreground">
-                Mesures réelles (cm) par variante affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
+                Mesures réelles (cm) par variante affichées dans le « Guide des tailles » côté client. <b>Composition (100%) + au moins une variante avec mesures obligatoires pour publier.</b>
               </p>
             </div>
           )}
@@ -694,36 +676,32 @@ function EditProductPage() {
           <Card>
             <CardContent className="space-y-4 pt-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div><Label className="text-xs">Marque</Label><Input value={brand} onChange={(e) => setBrand(e.target.value)} /></div>
-                <div><Label className="text-xs">Code-barres / EAN / UPC</Label><Input value={barcode} onChange={(e) => setBarcode(e.target.value)} /></div>
+                <div>
+                  <Label className="text-xs">Marque</Label>
+                  <BrandCombobox
+                    value={brandId}
+                    onChange={(id, name) => { setBrandId(id); setBrand(name ?? ""); }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Code-barres / EAN / UPC</Label>
+                  <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+                </div>
               </div>
 
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                <label className="flex items-start gap-2 text-sm">
-                  <Checkbox checked={warrantyEnabled} onCheckedChange={(v) => setWarrantyEnabled(!!v)} className="mt-0.5" />
-                  <span>Ce produit bénéficie d'une garantie</span>
-                </label>
-                {warrantyEnabled && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Select value={warrantyPreset} onValueChange={setWarrantyPreset}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {WARRANTY_PRESETS.map((p) => (<SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>))}
-                        <SelectItem value="custom">Personnalisé (jours)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {warrantyPreset === "custom" && (
-                      <Input type="number" min={1} value={warrantyCustomDays} onChange={(e) => setWarrantyCustomDays(e.target.value)} placeholder="Nombre de jours" />
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div><Label className="text-xs">URL Vidéo</Label><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…" /></div>
+              <WarrantyPicker value={warranty} onChange={setWarranty} />
 
               <div>
-                <Label className="text-xs">Pays d'origine</Label>
-                <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir un pays (facultatif)" allowNull nullLabel="— Non précisé —" />
+                <Label className="text-xs">Vidéo produit</Label>
+                <VideoUrlInput value={videoUrl} onChange={setVideoUrl} />
+              </div>
+
+              <div>
+                <Label className="text-xs">Pays d'origine (lieu de fabrication réel)</Label>
+                <CountrySelect value={originCountryId} onChange={setOriginCountryId} placeholder="Choisir le pays de fabrication" allowNull nullLabel="— Non précisé —" />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Indiquez où le produit a été réellement fabriqué.
+                </p>
               </div>
 
               <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
