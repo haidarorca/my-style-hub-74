@@ -613,8 +613,14 @@ function EditProductPage() {
                   />
                 </div>
                 {isClothing && (
-                  <div className="rounded border bg-muted/30 p-2 space-y-1.5">
-                    <Label className="text-[10px] uppercase tracking-wide">Mesures réelles (cm)</Label>
+                  <div className="rounded-md border-2 border-primary/40 bg-primary/5 p-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                      <Ruler className="h-3.5 w-3.5" />
+                      📏 Mesures réelles de cette variante (cm) — obligatoire
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Chaque taille/couleur a ses propres mesures. Ces valeurs alimentent le guide des tailles côté client.
+                    </p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {measurementFields.map((f) => (
                         <div key={f.key}>
@@ -720,10 +726,10 @@ function EditProductPage() {
               </div>
 
               <div>
-                <Label className="text-xs">SKU vendeur (interne)</Label>
-                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                <Label className="text-xs">SKU vendeur global (facultatif)</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Laisser vide si vous utilisez les références variantes" />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Référence interne globale. Les références variantes se renseignent sur chaque ligne de variante. Jamais affiché aux clients.
+                  ⚠️ Optionnel et déconseillé si vous avez plusieurs variantes. Utilisez plutôt la <b>Référence variante</b> sur chaque ligne — c'est ce qui est utilisé pour le stock, les commandes et le SAV. Jamais affiché aux clients.
                 </p>
               </div>
             </CardContent>
