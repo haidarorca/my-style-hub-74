@@ -18,6 +18,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
 import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { MATERIAL_PRESETS } from "@/lib/materials";
 import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
@@ -106,6 +107,9 @@ function EditProductPage() {
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
   const [fitType, setFitType] = useState<string>("");
+  const [material, setMaterial] = useState<string>("");
+  const [materialCustom, setMaterialCustom] = useState<string>("");
+  const [materialComposition, setMaterialComposition] = useState<string>("");
   const [categoryName, setCategoryName] = useState<string>("");
 
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
@@ -168,6 +172,18 @@ function EditProductPage() {
     setMinOrderQty(String((p as any).min_order_qty ?? 1));
     setSku((p as any).sku ?? "");
     setFitType((p as any).fit_type ?? "");
+    const mat = ((p as any).material as string | null) ?? "";
+    if (mat && MATERIAL_PRESETS.includes(mat)) {
+      setMaterial(mat);
+      setMaterialCustom("");
+    } else if (mat) {
+      setMaterial("__custom__");
+      setMaterialCustom(mat);
+    } else {
+      setMaterial("");
+      setMaterialCustom("");
+    }
+    setMaterialComposition((p as any).material_composition ?? "");
 
     // Charger le nom de la catégorie pour la détection vêtement
     const catId = (p as any).category_id;
@@ -221,7 +237,12 @@ function EditProductPage() {
       toast.error("Au moins une image est requise.");
       return;
     }
-    if (isClothing) {
+    const resolvedMaterial = (material === "__custom__" ? materialCustom : material).trim();
+    if (isClothing && status === "approved") {
+      if (!resolvedMaterial) {
+        toast.error("Pour publier un vêtement, indiquez la matière principale (ex. 100% coton).");
+        return;
+      }
       const hasMeasurements = variants.some((v) =>
         Object.values(v.measurements ?? {}).some((val) => {
           const n = Number(val);
@@ -369,6 +390,8 @@ function EditProductPage() {
         origin_country_id: originCountryId,
         sku: sku.trim() || null,
         fit_type: fitType || null,
+        material: isClothing ? (resolvedMaterial || null) : ((material === "__custom__" ? materialCustom : material).trim() || null),
+        material_composition: materialComposition.trim() || null,
         ...(sensitiveChanged && status === "approved"
           ? { status: "pending" as const, is_edit: true, rejection_reason: null }
           : {}),
@@ -508,7 +531,12 @@ function EditProductPage() {
                     <SelectTrigger className="h-8"><SelectValue placeholder="Choisir…" /></SelectTrigger>
                     <SelectContent>
                       {FIT_TYPES.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        <SelectItem key={f.value} value={f.value}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{f.label}</span>
+                            <span className="text-[11px] text-muted-foreground">{f.description}</span>
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -519,6 +547,39 @@ function EditProductPage() {
                   </p>
                 </div>
               </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="text-[11px]">Matière principale <span className="text-destructive">*</span></Label>
+                  <Select value={material} onValueChange={setMaterial}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Ex. 100% coton" /></SelectTrigger>
+                    <SelectContent>
+                      {MATERIAL_PRESETS.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Autre (préciser)…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {material === "__custom__" && (
+                    <Input
+                      className="mt-1 h-8"
+                      value={materialCustom}
+                      onChange={(e) => setMaterialCustom(e.target.value)}
+                      placeholder="Précisez la matière"
+                    />
+                  )}
+                </div>
+                <div>
+                  <Label className="text-[11px]">Composition détaillée (facultatif)</Label>
+                  <Input
+                    className="h-8"
+                    value={materialComposition}
+                    onChange={(e) => setMaterialComposition(e.target.value)}
+                    placeholder="Ex. 80% coton, 15% polyester, 5% élasthanne"
+                  />
+                </div>
+              </div>
+
               <p className="text-[11px] text-muted-foreground">
                 Mesures réelles (cm) par variante affichées dans le « Guide des tailles » côté client. <b>Au moins une variante avec mesures est obligatoire pour publier.</b>
               </p>

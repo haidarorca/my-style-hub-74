@@ -2349,6 +2349,8 @@ export type Database = {
           is_edit: boolean
           is_fragile: boolean
           length_cm: number | null
+          material: string | null
+          material_composition: string | null
           min_order_qty: number
           name: string
           name_i18n: Json | null
@@ -2396,6 +2398,8 @@ export type Database = {
           is_edit?: boolean
           is_fragile?: boolean
           length_cm?: number | null
+          material?: string | null
+          material_composition?: string | null
           min_order_qty?: number
           name: string
           name_i18n?: Json | null
@@ -2443,6 +2447,8 @@ export type Database = {
           is_edit?: boolean
           is_fragile?: boolean
           length_cm?: number | null
+          material?: string | null
+          material_composition?: string | null
           min_order_qty?: number
           name?: string
           name_i18n?: Json | null
