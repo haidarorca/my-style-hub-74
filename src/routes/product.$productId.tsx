@@ -495,21 +495,79 @@ function ProductPage() {
             <p className="text-[11px] text-muted-foreground">{fitInfo.description}</p>
           )}
 
-          {(((data as any).material) || ((data as any).material_composition)) && (
-            <div className="rounded-xl border bg-muted/30 p-3 space-y-1">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                Matière
-              </p>
-              {(data as any).material && (
-                <p className="text-sm font-semibold">{(data as any).material}</p>
-              )}
-              {(data as any).material_composition && (
-                <p className="text-xs text-muted-foreground">
-                  Composition : {(data as any).material_composition}
+          {(() => {
+            const items = ((data as any).material_composition_items ?? []) as CompositionItem[];
+            const compoText = items.length > 0
+              ? formatComposition(items)
+              : ((data as any).material_composition as string | null) ?? null;
+            const matPrimary = (data as any).material as string | null;
+            const brandObj = (data as any).brands;
+            const brandName = brandObj
+              ? (Array.isArray(brandObj) ? brandObj[0]?.name : brandObj.name)
+              : ((data as any).brand as string | null);
+            const seasonLbl = labelOf(SEASONS, (data as any).season);
+            const genderLbl = labelOf(GENDERS, (data as any).gender);
+            const ageLbl = labelOf(AGE_GROUPS, (data as any).age_group);
+            const careArr = ((data as any).care_instructions ?? []) as string[];
+            const careLabels = careArr.map((v) => labelOf(CARE_INSTRUCTIONS, v)).filter(Boolean) as string[];
+            const showMaterial = !!compoText || !!matPrimary;
+            const showCloth = isClothing && (seasonLbl || genderLbl || ageLbl || careLabels.length > 0);
+            if (!brandName && !showMaterial && !showCloth) return null;
+            return (
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                {brandName && (
+                  <p className="text-sm"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Marque : </span><span className="font-semibold">{brandName}</span></p>
+                )}
+                {showMaterial && (
+                  <div className="space-y-0.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Matière</p>
+                    {matPrimary && <p className="text-sm font-semibold">{matPrimary}</p>}
+                    {compoText && <p className="text-xs text-muted-foreground">Composition : {compoText}</p>}
+                  </div>
+                )}
+                {showCloth && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Détails vêtement</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {seasonLbl && <span className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]">🗓 {seasonLbl}</span>}
+                      {genderLbl && <span className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]">👤 {genderLbl}</span>}
+                      {ageLbl && <span className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]">🎂 {ageLbl}</span>}
+                    </div>
+                    {careLabels.length > 0 && (
+                      <ul className="ml-4 list-disc text-[11px] text-muted-foreground">
+                        {careLabels.map((l) => <li key={l}>{l}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const video = parseVideoUrl((data as any).video_url);
+            if (!video || !video.embedUrl) return null;
+            return (
+              <div className="space-y-1.5">
+                <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  <Video className="h-3 w-3" /> Vidéo produit
                 </p>
-              )}
-            </div>
-          )}
+                <div className="overflow-hidden rounded-xl border bg-black aspect-video">
+                  {video.provider === "direct" ? (
+                    <video src={video.embedUrl} controls className="h-full w-full" />
+                  ) : (
+                    <iframe
+                      src={video.embedUrl}
+                      title="Vidéo produit"
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           <Dialog open={sizeGuideOpen} onOpenChange={setSizeGuideOpen}>
             <DialogContent className="max-w-md">
