@@ -101,18 +101,62 @@ async function logAction(sb: any, params: {
   await sb.from("sav_cases").update({ last_activity_at: new Date().toISOString() }).eq("id", params.case_id);
 }
 
-async function resolveRules(sb: any, productId: string | null, countryId: string | null, shopId: string | null) {
+async function resolveRules(sb: any, productId: string | null, countryId: string | null, shopId: string | null, sourceCountryId: string | null = null) {
   const { data } = await sb.rpc("resolve_sav_rules", {
     _product_id: productId,
     _destination_country_id: countryId,
     _shop_id: shopId,
+    _source_country_id: sourceCountryId,
   });
-  // returns array of { rule_key, value, source_scope }
   const map: Record<string, any> = {};
   for (const r of (data ?? []) as any[]) {
     map[r.rule_key] = r.value;
   }
   return map;
+}
+
+// Internal — notify parties about a SAV event (in-app only for now)
+async function notifySav(sb: any, params: {
+  case_id: string;
+  event: string;
+  title: string;
+  message: string;
+  notify_client?: boolean;
+  notify_vendor?: boolean;
+  notify_admins?: boolean;
+}) {
+  try {
+    const { data: c } = await sb.from("sav_cases")
+      .select("order_id, vendor_id, on_behalf_of_user_id")
+      .eq("id", params.case_id).single();
+    if (!c) return;
+    const recipients = new Set<string>();
+    if (params.notify_client) {
+      if ((c as any).on_behalf_of_user_id) recipients.add((c as any).on_behalf_of_user_id);
+      const { data: o } = await sb.from("orders").select("buyer_id").eq("id", (c as any).order_id).single();
+      if ((o as any)?.buyer_id) recipients.add((o as any).buyer_id);
+    }
+    if (params.notify_vendor && (c as any).vendor_id) recipients.add((c as any).vendor_id);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (params.notify_admins) {
+      const { data: admins } = await supabaseAdmin.from("user_roles")
+        .select("user_id").in("role", ["admin", "super_admin"]).eq("is_suspended", false);
+      for (const a of (admins ?? []) as any[]) recipients.add(a.user_id);
+    }
+    if (recipients.size === 0) return;
+    const rows = Array.from(recipients).map((uid) => ({
+      user_id: uid,
+      title: params.title,
+      message: params.message,
+      link: `/my-sav?case=${params.case_id}`,
+      channel: "in_app",
+      event_key: params.event,
+      payload: { case_id: params.case_id, event: params.event },
+    }));
+    await supabaseAdmin.from("notifications").insert(rows);
+  } catch (e) {
+    console.error("[notifySav] failed", e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
