@@ -1,132 +1,223 @@
-## Objectif
 
-Évolution majeure du formulaire produit vendeur : composition textile structurée, marques anti-doublon, pays d'origine intelligent, garantie améliorée, vidéo multi-source, et champs dynamiques par catégorie (saison/genre/âge/entretien pour vêtements). Conserver toute la logique métier existante (fret, mesures, fit, etc.).
+# Système SAV unifié KawZone — Architecture fondation
 
----
+Objectif : un seul système couvrant annulations, retours, échanges, garanties, litiges, remboursements, avoirs et exceptions admin, centré sur l'article mais capable de gérer la commande entière. Le Cockpit reste le centre de pilotage ; la source de vérité reste commandes / sous-commandes / articles / dossiers.
 
-## 1. Composition textile structurée
-
-**DB** (migration) :
-- `ALTER TABLE products ADD COLUMN material_composition_items jsonb DEFAULT '[]'::jsonb`
-  - Format : `[{ "material": "Coton", "percent": 70 }, { "material": "Polyester", "percent": 25 }, ...]`
-- Garder `material` (matière principale dérivée) et déprécier `material_composition` texte (lecture seule legacy).
-
-**Helper** `src/lib/textile-materials.ts` :
-- Liste : Coton, Polyester, Élasthanne, Viscose, Lin, Laine, Soie, Denim, Cuir, Nylon, Acrylique, Cachemire, Satin, Velours, Mélange, Autre.
-- `formatComposition(items)` → "70% coton, 25% polyester, 5% élasthanne".
-- `validateComposition(items)` → vérifie total = 100, pas de doublons.
-
-**Formulaire vendeur** (vêtements uniquement) :
-- Composant `CompositionEditor` : lignes (Select matière + Input %) + bouton "➕ Ajouter une matière".
-- Aperçu live de la chaîne formatée.
-- Total affiché : "Total : 100%" (vert) ou "Total : 95% – doit être 100%" (rouge).
-- Blocage publication si total ≠ 100 (vêtements actifs).
-- `material` principal = matière avec le plus haut %.
-
-**Page produit client** :
-- Section "Composition" affichée sous forme de liste claire.
-
-## 2. Marques (anti-doublon)
-
-**DB** (migration) :
-- `CREATE TABLE brands (id uuid pk, name text not null, slug text unique not null, created_by uuid, created_at, updated_at)`
-- GRANT SELECT TO anon, authenticated ; INSERT TO authenticated.
-- RLS : lecture publique, insertion par utilisateur authentifié.
-- `ALTER TABLE products ADD COLUMN brand_id uuid REFERENCES brands(id)`. Garder `brand` text legacy.
-- Trigger : normalise `slug = lower(unaccent(trim(name)))` à l'insert. Doublons rejetés via unique slug.
-
-**Formulaire vendeur** :
-- Combobox "Marque" : recherche dans `brands` (debounced). Si aucune correspondance exacte → bouton "Créer la marque {nom}".
-- À la sauvegarde : insert dans `brands` (slug normalisé), puis assigne `brand_id`.
-
-## 3. Pays d'origine intelligent
-
-**Formulaire** :
-- Combobox `CountryCombobox` (recherche par nom, drapeau, code) basé sur `useCountries`.
-- Champ déjà séparé du pays vendeur — on précise dans le helper text : "Lieu de fabrication réel du produit (pas votre pays)".
-- Pré-rempli avec pays vendeur mais éditable.
-
-## 4. Garantie améliorée
-
-**Formulaire vendeur** :
-- Checkbox "✅ Ce produit bénéficie d'une garantie".
-- Si coché → 2 selects : Durée (1, 3, 6, 12, 24, 36, personnalisé) + Unité (mois / ans) → convertit en jours pour `warranty_days` existant.
-- Option "Personnalisé" → input number + select unité.
-
-**Page client** :
-- Badge déjà géré par `warrantyLabel` ; ajout icône 🛡.
-
-## 5. Vidéo multi-source
-
-**DB** : déjà `video_url` text. Pas de migration.
-
-**Helper** `src/lib/product-video.ts` :
-- `parseVideoUrl(url)` → `{ provider: 'youtube'|'vimeo'|'tiktok'|'direct'|'unknown', embedUrl }`.
-- Regex YouTube (watch/shorts/youtu.be), Vimeo, TikTok.
-
-**Formulaire** :
-- Input URL + aperçu instantané (iframe pour YT/Vimeo/TikTok, `<video>` pour fichier direct .mp4).
-- Phase 2 (upload direct) : nouveau bucket `product-videos` (privé puis public). Pour cette itération : URL uniquement + détection plateforme. Note dans UI : "Upload direct bientôt disponible".
-
-## 6. Attributs vêtements (saison / genre / âge / entretien)
-
-**DB** (migration) :
-- `ALTER TABLE products ADD COLUMN season text` (ete, hiver, printemps, automne, toutes_saisons)
-- `ADD COLUMN gender text` (homme, femme, mixte, garcon, fille, bebe)
-- `ADD COLUMN age_group text` (bebe, enfant, ado, adulte)
-- `ADD COLUMN care_instructions text[]` (lavage_machine, lavage_main, repassage, nettoyage_sec, eau_froide, pas_seche_linge, etc.)
-
-**Helpers** `src/lib/clothing-attributes.ts` : labels + icônes pour chaque enum.
-
-**Formulaire** (vêtements uniquement, dans bloc dédié) :
-- Select Saison, Select Genre, Select Tranche d'âge, multi-checkbox Entretien.
-
-**Page client** : Section "Détails vêtement" avec badges (Saison · Genre · Âge) + liste entretien.
-
-## 7. Type de coupe — descriptions vendeur + client
-
-Déjà fait via `FIT_TYPES` avec descriptions. Vérifier que la description est bien affichée sous le Select dans le formulaire (texte d'aide live) et sous le badge sur la page produit (déjà OK). Ajustement mineur si manquant.
-
-## 8. Formulaire dynamique par catégorie
-
-Helper `src/lib/category-fields.ts` :
-- `getCategoryFieldGroups(category)` → renvoie quels blocs afficher : `clothing`, `electronics` (marque, modèle, garantie), `furniture` (dimensions, matériaux), `cosmetic` (composition, DLU).
-- Détection via keywords sur catégorie/sous-catégorie (extension de `isClothingContext`).
-
-Pour cette itération : implémenter `clothing` complet + activer garantie & marque pour tous (universels). Les blocs `furniture`/`cosmetic` resteront extensibles plus tard sans casser l'existant.
+Cette phase = **fondation uniquement** : modèle de données, workflow, règles, permissions, audit. Aucun écran final.
 
 ---
 
-## Fichiers impactés
+## 1. Principes directeurs
 
-**Nouvelle migration** (une seule) :
-- Ajout `material_composition_items jsonb`, `season`, `gender`, `age_group`, `care_instructions text[]`, `brand_id uuid` sur `products`.
-- Création table `brands` + RLS + GRANT + trigger slug.
-
-**Nouveaux helpers** :
-- `src/lib/textile-materials.ts`
-- `src/lib/clothing-attributes.ts`
-- `src/lib/product-video.ts`
-- `src/lib/category-fields.ts` (extension)
-
-**Nouveaux composants** :
-- `src/components/product/CompositionEditor.tsx`
-- `src/components/product/BrandCombobox.tsx`
-- `src/components/product/CountryCombobox.tsx` (ou réutiliser existant si présent)
-- `src/components/product/VideoUrlInput.tsx`
-- `src/components/product/WarrantyPicker.tsx`
-
-**Fichiers modifiés** :
-- `src/routes/vendor.products.new.tsx`
-- `src/routes/vendor.products.$productId.edit.tsx`
-- `src/routes/product.$productId.tsx` (affichage composition, attributs vêtement, badge garantie 🛡, vidéo embed)
-
-**Aucune logique existante retirée.** Fret, pesée, mesures, fit, SKU, variantes, blocage publication restent identiques. Les nouveaux champs sont additifs.
+- **Granularité article** : un dossier vise par défaut `order_item_id` (taille, couleur, défaut, casse, manquant, échange, garantie).
+- **Granularité commande** : un dossier peut viser `order_id` sans article (colis perdu, retard global, livraison, facturation, paiement).
+- **Source de vérité** : tables `orders`, `order_items`, et `sav_cases` existante (étendue, pas remplacée).
+- **Triple acteur** : Client soumet → Vendeur recommande → Admin arbitre. Seul l'admin valide définitivement.
+- **Décisions traçables** : chaque changement = un événement immuable + une décision liée. Append-only.
+- **Règles dynamiques** : configurables en base sans toucher au code, résolues par cascade (produit > catégorie > boutique > pays > global).
+- **Réutilisation** : on étend `sav_cases`, `order_events`, `order_decisions`, `financial_movements` déjà en place — pas de système parallèle.
 
 ---
 
-## Validations bloquantes (publication vêtement actif)
+## 2. Modèle de données (extensions)
 
-En plus de l'existant (mesures + matière) :
-- Composition : total = 100% si au moins 1 ligne saisie. Si vide → utiliser ancien champ `material`.
-- À terme (phase suivante) : composition obligatoire pour vêtements. Pour cette itération : optionnelle mais validée si présente.
+### 2.1 Extension `sav_cases`
+Colonnes ajoutées :
+- `case_type` enum : `cancellation | return | exchange | warranty | dispute | refund | credit_note | admin_exception | other`
+- `scope` enum : `item | order` (déjà partiellement implicite via `order_item_id`)
+- `requested_resolution` enum : `refund | exchange | repair | credit | replacement | partial_refund | none`
+- `decided_resolution` enum (mêmes valeurs, rempli à l'arbitrage)
+- `requested_by_party` enum : `client | vendor | admin`
+- `vendor_recommendation` enum : `accept | refuse | propose_refund | propose_exchange | propose_other | none`
+- `vendor_recommendation_note` text
+- `admin_decision` enum : `pending | accepted | refused | partially_accepted | escalated | overridden`
+- `admin_decision_reason` text
+- `sla_deadline_at` timestamptz (calculée à partir des règles)
+- `client_visible` boolean (certaines exceptions admin restent internes)
+- `evidence_count` int (compteur dénormalisé)
+
+### 2.2 Nouvelles tables
+
+**`sav_attachments`** — pièces jointes (photos casse, vidéo défaut, facture, preuve livraison)
+- `id`, `case_id` FK, `uploader_id`, `uploader_role` (client/vendor/admin), `storage_path`, `mime_type`, `size_bytes`, `caption`, `created_at`.
+
+**`sav_messages`** — fil de discussion par dossier
+- `id`, `case_id`, `sender_id`, `sender_role`, `body`, `is_internal_note` (admin only), `created_at`.
+- Distinct du système support : un dossier SAV a sa propre timeline structurée.
+
+**`sav_actions`** — log append-only de toutes les actions sur le dossier
+- `id`, `case_id`, `actor_id`, `actor_role`, `action_type` (`open | client_response | vendor_recommend | admin_decide | admin_override | escalate | close | reopen | refund_issued | exchange_shipped | attachment_added | message_added | sla_breached | rule_applied`), `from_state` jsonb, `to_state` jsonb, `note`, `created_at`.
+
+**`sav_rules`** — moteur de règles configurable
+- `id`, `scope` enum (`global | country | category | shop | product`), `scope_id` (uuid nullable selon scope), `rule_key` enum (`returns_enabled | exchanges_enabled | warranty_enabled | return_window_days | warranty_months | requires_evidence | auto_accept_under_amount | refund_method_default | shipping_cost_attribution`), `value` jsonb, `priority` int, `is_active`, `note`, `created_by`, `created_at`, `updated_at`.
+- Résolution par fonction SQL `resolve_sav_rules(_product_id, _destination_country_id, _shop_id)` → jsonb consolidé selon cascade : produit (le plus spécifique) → catégorie (en remontant l'arbre) → boutique → pays → global.
+
+**`sav_refunds`** — opérations financières liées
+- `id`, `case_id`, `amount`, `currency`, `method` (`wave | orange_money | cash | bank_transfer | credit_note | other`), `direction` (`to_client | from_vendor | from_kawzone`), `status` (`pending | issued | failed | cancelled`), `linked_movement_id` FK `financial_movements`, `issued_by`, `issued_at`.
+
+**`sav_exchanges`** — pour les échanges
+- `id`, `case_id`, `original_item_id`, `replacement_product_id`, `replacement_variant_id`, `replacement_quantity`, `delta_amount` (peut être positif ou négatif), `replacement_order_item_id` (créé une fois validé), `status`.
+
+### 2.3 Relations clés
+- `sav_cases.order_id` → `orders.id`
+- `sav_cases.order_item_id` → `order_items.id` (nullable si `scope='order'`)
+- `sav_cases.source_event_id` → `order_events.id` (déjà présent)
+- `sav_cases.source_decision_id` → `order_decisions.id` (déjà présent)
+- Toutes les opérations financières restent dans `financial_movements`, juste référencées.
+
+---
+
+## 3. Workflow unifié
+
+États (`sav_cases.status` étendu) :
+`draft → open → in_review → vendor_responded → in_arbitration → accepted | refused | partially_accepted → in_execution → resolved → closed`
+Branches : `waiting_client`, `waiting_vendor`, `escalated`, `reopened`.
+
+```text
+Client/Admin ──open──▶ open
+                        │
+                        ▼
+                     in_review  ───────────────┐
+                        │                      │
+              vendor recommendation            │ (admin peut court-circuiter)
+                        │                      │
+                        ▼                      │
+              vendor_responded ────────────────┤
+                        │                      │
+                        ▼                      ▼
+                  in_arbitration  ◀────── admin_override
+                        │
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+     accepted    partially_accepted  refused
+        │               │
+        ▼               ▼
+              in_execution
+              (refund/exchange/repair)
+                        │
+                        ▼
+                    resolved
+                        │
+                        ▼
+                     closed
+```
+
+Règles invariantes :
+- Vendeur ne peut jamais écrire `accepted`/`refused` finaux. Il écrit `vendor_recommendation`.
+- Admin peut sauter toute étape (`admin_override`).
+- Tout changement d'état → ligne `sav_actions` + `order_events` miroir (pour la timeline commande globale).
+- Clôture = `closed_at` + `last_activity_at` figés, `client_visible` peut basculer pour retirer du portail client.
+
+---
+
+## 4. Moteur de règles
+
+Cascade de résolution (du plus spécifique au plus général) :
+1. Règle `scope='product'` matching `product_id`
+2. Règles `scope='category'` en remontant l'arbre des catégories (la plus proche gagne)
+3. Règle `scope='shop'` matching `vendor_id`
+4. Règles `scope='country'` : source ou destination
+5. Règle `scope='global'`
+
+Clés gérées dès la fondation :
+- `returns_enabled`, `exchanges_enabled`, `warranty_enabled`
+- `return_window_days` (défaut 7), `warranty_months` (défaut 0)
+- `requires_evidence` (photo obligatoire)
+- `auto_accept_under_amount` (montant en XOF en-dessous duquel l'admin auto-accepte)
+- `shipping_cost_attribution` : `client | vendor | kawzone`
+- `refund_method_default`
+
+La résolution n'est jamais figée dans le code applicatif ; le frontend appelle `resolve_sav_rules` au moment de l'ouverture pour savoir quelles options proposer.
+
+---
+
+## 5. Permissions
+
+Nouvelles `admin_permission` ajoutées :
+- `sav.view_all`
+- `sav.assign`
+- `sav.decide` (arbitrage final)
+- `sav.override` (passer outre vendeur)
+- `sav.rules_manage` (éditer `sav_rules`)
+- `sav.refund_issue`
+- `sav.exception_create` (créer dossier hors workflow standard)
+
+Matrice :
+| Action | Client | Vendeur | Admin standard | Super admin |
+|---|---|---|---|---|
+| Ouvrir dossier sur son article | ✓ | — | ✓ (au nom du client) | ✓ |
+| Voir dossiers de sa boutique | — | ✓ | ✓ | ✓ |
+| Recommander | — | ✓ | — | — |
+| Décider | — | — | ✓ (`sav.decide`) | ✓ |
+| Override vendeur | — | — | ✓ (`sav.override`) | ✓ |
+| Éditer règles | — | — | ✓ (`sav.rules_manage`) | ✓ |
+| Émettre remboursement | — | — | ✓ (`sav.refund_issue`) | ✓ |
+| Créer commande pour client (Sénégal) | — | — | ✓ (perm existante `order.create_for_user`) | ✓ |
+
+RLS :
+- Client : SELECT/INSERT sur `sav_cases` où `buyer_id = auth.uid()` (via jointure `orders`).
+- Vendeur : SELECT/UPDATE limité aux dossiers de ses produits, et seulement sur les champs `vendor_recommendation*`.
+- Admin : tout via `has_admin_permission`.
+- `sav_actions` : SELECT large, INSERT via triggers/server functions uniquement (append-only guard).
+
+---
+
+## 6. Cas Sénégal — assistance admin
+
+L'admin peut, journalisé dans `admin_action_log` :
+- Créer un dossier au nom d'un client (`requested_by_party='admin'`, `created_by` = admin).
+- Modifier une commande existante (déjà couvert par `protect_order_vendor_update` qui laisse passer admin).
+- Enregistrer un paiement manuel (déjà couvert par `order_payments`).
+- Créer une exception (`case_type='admin_exception'`, `client_visible=false` par défaut).
+
+Tout passe par `logAdminAction` (`admin-auth.core.ts`) → audit complet déjà en place.
+
+---
+
+## 7. Intégration Cockpit
+
+Le Centre SAV (`/admin/cockpit/sav`) devient une **vue de pilotage** au-dessus de `sav_cases` :
+- Filtres : type de cas, statut, owner_party, ancienneté, impact financier, boutique, pays, SLA dépassé.
+- Actions de masse : assigner, escalader, clôturer.
+- Drill-down : ouverture du dossier dans un drawer avec onglets `Timeline (sav_actions)`, `Messages`, `Pièces jointes`, `Décisions`, `Remboursements`, `Règles appliquées`.
+- Lien bidirectionnel avec la commande : depuis `OrderDrawer`, onglet "SAV" listant les dossiers liés ; depuis le dossier, lien vers la commande.
+
+L'escalade depuis le Cockpit utilise `escalateToSav` (déjà en place) qui sera étendue pour pré-remplir `case_type` et `requested_resolution`.
+
+---
+
+## 8. Espace client & vendeur (contrats backend)
+
+Server functions à prévoir (phase suivante, pas dans cette fondation) :
+- `openSavCase` (client) — validation contre `resolve_sav_rules`
+- `respondSavCase` (vendor) — écrit `vendor_recommendation` uniquement
+- `decideSavCase` (admin) — écrit `admin_decision` + transition d'état
+- `addSavMessage`, `addSavAttachment`
+- `issueSavRefund`, `createSavExchange`
+- `listMySavCases` (client), `listVendorSavCases` (vendor), `listAllSavCases` (admin, déjà partiel)
+
+Toutes utilisent `requireSupabaseAuth` et écrivent dans `sav_actions` via trigger.
+
+---
+
+## 9. Livrables de cette phase (fondation seulement)
+
+1. Migration unique étendant `sav_cases` + créant `sav_attachments`, `sav_messages`, `sav_actions`, `sav_rules`, `sav_refunds`, `sav_exchanges` avec GRANT + RLS + triggers append-only + trigger miroir vers `order_events`.
+2. Fonction SQL `resolve_sav_rules(_product_id, _destination_country_id, _shop_id)`.
+3. Enum `admin_permission` étendue (sav.*).
+4. Seed des règles globales par défaut (`returns_enabled=true`, `return_window_days=7`, etc.).
+5. **Aucun écran**. Aucune server function client/vendeur. Aucun bouton.
+
+---
+
+## 10. Points à valider avant de coder
+
+1. **Périmètre des `case_type`** ci-dessus — en manque-t-il (ex. `chargeback`, `fraud`) ?
+2. **États du workflow** — la branche `partially_accepted` (ex. rembourser 50%) est-elle souhaitée dès la v1 ?
+3. **Règles** — la liste des `rule_key` couvre-t-elle vos besoins métier immédiats, ou faut-il ajouter (ex. `return_address_id`, `restocking_fee_percent`) ?
+4. **Visibilité vendeur** — le vendeur voit-il les messages client/admin, ou seulement un résumé ?
+5. **Pièces jointes** — bucket Storage dédié `sav-evidence` privé, avec URLs signées : OK ?
+6. **SLA** — voulez-vous une notification automatique (cron) quand `sla_deadline_at` est dépassé ?
+7. **Échanges** — quand un échange est accepté, on crée une nouvelle ligne `order_items` rattachée à la commande d'origine, ou une nouvelle commande ?
+
+Réponds aux 7 points (ou valide tels quels) et je lance la migration de fondation.
