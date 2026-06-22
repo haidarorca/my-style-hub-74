@@ -9,10 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { listAllCases, type SavCaseRow, type SavStatus } from "@/lib/sav-workflow.functions";
 import { SavCaseList } from "@/components/sav/SavCaseList";
+import { AdminAssistedSavDialog } from "@/components/sav/AdminAssistedSavDialog";
+import { useSavCounts } from "@/hooks/use-sav-counts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, Settings2, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, Settings2, RefreshCw, Flame } from "lucide-react";
 
 const KPIS: Array<{ label: string; statuses: SavStatus[]; tone: string }> = [
   { label: "Nouveaux", statuses: ["open", "draft"], tone: "bg-blue-50 text-blue-700" },
