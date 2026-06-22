@@ -2882,6 +2882,7 @@ export type Database = {
           financial_impact_currency: string
           id: string
           last_activity_at: string
+          on_behalf_of_user_id: string | null
           opened_at: string
           order_id: string
           order_item_id: string | null
@@ -2923,6 +2924,7 @@ export type Database = {
           financial_impact_currency?: string
           id?: string
           last_activity_at?: string
+          on_behalf_of_user_id?: string | null
           opened_at?: string
           order_id: string
           order_item_id?: string | null
@@ -2964,6 +2966,7 @@ export type Database = {
           financial_impact_currency?: string
           id?: string
           last_activity_at?: string
+          on_behalf_of_user_id?: string | null
           opened_at?: string
           order_id?: string
           order_item_id?: string | null
@@ -4361,6 +4364,13 @@ export type Database = {
         | "support"
         | "settings"
         | "commissions"
+        | "sav_view_all"
+        | "sav_assign"
+        | "sav_decide"
+        | "sav_override"
+        | "sav_rules_manage"
+        | "sav_refund_issue"
+        | "sav_exception_create"
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
       cost_attribution: "kawzone" | "vendor" | "client" | "shared"
@@ -4709,6 +4719,13 @@ export const Constants = {
         "support",
         "settings",
         "commissions",
+        "sav_view_all",
+        "sav_assign",
+        "sav_decide",
+        "sav_override",
+        "sav_rules_manage",
+        "sav_refund_issue",
+        "sav_exception_create",
       ],
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],
