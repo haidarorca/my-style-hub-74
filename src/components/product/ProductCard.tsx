@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { useFormatDisplay } from "@/hooks/use-currencies";
+import { ProductBadges } from "./ProductBadges";
+import type { CompositionItem } from "@/lib/textile-materials";
 
 export interface ProductCardProduct {
   id: string;
@@ -20,6 +22,16 @@ export interface ProductCardProduct {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
+  // Badges optionnels (affichés seulement si fournis)
+  warranty_days?: number | null;
+  material?: string | null;
+  material_composition_items?: CompositionItem[] | unknown | null;
+  min_order_qty?: number | null;
+  origin_country?:
+    | { name?: string | null; flag_emoji?: string | null }
+    | Array<{ name?: string | null; flag_emoji?: string | null }>
+    | null;
+  product_variants?: Array<{ measurements?: Record<string, unknown> | null } | Record<string, unknown>> | null;
   // PostgREST renvoie un objet ou un tableau selon le type de relation.
   profiles?:
     | { source_country_id?: string | null }
@@ -97,6 +109,29 @@ export function ProductCard({ product, onQuickAdd }: Props) {
           ) : (
             <Skeleton className="mt-1.5 h-4 w-1/2" />
           )}
+          {(() => {
+            const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
+            const hasSizeGuide = (product.product_variants ?? []).some((v: any) => {
+              const m = v?.measurements;
+              if (!m || typeof m !== "object") return false;
+              return Object.values(m).some((n) => Number(n) > 0);
+            });
+            return (
+              <ProductBadges
+                size="xs"
+                className="mt-1.5"
+                data={{
+                  warranty_days: product.warranty_days ?? null,
+                  origin_country_name: oc?.name ?? null,
+                  origin_country_flag: oc?.flag_emoji ?? null,
+                  material: product.material ?? null,
+                  material_composition_items: (product.material_composition_items as any) ?? null,
+                  min_order_qty: product.min_order_qty ?? null,
+                  has_size_guide: hasSizeGuide,
+                }}
+              />
+            );
+          })()}
         </div>
       </Link>
 

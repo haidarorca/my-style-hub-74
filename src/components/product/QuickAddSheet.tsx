@@ -41,7 +41,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, product_images(url), product_variants(*)")
+        .select("id, name, name_i18n, price, code, min_order_qty, product_images(url), product_variants(*)")
         .eq("id", productId!)
         .maybeSingle();
       if (error) throw error;
@@ -49,13 +49,16 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
     },
   });
 
+  const minOrderQty = Math.max(1, Math.round(Number((data as any)?.min_order_qty ?? 1) || 1));
+
   useEffect(() => {
     if (open) {
       setSize(null);
       setColor(null);
-      setQty(1);
+      setQty(minOrderQty);
     }
-  }, [open, productId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, productId, minOrderQty]);
 
   const variants = (data?.product_variants ?? []) as Variant[];
   const sizes = useMemo(
@@ -177,7 +180,7 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
             <div>
               <p className="mb-1.5 text-xs font-semibold">{t("product.quantity")}</p>
               <div className="inline-flex items-center rounded-md border border-border">
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(Math.max(1, qty - 1))}>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQty(Math.max(minOrderQty, qty - 1))}>
                   <Minus className="h-4 w-4" />
                 </Button>
                 <span className="w-10 text-center text-sm font-semibold">{qty}</span>
@@ -185,6 +188,9 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
+              {minOrderQty > 1 && (
+                <p className="mt-1 text-[11px] text-muted-foreground">📦 Quantité minimale : {minOrderQty} unités.</p>
+              )}
             </div>
 
             <Button

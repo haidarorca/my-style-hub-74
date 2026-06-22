@@ -164,7 +164,7 @@ function CategoryPage() {
 
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, weight_kg, length_cm, width_cm, height_cm, profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url)")
+        .select("id, name, name_i18n, price, code, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url), product_variants(measurements)")
         .eq("status", "approved")
         .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
         .in("category_id", descendantIds)
