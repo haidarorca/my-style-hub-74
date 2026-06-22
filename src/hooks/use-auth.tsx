@@ -13,7 +13,14 @@ export type AdminPermission =
   | "customers"
   | "support"
   | "settings"
-  | "commissions";
+  | "commissions"
+  | "sav_view_all"
+  | "sav_assign"
+  | "sav_decide"
+  | "sav_override"
+  | "sav_rules_manage"
+  | "sav_refund_issue"
+  | "sav_exception_create";
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   orders: "Commandes",
@@ -25,6 +32,13 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   support: "Support (avis & signalements)",
   settings: "Paramètres du site",
   commissions: "Commissions (lecture seule)",
+  sav_view_all: "SAV — Voir tous les dossiers",
+  sav_assign: "SAV — Assigner",
+  sav_decide: "SAV — Décider",
+  sav_override: "SAV — Surcharger une décision",
+  sav_rules_manage: "SAV — Gérer les règles",
+  sav_refund_issue: "SAV — Émettre un remboursement",
+  sav_exception_create: "SAV — Créer une exception",
 };
 
 export interface ProfileData {
