@@ -55,9 +55,10 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
     if (open) {
       setSize(null);
       setColor(null);
-      setQty(1);
+      setQty(minOrderQty);
     }
-  }, [open, productId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, productId, minOrderQty]);
 
   const variants = (data?.product_variants ?? []) as Variant[];
   const sizes = useMemo(
