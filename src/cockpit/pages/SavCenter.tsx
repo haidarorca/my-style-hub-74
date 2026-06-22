@@ -34,6 +34,10 @@ export default function SavCenter() {
   const list = useServerFn(listAllCases);
   const [search, setSearch] = useState("");
   const [includeClosed, setIncludeClosed] = useState(false);
+  const [onlyAssisted, setOnlyAssisted] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const counts = useSavCounts("admin");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
