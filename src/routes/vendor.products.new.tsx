@@ -476,8 +476,13 @@ function NewProductPage() {
       return;
     }
 
-    // Vêtements : blocage publication si aucune variante n'a de mesures réelles.
+    // Vêtements : blocage publication si aucune variante n'a de mesures réelles + matière requise.
+    const resolvedMaterial = (material === "__custom__" ? materialCustom : material).trim();
     if (isClothing) {
+      if (!resolvedMaterial) {
+        toast.error("Pour publier un vêtement, indiquez la matière principale (ex. 100% coton).");
+        return;
+      }
       const hasMeasurements = variants.some((v) =>
         Object.values(v.measurements ?? {}).some((val) => {
           const n = Number(val);
@@ -554,6 +559,8 @@ function NewProductPage() {
           origin_country_id: originCountryId,
           sku: sku.trim() || null,
           fit_type: fitType || null,
+          material: resolvedMaterial || null,
+          material_composition: materialComposition.trim() || null,
           status: "pending",
         } as any)
         .select("id")
