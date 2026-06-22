@@ -222,25 +222,22 @@ export const openSavCase = createServerFn({ method: "POST" })
 export const listMyCases = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data: byBuyer } = await context.supabase
+      .from("orders").select("id").eq("buyer_id", context.userId);
+    const orderIds = ((byBuyer ?? []) as any[]).map((o) => o.id);
+    let q = context.supabase
       .from("sav_cases")
       .select("*")
-      .or(`on_behalf_of_user_id.eq.${context.userId},order_id.in.(select id from orders where buyer_id = '${context.userId}')`)
       .order("opened_at", { ascending: false })
       .limit(500);
-    // Fallback: do two queries since the embedded subquery syntax above may not work
-    if (error) {
-      const { data: byBuyer } = await context.supabase
-        .from("orders").select("id").eq("buyer_id", context.userId);
-      const orderIds = (byBuyer ?? []).map((o: any) => o.id);
-      const { data: rows } = await context.supabase
-        .from("sav_cases")
-        .select("*")
-        .or(`order_id.in.(${orderIds.join(",") || "00000000-0000-0000-0000-000000000000"}),on_behalf_of_user_id.eq.${context.userId}`)
-        .order("opened_at", { ascending: false });
-      return (rows ?? []) as SavCaseRow[];
+    if (orderIds.length > 0) {
+      q = q.or(`order_id.in.(${orderIds.join(",")}),on_behalf_of_user_id.eq.${context.userId}`);
+    } else {
+      q = q.eq("on_behalf_of_user_id", context.userId);
     }
-    return (data ?? []) as SavCaseRow[];
+    const { data: rows, error } = await q;
+    if (error) throw error;
+    return (rows ?? []) as SavCaseRow[];
   });
 
 // ═══════════════════════════════════════════════════════════════
