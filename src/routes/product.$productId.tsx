@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler } from "lucide-react";
+import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
 import { warrantyLabel } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
 import { fitTypeOption } from "@/lib/fit-types";
+import { formatComposition, type CompositionItem } from "@/lib/textile-materials";
+import { SEASONS, GENDERS, AGE_GROUPS, CARE_INSTRUCTIONS, labelOf } from "@/lib/clothing-attributes";
+import { parseVideoUrl } from "@/lib/product-video";
 
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
@@ -173,12 +176,13 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm, brand, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition,
+           weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
 
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
            categories:category_id(name, slug),
+           brands:brand_id(name),
            profiles:vendor_id(full_name, shop_name, source_country_id)`,
         )
         .eq("id", productId)
