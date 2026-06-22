@@ -438,6 +438,14 @@ export const adminDecide = createServerFn({ method: "POST" })
       _target_id: data.case_id,
       _details: { decision: data.decision, resolution: data.decided_resolution },
     });
+    await notifySav(sb, {
+      case_id: data.case_id,
+      event: "admin.decided",
+      title: "Décision SAV",
+      message: `Dossier ${data.decision}${data.decided_resolution ? ` — ${data.decided_resolution}` : ""}`,
+      notify_client: true,
+      notify_vendor: true,
+    });
     return { ok: true };
   });
 
