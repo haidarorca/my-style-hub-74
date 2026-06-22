@@ -188,6 +188,7 @@ function OrdersPage() {
     | { type: "product"; productId: string; orderId: string; name: string }
     | { type: "vendor"; vendorId: string; orderId: string; name: string }
   >(null);
+  const [savTarget, setSavTarget] = useState<null | { orderId: string; orderItemId?: string | null }>(null);
 
   // Récupérer l'évaluation d'expédition pour la commande ouverte
   const { data: shipmentData } = useQuery({
