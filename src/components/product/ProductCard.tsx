@@ -31,7 +31,7 @@ export interface ProductCardProduct {
     | { name?: string | null; flag_emoji?: string | null }
     | Array<{ name?: string | null; flag_emoji?: string | null }>
     | null;
-  product_variants?: Array<{ measurements?: Record<string, unknown> | null }> | null;
+  product_variants?: Array<{ measurements?: Record<string, unknown> | null } | Record<string, unknown>> | null;
   // PostgREST renvoie un objet ou un tableau selon le type de relation.
   profiles?:
     | { source_country_id?: string | null }
