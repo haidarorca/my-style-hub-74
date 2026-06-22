@@ -726,10 +726,10 @@ function EditProductPage() {
               </div>
 
               <div>
-                <Label className="text-xs">SKU vendeur (interne)</Label>
-                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex. ROBE-NOIR-M" />
+                <Label className="text-xs">SKU vendeur global (facultatif)</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Laisser vide si vous utilisez les références variantes" />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Référence interne globale. Les références variantes se renseignent sur chaque ligne de variante. Jamais affiché aux clients.
+                  ⚠️ Optionnel et déconseillé si vous avez plusieurs variantes. Utilisez plutôt la <b>Référence variante</b> sur chaque ligne — c'est ce qui est utilisé pour le stock, les commandes et le SAV. Jamais affiché aux clients.
                 </p>
               </div>
             </CardContent>
