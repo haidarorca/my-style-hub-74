@@ -18,6 +18,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields } from "@/lib/clothing-categories";
 import { FIT_TYPES, fitTypeOption } from "@/lib/fit-types";
+import { MATERIAL_PRESETS } from "@/lib/materials";
 import { ChevronDown, Settings2, Ruler } from "lucide-react";
 
 
@@ -106,6 +107,9 @@ function EditProductPage() {
   const [minOrderQty, setMinOrderQty] = useState<string>("1");
   const [sku, setSku] = useState("");
   const [fitType, setFitType] = useState<string>("");
+  const [material, setMaterial] = useState<string>("");
+  const [materialCustom, setMaterialCustom] = useState<string>("");
+  const [materialComposition, setMaterialComposition] = useState<string>("");
   const [categoryName, setCategoryName] = useState<string>("");
 
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
@@ -168,6 +172,18 @@ function EditProductPage() {
     setMinOrderQty(String((p as any).min_order_qty ?? 1));
     setSku((p as any).sku ?? "");
     setFitType((p as any).fit_type ?? "");
+    const mat = ((p as any).material as string | null) ?? "";
+    if (mat && MATERIAL_PRESETS.includes(mat)) {
+      setMaterial(mat);
+      setMaterialCustom("");
+    } else if (mat) {
+      setMaterial("__custom__");
+      setMaterialCustom(mat);
+    } else {
+      setMaterial("");
+      setMaterialCustom("");
+    }
+    setMaterialComposition((p as any).material_composition ?? "");
 
     // Charger le nom de la catégorie pour la détection vêtement
     const catId = (p as any).category_id;
