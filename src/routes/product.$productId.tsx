@@ -513,11 +513,22 @@ function ProductPage() {
             const careLabels = careArr.map((v) => labelOf(CARE_INSTRUCTIONS, v)).filter(Boolean) as string[];
             const showMaterial = !!compoText || !!matPrimary;
             const showCloth = isClothing && (seasonLbl || genderLbl || ageLbl || careLabels.length > 0);
-            if (!brandName && !showMaterial && !showCloth) return null;
+            const oc = (data as any).origin_country;
+            const ocObj = Array.isArray(oc) ? oc[0] : oc;
+            const originName: string | null = ocObj?.name ?? null;
+            const originFlag: string | null = ocObj?.flag_emoji ?? null;
+            const minQ = Math.max(1, Math.round(Number((data as any).min_order_qty ?? 1) || 1));
+            if (!brandName && !showMaterial && !showCloth && !originName && minQ <= 1) return null;
             return (
               <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
                 {brandName && (
                   <p className="text-sm"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Marque : </span><span className="font-semibold">{brandName}</span></p>
+                )}
+                {originName && (
+                  <p className="text-sm">🌍 <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Fabriqué en </span><span className="font-semibold">{originFlag ? originFlag + " " : ""}{originName}</span></p>
+                )}
+                {minQ > 1 && (
+                  <p className="text-sm">📦 <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Quantité minimale : </span><span className="font-semibold">{minQ} unités</span></p>
                 )}
                 {showMaterial && (
                   <div className="space-y-0.5">
