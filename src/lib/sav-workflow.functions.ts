@@ -211,7 +211,12 @@ export const openSavCase = createServerFn({ method: "POST" })
       }
     }
 
-    const rules = await resolveRules(sb, productId, (order as any).destination_country_id ?? null, vendorId);
+    let sourceCountryId: string | null = null;
+    if (vendorId) {
+      const { data: vp } = await sb.from("profiles").select("source_country_id").eq("id", vendorId).single();
+      sourceCountryId = (vp as any)?.source_country_id ?? null;
+    }
+    const rules = await resolveRules(sb, productId, (order as any).destination_country_id ?? null, vendorId, sourceCountryId);
 
     if (data.case_type === "return" && rules.returns_enabled === false) {
       throw new Error("Les retours ne sont pas autorisés pour ce produit");
