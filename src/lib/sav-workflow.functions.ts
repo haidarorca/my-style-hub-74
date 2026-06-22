@@ -1120,6 +1120,7 @@ export const previewSavRules = createServerFn({ method: "POST" })
     product_id?: string | null;
     destination_country_id?: string | null;
     shop_id?: string | null;
+    source_country_id?: string | null;
   }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
@@ -1128,5 +1129,6 @@ export const previewSavRules = createServerFn({ method: "POST" })
       data.product_id ?? null,
       data.destination_country_id ?? null,
       data.shop_id ?? null,
+      data.source_country_id ?? null,
     );
   });
