@@ -2868,6 +2868,11 @@ export type Database = {
           admin_decision: Database["public"]["Enums"]["sav_admin_decision"]
           admin_decision_reason: string | null
           assigned_to: string | null
+          assisted_channel:
+            | Database["public"]["Enums"]["sav_assisted_channel"]
+            | null
+          assisted_reason: string | null
+          cancellation_stage: string | null
           case_type: Database["public"]["Enums"]["sav_case_type"]
           client_visible: boolean
           closed_at: string | null
@@ -2903,6 +2908,9 @@ export type Database = {
           vendor_recommendation: Database["public"]["Enums"]["sav_vendor_recommendation"]
           vendor_recommendation_note: string | null
           vendor_responded_at: string | null
+          warranty_scope:
+            | Database["public"]["Enums"]["sav_warranty_scope"]
+            | null
         }
         Insert: {
           admin_decided_at?: string | null
@@ -2910,6 +2918,11 @@ export type Database = {
           admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
           admin_decision_reason?: string | null
           assigned_to?: string | null
+          assisted_channel?:
+            | Database["public"]["Enums"]["sav_assisted_channel"]
+            | null
+          assisted_reason?: string | null
+          cancellation_stage?: string | null
           case_type?: Database["public"]["Enums"]["sav_case_type"]
           client_visible?: boolean
           closed_at?: string | null
@@ -2945,6 +2958,9 @@ export type Database = {
           vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
           vendor_recommendation_note?: string | null
           vendor_responded_at?: string | null
+          warranty_scope?:
+            | Database["public"]["Enums"]["sav_warranty_scope"]
+            | null
         }
         Update: {
           admin_decided_at?: string | null
@@ -2952,6 +2968,11 @@ export type Database = {
           admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
           admin_decision_reason?: string | null
           assigned_to?: string | null
+          assisted_channel?:
+            | Database["public"]["Enums"]["sav_assisted_channel"]
+            | null
+          assisted_reason?: string | null
+          cancellation_stage?: string | null
           case_type?: Database["public"]["Enums"]["sav_case_type"]
           client_visible?: boolean
           closed_at?: string | null
@@ -2987,6 +3008,9 @@ export type Database = {
           vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
           vendor_recommendation_note?: string | null
           vendor_responded_at?: string | null
+          warranty_scope?:
+            | Database["public"]["Enums"]["sav_warranty_scope"]
+            | null
         }
         Relationships: [
           {
@@ -3047,14 +3071,17 @@ export type Database = {
           created_by: string | null
           delta_amount: number
           delta_currency: string
+          exchange_kind: Database["public"]["Enums"]["sav_exchange_kind"]
           id: string
           note: string | null
           original_item_id: string | null
+          partial_refund_amount: number | null
           replacement_order_item_id: string | null
           replacement_product_id: string | null
           replacement_quantity: number
           replacement_variant_id: string | null
           status: Database["public"]["Enums"]["sav_exchange_status"]
+          surcharge_amount: number | null
           updated_at: string
         }
         Insert: {
@@ -3063,14 +3090,17 @@ export type Database = {
           created_by?: string | null
           delta_amount?: number
           delta_currency?: string
+          exchange_kind?: Database["public"]["Enums"]["sav_exchange_kind"]
           id?: string
           note?: string | null
           original_item_id?: string | null
+          partial_refund_amount?: number | null
           replacement_order_item_id?: string | null
           replacement_product_id?: string | null
           replacement_quantity?: number
           replacement_variant_id?: string | null
           status?: Database["public"]["Enums"]["sav_exchange_status"]
+          surcharge_amount?: number | null
           updated_at?: string
         }
         Update: {
@@ -3079,14 +3109,17 @@ export type Database = {
           created_by?: string | null
           delta_amount?: number
           delta_currency?: string
+          exchange_kind?: Database["public"]["Enums"]["sav_exchange_kind"]
           id?: string
           note?: string | null
           original_item_id?: string | null
+          partial_refund_amount?: number | null
           replacement_order_item_id?: string | null
           replacement_product_id?: string | null
           replacement_quantity?: number
           replacement_variant_id?: string | null
           status?: Database["public"]["Enums"]["sav_exchange_status"]
+          surcharge_amount?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -3123,6 +3156,50 @@ export type Database = {
             columns: ["replacement_variant_id"]
             isOneToOne: false
             referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sav_fee_charges: {
+        Row: {
+          amount: number
+          case_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          fee_kind: Database["public"]["Enums"]["sav_fee_kind"]
+          id: string
+          payer_party: Database["public"]["Enums"]["sav_party"]
+          reason: string | null
+        }
+        Insert: {
+          amount: number
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          fee_kind: Database["public"]["Enums"]["sav_fee_kind"]
+          id?: string
+          payer_party: Database["public"]["Enums"]["sav_party"]
+          reason?: string | null
+        }
+        Update: {
+          amount?: number
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          fee_kind?: Database["public"]["Enums"]["sav_fee_kind"]
+          id?: string
+          payer_party?: Database["public"]["Enums"]["sav_party"]
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_fee_charges_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
             referencedColumns: ["id"]
           },
         ]
@@ -4272,14 +4349,30 @@ export type Database = {
           show_whatsapp: boolean
         }[]
       }
-      resolve_sav_rules: {
-        Args: {
-          _destination_country_id?: string
-          _product_id?: string
-          _shop_id?: string
-        }
-        Returns: Json
-      }
+      resolve_sav_rules:
+        | {
+            Args: {
+              _country_id?: string
+              _product_id?: string
+              _shop_id?: string
+              _source_country_id?: string
+            }
+            Returns: {
+              priority: number
+              rule_key: Database["public"]["Enums"]["sav_rule_key"]
+              scope: Database["public"]["Enums"]["sav_rule_scope"]
+              scope_id: string
+              value: Json
+            }[]
+          }
+        | {
+            Args: {
+              _destination_country_id?: string
+              _product_id?: string
+              _shop_id?: string
+            }
+            Returns: Json
+          }
       set_currency_rate: {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
@@ -4472,6 +4565,12 @@ export type Database = {
         | "partially_accepted"
         | "escalated"
         | "overridden"
+      sav_assisted_channel:
+        | "phone"
+        | "whatsapp"
+        | "in_person"
+        | "email"
+        | "other"
       sav_case_type:
         | "cancellation"
         | "return"
@@ -4482,14 +4581,29 @@ export type Database = {
         | "credit_note"
         | "admin_exception"
         | "other"
+        | "repair"
+      sav_exchange_kind:
+        | "size_only"
+        | "color_only"
+        | "variant"
+        | "different_product"
+        | "repair_replacement"
       sav_exchange_status:
         | "proposed"
         | "accepted"
         | "shipped"
         | "delivered"
         | "cancelled"
-      sav_owner_party: "kawzone" | "vendor" | "supplier" | "client"
-      sav_party: "client" | "vendor" | "admin" | "system"
+      sav_fee_kind:
+        | "shipping_outbound"
+        | "shipping_return"
+        | "packaging"
+        | "preparation"
+        | "import_logistics"
+        | "handling"
+        | "restocking"
+      sav_owner_party: "kawzone" | "vendor" | "supplier" | "client" | "carrier"
+      sav_party: "client" | "vendor" | "admin" | "system" | "carrier"
       sav_problem_type:
         | "stock_break"
         | "product_deleted"
@@ -4528,7 +4642,33 @@ export type Database = {
         | "shipping_cost_attribution"
         | "restocking_fee_percent"
         | "return_address_id"
-      sav_rule_scope: "global" | "country" | "category" | "shop" | "product"
+        | "cancellation_policy"
+        | "import_returns_policy"
+        | "import_exchanges_policy"
+        | "disposition_default"
+        | "refund_policy"
+        | "exchange_size_free"
+        | "exchange_color_free"
+        | "exchange_variant_requires_approval"
+        | "exchange_different_product_requires_approval"
+        | "warranty_vendor_months"
+        | "warranty_manufacturer_months"
+        | "repair_allowed"
+        | "repair_pays_party"
+        | "fee_shipping_outbound_payer_default"
+        | "fee_shipping_return_payer_default"
+        | "fee_packaging_payer_default"
+        | "fee_preparation_payer_default"
+        | "fee_import_logistics_payer_default"
+        | "fee_handling_payer_default"
+        | "fee_restocking_payer_default"
+      sav_rule_scope:
+        | "global"
+        | "country"
+        | "category"
+        | "shop"
+        | "product"
+        | "source_country"
       sav_scope: "item" | "order"
       sav_status:
         | "open"
@@ -4555,6 +4695,11 @@ export type Database = {
         | "propose_exchange"
         | "propose_other"
         | "none"
+      sav_warranty_scope:
+        | "none"
+        | "vendor"
+        | "manufacturer"
+        | "kawzone_commercial"
       shipment_assessment_status:
         | "pending_arrival"
         | "awaiting_weighing"
@@ -4835,6 +4980,13 @@ export const Constants = {
         "escalated",
         "overridden",
       ],
+      sav_assisted_channel: [
+        "phone",
+        "whatsapp",
+        "in_person",
+        "email",
+        "other",
+      ],
       sav_case_type: [
         "cancellation",
         "return",
@@ -4845,6 +4997,14 @@ export const Constants = {
         "credit_note",
         "admin_exception",
         "other",
+        "repair",
+      ],
+      sav_exchange_kind: [
+        "size_only",
+        "color_only",
+        "variant",
+        "different_product",
+        "repair_replacement",
       ],
       sav_exchange_status: [
         "proposed",
@@ -4853,8 +5013,17 @@ export const Constants = {
         "delivered",
         "cancelled",
       ],
-      sav_owner_party: ["kawzone", "vendor", "supplier", "client"],
-      sav_party: ["client", "vendor", "admin", "system"],
+      sav_fee_kind: [
+        "shipping_outbound",
+        "shipping_return",
+        "packaging",
+        "preparation",
+        "import_logistics",
+        "handling",
+        "restocking",
+      ],
+      sav_owner_party: ["kawzone", "vendor", "supplier", "client", "carrier"],
+      sav_party: ["client", "vendor", "admin", "system", "carrier"],
       sav_problem_type: [
         "stock_break",
         "product_deleted",
@@ -4896,8 +5065,35 @@ export const Constants = {
         "shipping_cost_attribution",
         "restocking_fee_percent",
         "return_address_id",
+        "cancellation_policy",
+        "import_returns_policy",
+        "import_exchanges_policy",
+        "disposition_default",
+        "refund_policy",
+        "exchange_size_free",
+        "exchange_color_free",
+        "exchange_variant_requires_approval",
+        "exchange_different_product_requires_approval",
+        "warranty_vendor_months",
+        "warranty_manufacturer_months",
+        "repair_allowed",
+        "repair_pays_party",
+        "fee_shipping_outbound_payer_default",
+        "fee_shipping_return_payer_default",
+        "fee_packaging_payer_default",
+        "fee_preparation_payer_default",
+        "fee_import_logistics_payer_default",
+        "fee_handling_payer_default",
+        "fee_restocking_payer_default",
       ],
-      sav_rule_scope: ["global", "country", "category", "shop", "product"],
+      sav_rule_scope: [
+        "global",
+        "country",
+        "category",
+        "shop",
+        "product",
+        "source_country",
+      ],
       sav_scope: ["item", "order"],
       sav_status: [
         "open",
@@ -4925,6 +5121,12 @@ export const Constants = {
         "propose_exchange",
         "propose_other",
         "none",
+      ],
+      sav_warranty_scope: [
+        "none",
+        "vendor",
+        "manufacturer",
+        "kawzone_commercial",
       ],
       shipment_assessment_status: [
         "pending_arrival",
