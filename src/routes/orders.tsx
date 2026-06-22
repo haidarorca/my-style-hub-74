@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { ReviewDialog } from "@/components/orders/ReviewDialog";
 import { ReportDialog } from "@/components/orders/ReportDialog";
 import { ContactActions } from "@/components/support/ContactActions";
+import { OpenSavCaseDialog } from "@/components/sav/OpenSavCaseDialog";
 import { Separator } from "@/components/ui/separator";
 
 export const Route = createFileRoute("/orders")({
