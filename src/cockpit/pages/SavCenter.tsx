@@ -52,6 +52,11 @@ export default function SavCenter() {
 
   const cases = data as SavCaseRow[];
 
+  const filteredCases = useMemo(() => {
+    if (!onlyAssisted) return cases;
+    return cases.filter((c) => Boolean(c.on_behalf_of_user_id));
+  }, [cases, onlyAssisted]);
+
   const kpiCounts = useMemo(() => {
     return KPIS.map((k) => ({ ...k, count: cases.filter((c) => k.statuses.includes(c.status)).length }));
   }, [cases]);
@@ -63,12 +68,18 @@ export default function SavCenter() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <AlertTriangle className="w-6 h-6 text-amber-500" />
             Centre SAV
+            {counts.urgent > 0 && (
+              <Badge variant="destructive" className="gap-1">
+                <Flame className="w-3 h-3" /> {counts.urgent} urgent{counts.urgent > 1 ? "s" : ""}
+              </Badge>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground">
             Annulations, retours, échanges, garanties, litiges, remboursements et exceptions — tout en un seul endroit.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <AdminAssistedSavDialog onCreated={() => refetch()} />
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" /> Rafraîchir
           </Button>
@@ -83,7 +94,23 @@ export default function SavCenter() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs globaux */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Card><CardContent className="p-3 bg-blue-50 text-blue-700">
+          <div className="text-xs">Nouveaux</div><div className="text-2xl font-bold">{counts.new}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 bg-amber-50 text-amber-700">
+          <div className="text-xs">En attente</div><div className="text-2xl font-bold">{counts.pending}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 bg-red-50 text-red-700">
+          <div className="text-xs">Urgents (SLA &lt; 24h)</div><div className="text-2xl font-bold">{counts.urgent}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 bg-slate-50 text-slate-700">
+          <div className="text-xs">Total ouverts</div><div className="text-2xl font-bold">{counts.total}</div>
+        </CardContent></Card>
+      </div>
+
+      {/* KPIs par statut */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {kpiCounts.map((k) => (
           <Card key={k.label}><CardContent className={`p-3 ${k.tone}`}>
@@ -110,9 +137,12 @@ export default function SavCenter() {
         <Button variant={includeClosed ? "default" : "outline"} size="sm" onClick={() => setIncludeClosed((v) => !v)}>
           {includeClosed ? "Masquer clôturés" : "Inclure clôturés"}
         </Button>
+        <Button variant={onlyAssisted ? "default" : "outline"} size="sm" onClick={() => setOnlyAssisted((v) => !v)}>
+          {onlyAssisted ? "Tous" : "Assistés admin uniquement"}
+        </Button>
       </CardContent></Card>
 
-      <SavCaseList cases={cases} role="admin" loading={isLoading} onChanged={refetch} />
+      <SavCaseList cases={filteredCases} role="admin" loading={isLoading} onChanged={refetch} />
     </div>
   );
 }
