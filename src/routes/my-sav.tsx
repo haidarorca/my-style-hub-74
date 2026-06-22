@@ -7,7 +7,7 @@ import { BackButton } from "@/components/layout/BackButton";
 import { SavCaseList } from "@/components/sav/SavCaseList";
 import { ShieldAlert } from "lucide-react";
 
-export const Route = createFileRoute("/account/sav")({
+export const Route = createFileRoute("/my-sav")({
   component: AccountSavPage,
 });
 
