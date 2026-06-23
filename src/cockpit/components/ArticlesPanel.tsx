@@ -44,6 +44,7 @@ export function ArticlesPanel({
   const adminName = profile?.full_name ?? profile?.email ?? "Super Admin";
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailArticle, setDetailArticle] = useState<OrderArticle | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [overrideProduct, setOverrideProduct] = useState<OrderArticle | null>(null);
   const [overrideDraft, setOverrideDraft] = useState<StockBreakSubmit | null>(null);
