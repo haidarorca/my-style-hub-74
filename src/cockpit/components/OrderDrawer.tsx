@@ -11,7 +11,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home, FileText, Receipt, ClipboardList } from "lucide-react";
+import { SubOrderStatusBadge } from "./SubOrderStatusBadge";
+import { SubOrderActionBar } from "./SubOrderActionBar";
+import type { SubOrderActionTab } from "@/cockpit/lib/sub-order-actions";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
@@ -93,6 +97,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
+  const [activeTab, setActiveTab] = useState<SubOrderActionTab>("resume");
   if (!order) return null;
 
   // Statut affiché : si on est scopé sur une sous-commande, on lit son statut
@@ -189,19 +194,26 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
     onClose();
   };
 
+  // Handler centralisé : avance d'une étape (réutilise nextStep + onStatusChange).
+  const handleAdvance = nextStep
+    ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)
+    : undefined;
+
+  const openTab = (t: SubOrderActionTab) => setActiveTab(t);
+
   return (
     <Sheet open={!!order} onOpenChange={o => { if (!o) onClose(); }}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0">
-        <div className="p-4 space-y-4">
-          {/* Header */}
-          <SheetHeader className="pb-2">
+        <div className="p-4 space-y-3">
+          {/* ─── BLOC 1 : Identité (numérotation conservée) ─── */}
+          <SheetHeader className="pb-1">
             <div className="space-y-1">
-              <SheetTitle className="text-xl">{headerLabel}</SheetTitle>
+              <SheetTitle className="text-lg">{headerLabel}</SheetTitle>
               {headerVendor && (
                 <div className="text-sm font-semibold text-indigo-700">{headerVendor}</div>
               )}
-              <div className="font-mono text-[11px] text-gray-400">{tech}</div>
-              <div className="flex gap-2 pt-1 flex-wrap items-center">
+              <div className="font-mono text-[10px] text-gray-400">{tech}</div>
+              <div className="flex gap-1.5 pt-1 flex-wrap items-center">
                 {isScoped ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">
                     Sous-commande boutique
@@ -215,12 +227,16 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                 ) : isImportOrder || isImportFallback ? (
                   <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700">IMPORT</Badge>
                 ) : null}
-                <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[status] ?? ""}`}>{label}</Badge>
+                {lineKind === "IMPORT_UNKNOWN_WEIGHT" && (
+                  <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">Poids inconnu</Badge>
+                )}
+                {lineKind === "IMPORT_KNOWN_WEIGHT" && (
+                  <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">Poids déclaré</Badge>
+                )}
               </div>
             </div>
           </SheetHeader>
 
-          {/* ─── Navigation sœurs (uniquement quand scopé) ─── */}
           {isScoped && onSubOrderChange && (
             <RelatedSubOrdersStrip
               siblings={siblings}
@@ -229,100 +245,28 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
-          {/* ─── Badges métier (boutique/produit supprimé, risque, attente) ─── */}
           {isScoped && (
             <div className="px-1">
               <SubOrderBadges history={subOrderHistory} />
             </div>
           )}
 
-          {/* ─── Rentabilité sous-commande : MASQUÉE de la vue opérateur ───
-              La logique (commission, marge, coût réel, remboursements, avoirs)
-              reste calculée et accessible dans Finance Center et les rapports.
-              On garde l'import + le composant pour ne rien casser ailleurs. */}
-          {/* {isScoped && currentSub && (
-            <SubOrderProfitabilityPanel sub={currentSub} articles={scopedArticles ?? []} />
-          )} */}
+          {/* ─── BLOC 2 : Statut métier principal ─── */}
+          <SubOrderStatusBadge status={status} subLabel={nextStep ? `Étape suivante : ${nextStep.label}` : null} />
 
-          {/* ─── Indicateurs critiques (compact) : uniquement ce qui demande une action ─── */}
-          {isScoped && currentSub && (() => {
-            const blocked = currentSub.financials.blocked_count;
-            const pendingMoney = currentSub.aggregate.pending_money.total_abs;
-            const waitingAction =
-              (currentSub.aggregate.counters.waiting_supplier ?? 0) +
-              (currentSub.aggregate.counters.waiting_restock ?? 0) +
-              (currentSub.aggregate.counters.waiting_money ?? 0);
-            const partial = (scopedArticles ?? []).filter(
-              (a) => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity,
-            ).length;
-            if (blocked === 0 && pendingMoney === 0 && waitingAction === 0 && partial === 0) return null;
-            return (
-              <div className="flex flex-wrap gap-1.5">
-                {blocked > 0 && (
-                  <span className="text-[11px] bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">
-                    ⚠ Bloqués : {blocked}
-                  </span>
-                )}
-                {pendingMoney > 0 && (
-                  <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
-                    💰 Paiement en attente : {fmtF(pendingMoney)}
-                  </span>
-                )}
-                {waitingAction > 0 && (
-                  <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">
-                    ⏳ Articles en attente : {waitingAction}
-                  </span>
-                )}
-                {partial > 0 && (
-                  <span className="text-[11px] bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">
-                    📦 Livraison partielle : {partial}
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+          {/* ─── BLOC 3 : Actions contextuelles ─── */}
+          <SubOrderActionBar
+            status={status}
+            lineKind={lineKind}
+            onOpenTab={openTab}
+            onAdvance={handleAdvance}
+            onCancel={onRequestCancel}
+            onViewItems={onViewItems}
+            canAdvance={!!handleAdvance}
+            canCancel={!!onRequestCancel && status !== "delivered" && status !== "cancelled"}
+          />
 
-          {/* ─── Historique métier (Événement → Décision → Mouvement) ───
-              MASQUÉ du drawer opérateur sur demande produit. Les données
-              restent intégralement stockées (sub_order_states, order_events,
-              order_decisions, audit) et continuent d'alimenter SAV, Finance,
-              KPI, Audit, automatisations, reporting, workflow, notifications.
-              Le composant <EventTimeline /> et <EventCaptureDialog /> sont
-              conservés et restent utilisables ailleurs. */}
-          {/*
-          {isScoped && (
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowEventCapture(true)}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1"
-                >
-                  + Enregistrer un événement
-                </button>
-              </div>
-              <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
-            </div>
-          )}
-          {isScoped && currentVendorId && order.order_id && (
-            <EventCaptureDialog
-              open={showEventCapture}
-              onClose={() => setShowEventCapture(false)}
-              orderId={order.order_id}
-              vendorId={currentVendorId}
-              motherOrderIds={[order.order_id]}
-            />
-          )}
-          */}
-
-
-
-          {/* AggregateDebugPanel : panneau de debug — MASQUÉ en production.
-              La logique aggregateOrder() reste utilisée par NextActionBanner,
-              KPIs, filtres workflow. Ne pas supprimer le composant. */}
-          {/* <AggregateDebugPanel articles={scopedArticles} orderStatus={status} /> */}
-
-          {/* Liste interne des sous-commandes — n'apparaît QUE si pas scopé et multi-vendor. */}
+          {/* Vue mère multi-boutiques : on garde la liste des sous-commandes au sommet. */}
           {!isScoped && (
             <SubOrdersPanel
               articles={articles}
@@ -332,277 +276,310 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             />
           )}
 
-          {/* Action suivante — MASQUÉE du drawer opérateur sur demande produit.
-              Le calcul (buildNextActionBannerPayload + aggregateOrder) reste
-              actif et continue d'alimenter le WorkflowControlPanel, les KPIs,
-              les filtres et les automatisations en aval. */}
-          {/* {nextActionInfo && (
-            <NextActionBanner action={nextActionInfo} onClick={nextStep ? () => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName) : undefined} />
-          )} */}
+          {/* ─── ONGLETS ─── */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SubOrderActionTab)} className="w-full">
+            <TabsList className="grid grid-cols-5 w-full h-9">
+              <TabsTrigger value="resume" className="text-[11px]">Résumé</TabsTrigger>
+              <TabsTrigger value="articles" className="text-[11px]">Articles</TabsTrigger>
+              <TabsTrigger value="logistique" className="text-[11px]">Logistique</TabsTrigger>
+              <TabsTrigger value="paiements" className="text-[11px]">Paiements</TabsTrigger>
+              <TabsTrigger value="historique" className="text-[11px]">Historique</TabsTrigger>
+            </TabsList>
 
-
-          {/* Workflow : 1 par sous-commande. Le workflow dépend du line_kind
-              de la sous-commande affichée (KNOWN ≠ UNKNOWN). */}
-          {(isScoped || !isMultiVendor) && (
-            <WorkflowControlPanel
-              orderId={order.order_id ?? undefined}
-              status={status}
-              isImport={!!(isImportOrder || isImportFallback)}
-              isLocal={!!isLocalOrder}
-              lineKind={lineKind}
-              articles={scopedArticles}
-              weightStatus={weightStatus}
-              onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
-            />
-          )}
-
-          <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
-
-          <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
-
-
-
-          {/* ─── Actions financières en attente (matrice v3 — lève les *_pending) ─── */}
-          {scopedArticles && onSettleFinancial && (
-            <div id="cockpit-financial-actions">
-              <PendingFinancialActions
-                articles={scopedArticles}
-                remainingToPay={rem}
-                onSettle={onSettleFinancial}
-              />
-            </div>
-          )}
-
-
-
-          {/* Client */}
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><User className="h-4 w-4" />Client</h3>
-            <div className="text-sm font-medium">{order.customer_name ?? "—"}</div>
-            {order.customer_phone && (
-              <div className="flex items-center gap-1.5 text-sm flex-wrap">
-                <Phone className="h-3.5 w-3.5 text-gray-400" />
-                <a href={`tel:${order.customer_phone}`} className="text-blue-600 hover:underline">{order.customer_phone}</a>
-                <a href={waLink(order.customer_phone, waMsg)} target="_blank" rel="noopener noreferrer" className="ml-2 text-emerald-600 text-xs flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full"><MessageCircle className="h-3 w-3" />WhatsApp</a>
-              </div>
-            )}
-            {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
-          </div>
-
-          {/* ─── Bouton : Voir les articles ─── */}
-          {onViewItems && (
-            <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
-              <div className="flex items-center gap-2">
-                <ListOrdered className="h-5 w-5 text-orange-600" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold text-orange-800">Voir les articles</div>
-                  <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission, variantes</div>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-orange-400" />
-            </button>
-          )}
-
-          {/* ─── Gestion article par article (matrice v3) ─── */}
-          {scopedArticles && scopedArticles.length > 0 && (
-            <ArticlesPanel
-              articles={scopedArticles}
-              paidAmount={tp}
-              orderStatus={status}
-              onStockBreak={onStockBreak}
-              onStatusChange={onArticleStatusChange}
-              onPartialDeliver={onPartialDeliver}
-              onOverrideDecision={onOverrideDecision}
-            />
-          )}
-
-          {/* Finances — Vue détaillée avec split produits/fret */}
-          {(() => {
-            // Allocation FIFO : on impute d'abord aux produits, puis au fret
-            const productPaid = Math.min(tp, ot);
-            const freightPaid = Math.max(0, tp - ot);
-            const productRem = Math.max(0, ot - productPaid);
-            const freightRem = Math.max(0, sf - freightPaid);
-            const showSplit = imp && sf > 0;
-            return (
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Finances</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Produits</div><div className="text-sm font-bold">{fmtF(ot)}</div></div>
-                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Fret</div><div className="text-sm font-bold">{fmtF(sf)}</div></div>
-                  <div className="bg-white rounded p-2 text-center border-2 border-gray-200"><div className="text-[10px] text-gray-500 font-semibold">TOTAL</div><div className="text-sm font-bold">{fmtF(gt)}</div></div>
-                  <div className="bg-emerald-50 rounded p-2 text-center"><div className="text-[10px] text-emerald-600">Payé</div><div className="text-sm font-bold text-emerald-700">{fmtF(tp)}</div></div>
-                </div>
-                {showSplit && (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className={`rounded-lg p-2 border ${productRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
-                      <div className="text-[10px] text-gray-500 font-semibold uppercase">Produits</div>
-                      <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(productPaid)}</span></div>
-                      <div className={`text-[11px] ${productRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(productRem)}</div>
-                    </div>
-                    <div className={`rounded-lg p-2 border ${freightRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
-                      <div className="text-[10px] text-gray-500 font-semibold uppercase">Fret</div>
-                      <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(freightPaid)}</span></div>
-                      <div className={`text-[11px] ${freightRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(freightRem)}</div>
-                    </div>
-                  </div>
-                )}
-                {!paidFull ? <div className="bg-red-50 rounded-lg p-3 text-center"><div className="text-[10px] text-red-600">Reste à payer (total)</div><div className="text-xl font-bold text-red-700">{fmtF(rem)}</div></div>
-                  : gt > 0 ? <div className="bg-emerald-50 rounded-lg p-3 text-center"><div className="text-sm font-bold text-emerald-700">Payé en totalité</div><div className="text-xs text-emerald-600">{fmtF(tp)} / {fmtF(gt)}</div></div> : null}
-              </div>
-            );
-          })()}
-
-          {/* ─── Alertes opérationnelles ─── */}
-          {(() => {
-            const alerts: { tone: "red" | "amber" | "blue"; title: string; text: string }[] = [];
-
-            // Fret non payé avant expédition
-            if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
-              alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
-            }
-            // Rupture non résolue → lecture agrégateur (source unique)
-            if (agg.flags.has_blocking) {
-              const n = agg.counters.blocked;
-              alerts.push({ tone: "red", title: `${n} rupture${n > 1 ? "s" : ""} non résolue${n > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
-            }
-            // Commande bloquée depuis X jours (dimension temporelle — pas encore dans agg)
-            if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
-              const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
-              if (days >= 7) {
-                alerts.push({ tone: days >= 14 ? "red" : "amber", title: `Commande bloquée depuis ${days} jours`, text: `Statut actuel : ${status}. Relancez le flux.` });
-              }
-            }
-            // Livraison partielle en cours → lecture agrégateur
-            const partialCount = (scopedArticles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
-            if (partialCount > 0) {
-              alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partialCount} article(s) partiellement livré(s).` });
-            }
-
-            if (alerts.length === 0) return null;
-            const toneClass = (t: "red" | "amber" | "blue") =>
-              t === "red" ? "bg-red-50 border-red-300 text-red-800"
-              : t === "amber" ? "bg-amber-50 border-amber-300 text-amber-800"
-              : "bg-blue-50 border-blue-300 text-blue-800";
-            return (
-              <div className="space-y-2">
-                {alerts.map((a, i) => (
-                  <div key={i} className={`border rounded-lg p-3 flex items-start gap-2 ${toneClass(a.tone)}`}>
-                    <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <div className="font-bold">{a.title}</div>
-                      <div className="mt-0.5">{a.text}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-
-          {/* Stats paiements */}
-          {payments.length > 0 && (
-            <div className="bg-white border rounded-lg p-3 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5"><TrendingUp className="h-4 w-4 text-emerald-600" />Récapitulatif ({payments.length} paiements)</h3>
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-gray-50 rounded p-2"><div className="text-[10px] text-gray-500">Nombre</div><div className="text-lg font-bold">{payments.length}</div></div>
-                <div className="bg-emerald-50 rounded p-2"><div className="text-[10px] text-emerald-600">Total payé</div><div className="text-lg font-bold text-emerald-700">{fmtF(tp)}</div></div>
-                {lastP && <div className="bg-blue-50 rounded p-2"><div className="text-[10px] text-blue-600">Dernier</div><div className="text-sm font-bold text-blue-700">{fmtF(lastP.amount)}</div></div>}
-                {firstP && <div className="bg-gray-50 rounded p-2"><div className="text-[10px] text-gray-500">Premier</div><div className="text-xs font-medium">{new Date(firstP.timestamp).toLocaleDateString("fr-FR")}</div></div>}
-              </div>
-            </div>
-          )}
-
-          {/* Historique paiements */}
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" />Paiements ({payments.length})</h3>
-            <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
-          </div>
-
-          {/* Historique d'audit unifié — MASQUÉ du drawer opérateur sur
-              demande produit. Les données d'audit (order_events, order_status_history,
-              admin_action_log, sub_order_states, order_decisions, payment_audit)
-              restent intactes et continuent d'alimenter SAV, Finance, KPI,
-              Audit, reporting, automatisations et notifications. */}
-          {/*
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Historique</h3>
-            <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
-          </div>
-          */}
-
-
-          {/* Pesées */}
-          {weighings.length > 0 && (
-            <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5"><Package className="h-4 w-4" />Historique pesées</h3>
-              {weighings.map(w => {
-                const unit = w.pricingUnit ?? "kg";
-                const d = new Date(w.timestamp);
+            {/* ─── Onglet RÉSUMÉ ─── */}
+            <TabsContent value="resume" className="space-y-3 mt-3">
+              {/* Indicateurs critiques compacts */}
+              {isScoped && currentSub && (() => {
+                const blocked = currentSub.financials.blocked_count;
+                const pendingMoney = currentSub.aggregate.pending_money.total_abs;
+                const waitingAction =
+                  (currentSub.aggregate.counters.waiting_supplier ?? 0) +
+                  (currentSub.aggregate.counters.waiting_restock ?? 0) +
+                  (currentSub.aggregate.counters.waiting_money ?? 0);
+                const partial = (scopedArticles ?? []).filter(
+                  (a) => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity,
+                ).length;
+                if (blocked === 0 && pendingMoney === 0 && waitingAction === 0 && partial === 0) return null;
                 return (
-                  <div key={w.id} className="text-xs bg-white rounded p-2 space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-500">{d.toLocaleDateString("fr-FR")} {d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} — {w.weighedBy}</div>
-                      <div className="font-bold text-emerald-700">{fmtF(w.finalFreight)}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-1 text-[11px]">
-                      <div className="text-gray-500">Service : <span className="text-gray-800 font-medium">{w.shippingServiceName ?? "—"}</span></div>
-                      <div className="text-gray-500">Tarif : <span className="text-gray-800 font-medium">{w.freightRatePerKg > 0 ? `${fmtF(w.freightRatePerKg)} / ${unit}` : "—"}</span></div>
-                      <div className="text-gray-500">Poids réel : <span className="text-gray-800 font-medium">{Number(w.realWeightKg).toFixed(2)} kg</span></div>
-                      <div className="text-gray-500">Poids vol. : <span className="text-gray-800 font-medium">{Number(w.volumetricWeightKg).toFixed(2)} kg</span></div>
-                      <div className="text-gray-500 col-span-2">Poids facturable : <span className="text-orange-700 font-semibold">{Number(w.chargeableWeightKg).toFixed(2)} kg</span></div>
-                    </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {blocked > 0 && <span className="text-[11px] bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">⚠ Bloqués : {blocked}</span>}
+                    {pendingMoney > 0 && <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">💰 Paiement en attente : {fmtF(pendingMoney)}</span>}
+                    {waitingAction > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">⏳ Articles en attente : {waitingAction}</span>}
+                    {partial > 0 && <span className="text-[11px] bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">📦 Livraison partielle : {partial}</span>}
                   </div>
                 );
-              })}
-            </div>
-          )}
+              })()}
 
-          {/* Pesée — UNIQUEMENT pour IMPORT_UNKNOWN_WEIGHT, scopée à la sous-commande. */}
-          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && (
-            <WeightFormUnknownSub
-              orderId={order.order_id ?? ""}
-              subOrderKey={subOrderKey!}
-              assessmentId={subAssessment?.id ?? null}
-              shippingServiceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null}
-              unknownArticles={scopedArticles ?? []}
-              onWeigh={onWeigh}
-              onFormInteraction={onFormInteraction}
-            />
-          )}
-          {/* Pas d'écran de pesée pour LOCAL ni pour IMPORT_KNOWN_WEIGHT (fret figé au checkout). */}
-          {isScoped && lineKind === "IMPORT_KNOWN_WEIGHT" && sf > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-              Fret figé au checkout : <b>{fmtF(sf)}</b>. Aucune pesée ne sera appliquée à cette sous-commande.
-            </div>
-          )}
-          {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && !subAssessment?.air_freight_fee && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800">
-              En attente de pesée — aucun fret n'est facturé tant que le colis n'a pas été pesé.
-            </div>
-          )}
+              {/* Client */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5"><User className="h-4 w-4" />Client</h3>
+                <div className="text-sm font-medium">{order.customer_name ?? "—"}</div>
+                {order.customer_phone && (
+                  <div className="flex items-center gap-1.5 text-sm flex-wrap">
+                    <Phone className="h-3.5 w-3.5 text-gray-400" />
+                    <a href={`tel:${order.customer_phone}`} className="text-blue-600 hover:underline">{order.customer_phone}</a>
+                    <a href={waLink(order.customer_phone, waMsg)} target="_blank" rel="noopener noreferrer" className="ml-2 text-emerald-600 text-xs flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full"><MessageCircle className="h-3 w-3" />WhatsApp</a>
+                  </div>
+                )}
+                {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
+              </div>
 
-          {/* Paiement */}
-          {rem > 0 && status !== "cancelled" && (
-            <div onClick={onFormInteraction}><PaymentForm balance={rem} orderId={order.order_id ?? ""} adminName={adminName} onPayment={onPayment} /></div>
-          )}
+              {/* Résumé financier compact */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Résumé financier</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Total</div><div className="text-sm font-bold">{fmtF(gt)}</div></div>
+                  <div className={`rounded p-2 text-center ${rem > 0 ? "bg-red-50" : "bg-emerald-50"}`}><div className={`text-[10px] ${rem > 0 ? "text-red-600" : "text-emerald-600"}`}>Reste à payer</div><div className={`text-sm font-bold ${rem > 0 ? "text-red-700" : "text-emerald-700"}`}>{fmtF(rem)}</div></div>
+                </div>
+              </div>
 
-          <Separator />
+              {/* Alertes opérationnelles */}
+              {(() => {
+                const alerts: { tone: "red" | "amber" | "blue"; title: string; text: string }[] = [];
+                if (imp && sf > 0 && rem > 0 && ["ready", "ready_delivery", "payment_fees", "fees_calculated"].includes(status)) {
+                  alerts.push({ tone: "amber", title: "Fret import non payé", text: `Reste : ${fmtF(rem)}. Encaissez avant d'expédier.` });
+                }
+                if (agg.flags.has_blocking) {
+                  const n = agg.counters.blocked;
+                  alerts.push({ tone: "red", title: `${n} rupture${n > 1 ? "s" : ""} non résolue${n > 1 ? "s" : ""}`, text: "Contactez le client pour valider l'action." });
+                }
+                if (order.order_created_at && !["delivered", "cancelled"].includes(status)) {
+                  const days = Math.floor((Date.now() - new Date(order.order_created_at).getTime()) / 86400000);
+                  if (days >= 7) alerts.push({ tone: days >= 14 ? "red" : "amber", title: `Commande bloquée depuis ${days} jours`, text: `Statut actuel : ${status}. Relancez le flux.` });
+                }
+                const partialCount = (scopedArticles ?? []).filter(a => (a.delivered_qty ?? 0) > 0 && (a.delivered_qty ?? 0) < a.quantity).length;
+                if (partialCount > 0) alerts.push({ tone: "blue", title: "Livraison partielle en cours", text: `${partialCount} article(s) partiellement livré(s).` });
+                if (alerts.length === 0) return null;
+                const toneClass = (t: "red" | "amber" | "blue") =>
+                  t === "red" ? "bg-red-50 border-red-300 text-red-800"
+                  : t === "amber" ? "bg-amber-50 border-amber-300 text-amber-800"
+                  : "bg-blue-50 border-blue-300 text-blue-800";
+                return (
+                  <div className="space-y-2">
+                    {alerts.map((a, i) => (
+                      <div key={i} className={`border rounded-lg p-3 flex items-start gap-2 ${toneClass(a.tone)}`}>
+                        <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                        <div className="text-xs">
+                          <div className="font-bold">{a.title}</div>
+                          <div className="mt-0.5">{a.text}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
-          {/* Action suivante (circuit métier) */}
-          {nextStep && (
-            <div className="pt-2 pb-2">
-              <div className="text-[10px] text-gray-500 mb-1.5 text-center">Étape suivante : {nextStep.label}</div>
-              <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
-                <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
-              </Button>
-            </div>
-          )}
+              {/* CTA "Confirmer l'étape" — bouton large récapitulatif */}
+              {nextStep && (
+                <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
+                  <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
+                </Button>
+              )}
+            </TabsContent>
 
-          {/* Annuler (toujours disponible sauf si livrée/annulée) */}
+            {/* ─── Onglet ARTICLES ─── */}
+            <TabsContent value="articles" className="space-y-3 mt-3">
+              <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
+              <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
+
+              {onViewItems && (
+                <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <ListOrdered className="h-5 w-5 text-orange-600" />
+                    <div className="text-left">
+                      <div className="text-sm font-semibold text-orange-800">Voir les articles</div>
+                      <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission, variantes</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-orange-400" />
+                </button>
+              )}
+
+              {scopedArticles && scopedArticles.length > 0 && (
+                <ArticlesPanel
+                  articles={scopedArticles}
+                  paidAmount={tp}
+                  orderStatus={status}
+                  onStockBreak={onStockBreak}
+                  onStatusChange={onArticleStatusChange}
+                  onPartialDeliver={onPartialDeliver}
+                  onOverrideDecision={onOverrideDecision}
+                />
+              )}
+            </TabsContent>
+
+            {/* ─── Onglet LOGISTIQUE ─── */}
+            <TabsContent value="logistique" className="space-y-3 mt-3">
+              {(isScoped || !isMultiVendor) && (
+                <WorkflowControlPanel
+                  orderId={order.order_id ?? undefined}
+                  status={status}
+                  isImport={!!(isImportOrder || isImportFallback)}
+                  isLocal={!!isLocalOrder}
+                  lineKind={lineKind}
+                  articles={scopedArticles}
+                  weightStatus={weightStatus}
+                  onStatusChange={(newStatus) => handleStatusAndClose(order.order_id ?? "", newStatus, adminName)}
+                />
+              )}
+
+              {/* Split produits / fret */}
+              {(() => {
+                const productPaid = Math.min(tp, ot);
+                const freightPaid = Math.max(0, tp - ot);
+                const productRem = Math.max(0, ot - productPaid);
+                const freightRem = Math.max(0, sf - freightPaid);
+                const showSplit = imp && sf > 0;
+                return (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5"><Receipt className="h-4 w-4" />Détails financiers</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Produits</div><div className="text-sm font-bold">{fmtF(ot)}</div></div>
+                      <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Fret</div><div className="text-sm font-bold">{fmtF(sf)}</div></div>
+                    </div>
+                    {showSplit && (
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className={`rounded-lg p-2 border ${productRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase">Produits</div>
+                          <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(productPaid)}</span></div>
+                          <div className={`text-[11px] ${productRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(productRem)}</div>
+                        </div>
+                        <div className={`rounded-lg p-2 border ${freightRem === 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"}`}>
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase">Fret</div>
+                          <div className="text-[11px] text-emerald-700">Payé : <span className="font-bold">{fmtF(freightPaid)}</span></div>
+                          <div className={`text-[11px] ${freightRem > 0 ? "text-red-700 font-bold" : "text-gray-400"}`}>Reste : {fmtF(freightRem)}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Historique pesées */}
+              {weighings.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5"><Package className="h-4 w-4" />Historique pesées</h3>
+                  {weighings.map(w => {
+                    const unit = w.pricingUnit ?? "kg";
+                    const d = new Date(w.timestamp);
+                    return (
+                      <div key={w.id} className="text-xs bg-white rounded p-2 space-y-0.5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-gray-500">{d.toLocaleDateString("fr-FR")} {d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} — {w.weighedBy}</div>
+                          <div className="font-bold text-emerald-700">{fmtF(w.finalFreight)}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-1 text-[11px]">
+                          <div className="text-gray-500">Service : <span className="text-gray-800 font-medium">{w.shippingServiceName ?? "—"}</span></div>
+                          <div className="text-gray-500">Tarif : <span className="text-gray-800 font-medium">{w.freightRatePerKg > 0 ? `${fmtF(w.freightRatePerKg)} / ${unit}` : "—"}</span></div>
+                          <div className="text-gray-500">Poids réel : <span className="text-gray-800 font-medium">{Number(w.realWeightKg).toFixed(2)} kg</span></div>
+                          <div className="text-gray-500">Poids vol. : <span className="text-gray-800 font-medium">{Number(w.volumetricWeightKg).toFixed(2)} kg</span></div>
+                          <div className="text-gray-500 col-span-2">Poids facturable : <span className="text-orange-700 font-semibold">{Number(w.chargeableWeightKg).toFixed(2)} kg</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pesée (IMPORT_UNKNOWN_WEIGHT) */}
+              {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && (
+                <WeightFormUnknownSub
+                  orderId={order.order_id ?? ""}
+                  subOrderKey={subOrderKey!}
+                  assessmentId={subAssessment?.id ?? null}
+                  shippingServiceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null}
+                  unknownArticles={scopedArticles ?? []}
+                  onWeigh={onWeigh}
+                  onFormInteraction={onFormInteraction}
+                />
+              )}
+              {isScoped && lineKind === "IMPORT_KNOWN_WEIGHT" && sf > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                  Fret figé au checkout : <b>{fmtF(sf)}</b>. Aucune pesée ne sera appliquée à cette sous-commande.
+                </div>
+              )}
+              {isScoped && lineKind === "IMPORT_UNKNOWN_WEIGHT" && !subAssessment?.air_freight_fee && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800">
+                  En attente de pesée — aucun fret n'est facturé tant que le colis n'a pas été pesé.
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ─── Onglet PAIEMENTS ─── */}
+            <TabsContent value="paiements" className="space-y-3 mt-3">
+              {scopedArticles && onSettleFinancial && (
+                <div id="cockpit-financial-actions">
+                  <PendingFinancialActions
+                    articles={scopedArticles}
+                    remainingToPay={rem}
+                    onSettle={onSettleFinancial}
+                  />
+                </div>
+              )}
+
+              {payments.length > 0 && (
+                <div className="bg-white border rounded-lg p-3 space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5"><TrendingUp className="h-4 w-4 text-emerald-600" />Récapitulatif ({payments.length} paiements)</h3>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-gray-50 rounded p-2"><div className="text-[10px] text-gray-500">Nombre</div><div className="text-lg font-bold">{payments.length}</div></div>
+                    <div className="bg-emerald-50 rounded p-2"><div className="text-[10px] text-emerald-600">Total payé</div><div className="text-lg font-bold text-emerald-700">{fmtF(tp)}</div></div>
+                    {lastP && <div className="bg-blue-50 rounded p-2"><div className="text-[10px] text-blue-600">Dernier</div><div className="text-sm font-bold text-blue-700">{fmtF(lastP.amount)}</div></div>}
+                    {firstP && <div className="bg-gray-50 rounded p-2"><div className="text-[10px] text-gray-500">Premier</div><div className="text-xs font-medium">{new Date(firstP.timestamp).toLocaleDateString("fr-FR")}</div></div>}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5"><History className="h-4 w-4" />Paiements ({payments.length})</h3>
+                <div onClick={onFormInteraction}><PaymentHistory payments={payments} onEdit={onEditPayment} onDelete={onDeletePayment} locked={status === "delivered"} /></div>
+              </div>
+
+              {rem > 0 && status !== "cancelled" && (
+                <div onClick={onFormInteraction}><PaymentForm balance={rem} orderId={order.order_id ?? ""} adminName={adminName} onPayment={onPayment} /></div>
+              )}
+            </TabsContent>
+
+            {/* ─── Onglet HISTORIQUE ─── */}
+            <TabsContent value="historique" className="space-y-3 mt-3">
+              {isScoped && (
+                <>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowEventCapture(true)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center gap-1"
+                    >
+                      + Enregistrer un événement
+                    </button>
+                  </div>
+                  <EventTimeline history={subOrderHistory} isLoading={subOrderHistoryLoading} />
+                </>
+              )}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5"><Calendar className="h-4 w-4" />Audit complet</h3>
+                <OrderAuditTimeline order={order} payments={payments} audit={audit} articles={articles} />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Annuler — toujours accessible en bas, sauf si livrée/annulée */}
           {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
-            <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50 mt-2" onClick={onRequestCancel}>
-              <Ban className="h-4 w-4 mr-1.5" />Annuler la commande
-            </Button>
+            <>
+              <Separator />
+              <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={onRequestCancel}>
+                <Ban className="h-4 w-4 mr-1.5" />Annuler la commande
+              </Button>
+            </>
+          )}
+
+          {isScoped && currentVendorId && order.order_id && (
+            <EventCaptureDialog
+              open={showEventCapture}
+              onClose={() => setShowEventCapture(false)}
+              orderId={order.order_id}
+              vendorId={currentVendorId}
+              motherOrderIds={[order.order_id]}
+            />
           )}
 
           <div className="pb-4" />
@@ -613,6 +590,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
     </Sheet>
   );
 }
+
 
 /** Pesée scopée à une sous-commande IMPORT_UNKNOWN_WEIGHT.
  *  - N'écrit JAMAIS sur une autre assessment.
