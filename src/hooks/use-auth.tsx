@@ -20,7 +20,8 @@ export type AdminPermission =
   | "sav_override"
   | "sav_rules_manage"
   | "sav_refund_issue"
-  | "sav_exception_create";
+  | "sav_exception_create"
+  | "studio_access";
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   orders: "Commandes",
@@ -39,6 +40,7 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   sav_rules_manage: "SAV — Gérer les règles",
   sav_refund_issue: "SAV — Émettre un remboursement",
   sav_exception_create: "SAV — Créer une exception",
+  studio_access: "Studio (Vues Configurables)",
 };
 
 export interface ProfileData {
