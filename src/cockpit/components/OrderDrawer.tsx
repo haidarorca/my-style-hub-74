@@ -573,8 +573,30 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </TabsContent>
           </Tabs>
 
-          {/* Annuler — toujours accessible en bas, sauf si livrée/annulée */}
-          {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
+          {/* ─── BLOC FINAL : Bouton principal unique "Action suivante" ─── */}
+          {nextStep && (
+            <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 backdrop-blur border-t border-gray-200 space-y-2 z-10">
+              <Button
+                size="sm"
+                className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-bold text-sm shadow-md`}
+                onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}
+              >
+                <CheckCircle className="h-5 w-5 mr-2" />
+                {nextStep.actionLabel}
+              </Button>
+              {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full h-9 text-red-600 border-red-200 hover:bg-red-50 text-xs"
+                  onClick={onRequestCancel}
+                >
+                  <Ban className="h-3.5 w-3.5 mr-1.5" />Annuler la commande
+                </Button>
+              )}
+            </div>
+          )}
+          {!nextStep && onRequestCancel && status !== "delivered" && status !== "cancelled" && (
             <>
               <Separator />
               <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={onRequestCancel}>
