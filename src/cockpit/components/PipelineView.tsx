@@ -2,13 +2,11 @@ import { useRef, useCallback } from "react";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { fmtF, fmtDateTime, STATUS_COLORS } from "@/cockpit/lib/workflow";
 import { getOrderMixType } from "@/cockpit/lib/article-states";
-import { Store, Layers } from "lucide-react";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
-import { SubOrderBadges } from "./SubOrderBadges";
 import type { SubOrderHistoryMap } from "@/cockpit/hooks/useSubOrderHistories";
-import { getHistory } from "@/cockpit/hooks/useSubOrderHistories";
+import { SubOrderActionCard } from "./SubOrderActionCard";
 
 interface Props {
   orders: LogisticsOrderRow[];
