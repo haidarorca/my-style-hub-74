@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
+import { TwoFactorCard } from "@/components/auth/TwoFactorCard";
 import { useServerFn } from "@tanstack/react-start";
 import { removeVendorAccount } from "@/lib/vendor-offboarding.functions";
 import { UpdateAppButton } from "@/components/UpdateAppButton";
@@ -518,6 +519,7 @@ function AccountPage() {
 
         <div className="mt-6">
           <ChangePasswordCard />
+          <TwoFactorCard />
         </div>
 
         <div className="mt-6 rounded-xl border bg-card p-4">

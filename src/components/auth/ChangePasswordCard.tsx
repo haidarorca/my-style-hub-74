@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-
+import { changePasswordSelf } from "@/lib/password-change.functions";
+import { PasswordStrengthMeter, checkPasswordStrength } from "@/components/auth/PasswordStrength";
 
 export function ChangePasswordCard() {
   const { user } = useAuth();
@@ -15,18 +16,13 @@ export function ChangePasswordCard() {
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [lockUntil, setLockUntil] = useState(0);
+
+  const submit = useServerFn(changePasswordSelf);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.email) {
-      toast.error("Session invalide");
-      return;
-    }
-    if (Date.now() < lockUntil) {
-      const s = Math.ceil((lockUntil - Date.now()) / 1000);
-      toast.error(`Trop de tentatives. Réessayez dans ${s}s`);
+      toast.error("Session expirée. Reconnectez-vous.");
       return;
     }
     if (next !== confirm) {
@@ -37,39 +33,23 @@ export function ChangePasswordCard() {
       toast.error("Le nouveau mot de passe doit être différent");
       return;
     }
+    const strength = checkPasswordStrength(next);
+    if (!strength.ok) {
+      toast.error("Mot de passe trop faible (8+ caractères, majuscule, minuscule, chiffre).");
+      return;
+    }
     setLoading(true);
-
-    // 1) Verify current password by attempting sign-in (no session disruption)
-    const { error: signErr } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: current,
-    });
-    if (signErr) {
+    try {
+      await submit({ data: { currentPassword: current, newPassword: next } });
+      toast.success("Mot de passe mis à jour");
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
       setLoading(false);
-      const tries = attempts + 1;
-      setAttempts(tries);
-      if (tries >= 5) {
-        setLockUntil(Date.now() + 60_000);
-        setAttempts(0);
-        toast.error("Trop de tentatives. Verrouillé 60s.");
-      } else {
-        toast.error("Mot de passe actuel incorrect");
-      }
-      return;
     }
-
-    // 2) Update password
-    const { error: updErr } = await supabase.auth.updateUser({ password: next });
-    setLoading(false);
-    if (updErr) {
-      toast.error(updErr.message);
-      return;
-    }
-    setAttempts(0);
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    toast.success("Mot de passe mis à jour");
   };
 
   return (
@@ -120,6 +100,7 @@ export function ChangePasswordCard() {
             value={next}
             onChange={(e) => setNext(e.target.value)}
           />
+          <PasswordStrengthMeter password={next} />
         </div>
 
         <div className="space-y-1.5">
@@ -140,6 +121,10 @@ export function ChangePasswordCard() {
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? "Mise à jour…" : "Mettre à jour le mot de passe"}
         </Button>
+        <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <ShieldCheck className="h-3 w-3" />
+          Chaque tentative est journalisée (IP, appareil) pour votre sécurité.
+        </p>
       </form>
     </div>
   );
