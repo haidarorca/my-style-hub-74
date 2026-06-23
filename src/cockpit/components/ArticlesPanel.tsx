@@ -321,6 +321,10 @@ export function ArticlesPanel({
           }}
         />
       )}
+
+      {/* Drawer détail produit (clic sur une ligne) */}
+      <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
     </div>
   );
 }
+
