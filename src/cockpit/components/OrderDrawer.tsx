@@ -257,6 +257,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* ─── BLOC 2 : Statut métier principal ─── */}
           <SubOrderStatusBadge status={status} subLabel={nextStep ? `Étape suivante : ${nextStep.label}` : null} />
 
+          {/* ─── BLOC 2bis : Circuit visuel horizontal ─── */}
+          <WorkflowCircuit status={status} isImport={imp} lineKind={lineKind} />
+
+          {/* ─── BLOC 2ter : Étape actuelle & action attendue ─── */}
+          <CurrentStepBlock status={status} nextStep={nextStep} />
+
           {/* ─── BLOC 3 : Actions contextuelles ─── */}
           <SubOrderActionBar
             status={status}
@@ -267,6 +273,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             onViewItems={onViewItems}
             canAdvance={!!handleAdvance}
             canCancel={!!onRequestCancel && status !== "delivered" && status !== "cancelled"}
+          />
+
+          {/* ─── BLOC 4 : Résumé métier compact toujours visible ─── */}
+          <QuickFinancialSummary
+            articleCount={(scopedArticles ?? []).length}
+            productTotal={ot}
+            freight={sf}
+            paid={tp}
+            remaining={rem}
           />
 
           {/* Vue mère multi-boutiques : on garde la liste des sous-commandes au sommet. */}
