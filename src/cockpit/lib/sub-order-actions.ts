@@ -45,7 +45,7 @@ const ACTION_VIEW_ARTICLES: SubOrderAction = {
   id: "articles", label: "Modifier articles", icon: Edit3, tab: "articles",
 };
 const ACTION_VIEW_ITEMS: SubOrderAction = {
-  id: "view-items", label: "Voir articles", icon: Eye, fire: "viewItems",
+  id: "view-items", label: "Voir articles", icon: Eye, tab: "articles",
 };
 const ACTION_MORE: SubOrderAction = {
   id: "more", label: "Autres", icon: MoreHorizontal, tab: "resume",

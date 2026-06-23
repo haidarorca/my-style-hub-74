@@ -15,6 +15,7 @@ import {
 import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import { StockBreakDialog, type StockBreakSubmit } from "./StockBreakDialog";
 import { DecisionOverrideDialog } from "./DecisionOverrideDialog";
+import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import { useAuth } from "@/hooks/use-auth";
 
 const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
@@ -43,6 +44,7 @@ export function ArticlesPanel({
   const adminName = profile?.full_name ?? profile?.email ?? "Super Admin";
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailArticle, setDetailArticle] = useState<OrderArticle | null>(null);
   const [stockBreakProduct, setStockBreakProduct] = useState<OrderArticle | null>(null);
   const [overrideProduct, setOverrideProduct] = useState<OrderArticle | null>(null);
   const [overrideDraft, setOverrideDraft] = useState<StockBreakSubmit | null>(null);
@@ -109,8 +111,9 @@ export function ArticlesPanel({
             }`}
           >
             <button
-              onClick={() => setExpandedId(isExpanded ? null : art.product_id)}
-              className="w-full flex items-start gap-2.5 p-2.5 text-left"
+              onClick={() => setDetailArticle(art)}
+              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors"
+              title="Voir le détail du produit"
             >
               <div className="shrink-0 w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
                 {art.product_image ? (
@@ -137,7 +140,7 @@ export function ArticlesPanel({
                     {getArticleStatusLabel(art)}
                   </span>
                   <span className="text-[10px] text-gray-500">x{art.quantity}</span>
-                  {/* Badge ÉTAT MÉTIER (toujours visible, statique) */}
+                  <span className="text-[10px] text-gray-500 ml-auto font-semibold">{art.line_total.toLocaleString("fr-FR")} FCFA</span>
                   {(() => {
                     const bs = getArticleBusinessState(art);
                     if (bs === "active" || bs === "delivered") return null;
@@ -147,7 +150,6 @@ export function ArticlesPanel({
                       </span>
                     );
                   })()}
-                  {/* Badge décision détaillé (delta financier replace) */}
                   {decisionBadge && art.stock_break?.action === "replace" && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${decisionBadge.className}`}>
                       {decisionBadge.label}
@@ -155,51 +157,15 @@ export function ArticlesPanel({
                   )}
                 </div>
               </div>
-
-              <ChevronRight className={`h-4 w-4 text-gray-300 shrink-0 mt-2 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
             </button>
 
-            {isExpanded && (
+            {/* Actions toujours visibles selon le statut métier — pas besoin d'expand */}
+            {true && (
               <div className="px-2.5 pb-2.5 space-y-2 border-t border-gray-100 pt-2">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500">Prix unitaire</span>
-                  <span className="font-medium">{art.unit_price.toLocaleString("fr-FR")} FCFA</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500">Total ligne</span>
-                  <span className="font-bold">{art.line_total.toLocaleString("fr-FR")} FCFA</span>
-                </div>
 
-                {partialDelivered && (
-                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-2 text-[10px] text-teal-700">
-                    Livré partiellement : {art.delivered_qty}/{art.quantity}
-                  </div>
-                )}
+                {/* Détails prix/rupture déplacés dans ProductDetailDrawer (clic sur la ligne).
+                    Seules les actions métier contextuelles restent ici. */}
 
-                {art.stock_break && (
-                  <div className={`rounded-lg p-2.5 text-[11px] space-y-1 ${
-                    art.stock_break.resolved ? "bg-gray-50 border border-gray-200" : "bg-red-50 border border-red-200"
-                  }`}>
-                    <div className={`font-semibold flex items-center gap-1 ${art.stock_break.resolved ? "text-gray-700" : "text-red-700"}`}>
-                      <Ban className="h-3 w-3" />
-                      {art.stock_break.resolved ? "Décision validée" : "Rupture en cours"}
-                    </div>
-                    <div className="text-gray-600">{art.stock_break.reason}</div>
-                    <div className="text-gray-500">
-                      Action : {STOCK_BREAK_ACTIONS.find(a => a.key === art.stock_break!.action)?.label}
-                    </div>
-                    {art.stock_break.replacement && (
-                      <div className="text-violet-700">
-                        → {art.stock_break.replacement.product_name} @ {art.stock_break.replacement.new_unit_price.toLocaleString("fr-FR")} FCFA
-                      </div>
-                    )}
-                    {art.stock_break.override_history && art.stock_break.override_history.length > 0 && (
-                      <div className="pt-1 border-t border-gray-200 text-[10px] text-amber-700">
-                        {art.stock_break.override_history.length} modification(s) Super Admin
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* ── Actions selon la matrice v3 (verrous stricts par type LOCAL/IMPORT) ── */}
                 {locked ? (
@@ -355,6 +321,10 @@ export function ArticlesPanel({
           }}
         />
       )}
+
+      {/* Drawer détail produit (clic sur une ligne) */}
+      <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
     </div>
   );
 }
+

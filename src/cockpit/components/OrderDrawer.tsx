@@ -342,14 +342,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                 {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
               </div>
 
-              {/* Résumé financier compact */}
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Résumé financier</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-white rounded p-2 text-center"><div className="text-[10px] text-gray-500">Total</div><div className="text-sm font-bold">{fmtF(gt)}</div></div>
-                  <div className={`rounded p-2 text-center ${rem > 0 ? "bg-red-50" : "bg-emerald-50"}`}><div className={`text-[10px] ${rem > 0 ? "text-red-600" : "text-emerald-600"}`}>Reste à payer</div><div className={`text-sm font-bold ${rem > 0 ? "text-red-700" : "text-emerald-700"}`}>{fmtF(rem)}</div></div>
-                </div>
-              </div>
+              {/* Résumé financier supprimé du tab Résumé — déjà affiché en permanence
+                  via QuickFinancialSummary (au-dessus des onglets). */}
+
 
               {/* Alertes opérationnelles */}
               {(() => {
@@ -393,18 +388,9 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               <PartialDeliveryBanner articles={scopedArticles} aggregate={agg} />
               <RestockWaitingPanel articles={scopedArticles} orderStatus={status} onResumeRestock={onResumeRestock} />
 
-              {onViewItems && (
-                <button onClick={onViewItems} className="w-full flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <ListOrdered className="h-5 w-5 text-orange-600" />
-                    <div className="text-left">
-                      <div className="text-sm font-semibold text-orange-800">Voir les articles</div>
-                      <div className="text-[10px] text-orange-600">Produits, quantités, vendeur, commission, variantes</div>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-orange-400" />
-                </button>
-              )}
+              {/* Bouton "Voir les articles" supprimé — chaque ligne d'article est désormais cliquable
+                  et ouvre le drawer détail produit (ProductDetailDrawer). */}
+
 
               {scopedArticles && scopedArticles.length > 0 && (
                 <ArticlesPanel
