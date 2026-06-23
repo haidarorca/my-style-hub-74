@@ -61,6 +61,9 @@ export const becomeVendor = createServerFn({ method: "POST" })
       // Note: notification aux admins gérée automatiquement par le trigger DB
       // `notify_admins_on_new_vendor` (sur INSERT user_roles role='vendeur').
       // Ne pas dupliquer côté serveur.
+    }
+
+
 
 
     return { ok: true };
