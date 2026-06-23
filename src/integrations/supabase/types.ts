@@ -228,6 +228,36 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_rate_limits: {
+        Row: {
+          action: string
+          attempts: number
+          first_attempt_at: string
+          id: string
+          key: string
+          last_attempt_at: string
+          locked_until: string | null
+        }
+        Insert: {
+          action: string
+          attempts?: number
+          first_attempt_at?: string
+          id?: string
+          key: string
+          last_attempt_at?: string
+          locked_until?: string | null
+        }
+        Update: {
+          action?: string
+          attempts?: number
+          first_attempt_at?: string
+          id?: string
+          key?: string
+          last_attempt_at?: string
+          locked_until?: string | null
+        }
+        Relationships: []
+      }
       brands: {
         Row: {
           created_at: string
@@ -1907,6 +1937,42 @@ export type Database = {
           },
         ]
       }
+      password_change_log: {
+        Row: {
+          created_at: string
+          email: string | null
+          error_reason: string | null
+          id: string
+          ip: string | null
+          method: string
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip?: string | null
+          method: string
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip?: string | null
+          method?: string
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       password_reset_codes: {
         Row: {
           attempts: number
@@ -1915,7 +1981,9 @@ export type Database = {
           email: string
           expires_at: string
           id: string
+          ip: string | null
           used: boolean
+          user_agent: string | null
         }
         Insert: {
           attempts?: number
@@ -1924,7 +1992,9 @@ export type Database = {
           email: string
           expires_at: string
           id?: string
+          ip?: string | null
           used?: boolean
+          user_agent?: string | null
         }
         Update: {
           attempts?: number
@@ -1933,7 +2003,9 @@ export type Database = {
           email?: string
           expires_at?: string
           id?: string
+          ip?: string | null
           used?: boolean
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -3894,6 +3966,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_security_settings: {
+        Row: {
+          created_at: string
+          last_used_at: string | null
+          recovery_codes_generated_at: string | null
+          recovery_codes_hash: string[]
+          totp_confirmed_at: string | null
+          totp_enabled: boolean
+          totp_secret: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          last_used_at?: string | null
+          recovery_codes_generated_at?: string | null
+          recovery_codes_hash?: string[]
+          totp_confirmed_at?: string | null
+          totp_enabled?: boolean
+          totp_secret?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_used_at?: string | null
+          recovery_codes_generated_at?: string | null
+          recovery_codes_hash?: string[]
+          totp_confirmed_at?: string | null
+          totp_enabled?: boolean
+          totp_secret?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       vendor_warehouses: {
         Row: {

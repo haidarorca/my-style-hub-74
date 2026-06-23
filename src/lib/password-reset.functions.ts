@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { createHash, randomInt } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { consumeRateLimit, clearRateLimit, getClientIp } from "@/lib/auth-rate-limit.server";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_mail/gmail/v1";
 const CODE_TTL_MINUTES = 15;
@@ -14,7 +16,7 @@ const SendSchema = z.object({
 
 const VerifySchema = z.object({
   email: z.string().email().max(255),
-  code: z.string().regex(/^\d{4}$/),
+  code: z.string().regex(/^\d{6}$/),
   newPassword: z.string().min(8).max(200),
 });
 
@@ -78,8 +80,22 @@ export const sendPasswordResetCode = createServerFn({ method: "POST" })
     if (!GOOGLE_MAIL_API_KEY) throw new Error("GOOGLE_MAIL_API_KEY is not configured");
 
     const email = data.email.trim().toLowerCase();
+    const req = getRequest();
+    const ip = getClientIp(req.headers);
+    const ua = req.headers.get("user-agent");
 
-    // Cooldown: refuse if a code was created within the last 60s
+    // Brute-force protection: per-email AND per-IP
+    const emailRl = await consumeRateLimit(`reset_send:email:${email}`, "reset_send");
+    if (!emailRl.allowed) {
+      // Silent success to avoid enumeration
+      return { ok: true };
+    }
+    if (ip) {
+      const ipRl = await consumeRateLimit(`reset_send:ip:${ip}`, "reset_send");
+      if (!ipRl.allowed) return { ok: true };
+    }
+
+    // Soft cooldown: if a code was created within last 60s, silently succeed
     const { data: recent } = await supabaseAdmin
       .from("password_reset_codes")
       .select("created_at")
@@ -90,7 +106,6 @@ export const sendPasswordResetCode = createServerFn({ method: "POST" })
     if (recent?.created_at) {
       const ageSec = (Date.now() - new Date(recent.created_at).getTime()) / 1000;
       if (ageSec < RESEND_COOLDOWN_SECONDS) {
-        // Don't reveal cooldown precisely — but block silently with success.
         return { ok: true };
       }
     }
@@ -103,8 +118,8 @@ export const sendPasswordResetCode = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!userRow) return { ok: true };
 
-    // Generate 4-digit code
-    const code = String(randomInt(0, 10000)).padStart(4, "0");
+    // Generate 6-digit code (cryptographically random)
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     const code_hash = hashCode(email, code);
     const expires_at = new Date(Date.now() + CODE_TTL_MINUTES * 60_000).toISOString();
 
@@ -117,11 +132,12 @@ export const sendPasswordResetCode = createServerFn({ method: "POST" })
 
     const { error: insErr } = await supabaseAdmin
       .from("password_reset_codes")
-      .insert({ email, code_hash, expires_at });
+      .insert({ email, code_hash, expires_at, ip, user_agent: ua });
     if (insErr) {
       console.error("insert code failed", insErr);
       throw new Error("Erreur interne");
     }
+
 
     // Load settings for branding/sender
     const { data: settings } = await supabaseAdmin
@@ -161,7 +177,7 @@ export const sendPasswordResetCode = createServerFn({ method: "POST" })
           <h1 style="margin:0 0 8px;color:#111;font-size:22px;">Code de vérification</h1>
           <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.5;">Voici votre code pour réinitialiser votre mot de passe sur <strong>${escapeHtml(siteName)}</strong> :</p>
           <div style="margin:0 0 24px;text-align:center;">
-            <div style="display:inline-block;padding:18px 28px;background:#f7f4f1;border:2px dashed #e85d3a;border-radius:10px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:38px;font-weight:700;letter-spacing:14px;color:#111;">${code}</div>
+            <div style="display:inline-block;padding:18px 28px;background:#f7f4f1;border:2px dashed #e85d3a;border-radius:10px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#111;">${code}</div>
           </div>
           <p style="margin:0 0 8px;color:#555;font-size:14px;">Ce code expire dans <strong>${CODE_TTL_MINUTES} minutes</strong>.</p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
@@ -206,6 +222,19 @@ export const verifyPasswordResetCode = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const email = data.email.trim().toLowerCase();
     const code_hash = hashCode(email, data.code);
+    const req = getRequest();
+    const ip = getClientIp(req.headers);
+    const ua = req.headers.get("user-agent");
+
+    // Brute-force protection on verification
+    const verifyRl = await consumeRateLimit(`reset_verify:email:${email}`, "reset_verify");
+    if (!verifyRl.allowed) {
+      throw new Error(`Trop de tentatives. Réessayez dans ${Math.ceil((verifyRl.retryAfterSec ?? 600) / 60)} min.`);
+    }
+    if (ip) {
+      const ipRl = await consumeRateLimit(`reset_verify:ip:${ip}`, "reset_verify");
+      if (!ipRl.allowed) throw new Error("Trop de tentatives depuis cette adresse. Réessayez plus tard.");
+    }
 
     const { data: row } = await supabaseAdmin
       .from("password_reset_codes")
@@ -232,7 +261,7 @@ export const verifyPasswordResetCode = createServerFn({ method: "POST" })
         .from("password_reset_codes")
         .update({ attempts: row.attempts + 1 })
         .eq("id", row.id);
-      throw new Error("Code incorrect.");
+      throw new Error(`Code incorrect. ${MAX_ATTEMPTS - row.attempts - 1} tentative(s) restante(s).`);
     }
 
     // Find user id
@@ -250,10 +279,21 @@ export const verifyPasswordResetCode = createServerFn({ method: "POST" })
     });
     if (updErr) {
       console.error("updateUserById failed", updErr);
+      await supabaseAdmin.from("password_change_log").insert({
+        user_id: profile.id, email, method: "reset", success: false, error_reason: updErr.message, ip, user_agent: ua,
+      });
       throw new Error("Mise à jour du mot de passe échouée.");
     }
 
     await supabaseAdmin.from("password_reset_codes").update({ used: true }).eq("id", row.id);
+    await clearRateLimit(`reset_verify:email:${email}`, "reset_verify");
+    await clearRateLimit(`reset_send:email:${email}`, "reset_send");
+
+    // Journal success
+    await supabaseAdmin.from("password_change_log").insert({
+      user_id: profile.id, email, method: "reset", success: true, ip, user_agent: ua,
+    });
 
     return { ok: true };
   });
+

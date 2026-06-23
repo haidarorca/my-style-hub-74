@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -15,6 +15,8 @@ export interface NotificationItem {
   user_id: string;
 }
 
+const PAGE_SIZE = 25;
+
 function deduceType(n: NotificationItem): "order" | "vendor" | "product" | "other" {
   const text = `${n.title} ${n.message} ${n.link ?? ""}`.toLowerCase();
   if (text.includes("commande") || text.includes("order") || n.link?.includes("/orders/")) return "order";
@@ -28,22 +30,43 @@ export function useNotifications(prefix: "admin" | "vendor") {
   const qc = useQueryClient();
   const queryKeyBase = [prefix, "notifications"];
   const queryKeyUnread = [prefix, "notifications-unread"];
+  const [filter, setFilter] = useState<NotificationType>("all");
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: [queryKeyBase, user?.id],
+  // Paginated, server-side filtered (much cheaper for large datasets)
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: [...queryKeyBase, user?.id, filter],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const { data } = await supabase
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const from = (pageParam as number) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let q = supabase
         .from("notifications")
         .select("id, title, message, link, is_read, created_at, user_id")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
-        .limit(200);
-      return (data ?? []) as NotificationItem[];
+        .range(from, to);
+      if (filter === "unread") q = q.eq("is_read", false);
+      const { data: rows } = await q;
+      return (rows ?? []) as NotificationItem[];
     },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length : undefined,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });
+
+  const items = useMemo(
+    () => (data?.pages.flat() ?? []).map((n) => ({ ...n, type: deduceType(n) })),
+    [data],
+  );
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: [queryKeyUnread, user?.id],
@@ -60,68 +83,58 @@ export function useNotifications(prefix: "admin" | "vendor") {
     staleTime: 30_000,
   });
 
-  const itemsWithType = useMemo(
-    () => items.map((n) => ({ ...n, type: deduceType(n) })),
-    [items]
+  const filteredItems = useCallback(
+    (f: NotificationType) => {
+      if (f === "all" || f === "unread") return items; // already server-filtered
+      return items.filter((n) => n.type === f);
+    },
+    [items],
   );
 
-  const filteredItems = useCallback(
-    (filter: NotificationType) => {
-      if (filter === "all") return itemsWithType;
-      if (filter === "unread") return itemsWithType.filter((n) => !n.is_read);
-      return itemsWithType.filter((n) => n.type === filter);
-    },
-    [itemsWithType]
-  );
+  const invalidate = useCallback(() => {
+    qc.invalidateQueries({ queryKey: queryKeyBase });
+    qc.invalidateQueries({ queryKey: queryKeyUnread });
+  }, [qc, queryKeyBase, queryKeyUnread]);
 
   const markAllRead = useCallback(async () => {
     if (!user) return;
-    await supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false);
-    qc.invalidateQueries({ queryKey: queryKeyBase });
-    qc.invalidateQueries({ queryKey: queryKeyUnread });
-  }, [user, qc, queryKeyBase, queryKeyUnread]);
+    await supabase.from("notifications").update({ is_read: true }).eq("user_id", user.id).eq("is_read", false);
+    invalidate();
+  }, [user, invalidate]);
 
-  const markOneRead = useCallback(
-    async (id: string) => {
-      await supabase.from("notifications").update({ is_read: true }).eq("id", id);
-      qc.invalidateQueries({ queryKey: queryKeyBase });
-      qc.invalidateQueries({ queryKey: queryKeyUnread });
-    },
-    [qc, queryKeyBase, queryKeyUnread]
-  );
+  const markOneRead = useCallback(async (id: string) => {
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    invalidate();
+  }, [invalidate]);
 
-  const deleteOne = useCallback(
-    async (id: string) => {
-      await supabase.from("notifications").delete().eq("id", id);
-      qc.invalidateQueries({ queryKey: queryKeyBase });
-      qc.invalidateQueries({ queryKey: queryKeyUnread });
-    },
-    [qc, queryKeyBase, queryKeyUnread]
-  );
+  const deleteOne = useCallback(async (id: string) => {
+    await supabase.from("notifications").delete().eq("id", id);
+    invalidate();
+  }, [invalidate]);
 
   const deleteAll = useCallback(async () => {
     if (!user) return;
     await supabase.from("notifications").delete().eq("user_id", user.id);
-    qc.invalidateQueries({ queryKey: queryKeyBase });
-    qc.invalidateQueries({ queryKey: queryKeyUnread });
-  }, [user, qc, queryKeyBase, queryKeyUnread]);
+    invalidate();
+  }, [user, invalidate]);
 
   const deleteRead = useCallback(async () => {
     if (!user) return;
     await supabase.from("notifications").delete().eq("user_id", user.id).eq("is_read", true);
-    qc.invalidateQueries({ queryKey: queryKeyBase });
-    qc.invalidateQueries({ queryKey: queryKeyUnread });
-  }, [user, qc, queryKeyBase, queryKeyUnread]);
+    invalidate();
+  }, [user, invalidate]);
 
   return {
-    items: itemsWithType,
+    items,
     filteredItems,
     unreadCount,
     isLoading,
+    filter,
+    setFilter,
+    hasNextPage: !!hasNextPage,
+    isFetchingNextPage,
+    loadMore: fetchNextPage,
+    refetch,
     markAllRead,
     markOneRead,
     deleteOne,

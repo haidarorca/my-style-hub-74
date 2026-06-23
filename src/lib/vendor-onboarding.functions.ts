@@ -58,13 +58,13 @@ export const becomeVendor = createServerFn({ method: "POST" })
         .from("user_roles").insert({ user_id: userId, role: "vendeur" });
       if (roleErr) throw new Error(roleErr.message);
 
-      // NOTIFIER les super admins qu'un nouveau vendeur s'est inscrit
-      try {
-        await notifyNewVendorSignup(userId, data.shop_name);
-      } catch (notifyError) {
-        console.error("[vendor-onboarding] notification admin echouee", { userId, error: notifyError });
-      }
+      // Note: notification aux admins gérée automatiquement par le trigger DB
+      // `notify_admins_on_new_vendor` (sur INSERT user_roles role='vendeur').
+      // Ne pas dupliquer côté serveur.
     }
+
+
+
 
     return { ok: true };
   });
