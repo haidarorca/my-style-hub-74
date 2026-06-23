@@ -4473,6 +4473,7 @@ export type Database = {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
       }
+      purge_old_read_notifications: { Args: never; Returns: number }
       resolve_commission:
         | {
             Args: { _product_id: string }

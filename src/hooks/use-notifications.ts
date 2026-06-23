@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -95,6 +95,30 @@ export function useNotifications(prefix: "admin" | "vendor") {
     qc.invalidateQueries({ queryKey: queryKeyBase });
     qc.invalidateQueries({ queryKey: queryKeyUnread });
   }, [qc, queryKeyBase, queryKeyUnread]);
+
+  // Realtime: auto-invalidate on any change to this user's notifications
+  // (INSERT for new ones, UPDATE for read state, DELETE for removals).
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          invalidate();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, invalidate]);
 
   const markAllRead = useCallback(async () => {
     if (!user) return;
