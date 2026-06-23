@@ -1,125 +1,88 @@
+## Refonte du drawer sous-commande — orienté actions métier
 
-# Vague 3 — Système SAV exploitable en production
+Transformer `OrderDrawer.tsx` (682 lignes) en cockpit d'action. **Conserver intégralement** la numérotation et l'identification existantes (1/2, vendor, line_kind, scope) — on ne change que la mise en scène.
 
-Avant le code, audit de cohérence avec les Vagues 1-2 et plan d'exécution. Aucun doublon ne sera créé : tout réutilise `sav-workflow.functions.ts`, `SavCaseDrawer`, `SavCaseList`, `resolve_sav_rules`, `sav_fee_charges`.
+### Nouvelle structure du drawer
 
-## 0. Audit anti-contournement / anti-duplication
+Réorganiser le contenu actuel en 5 onglets pour éviter le scroll infini :
 
-| Risque | Vérification | Statut |
-|---|---|---|
-| Décision finale court-circuitée | Seul `adminDecide`/`adminOverride` mute `decided_resolution` ; vendeur reste sur `vendor_recommendation` | ✅ déjà OK, on garde |
-| Logique d'annulation codée en dur | Toute lecture de la politique passe par `resolveRules()` → `cancellation_policy` | À enforcer dans la nouvelle `cancelOrder` |
-| Imports : règles ignorées | `openSavCase` lit déjà `returns_enabled`/`exchanges_enabled`. Manque le scope `source_country` dans l'appel | À corriger dans `resolveRules` côté TS |
-| Stock contourné lors d'un échange | Aucun écrit sur `product_variants.stock` aujourd'hui | À créer via `acceptExchange` |
-| Notifications dupliquées | Une seule fonction `notifySav()` interne, jamais d'`INSERT notifications` éparpillé | À créer |
-| Compteurs sidebar dispersés | Un unique server fn `getSavCounts()` consommé par tous les espaces | À créer |
+```text
+[Header identité — toujours visible]
+KZ-000128 · 1/2   Boutique U   [IMPORT] [Poids inconnu]
 
-## 1. Workflow d'échange complet
+[Bloc statut principal — toujours visible]
+🟠 À COMMANDER  ·  Étape actuelle : Nouvelle commande reçue
 
-Nouveaux server fns dans `sav-workflow.functions.ts` :
+[Bloc actions contextuelles — toujours visible]
+[Commander fournisseur] [Modifier articles] [Rupture] [Annuler] [⋯]
 
-- `acceptExchange({ exchange_id })` (admin) : passe `sav_exchanges.status='accepted'`, calcule `surcharge_amount`/`partial_refund_amount` selon `delta_amount`, crée automatiquement les `sav_fee_charges` selon les règles `fee_*_payer_default`, génère un `order_items` de remplacement (lié à l'`order_id` d'origine, flag `is_exchange_replacement=true`), décrémente le stock variant si présent.
-- `shipExchange({ exchange_id, tracking? })` : `status='shipped'`.
-- `markExchangeDelivered({ exchange_id })` : `status='delivered'` + clôture du `sav_case` parent.
-- `cancelExchange({ exchange_id, reason })` : `status='cancelled'` + restock.
+[Onglets]
+  Résumé · Articles · Logistique · Paiements · Historique
+```
 
-Règles consultées (lecture seule, jamais codées en dur) : `exchange_size_free`, `exchange_color_free`, `exchange_variant_requires_approval`, `exchange_different_product_requires_approval`. Si `_requires_approval=true` et admin n'a pas le perm `sav.decide` → refus.
+### Onglet 1 — Résumé (par défaut)
+- Banner statut + next action (existant : `NextActionBanner`)
+- Mini-pipeline horizontal (existant : `PipelineView`, compacté)
+- Carte client (nom, téléphone, WhatsApp)
+- Résumé financier (total / reste à payer)
+- 3 chips "Pesée · Frais · Paiement" avec CTA inline
 
-Migration mineure :
-- `ALTER TABLE order_items ADD COLUMN is_exchange_replacement boolean DEFAULT false, exchange_source_case_id uuid REFERENCES sav_cases(id)`
-- `ALTER TABLE order_items ADD COLUMN source_exchange_id uuid REFERENCES sav_exchanges(id)`
+### Onglet 2 — Articles
+- Liste actuelle (`ArticlesPanel`) enrichie d'un **badge statut par article** dérivé de `order_article_states` :
+  `à commander · commandé · reçu · pesé · expédié · livré · rupture · remplacé`
+- Actions contextuelles par article selon ce statut (commander, modifier qté, signaler rupture, ajouter poids/dims, voir détails)
 
-Stock : utilise `product_variants.stock` (déjà présent). Si la variante n'a pas de stock géré, on n'écrit rien (compat futur module stock vendeur). Toute modif passe par une RPC `apply_stock_delta(_variant_id, _delta, _reason)` SECURITY DEFINER pour préserver l'audit.
+### Onglet 3 — Logistique
+- Pesée, dimensions, calcul frais, étiquette, suivi (extraits des sections actuelles)
 
-## 2. Annulation pilotée par règle
+### Onglet 4 — Paiements
+- `PaymentForm` + `PaymentHistory` existants
 
-Nouveau server fn `cancelOrderItem({ order_item_id, reason })` :
-1. Lit `orders.status` → `cancellation_stage`.
-2. `resolveRules(product_id, destination_country, vendor_id, source_country)` → `cancellation_policy[stage]`.
-3. Si `allowed=false` → refus + suggestion fallback (`return` post-livraison).
-4. Si `decider='client'` et appelant = buyer → exécution directe ; sinon création d'un `sav_case` `case_type='cancellation'` avec `decided_resolution='refund'`, `requested_resolution='refund'`, status `accepted` si auto, sinon `open` (admin tranche).
-5. Calcul automatique des `sav_refunds` (`amount = paid * refund_pct/100`) et `sav_fee_charges` (`fees_to`).
+### Onglet 5 — Historique
+- `EventTimeline` existant en pleine largeur
 
-## 3. Centre SAV cockpit (production)
+### Moteur d'actions contextuelles
 
-Refonte `src/cockpit/pages/SavCenter.tsx` (réutilise `SavCaseList` + `SavCaseDrawer` existants) :
-- **KPI header** : `open`, `vendor_responded`, `escalated`, `in_arbitration`, SLA dépassé, à clôturer aujourd'hui.
-- **Filtres** : client (search), vendeur, boutique, produit, catégorie, pays source, pays destination, statut[], type[], priorité, période, "uniquement assistés admin".
-- **Indicateur de priorité** calculé : urgent si `sla_deadline_at < now()+24h`, bloqué si `vendor_responded` depuis >72h sans décision, litige si `case_type='dispute'`. Badge couleur sur chaque ligne.
-- Actions bulk (admin uniquement) : assigner, clôturer, escalader.
+Nouveau fichier `src/cockpit/lib/sub-order-actions.ts` : table de mapping
+`effective_status → Action[]` couvrant les 3 workflows (Local 6 étapes,
+Import poids connu 7 étapes, Import poids inconnu 10 étapes). Chaque action
+référence un handler existant (`upsertSubOrderStatus`, `WeightForm`,
+`PaymentForm`, etc.) — **aucune nouvelle logique métier**, uniquement du
+routing UI vers les fonctions Vague 1–2.
 
-## 4. Administration assistée — UI
+### Statut métier par article
 
-Nouveau composant `<AdminAssistedSavDialog>` dans le drawer admin :
-- Recherche client (orders.buyer_id ou nom/tel).
-- Sélection commande → article.
-- Type de dossier + canal d'assistance (`assisted_channel`) + raison (`assisted_reason`).
-- Appelle `openSavCase` avec `on_behalf_of_user_id` rempli.
-- Badge "Créé par admin pour [client]" visible partout (drawer header + liste).
+Nouveau composant `ArticleStatusBadge` + `ArticleActionsMenu` lisant
+`useArticleStates` (déjà existant). Les transitions passent par les
+mêmes server fns que celles déjà branchées dans `ArticlesPanel`.
 
-`SavCaseList` ajoute colonne `Source` : `Client` / `Vendeur` / `Admin (pour X)`.
+### Fichiers touchés
 
-## 5. Notifications in-app
+**Créés**
+- `src/cockpit/lib/sub-order-actions.ts` — table statut → actions
+- `src/cockpit/components/SubOrderStatusBadge.tsx` — gros badge coloré
+- `src/cockpit/components/SubOrderActionBar.tsx` — barre actions contextuelles
+- `src/cockpit/components/SubOrderTabs.tsx` — wrapper Tabs shadcn
+- `src/cockpit/components/ArticleStatusBadge.tsx`
+- `src/cockpit/components/ArticleActionsMenu.tsx`
 
-Une fonction interne `notifySav(case_id, event)` dans `sav-workflow.functions.ts` insérant dans `notifications` (table existante). Événements :
+**Modifiés**
+- `src/cockpit/components/OrderDrawer.tsx` — restructuré en header + tabs (passe de ~680 lignes à ~250 en déléguant aux sous-composants ; aucun appel server fn changé)
+- `src/cockpit/components/ArticlesPanel.tsx` — intègre badge + menu par ligne
 
-| Événement | Client | Vendeur | Admin |
-|---|---|---|---|
-| `case.opened` | ✓ (si admin a ouvert pour lui) | ✓ | ✓ (tous admins avec perm `sav.view`) |
-| `vendor.recommended` | — | — | ✓ |
-| `admin.decided` | ✓ | ✓ | — |
-| `admin.requested_info` | ✓ | — | — |
-| `refund.issued` | ✓ | ✓ | — |
-| `exchange.proposed` | ✓ | ✓ | — |
-| `exchange.shipped` | ✓ | — | — |
-| `case.closed` | ✓ | ✓ | — |
-| `sla.breached` | — | ✓ | ✓ |
+**Inchangés (garanties)**
+- `useSubOrderRows`, `deriveSubOrders`, `formatSubOrderLabel` — la numérotation 1/2, 2/2 reste identique
+- Server fns Vague 1–2 (`sub-order-states`, `sav-workflow`, paiements, pesée, etc.)
+- Règles admin / moteur de règles
 
-Appelée systématiquement aux endroits déjà existants (`adminDecide`, `vendorRecommend`, `adminIssueRefund`, etc.), pas de duplication.
+### Garanties anti-régression
 
-Architecture canaux : table `notifications` reste seule source de vérité. Champs `payload jsonb` + `channel text default 'in_app'` (migration mineure) pour préparer WhatsApp/Email plus tard sans changer le code appelant.
+1. Toute la logique métier reste dans les server fns existants.
+2. La numérotation `index/total/label` est lue depuis `SubOrderRow` sans transformation.
+3. Les badges `line_kind`, scope (kawzone/commission/autonomous), `IMPORT/LOCAL`, poids connu/inconnu sont conservés dans le nouveau header.
+4. Aucune migration DB.
+5. Mobile : tabs scrollables, actions en grille 2×N.
 
-## 6. Sidebars + compteurs dynamiques
-
-Nouveau server fn `getSavCounts({ scope: 'client'|'vendor'|'admin' })` retournant `{ new, pending, urgent, total }`.
-
-Hook `useSavCounts(scope)` (TanStack Query, refetch toutes les 60s, `realtime` channel sur `sav_cases` pour invalider).
-
-Intégration :
-- **Client** : `src/routes/account.tsx` (lien existant) → badge `new+urgent`. `MobileBottomNav` reste inchangé.
-- **Vendeur** : `src/routes/vendor.tsx` sidebar → entrée "SAV" avec badge `new+pending`.
-- **Admin** : `src/routes/admin.tsx` (déjà "Centre SAV") + `CockpitShell` → badge urgent, ajout entrée "Règles SAV" sous Settings.
-
-## 7. Logique import — vérification
-
-Patch `resolveRules()` côté TS pour passer `source_country_id` (lu sur `profiles.source_country_id` du vendeur). Test : depuis le simulateur de `admin.sav-rules.tsx`, on doit voir une règle posée sur `source_country=Chine` apparaître pour un produit dont le vendeur a `source_country_id=Chine`. Ajout d'un onglet "Pays source" dans `admin.sav-rules.tsx`.
-
-## 8. Garde-fous récapitulatifs
-
-- `adminDecide`/`adminOverride` restent les seules portes vers `decided_resolution`.
-- `acceptExchange` exige `sav.decide`.
-- `cancelOrderItem` exige `sav.decide` quand `decider='admin'`.
-- Toutes les écritures stock passent par `apply_stock_delta`.
-- Toutes les notifications passent par `notifySav`.
-- Trigger `tg_append_only_guard` reste actif sur `sav_actions`, `sav_fee_charges`.
-
-## 9. Découpage en livraisons
-
-1. **Migration mineure** : `is_exchange_replacement`, `source_exchange_id`, `exchange_source_case_id` sur `order_items` ; RPC `apply_stock_delta`.
-2. **Server fns** : `acceptExchange` + `shipExchange` + `markExchangeDelivered` + `cancelExchange` + `cancelOrderItem` + `getSavCounts` + `notifySav` (interne).
-3. **Patch `resolveRules` TS** pour `source_country_id`.
-4. **Refonte SavCenter** (KPI + filtres + priorité + bulk).
-5. **`AdminAssistedSavDialog`** + colonne Source dans `SavCaseList`.
-6. **Hook `useSavCounts`** + badges dans `admin.tsx` / `vendor.tsx` / `account.tsx` / `CockpitShell`.
-7. **Onglet "Pays source"** dans `admin.sav-rules.tsx`.
-
-## 10. Hors périmètre Vague 3 (volontairement)
-
-- Module stock vendeur complet (interface plein-écran de gestion stock).
-- WhatsApp / Email réels (architecture posée, intégration plus tard).
-- Cron SLA (le calcul `urgent` se fait côté lecture).
-- PDF avoirs.
-
----
-
-Je commence l'implémentation point par point dès validation, en respectant strictement l'ordre du §9 pour ne casser aucun écran existant.
+### Hors scope (à confirmer si besoin)
+- Refonte de la vue liste `SubOrderCard` (cartes du pipeline) — la demande porte sur l'ouverture d'une sous-commande, donc je ne touche pas la liste sauf demande explicite.
+- Nouveaux statuts métier ou nouvelles transitions — uniquement présentation.
