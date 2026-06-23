@@ -97,6 +97,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
+  const [activeTab, setActiveTab] = useState<SubOrderActionTab>("resume");
   if (!order) return null;
 
   // Statut affiché : si on est scopé sur une sous-commande, on lit son statut
