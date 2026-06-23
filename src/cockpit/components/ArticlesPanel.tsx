@@ -163,45 +163,9 @@ export function ArticlesPanel({
             {true && (
               <div className="px-2.5 pb-2.5 space-y-2 border-t border-gray-100 pt-2">
 
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500">Prix unitaire</span>
-                  <span className="font-medium">{art.unit_price.toLocaleString("fr-FR")} FCFA</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500">Total ligne</span>
-                  <span className="font-bold">{art.line_total.toLocaleString("fr-FR")} FCFA</span>
-                </div>
+                {/* Détails prix/rupture déplacés dans ProductDetailDrawer (clic sur la ligne).
+                    Seules les actions métier contextuelles restent ici. */}
 
-                {partialDelivered && (
-                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-2 text-[10px] text-teal-700">
-                    Livré partiellement : {art.delivered_qty}/{art.quantity}
-                  </div>
-                )}
-
-                {art.stock_break && (
-                  <div className={`rounded-lg p-2.5 text-[11px] space-y-1 ${
-                    art.stock_break.resolved ? "bg-gray-50 border border-gray-200" : "bg-red-50 border border-red-200"
-                  }`}>
-                    <div className={`font-semibold flex items-center gap-1 ${art.stock_break.resolved ? "text-gray-700" : "text-red-700"}`}>
-                      <Ban className="h-3 w-3" />
-                      {art.stock_break.resolved ? "Décision validée" : "Rupture en cours"}
-                    </div>
-                    <div className="text-gray-600">{art.stock_break.reason}</div>
-                    <div className="text-gray-500">
-                      Action : {STOCK_BREAK_ACTIONS.find(a => a.key === art.stock_break!.action)?.label}
-                    </div>
-                    {art.stock_break.replacement && (
-                      <div className="text-violet-700">
-                        → {art.stock_break.replacement.product_name} @ {art.stock_break.replacement.new_unit_price.toLocaleString("fr-FR")} FCFA
-                      </div>
-                    )}
-                    {art.stock_break.override_history && art.stock_break.override_history.length > 0 && (
-                      <div className="pt-1 border-t border-gray-200 text-[10px] text-amber-700">
-                        {art.stock_break.override_history.length} modification(s) Super Admin
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* ── Actions selon la matrice v3 (verrous stricts par type LOCAL/IMPORT) ── */}
                 {locked ? (
