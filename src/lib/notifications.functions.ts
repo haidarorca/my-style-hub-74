@@ -134,19 +134,3 @@ export async function notifyVendorStatusChange(
   });
 }
 
-/**
- * Notifier qu'un message de support a été reçu.
- */
-export async function notifySupportMessage(
-  recipientUserId: string,
-  senderName: string,
-  preview: string,
-  supportTicketId: string
-): Promise<void> {
-  await insertNotification({
-    user_id: recipientUserId,
-    title: `💬 Nouveau message de ${senderName}`,
-    message: preview.length > 120 ? preview.substring(0, 120) + "..." : preview,
-    link: `/admin/support/${supportTicketId}`,
-  });
-}
