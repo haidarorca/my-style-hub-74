@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Check, Trash2, Archive } from "lucide-react";
+import { Check, Trash2, Archive, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotifications, NotificationType } from "@/hooks/use-notifications";
 import { NotificationFilters } from "@/components/notifications/NotificationFilters";
@@ -11,9 +11,10 @@ export const Route = createFileRoute("/admin/notifications")({
 });
 
 function AdminNotificationsPage() {
-  const { items, filteredItems, unreadCount, markAllRead, markOneRead, deleteOne, deleteRead, isLoading } =
-    useNotifications("admin");
-  const [filter, setFilter] = useState<NotificationType>("all");
+  const {
+    items, filteredItems, unreadCount, markAllRead, markOneRead, deleteOne, deleteRead,
+    isLoading, filter, setFilter, hasNextPage, isFetchingNextPage, loadMore,
+  } = useNotifications("admin");
   const [showActions, setShowActions] = useState(false);
 
   const displayed = filteredItems(filter);
@@ -32,7 +33,6 @@ function AdminNotificationsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-bold">Notifications</h1>
@@ -49,18 +49,13 @@ function AdminNotificationsPage() {
               Tout marquer comme lu
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setShowActions((v) => !v)}
-          >
+          <Button size="sm" variant="ghost" onClick={() => setShowActions((v) => !v)}>
             <Archive className="mr-1 h-3.5 w-3.5" />
             Actions
           </Button>
         </div>
       </div>
 
-      {/* Actions avancees */}
       {showActions && (
         <div className="rounded-lg border border-border bg-muted/30 p-3">
           <p className="mb-2 text-xs font-medium text-muted-foreground">Actions sur les notifications</p>
@@ -73,27 +68,43 @@ function AdminNotificationsPage() {
         </div>
       )}
 
-      {/* Filtres */}
       <NotificationFilters active={filter} onChange={setFilter} counts={counts} />
 
-      {/* Liste */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
           Chargement...
         </div>
       ) : (
-        <NotificationList
-          items={displayed}
-          onMarkRead={markOneRead}
-          onDelete={deleteOne}
-          emptyMessage={
-            filter === "unread"
-              ? "Aucune notification non lue."
-              : filter === "all"
-                ? "Aucune notification."
-                : `Aucune notification dans cette categorie.`
-          }
-        />
+        <>
+          <NotificationList
+            items={displayed}
+            onMarkRead={markOneRead}
+            onDelete={deleteOne}
+            emptyMessage={
+              filter === "unread"
+                ? "Aucune notification non lue."
+                : filter === "all"
+                  ? "Aucune notification."
+                  : `Aucune notification dans cette categorie.`
+            }
+          />
+          {hasNextPage && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadMore()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Chargement…</>
+                ) : (
+                  "Voir plus"
+                )}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
