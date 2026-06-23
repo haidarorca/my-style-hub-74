@@ -15,6 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home, FileText, Receipt, ClipboardList } from "lucide-react";
 import { SubOrderStatusBadge } from "./SubOrderStatusBadge";
 import { SubOrderActionBar } from "./SubOrderActionBar";
+import { WorkflowCircuit } from "./WorkflowCircuit";
+import { CurrentStepBlock } from "./CurrentStepBlock";
+import { QuickFinancialSummary } from "./QuickFinancialSummary";
 import type { SubOrderActionTab } from "@/cockpit/lib/sub-order-actions";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
@@ -254,6 +257,12 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
           {/* ─── BLOC 2 : Statut métier principal ─── */}
           <SubOrderStatusBadge status={status} subLabel={nextStep ? `Étape suivante : ${nextStep.label}` : null} />
 
+          {/* ─── BLOC 2bis : Circuit visuel horizontal ─── */}
+          <WorkflowCircuit status={status} isImport={imp} lineKind={lineKind} />
+
+          {/* ─── BLOC 2ter : Étape actuelle & action attendue ─── */}
+          <CurrentStepBlock status={status} nextStep={nextStep} />
+
           {/* ─── BLOC 3 : Actions contextuelles ─── */}
           <SubOrderActionBar
             status={status}
@@ -264,6 +273,15 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             onViewItems={onViewItems}
             canAdvance={!!handleAdvance}
             canCancel={!!onRequestCancel && status !== "delivered" && status !== "cancelled"}
+          />
+
+          {/* ─── BLOC 4 : Résumé métier compact toujours visible ─── */}
+          <QuickFinancialSummary
+            articleCount={(scopedArticles ?? []).length}
+            productTotal={ot}
+            freight={sf}
+            paid={tp}
+            remaining={rem}
           />
 
           {/* Vue mère multi-boutiques : on garde la liste des sous-commandes au sommet. */}
@@ -368,13 +386,6 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                   </div>
                 );
               })()}
-
-              {/* CTA "Confirmer l'étape" — bouton large récapitulatif */}
-              {nextStep && (
-                <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
-                  <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
-                </Button>
-              )}
             </TabsContent>
 
             {/* ─── Onglet ARTICLES ─── */}
@@ -562,8 +573,30 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
             </TabsContent>
           </Tabs>
 
-          {/* Annuler — toujours accessible en bas, sauf si livrée/annulée */}
-          {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
+          {/* ─── BLOC FINAL : Bouton principal unique "Action suivante" ─── */}
+          {nextStep && (
+            <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 backdrop-blur border-t border-gray-200 space-y-2 z-10">
+              <Button
+                size="sm"
+                className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-bold text-sm shadow-md`}
+                onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}
+              >
+                <CheckCircle className="h-5 w-5 mr-2" />
+                {nextStep.actionLabel}
+              </Button>
+              {onRequestCancel && status !== "delivered" && status !== "cancelled" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full h-9 text-red-600 border-red-200 hover:bg-red-50 text-xs"
+                  onClick={onRequestCancel}
+                >
+                  <Ban className="h-3.5 w-3.5 mr-1.5" />Annuler la commande
+                </Button>
+              )}
+            </div>
+          )}
+          {!nextStep && onRequestCancel && status !== "delivered" && status !== "cancelled" && (
             <>
               <Separator />
               <Button size="sm" variant="outline" className="w-full h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={onRequestCancel}>
