@@ -96,6 +96,30 @@ export function useNotifications(prefix: "admin" | "vendor") {
     qc.invalidateQueries({ queryKey: queryKeyUnread });
   }, [qc, queryKeyBase, queryKeyUnread]);
 
+  // Realtime: auto-invalidate on any change to this user's notifications
+  // (INSERT for new ones, UPDATE for read state, DELETE for removals).
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          invalidate();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, invalidate]);
+
   const markAllRead = useCallback(async () => {
     if (!user) return;
     await supabase.from("notifications").update({ is_read: true }).eq("user_id", user.id).eq("is_read", false);
