@@ -386,13 +386,6 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                   </div>
                 );
               })()}
-
-              {/* CTA "Confirmer l'étape" — bouton large récapitulatif */}
-              {nextStep && (
-                <Button size="sm" className={`w-full h-12 ${nextStep.color} hover:opacity-90 text-white font-semibold`} onClick={() => handleStatusAndClose(order.order_id ?? "", nextStep.status, adminName)}>
-                  <CheckCircle className="h-5 w-5 mr-2" />{nextStep.actionLabel}
-                </Button>
-              )}
             </TabsContent>
 
             {/* ─── Onglet ARTICLES ─── */}
