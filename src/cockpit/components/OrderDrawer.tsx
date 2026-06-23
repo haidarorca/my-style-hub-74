@@ -11,7 +11,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Phone, MapPin, CreditCard, MessageCircle, Package, Truck, CheckCircle, Ban, User, History, TrendingUp, Calendar, ShieldAlert, ListOrdered, ChevronRight, AlertTriangle, Home, FileText, Receipt, ClipboardList } from "lucide-react";
+import { SubOrderStatusBadge } from "./SubOrderStatusBadge";
+import { SubOrderActionBar } from "./SubOrderActionBar";
+import type { SubOrderActionTab } from "@/cockpit/lib/sub-order-actions";
 import { STATUS_COLORS, fmtF, waLink, isImport, getImportStepIndex, IMPORT_STEPS, getNextStep, canMarkDelivered, canMarkShipped, canMarkPreparing } from "@/cockpit/lib/workflow";
 import { getOrderNumber, getTechnicalRef } from "@/cockpit/lib/orderNumbers";
 import { PaymentForm } from "./PaymentForm";
