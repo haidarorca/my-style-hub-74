@@ -165,3 +165,55 @@ export function getStatusBadge(status: string): { label: string; emoji: string; 
   };
   return map[s] ?? { label: s, emoji: "•", className: "bg-gray-100 text-gray-700 border-gray-300" };
 }
+
+// ─── Priorité métier (couleur + libellé pour la carte action) ───────
+export type SubOrderPriority = "urgent" | "action" | "progress" | "waiting_client" | "shipped" | "done";
+
+export interface PriorityVisual {
+  priority: SubOrderPriority;
+  label: string;
+  /** Bordure gauche épaisse (carte). */
+  borderClass: string;
+  /** Fond léger de la carte. */
+  bgClass: string;
+  /** Pastille pleine (badge priorité). */
+  pillClass: string;
+  /** Pulse pour les priorités urgentes. */
+  pulse?: boolean;
+}
+
+const PRIORITY_VISUALS: Record<SubOrderPriority, Omit<PriorityVisual, "priority">> = {
+  urgent:         { label: "Urgent",         borderClass: "border-l-red-500     bg-red-50/40",     bgClass: "bg-red-50/40",     pillClass: "bg-red-600 text-white", pulse: true },
+  action:         { label: "Action requise", borderClass: "border-l-orange-500  bg-orange-50/40",  bgClass: "bg-orange-50/40",  pillClass: "bg-orange-500 text-white" },
+  progress:       { label: "En cours",       borderClass: "border-l-cyan-500    bg-cyan-50/40",    bgClass: "bg-cyan-50/40",    pillClass: "bg-cyan-600 text-white" },
+  waiting_client: { label: "Attente client", borderClass: "border-l-amber-500   bg-amber-50/40",   bgClass: "bg-amber-50/40",   pillClass: "bg-amber-500 text-white" },
+  shipped:        { label: "Expédiée",       borderClass: "border-l-indigo-500  bg-indigo-50/40",  bgClass: "bg-indigo-50/40",  pillClass: "bg-indigo-600 text-white" },
+  done:           { label: "Terminée",       borderClass: "border-l-gray-300    bg-gray-50/40",    bgClass: "bg-gray-50/40",    pillClass: "bg-gray-500 text-white" },
+};
+
+/**
+ * Détermine la priorité métier de la sous-commande.
+ * - urgent  : ruptures non résolues
+ * - waiting_client : en attente d'une action côté client (paiement)
+ * - progress : automatisé / attente fournisseur
+ * - action  : action admin attendue
+ * - shipped : expédiée, en attente livraison
+ * - done    : terminée ou annulée
+ */
+export function getSubOrderPriority(status: string, blockedCount = 0): PriorityVisual {
+  const s = (status ?? "").trim() || "new";
+  let p: SubOrderPriority;
+  if (blockedCount > 0) p = "urgent";
+  else if (s === "payment_fees") p = "waiting_client";
+  else if (s === "ordered_supplier") p = "progress";
+  else if (s === "shipped") p = "shipped";
+  else if (s === "delivered" || s === "cancelled") p = "done";
+  else p = "action";
+  return { priority: p, ...PRIORITY_VISUALS[p] };
+}
+
+/** Action principale (la 1re renvoyée par getSubOrderActions). */
+export function getPrimaryAction(status: string, lineKind?: string | null): SubOrderAction | null {
+  const list = getSubOrderActions(status, lineKind);
+  return list[0] ?? null;
+}

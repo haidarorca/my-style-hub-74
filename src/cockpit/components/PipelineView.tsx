@@ -2,13 +2,11 @@ import { useRef, useCallback } from "react";
 import { getOrderNumber } from "@/cockpit/lib/orderNumbers";
 import { fmtF, fmtDateTime, STATUS_COLORS } from "@/cockpit/lib/workflow";
 import { getOrderMixType } from "@/cockpit/lib/article-states";
-import { Store, Layers } from "lucide-react";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
 import type { LogisticsOrderRow } from "@/lib/admin-logistics.functions";
 import type { SubOrderRow } from "@/cockpit/hooks/useSubOrderRows";
-import { SubOrderBadges } from "./SubOrderBadges";
 import type { SubOrderHistoryMap } from "@/cockpit/hooks/useSubOrderHistories";
-import { getHistory } from "@/cockpit/hooks/useSubOrderHistories";
+import { SubOrderActionCard } from "./SubOrderActionCard";
 
 interface Props {
   orders: LogisticsOrderRow[];
@@ -119,56 +117,20 @@ export function PipelineView({ orders, totalPaidMap, freightMap, onSelect, artic
                 {count === 0 ? (
                   <div className="text-[10px] text-gray-400 text-center py-4 italic">Vide</div>
                 ) : useSubMode ? col.subs.map(row => {
-                  const a = row.aggregate;
-                  const blocked = a.counters.blocked > 0;
-                  const money = a.pending_money.total_abs > 0;
-                  const ready = a.flags.can_ship_today;
-                  const hasImport = row.kind === "import" || row.kind === "local_and_import";
-                  const kindClass = hasImport ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700";
-                  const kindLabel = hasImport ? "IMP" : "LOC";
-                  const scopeClass =
-                    row.cockpit_scope === "kawzone" ? "bg-blue-600 text-white"
-                    : row.cockpit_scope === "commission" ? "bg-purple-600 text-white"
-                    : "bg-gray-400 text-white";
-                  const scopeLabel =
-                    row.cockpit_scope === "kawzone" ? "KZ"
-                    : row.cockpit_scope === "commission" ? "COM"
-                    : "EXT";
+                  const oid = row.mother_order_id;
+                  const productTotal = row.financials.product_total;
+                  const freight = freightMap[oid] ?? row.order.total_shipping_fees ?? 0;
+                  const paid = totalPaidMap[oid] ?? 0;
+                  const remaining = Math.max(0, productTotal + freight - paid);
                   return (
-                    <button
+                    <SubOrderActionCard
                       key={`${row.mother_order_id}::${row.sub_order_key}`}
-                      onClick={() => onSelectSubRow?.(row)}
-                      className={`w-full bg-white rounded-md p-2.5 text-left shadow-sm hover:shadow-md transition-shadow border ${
-                        blocked ? "border-red-300" : money ? "border-amber-300" : ready ? "border-emerald-300" : "border-gray-200"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1 gap-1">
-                        <span className="font-mono text-[10px] font-bold text-gray-800">{row.label}</span>
-                        <div className="flex items-center gap-1">
-                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${scopeClass}`}>{scopeLabel}</span>
-                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${kindClass}`}>{kindLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs font-bold truncate">
-                        <Store className="h-3 w-3 text-gray-500 shrink-0" />
-                        <span className="truncate">{row.vendor_name}</span>
-                      </div>
-                      <div className="text-[10px] text-gray-500 truncate">{row.order.customer_name ?? "—"}</div>
-                      <div className="text-[10px] text-gray-400">{fmtDateTime(row.order.order_created_at)}</div>
-                      <div className="mt-1 flex items-center justify-between border-t pt-1">
-                        <span className="text-[9px] text-gray-500">{row.financials.article_count} art.</span>
-                        <span className="text-[10px] font-bold">{fmtF(row.financials.product_total)}</span>
-                      </div>
-                      {row.total > 1 && (
-                        <div className="text-[8px] text-indigo-600 font-bold mt-0.5 flex items-center gap-0.5">
-                          <Layers className="h-2.5 w-2.5" />{row.index}/{row.total} boutiques
-                        </div>
-                      )}
-                      <SubOrderBadges
-                        history={getHistory(historyMap, row.mother_order_id, row.vendor_id)}
-                        compact
-                      />
-                    </button>
+                      row={row}
+                      onSelect={onSelectSubRow ?? (() => {})}
+                      historyMap={historyMap}
+                      remaining={remaining}
+                      freight={freight}
+                    />
                   );
                 }) : col.orders.map(order => {
                   const kz = getOrderNumber(order.order_id ?? "");
