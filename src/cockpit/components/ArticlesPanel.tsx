@@ -111,8 +111,9 @@ export function ArticlesPanel({
             }`}
           >
             <button
-              onClick={() => setExpandedId(isExpanded ? null : art.product_id)}
-              className="w-full flex items-start gap-2.5 p-2.5 text-left"
+              onClick={() => setDetailArticle(art)}
+              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors"
+              title="Voir le détail du produit"
             >
               <div className="shrink-0 w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
                 {art.product_image ? (
@@ -139,7 +140,7 @@ export function ArticlesPanel({
                     {getArticleStatusLabel(art)}
                   </span>
                   <span className="text-[10px] text-gray-500">x{art.quantity}</span>
-                  {/* Badge ÉTAT MÉTIER (toujours visible, statique) */}
+                  <span className="text-[10px] text-gray-500 ml-auto font-semibold">{art.line_total.toLocaleString("fr-FR")} FCFA</span>
                   {(() => {
                     const bs = getArticleBusinessState(art);
                     if (bs === "active" || bs === "delivered") return null;
@@ -149,7 +150,6 @@ export function ArticlesPanel({
                       </span>
                     );
                   })()}
-                  {/* Badge décision détaillé (delta financier replace) */}
                   {decisionBadge && art.stock_break?.action === "replace" && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${decisionBadge.className}`}>
                       {decisionBadge.label}
@@ -157,12 +157,12 @@ export function ArticlesPanel({
                   )}
                 </div>
               </div>
-
-              <ChevronRight className={`h-4 w-4 text-gray-300 shrink-0 mt-2 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
             </button>
 
-            {isExpanded && (
+            {/* Actions toujours visibles selon le statut métier — pas besoin d'expand */}
+            {true && (
               <div className="px-2.5 pb-2.5 space-y-2 border-t border-gray-100 pt-2">
+
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-500">Prix unitaire</span>
                   <span className="font-medium">{art.unit_price.toLocaleString("fr-FR")} FCFA</span>
