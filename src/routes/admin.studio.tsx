@@ -40,7 +40,8 @@ const DEFAULT_COLUMNS: Record<StudioTemplateKey, string[]> = {
 function StudioPage() {
   const [templateKey, setTemplateKey] = useState<StudioTemplateKey | null>(null);
   const [viewName, setViewName] = useState<string | undefined>();
-  const [page, setPage] = useState(0);
+  // Pagination : 1-based pour l'UI (PaginationBar), converti en 0-based pour l'API
+  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [sort, setSort] = useState<StudioSort | null>(null);
 
@@ -66,14 +67,14 @@ function StudioPage() {
     enabled: !!templateKey,
   });
 
-  // Chargement des données
+  // Chargement des données (page converti en 0-based pour l'API)
   const { data: queryResult, isLoading } = useStudioQuery(
     {
       templateKey: templateKey ?? "articles_vendus",
       columns: config?.columns ?? ["id"],
       filters: config?.filters ?? [],
       sort: config?.sort ?? null,
-      page,
+      page: page - 1,
       pageSize,
     },
     !!templateKey
@@ -92,7 +93,7 @@ function StudioPage() {
       }
       return { field, dir: "asc" };
     });
-    setPage(0);
+    setPage(1);
   };
 
   const handleSaveView = (name: string, description: string) => {
@@ -104,7 +105,7 @@ function StudioPage() {
   const handleLoadView = (view: { id: string; name: string; template_key: string; config: unknown }) => {
     setTemplateKey(view.template_key as StudioTemplateKey);
     setViewName(view.name);
-    setPage(0);
+    setPage(1);
   };
 
   const handleDeleteView = (id: string) => {
@@ -114,7 +115,7 @@ function StudioPage() {
   const handleReset = () => {
     setTemplateKey(null);
     setViewName(undefined);
-    setPage(0);
+    setPage(1);
     setSort(null);
   };
 
@@ -126,7 +127,7 @@ function StudioPage() {
           <p className="text-sm text-muted-foreground">
             Sélectionnez un modèle pour commencer votre analyse.
           </p>
-          <TemplatePicker onSelect={(key) => { setTemplateKey(key); setPage(0); }} />
+          <TemplatePicker onSelect={(key) => { setTemplateKey(key); setPage(1); }} />
         </div>
       </StudioShell>
     );
