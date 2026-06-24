@@ -145,7 +145,7 @@ function StudioPage() {
           {savedViews && savedViews.length > 0 && (
             <ViewLoadMenu
               views={savedViews.map((v: any) => ({ id: v.id, name: v.name, description: v.description, template_key: v.template_key }))}
-              onLoad={handleLoadView}
+              onLoad={handleLoadView as any}
               onDelete={handleDeleteView}
             />
           )}
