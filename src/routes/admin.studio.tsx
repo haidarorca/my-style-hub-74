@@ -144,7 +144,7 @@ function StudioPage() {
         <div className="flex items-center gap-2">
           {savedViews && savedViews.length > 0 && (
             <ViewLoadMenu
-              views={savedViews.map((v) => ({ id: v.id, name: v.name, description: v.description, template_key: v.template_key }))}
+              views={savedViews.map((v: any) => ({ id: v.id, name: v.name, description: v.description, template_key: v.template_key }))}
               onLoad={handleLoadView}
               onDelete={handleDeleteView}
             />
