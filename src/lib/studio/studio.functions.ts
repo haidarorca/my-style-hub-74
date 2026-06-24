@@ -92,7 +92,7 @@ export const saveView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => SaveViewParamsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { data: result, error } = await context.supabase as any
+    const { data: result, error } = await (context.supabase as any)
       .from("studio_views" as any)
       .insert({
         name: data.name,
@@ -124,7 +124,7 @@ export const listViews = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ templateKey: z.enum(["articles_vendus", "sous_commandes", "produits"]).optional() }).parse(input))
   .handler(async ({ data, context }) => {
-    let q = context.supabase as any
+    let q = (context.supabase as any)
       .from("studio_views" as any)
       .select("id, name, description, template_key, config, created_by, created_at, updated_at")
       .eq("created_by", context.userId)
@@ -148,7 +148,7 @@ export const getView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => ViewIdSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase as any
+    const { data: row, error } = await (context.supabase as any)
       .from("studio_views" as any)
       .select("*")
       .eq("id", data.viewId)
@@ -175,7 +175,7 @@ export const deleteView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => ViewIdSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase as any
+    const { error } = await (context.supabase as any)
       .from("studio_views" as any)
       .delete()
       .eq("id", data.viewId)
