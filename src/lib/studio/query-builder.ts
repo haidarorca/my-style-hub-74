@@ -131,7 +131,7 @@ export function mapTemplateToEntity(templateKey: StudioTemplateKey): string {
 // 7. EXPORT CSV (sans pagination)
 // ------------------------------------------------------------------
 
-export function buildExportQuery(config: StudioViewConfig, maxRows: number, supabase: any): any {
+export function buildExportQuery(config: Omit<StudioViewConfig, "pageSize"> & { pageSize?: number }, maxRows: number, supabase: any): any {
   const entity = getEntity(mapTemplateToEntity(config.templateKey));
   if (!entity) throw new Error(`Entite inconnue: ${config.templateKey}`);
 
