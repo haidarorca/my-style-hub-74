@@ -6,7 +6,8 @@
 
 import type { StudioViewConfig, StudioFilter, StudioSort, StudioTemplateKey } from "./studio.types";
 import { STUDIO_LIMITS } from "./studio.types";
-import { getEntity, buildSelectClause, sanitizeColumns } from "./studio-security";
+import { buildSelectClause, sanitizeColumns } from "./studio-security";
+import { getEntity } from "./schema-registry";
 
 // ------------------------------------------------------------------
 // 1. BUILDER SELECT
