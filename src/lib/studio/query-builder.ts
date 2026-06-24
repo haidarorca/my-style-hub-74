@@ -6,7 +6,8 @@
 
 import type { StudioViewConfig, StudioFilter, StudioSort, StudioTemplateKey } from "./studio.types";
 import { STUDIO_LIMITS } from "./studio.types";
-import { getEntity, buildSelectClause, sanitizeColumns } from "./studio-security";
+import { buildSelectClause, sanitizeColumns } from "./studio-security";
+import { getEntity } from "./schema-registry";
 
 // ------------------------------------------------------------------
 // 1. BUILDER SELECT
@@ -130,7 +131,7 @@ export function mapTemplateToEntity(templateKey: StudioTemplateKey): string {
 // 7. EXPORT CSV (sans pagination)
 // ------------------------------------------------------------------
 
-export function buildExportQuery(config: StudioViewConfig, maxRows: number, supabase: any): any {
+export function buildExportQuery(config: Omit<StudioViewConfig, "pageSize"> & { pageSize?: number }, maxRows: number, supabase: any): any {
   const entity = getEntity(mapTemplateToEntity(config.templateKey));
   if (!entity) throw new Error(`Entite inconnue: ${config.templateKey}`);
 

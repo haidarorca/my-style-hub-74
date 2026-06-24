@@ -25,7 +25,7 @@ export async function logStudioAction(entry: StudioAuditEntry): Promise<void> {
       action: entry.action,
       target_type: entry.entity ?? "studio",
       target_id: entry.templateKey ?? "—",
-      details: entry.details ?? {},
+      details: (entry.details ?? {}) as any,
       created_at: new Date().toISOString(),
     });
   } catch {
