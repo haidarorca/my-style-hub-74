@@ -4,6 +4,7 @@ import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
   Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield, Coins,
+  BarChart3,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/admins", label: "Administrateurs", icon: ShieldCheck, superOnly: true },
       { to: "/admin/team", label: "Équipe & Rôles", icon: Shield, superOnly: true, badge: "NEW" },
       { to: "/admin/audit-logs", label: "Journal d'audit", icon: FileText, superOnly: true },
+      { to: "/admin/studio", label: "Studio", icon: BarChart3, superOnly: true, badge: "BETA" },
     ],
   },
 ];
