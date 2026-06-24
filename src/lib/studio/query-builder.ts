@@ -4,7 +4,6 @@
 // Architecture : fonctions pures composables
 // ============================================================
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { StudioViewConfig, StudioFilter, StudioSort, StudioTemplateKey } from "./studio.types";
 import { STUDIO_LIMITS } from "./studio.types";
 import { getEntity, buildSelectClause, sanitizeColumns } from "./studio-security";
@@ -96,14 +95,14 @@ export interface BuiltQuery {
   to: number;
 }
 
-export function buildQuery(config: StudioViewConfig, page: number): BuiltQuery {
+export function buildQuery(config: StudioViewConfig, page: number, supabase: any): BuiltQuery {
   const entity = getEntity(mapTemplateToEntity(config.templateKey));
   if (!entity) throw new Error(`Entite inconnue: ${config.templateKey}`);
 
   const selectClause = buildSelect(config);
   const { from, to } = getRange(page, config.pageSize);
 
-  const query = supabaseAdmin
+  const query = supabase
     .from(entity.table)
     .select(selectClause, { count: "exact", head: false });
 
@@ -131,14 +130,14 @@ export function mapTemplateToEntity(templateKey: StudioTemplateKey): string {
 // 7. EXPORT CSV (sans pagination)
 // ------------------------------------------------------------------
 
-export function buildExportQuery(config: StudioViewConfig, maxRows: number): any {
+export function buildExportQuery(config: StudioViewConfig, maxRows: number, supabase: any): any {
   const entity = getEntity(mapTemplateToEntity(config.templateKey));
   if (!entity) throw new Error(`Entite inconnue: ${config.templateKey}`);
 
   const selectClause = buildSelect(config);
   const safeMax = Math.min(maxRows, STUDIO_LIMITS.MAX_ROWS_EXPORT);
 
-  const query = supabaseAdmin
+  const query = supabase
     .from(entity.table)
     .select(selectClause, { count: "exact", head: false });
 

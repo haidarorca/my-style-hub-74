@@ -5,7 +5,7 @@
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { StudioViewConfig, StudioSort } from "@/lib/studio/studio.types";
+import type { StudioViewConfig } from "@/lib/studio/studio.types";
 import { exportCsv } from "@/lib/studio/studio.functions";
 
 interface ExportCsvButtonProps {

@@ -5,42 +5,25 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { STUDIO_LIMITS } from "./studio.types";
 import {
   ExecuteQueryParamsSchema, SaveViewParamsSchema, ViewIdSchema, ExportCsvParamsSchema,
 } from "./studio-security";
 import { buildQuery, buildExportQuery, mapTemplateToEntity } from "./query-builder";
-import { STUDIO_ENTITIES, getEntity } from "./schema-registry";
+import { getEntity } from "./schema-registry";
 import { logStudioAction } from "./studio-audit";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
-// ------------------------------------------------------------------
-// Helper : assert permission studio_access
-// ------------------------------------------------------------------
-
-async function assertStudioAccess(context: any): Promise<void> {
-  if (!context.userId) throw new Error("Authentification requise");
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", context.userId)
-    .single();
-  if (!data || !["admin", "super_admin"].includes(data.role)) {
-    throw new Error("Permission studio_access requise");
-  }
-}
 
 // ------------------------------------------------------------------
 // 1. executeQuery — Exécute une requête studio
 // ------------------------------------------------------------------
 
 export const executeQuery = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => ExecuteQueryParamsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
     const startTime = Date.now();
-    const { query, from, to } = buildQuery(data, data.page);
+    const { query, from, to } = buildQuery(data, data.page, context.supabase);
 
     const { data: rows, error, count } = await query;
 
@@ -56,7 +39,7 @@ export const executeQuery = createServerFn({ method: "POST" })
 
     // Audit
     await logStudioAction({
-      actorId: context.userId!,
+      actorId: context.userId,
       action: "studio_query",
       entity: data.templateKey,
       templateKey: data.templateKey,
@@ -76,10 +59,9 @@ export const executeQuery = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const getSchema = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ templateKey: z.enum(["articles_vendus", "sous_commandes", "produits"]) }).parse(input))
-  .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
+  .handler(async ({ data }) => {
     const entityId = mapTemplateToEntity(data.templateKey);
     const entity = getEntity(entityId);
     if (!entity) throw new Error(`Entité inconnue: ${entityId}`);
@@ -107,18 +89,17 @@ export const getSchema = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const saveView = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => SaveViewParamsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
-    const { data: result, error } = await supabaseAdmin
+    const { data: result, error } = await context.supabase
       .from("studio_views")
       .insert({
         name: data.name,
         description: data.description ?? null,
         template_key: data.templateKey,
         config: data.config as any,
-        created_by: context.userId!,
+        created_by: context.userId,
       })
       .select("id")
       .single();
@@ -126,7 +107,7 @@ export const saveView = createServerFn({ method: "POST" })
     if (error) throw new Error(`Erreur sauvegarde: ${error.message}`);
 
     await logStudioAction({
-      actorId: context.userId!,
+      actorId: context.userId,
       action: "studio_save_view",
       templateKey: data.templateKey,
       details: { viewId: result.id, name: data.name },
@@ -140,14 +121,13 @@ export const saveView = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const listViews = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ templateKey: z.enum(["articles_vendus", "sous_commandes", "produits"]).optional() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
-    let q = supabaseAdmin
+    let q = context.supabase
       .from("studio_views")
       .select("id, name, description, template_key, config, created_by, created_at, updated_at")
-      .eq("created_by", context.userId!)
+      .eq("created_by", context.userId)
       .order("updated_at", { ascending: false });
 
     if (data.templateKey) {
@@ -165,21 +145,20 @@ export const listViews = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const getView = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => ViewIdSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
-    const { data: row, error } = await supabaseAdmin
+    const { data: row, error } = await context.supabase
       .from("studio_views")
       .select("*")
       .eq("id", data.viewId)
-      .eq("created_by", context.userId!)
+      .eq("created_by", context.userId)
       .single();
 
     if (error || !row) throw new Error("Vue introuvable");
 
     await logStudioAction({
-      actorId: context.userId!,
+      actorId: context.userId,
       action: "studio_load_view",
       templateKey: row.template_key,
       details: { viewId: data.viewId },
@@ -193,20 +172,19 @@ export const getView = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const deleteView = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => ViewIdSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
-    const { error } = await supabaseAdmin
+    const { error } = await context.supabase
       .from("studio_views")
       .delete()
       .eq("id", data.viewId)
-      .eq("created_by", context.userId!);
+      .eq("created_by", context.userId);
 
     if (error) throw new Error(`Erreur suppression: ${error.message}`);
 
     await logStudioAction({
-      actorId: context.userId!,
+      actorId: context.userId,
       action: "studio_delete_view",
       details: { viewId: data.viewId },
     });
@@ -219,12 +197,11 @@ export const deleteView = createServerFn({ method: "POST" })
 // ------------------------------------------------------------------
 
 export const exportCsv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input) => ExportCsvParamsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertStudioAccess(context);
-
     const maxRows = data.maxRows ?? STUDIO_LIMITS.MAX_ROWS_EXPORT;
-    const query = buildExportQuery(data, maxRows);
+    const query = buildExportQuery(data, maxRows, context.supabase);
 
     const { data: rows, error } = await query;
     if (error) throw new Error(`Erreur export: ${error.message}`);
@@ -251,7 +228,7 @@ export const exportCsv = createServerFn({ method: "POST" })
     const csv = lines.join("\n");
 
     await logStudioAction({
-      actorId: context.userId!,
+      actorId: context.userId,
       action: "studio_export",
       templateKey: data.templateKey,
       details: { rowCount: csvRows.length },

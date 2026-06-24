@@ -5,14 +5,12 @@
 
 import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useAuth } from "@/hooks/use-auth";
+import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useStudioQuery } from "@/hooks/studio/use-studio-query";
 import { useStudioViewsList, useSaveStudioView, useDeleteStudioView } from "@/hooks/studio/use-studio-views";
 import { getSchema } from "@/lib/studio/studio.functions";
 import { useQuery } from "@tanstack/react-query";
 import type { StudioTemplateKey, StudioViewConfig, StudioSort } from "@/lib/studio/studio.types";
-import { STUDIO_LIMITS } from "@/lib/studio/studio.types";
-import { mapTemplateToEntity, getEntity } from "@/lib/studio/schema-registry";
 
 import { StudioShell } from "@/components/studio/StudioShell";
 import { TemplatePicker } from "@/components/studio/TemplatePicker";
@@ -25,13 +23,11 @@ import { ExportCsvButton } from "@/components/studio/ExportCsvButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/admin/studio")({
-  component: StudioPage,
-  beforeLoad: async () => {
-    const auth = useAuth.getState();
-    if (!auth.user || !["admin", "super_admin"].includes(auth.user.role ?? "")) {
-      throw new Error("Accès interdit");
-    }
-  },
+  component: () => (
+    <PermissionGate perm="studio_access">
+      <StudioPage />
+    </PermissionGate>
+  ),
 });
 
 // Colonnes par défaut par template
@@ -42,7 +38,6 @@ const DEFAULT_COLUMNS: Record<StudioTemplateKey, string[]> = {
 };
 
 function StudioPage() {
-  const { user } = useAuth();
   const [templateKey, setTemplateKey] = useState<StudioTemplateKey | null>(null);
   const [viewName, setViewName] = useState<string | undefined>();
   const [page, setPage] = useState(0);
@@ -176,7 +171,6 @@ function StudioPage() {
                 selected={config?.columns ?? []}
                 onChange={(cols) => {
                   // Les colonnes sont en lecture seule pour le MVP
-                  // La modification nécessiterait de recharger les données
                 }}
               />
             </CardContent>
