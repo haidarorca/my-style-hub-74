@@ -130,12 +130,12 @@ export function StudioTable({
       </div>
 
       <PaginationBar
-        currentPage={page}
+        page={page}
         pageSize={pageSize}
-        totalItems={total}
+        total={total}
         onPageChange={onPageChange}
-        onPageSizeChange={onPageSizeChange}
       />
+
     </div>
   );
 }
