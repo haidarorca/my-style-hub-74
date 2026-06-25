@@ -381,7 +381,7 @@ export const getReturnBalance = createServerFn({ method: "POST" })
     const supabase = context.supabase as any;
 
     const { data: balance, error } = await supabase
-      .from("return_balances")
+      .from("v_case_balances")
       .select("*")
       .eq("case_id", data.caseId)
       .single();
@@ -542,7 +542,7 @@ export const closeReturnCase = createServerFn({ method: "POST" })
 
     // Verifier la balance
     const { data: balance } = await supabase
-      .from("return_balances")
+      .from("v_case_balances")
       .select("balance_status, total_paid, total_refunded, total_fees")
       .eq("case_id", data.caseId)
       .single();
