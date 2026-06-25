@@ -53,7 +53,7 @@ export const initiateReturn = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // 1. Verifier que la commande existe et est livree
@@ -133,7 +133,7 @@ export const acceptReturn = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // Mettre a jour le case
@@ -192,7 +192,7 @@ export const receiveReturnShipment = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // Mettre a jour le shipment
@@ -266,7 +266,7 @@ export const createInspectionReport = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // 1. Creer le rapport
@@ -378,7 +378,7 @@ export const getReturnBalance = createServerFn({ method: "POST" })
     z.object({ caseId: z.string().uuid() }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
 
     const { data: balance, error } = await supabase
       .from("return_balances")
@@ -439,7 +439,7 @@ export const processDisposition = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // Mettre a jour le rapport d'inspection
@@ -537,7 +537,7 @@ export const closeReturnCase = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
     const now = new Date().toISOString();
 
     // Verifier la balance
@@ -587,7 +587,7 @@ export const listReturnCases = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
 
     let query = supabase
       .from("sav_cases")
@@ -627,7 +627,7 @@ export const updateReturnShipmentStatus = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    const supabase = context.supabase as any;
 
     const update: Record<string, unknown> = { status: data.status };
     if (data.trackingNumber) update.tracking_number = data.trackingNumber;
