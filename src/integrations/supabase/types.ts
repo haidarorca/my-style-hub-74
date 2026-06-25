@@ -802,6 +802,142 @@ export type Database = {
           },
         ]
       }
+      destruction_records: {
+        Row: {
+          case_id: string
+          certificate_url: string | null
+          created_at: string
+          created_by: string | null
+          destroyed_at: string
+          destroyed_by: string | null
+          id: string
+          inspection_report_id: string | null
+          method: string
+          original_currency: string | null
+          original_value: number | null
+          photos: string[] | null
+          reason: string
+          witnessed_by: string | null
+        }
+        Insert: {
+          case_id: string
+          certificate_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          destroyed_at?: string
+          destroyed_by?: string | null
+          id?: string
+          inspection_report_id?: string | null
+          method: string
+          original_currency?: string | null
+          original_value?: number | null
+          photos?: string[] | null
+          reason: string
+          witnessed_by?: string | null
+        }
+        Update: {
+          case_id?: string
+          certificate_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          destroyed_at?: string
+          destroyed_by?: string | null
+          id?: string
+          inspection_report_id?: string | null
+          method?: string
+          original_currency?: string | null
+          original_value?: number | null
+          photos?: string[] | null
+          reason?: string
+          witnessed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "destruction_records_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
+          {
+            foreignKeyName: "destruction_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "destruction_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_destroyed_by_fkey"
+            columns: ["destroyed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_destroyed_by_fkey"
+            columns: ["destroyed_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "destruction_records_destroyed_by_fkey"
+            columns: ["destroyed_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_inspection_report_id_fkey"
+            columns: ["inspection_report_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_witnessed_by_fkey"
+            columns: ["witnessed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "destruction_records_witnessed_by_fkey"
+            columns: ["witnessed_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "destruction_records_witnessed_by_fkey"
+            columns: ["witnessed_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_verification_codes: {
         Row: {
           attempts: number
@@ -1290,6 +1426,127 @@ export type Database = {
           },
         ]
       }
+      inspection_reports: {
+        Row: {
+          accessories_missing: string[] | null
+          accessories_present: string[] | null
+          actual_dimensions_cm: number[] | null
+          actual_weight_g: number | null
+          case_id: string
+          client_fault: boolean | null
+          condition: string
+          created_at: string
+          disposition: string
+          findings: string | null
+          id: string
+          inspected_at: string
+          inspected_by: string
+          inspection_cost: number | null
+          inspection_cost_currency: string | null
+          inspection_cost_payer: string | null
+          packaging_condition: string | null
+          photos: string[] | null
+          recommended_action: string | null
+          return_shipment_id: string | null
+          serial_number: string | null
+          updated_at: string
+          videos: string[] | null
+        }
+        Insert: {
+          accessories_missing?: string[] | null
+          accessories_present?: string[] | null
+          actual_dimensions_cm?: number[] | null
+          actual_weight_g?: number | null
+          case_id: string
+          client_fault?: boolean | null
+          condition: string
+          created_at?: string
+          disposition: string
+          findings?: string | null
+          id?: string
+          inspected_at?: string
+          inspected_by: string
+          inspection_cost?: number | null
+          inspection_cost_currency?: string | null
+          inspection_cost_payer?: string | null
+          packaging_condition?: string | null
+          photos?: string[] | null
+          recommended_action?: string | null
+          return_shipment_id?: string | null
+          serial_number?: string | null
+          updated_at?: string
+          videos?: string[] | null
+        }
+        Update: {
+          accessories_missing?: string[] | null
+          accessories_present?: string[] | null
+          actual_dimensions_cm?: number[] | null
+          actual_weight_g?: number | null
+          case_id?: string
+          client_fault?: boolean | null
+          condition?: string
+          created_at?: string
+          disposition?: string
+          findings?: string | null
+          id?: string
+          inspected_at?: string
+          inspected_by?: string
+          inspection_cost?: number | null
+          inspection_cost_currency?: string | null
+          inspection_cost_payer?: string | null
+          packaging_condition?: string | null
+          photos?: string[] | null
+          recommended_action?: string | null
+          return_shipment_id?: string | null
+          serial_number?: string | null
+          updated_at?: string
+          videos?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
+          {
+            foreignKeyName: "inspection_reports_inspected_by_fkey"
+            columns: ["inspected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_reports_inspected_by_fkey"
+            columns: ["inspected_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "inspection_reports_inspected_by_fkey"
+            columns: ["inspected_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_reports_return_shipment_id_fkey"
+            columns: ["return_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "return_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_reason_templates: {
         Row: {
           created_at: string
@@ -1648,6 +1905,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_exchange_source_case_id_fkey"
+            columns: ["exchange_source_case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
           },
           {
             foreignKeyName: "order_items_order_id_fkey"
@@ -2845,6 +3109,90 @@ export type Database = {
           },
         ]
       }
+      return_shipments: {
+        Row: {
+          carrier_name: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          expected_at: string | null
+          from_address: string | null
+          id: string
+          leg_type: string
+          note: string | null
+          received_at: string | null
+          received_condition: string | null
+          reception_photos: string[] | null
+          shipped_at: string | null
+          shipping_cost: number | null
+          shipping_cost_currency: string | null
+          status: string
+          to_address: string | null
+          tracking_number: string | null
+          tracking_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          carrier_name?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          expected_at?: string | null
+          from_address?: string | null
+          id?: string
+          leg_type: string
+          note?: string | null
+          received_at?: string | null
+          received_condition?: string | null
+          reception_photos?: string[] | null
+          shipped_at?: string | null
+          shipping_cost?: number | null
+          shipping_cost_currency?: string | null
+          status?: string
+          to_address?: string | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          carrier_name?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          expected_at?: string | null
+          from_address?: string | null
+          id?: string
+          leg_type?: string
+          note?: string | null
+          received_at?: string | null
+          received_condition?: string | null
+          reception_photos?: string[] | null
+          shipped_at?: string | null
+          shipping_cost?: number | null
+          shipping_cost_currency?: string | null
+          status?: string
+          to_address?: string | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_shipments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_shipments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           action: string
@@ -2919,6 +3267,13 @@ export type Database = {
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sav_actions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
         ]
       }
       sav_attachments: {
@@ -2962,6 +3317,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_attachments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
           },
         ]
       }
@@ -3235,6 +3597,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sav_exchanges_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
+          {
             foreignKeyName: "sav_exchanges_original_item_id_fkey"
             columns: ["original_item_id"]
             isOneToOne: false
@@ -3306,6 +3675,13 @@ export type Database = {
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sav_fee_charges_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
         ]
       }
       sav_messages: {
@@ -3343,6 +3719,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
           },
         ]
       }
@@ -3399,6 +3782,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sav_cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_refunds_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
           },
           {
             foreignKeyName: "sav_refunds_linked_movement_id_fkey"
@@ -3629,6 +4019,125 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_returns: {
+        Row: {
+          case_id: string
+          created_at: string
+          created_by: string | null
+          credit_amount: number | null
+          credit_applied_to_case: boolean | null
+          credit_currency: string | null
+          credit_received_at: string | null
+          id: string
+          inspection_report_id: string | null
+          items_returned: Json | null
+          request_method: string | null
+          request_reference: string | null
+          requested_at: string | null
+          return_shipment_id: string | null
+          supplier_id: string
+          supplier_name: string | null
+          supplier_response: string | null
+          supplier_response_at: string | null
+          supplier_response_note: string | null
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number | null
+          credit_applied_to_case?: boolean | null
+          credit_currency?: string | null
+          credit_received_at?: string | null
+          id?: string
+          inspection_report_id?: string | null
+          items_returned?: Json | null
+          request_method?: string | null
+          request_reference?: string | null
+          requested_at?: string | null
+          return_shipment_id?: string | null
+          supplier_id: string
+          supplier_name?: string | null
+          supplier_response?: string | null
+          supplier_response_at?: string | null
+          supplier_response_note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number | null
+          credit_applied_to_case?: boolean | null
+          credit_currency?: string | null
+          credit_received_at?: string | null
+          id?: string
+          inspection_report_id?: string | null
+          items_returned?: Json | null
+          request_method?: string | null
+          request_reference?: string | null
+          requested_at?: string | null
+          return_shipment_id?: string | null
+          supplier_id?: string
+          supplier_name?: string | null
+          supplier_response?: string | null
+          supplier_response_at?: string | null
+          supplier_response_note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_returns_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "sav_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "v_case_balances"
+            referencedColumns: ["case_id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_inspection_report_id_fkey"
+            columns: ["inspection_report_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_returns_return_shipment_id_fkey"
+            columns: ["return_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "return_shipments"
             referencedColumns: ["id"]
           },
         ]
@@ -4247,6 +4756,70 @@ export type Database = {
             columns: ["source_country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_case_balances: {
+        Row: {
+          balance_status: string | null
+          case_closed_at: string | null
+          case_id: string | null
+          case_opened_at: string | null
+          case_status: Database["public"]["Enums"]["sav_status"] | null
+          case_type: Database["public"]["Enums"]["sav_case_type"] | null
+          fees_breakdown: Json | null
+          net_position: number | null
+          order_id: string | null
+          order_item_id: string | null
+          original_quantity: number | null
+          owner_party: Database["public"]["Enums"]["sav_owner_party"] | null
+          problem_type: Database["public"]["Enums"]["sav_problem_type"] | null
+          total_credit_notes: number | null
+          total_fees: number | null
+          total_lost: number | null
+          total_paid: number | null
+          total_refunded: number | null
+          total_remaining: number | null
+          total_supplier_credit: number | null
+          unit_price: number | null
+          updated_at: string | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_cases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_contacts"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "sav_cases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "public_vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
