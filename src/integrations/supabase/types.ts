@@ -4756,6 +4756,8 @@ export type Database = {
         | "import_logistics"
         | "handling"
         | "restocking"
+        | "destruction"
+        | "storage"
       sav_owner_party: "kawzone" | "vendor" | "supplier" | "client" | "carrier"
       sav_party: "client" | "vendor" | "admin" | "system" | "carrier"
       sav_problem_type:
@@ -5175,6 +5177,8 @@ export const Constants = {
         "import_logistics",
         "handling",
         "restocking",
+        "destruction",
+        "storage",
       ],
       sav_owner_party: ["kawzone", "vendor", "supplier", "client", "carrier"],
       sav_party: ["client", "vendor", "admin", "system", "carrier"],
