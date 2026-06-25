@@ -591,7 +591,7 @@ export const listReturnCases = createServerFn({ method: "POST" })
 
     let query = supabase
       .from("sav_cases")
-      .select("*, return_balances(*)", { count: "exact" })
+      .select("*, v_case_balances(*)", { count: "exact" })
       .in("case_type", ["return", "cancellation", "exchange"])
       .order("last_activity_at", { ascending: false })
       .range(data.page * data.pageSize, (data.page + 1) * data.pageSize - 1);
