@@ -167,7 +167,7 @@ export interface SupplierReturn {
   requested_at: string | null;
   request_method: RequestMethod | null;
   request_reference: string | null;
-  items_returned: unknown;
+  items_returned: any;
   supplier_response: SupplierResponse;
   supplier_response_at: string | null;
   supplier_response_note: string | null;
@@ -194,7 +194,7 @@ export interface CaseBalance {
   unit_price: number | null;
   original_quantity: number | null;
   total_fees: number;
-  fees_breakdown: Record<string, unknown>;
+  fees_breakdown: Record<string, any>;
   total_refunded: number;
   total_credit_notes: number;
   total_supplier_credit: number;
@@ -318,7 +318,7 @@ export const createReturnShipment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreateShipmentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("return_shipments")
       .insert({
@@ -339,7 +339,7 @@ export const listReturnShipments = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("return_shipments")
       .select("*")
@@ -361,7 +361,7 @@ export const updateShipmentStatus = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const update: Record<string, unknown> = { status: data.status };
     if (data.status === "delivered") update.received_at = new Date().toISOString();
     if (data.received_condition !== undefined) update.received_condition = data.received_condition;
@@ -384,7 +384,7 @@ export const deleteReturnShipment = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { error } = await (supabaseAdmin as any)
       .from("return_shipments")
       .delete()
@@ -422,7 +422,7 @@ export const createInspectionReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreateInspectionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("inspection_reports")
       .insert({
@@ -441,7 +441,7 @@ export const listInspectionReports = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("inspection_reports")
       .select("*, inspector:inspected_by(full_name)")
@@ -464,7 +464,7 @@ export const updateInspectionReport = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { id, ...update } = data;
     const { data: row, error } = await (supabaseAdmin as any)
       .from("inspection_reports")
@@ -497,7 +497,7 @@ export const createDestructionRecord = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreateDestructionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("destruction_records")
       .insert({
@@ -516,7 +516,7 @@ export const listDestructionRecords = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("destruction_records")
       .select("*")
@@ -545,7 +545,7 @@ export const createSupplierReturn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => CreateSupplierReturnSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("supplier_returns")
       .insert({
@@ -565,7 +565,7 @@ export const listSupplierReturns = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("supplier_returns")
       .select("*")
@@ -588,14 +588,16 @@ export const updateSupplierResponse = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
-    const { id, ...update } = data;
-    if (update.supplier_response) {
+    await assertPermission(context.userId, "sav_view_all");
+    const { id, ...rest } = data;
+    const update: Record<string, unknown> = { ...rest };
+    if (rest.supplier_response) {
       update.supplier_response_at = new Date().toISOString();
     }
-    if (update.credit_amount !== undefined && update.credit_amount > 0) {
+    if (rest.credit_amount !== undefined && rest.credit_amount > 0) {
       update.credit_received_at = new Date().toISOString();
     }
+
     const { data: row, error } = await (supabaseAdmin as any)
       .from("supplier_returns")
       .update(update)
@@ -616,7 +618,7 @@ export const getCaseBalance = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     const { data: row, error } = await (supabaseAdmin as any)
       .from("v_case_balances")
       .select("*")
@@ -637,7 +639,7 @@ export const listCaseBalances = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
     let q = (supabaseAdmin as any)
       .from("v_case_balances")
       .select("*", { count: "exact" })
@@ -670,7 +672,7 @@ export const getReturnCaseTimeline = createServerFn({ method: "POST" })
     z.object({ case_id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
 
     const caseId = data.case_id;
     const sb = supabaseAdmin as any;
@@ -710,7 +712,7 @@ export const getReturnKPIs = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertPermission(context.userId, "sav");
+    await assertPermission(context.userId, "sav_view_all");
 
     const daysMap = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
     const days = daysMap[data.period];
