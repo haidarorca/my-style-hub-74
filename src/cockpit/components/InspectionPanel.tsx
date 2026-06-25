@@ -1,134 +1,138 @@
-// ============================================================
+// ═══════════════════════════════════════════════════════════════
 // InspectionPanel — KawZone Cockpit
-// Formulaire d'inspection du produit retourné
-// Etape CRITIQUE : la fourche decisionnelle du workflow retour
-// ============================================================
+// Formulaire d'inspection produit retourné
+// Enregistre le rapport d'inspection + décision de disposition
+// ═══════════════════════════════════════════════════════════════
 
 import { useState } from "react";
-import { Search, Camera, Package, Scale, Ruler, Hash } from "lucide-react";
+import { Search, Camera, Package, AlertTriangle, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-
-export type InspectionCondition =
-  | "new_sealed" | "new_opened" | "like_new" | "good" | "fair"
-  | "damaged_functional" | "damaged_unfunctional" | "incomplete" | "wrong_product" | "counterfeit";
-
-export type InspectionDisposition =
-  | "restock_as_new" | "restock_as_used" | "send_to_repair"
-  | "return_to_supplier" | "destroy" | "donate" | "pending_decision";
+import type { InspectionCondition, PackagingCondition, Disposition } from "@/lib/return-management.functions";
 
 interface InspectionPanelProps {
   caseId: string;
-  onSubmit: (data: InspectionData) => void;
-  onCancel?: () => void;
-  loading?: boolean;
+  returnShipmentId?: string | null;
+  onSubmit?: (data: InspectionFormData) => void;
+  className?: string;
 }
 
-export interface InspectionData {
+export interface InspectionFormData {
+  case_id: string;
+  return_shipment_id?: string | null;
   condition: InspectionCondition;
-  disposition: InspectionDisposition;
-  actualWeightG?: number;
-  actualDimensionsCm?: number[];
-  accessoriesPresent: string[];
-  accessoriesMissing: string[];
-  serialNumber?: string;
-  packagingCondition?: "original_intact" | "original_damaged" | "original_missing" | "replacement";
+  actual_weight_g: number | null;
+  actual_dimensions_cm: number[] | null;
+  accessories_present: string[];
+  accessories_missing: string[];
+  serial_number: string | null;
+  packaging_condition: PackagingCondition | null;
+  disposition: Disposition;
+  findings: string | null;
+  recommended_action: string | null;
+  client_fault: boolean;
+  inspection_cost: number;
   photos: string[];
-  findings?: string;
-  clientFault: boolean;
-  inspectionCost: number;
-  inspectionCostPayer: "client" | "kawzone" | "vendor" | "supplier";
 }
 
-const CONDITIONS: { value: InspectionCondition; label: string; severity: "good" | "medium" | "bad" }[] = [
+const CONDITIONS: { value: InspectionCondition; label: string; severity: "good" | "warning" | "critical" }[] = [
   { value: "new_sealed", label: "Neuf, scellé", severity: "good" },
   { value: "new_opened", label: "Neuf, ouvert", severity: "good" },
   { value: "like_new", label: "Comme neuf", severity: "good" },
   { value: "good", label: "Bon état", severity: "good" },
-  { value: "fair", label: "État moyen", severity: "medium" },
-  { value: "damaged_functional", label: "Endommagé, fonctionnel", severity: "medium" },
-  { value: "damaged_unfunctional", label: "Endommagé, non fonctionnel", severity: "bad" },
-  { value: "incomplete", label: "Incomplet", severity: "bad" },
-  { value: "wrong_product", label: "Mauvais produit", severity: "bad" },
-  { value: "counterfeit", label: "Contrefaçon", severity: "bad" },
+  { value: "fair", label: "État moyen", severity: "warning" },
+  { value: "damaged_functional", label: "Endommagé, fonctionnel", severity: "warning" },
+  { value: "damaged_unfunctional", label: "Endommagé, non fonctionnel", severity: "critical" },
+  { value: "incomplete", label: "Incomplet", severity: "critical" },
+  { value: "wrong_product", label: "Mauvais produit", severity: "critical" },
+  { value: "counterfeit", label: "Contrefaçon", severity: "critical" },
 ];
 
-const DISPOSITIONS: { value: InspectionDisposition; label: string; description: string }[] = [
-  { value: "restock_as_new", label: "Remise en stock (neuf)", description: "Le produit est remis en vente comme neuf" },
-  { value: "restock_as_used", label: "Remise en stock (occasion)", description: "Le produit est vendu en occasion / déstockage" },
-  { value: "send_to_repair", label: "Envoi en réparation", description: "Le produit sera réparé avant revente" },
-  { value: "return_to_supplier", label: "Retour fournisseur", description: "Le produit est renvoyé au fournisseur" },
-  { value: "destroy", label: "Destruction", description: "Le produit sera détruit (certificat requis)" },
-  { value: "donate", label: "Don", description: "Le produit est donné à une association" },
-  { value: "pending_decision", label: "Décision différée", description: "Expertise nécessaire avant décision" },
+const DISPOSITIONS: { value: Disposition; label: string; description: string }[] = [
+  { value: "restock_as_new", label: "Remise en stock neuf", description: "Produit revendable à prix plein" },
+  { value: "restock_as_used", label: "Remise en stock occasion", description: "Produit revendable avec dépréciation" },
+  { value: "send_to_repair", label: "Envoi en réparation", description: "Réparation possible, coût à estimer" },
+  { value: "return_to_supplier", label: "Retour fournisseur", description: "Avoir CNY attendu (30-90 jours)" },
+  { value: "destroy", label: "Destruction", description: "Perte totale, documentation requise" },
+  { value: "donate", label: "Don", description: "Décharge fiscale possible" },
+  { value: "pending_decision", label: "Décision différée", description: "Expertise nécessaire" },
 ];
 
-export function InspectionPanel({ caseId, onSubmit, onCancel, loading }: InspectionPanelProps) {
-  const [condition, setCondition] = useState<InspectionCondition>("new_opened");
-  const [disposition, setDisposition] = useState<InspectionDisposition>("restock_as_new");
-  const [actualWeightG, setActualWeightG] = useState<string>("");
-  const [serialNumber, setSerialNumber] = useState("");
-  const [packagingCondition, setPackagingCondition] = useState<InspectionData["packagingCondition"]>("original_intact");
+const PACKAGING: { value: PackagingCondition; label: string }[] = [
+  { value: "original_intact", label: "Original intact" },
+  { value: "original_damaged", label: "Original endommagé" },
+  { value: "original_missing", label: "Original manquant" },
+  { value: "replacement", label: "Emballage de remplacement" },
+];
+
+export function InspectionPanel({ caseId, returnShipmentId, onSubmit, className }: InspectionPanelProps) {
+  const [condition, setCondition] = useState<InspectionCondition | "">("");
+  const [disposition, setDisposition] = useState<Disposition | "">("");
+  const [packaging, setPackaging] = useState<PackagingCondition | "">("");
   const [findings, setFindings] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [weight, setWeight] = useState("");
   const [clientFault, setClientFault] = useState(false);
   const [inspectionCost, setInspectionCost] = useState("0");
-  const [inspectionCostPayer, setInspectionCostPayer] = useState<InspectionData["inspectionCostPayer"]>("kawzone");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = () => {
-    onSubmit({
+    if (!condition || !disposition) return;
+    setSubmitting(true);
+    onSubmit?.({
+      case_id: caseId,
+      return_shipment_id: returnShipmentId ?? null,
       condition,
+      actual_weight_g: weight ? parseInt(weight, 10) : null,
+      actual_dimensions_cm: null,
+      accessories_present: [],
+      accessories_missing: [],
+      serial_number: serialNumber || null,
+      packaging_condition: packaging || null,
       disposition,
-      actualWeightG: actualWeightG ? parseInt(actualWeightG) : undefined,
-      serialNumber: serialNumber || undefined,
-      packagingCondition,
-      photos,
-      findings: findings || undefined,
-      clientFault,
-      accessoriesPresent: [],
-      accessoriesMissing: [],
-      inspectionCost: parseFloat(inspectionCost) || 0,
-      inspectionCostPayer,
+      findings: findings || null,
+      recommended_action: null,
+      client_fault: clientFault,
+      inspection_cost: parseFloat(inspectionCost) || 0,
+      photos: [],
     });
+    setTimeout(() => setSubmitting(false), 500);
   };
 
+  const selectedCondition = CONDITIONS.find((c) => c.value === condition);
+  const canSubmit = condition !== "" && disposition !== "";
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Search className="h-4 w-4 text-primary" />
-          Inspection du produit retourné
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className={cn("rounded-lg border bg-card shadow-sm", className)}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b">
+        <Search className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">Rapport d&apos;inspection</h3>
+      </div>
+
+      <div className="p-4 space-y-4">
         {/* État du produit */}
         <div className="space-y-2">
-          <Label className="text-xs font-medium">État du produit</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <Label className="text-xs font-medium">État constaté du produit</Label>
+          <div className="grid grid-cols-2 gap-1.5">
             {CONDITIONS.map((c) => (
               <button
                 key={c.value}
+                type="button"
                 onClick={() => setCondition(c.value)}
-                className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                className={cn(
+                  "text-left text-xs px-2.5 py-1.5 rounded-md border transition-colors",
                   condition === c.value
-                    ? "border-primary bg-primary/10 font-medium"
-                    : "border-muted hover:border-primary/30"
-                } ${
-                  c.severity === "good" ? "hover:bg-green-50" :
-                  c.severity === "medium" ? "hover:bg-yellow-50" :
-                  "hover:bg-red-50"
-                }`}
+                    ? c.severity === "good"
+                      ? "border-green-500 bg-green-50 text-green-700"
+                      : c.severity === "warning"
+                        ? "border-amber-500 bg-amber-50 text-amber-700"
+                        : "border-red-500 bg-red-50 text-red-700"
+                    : "border-muted bg-background hover:bg-muted/50",
+                )}
               >
                 {c.label}
               </button>
@@ -136,102 +140,51 @@ export function InspectionPanel({ caseId, onSubmit, onCancel, loading }: Inspect
           </div>
         </div>
 
-        <Separator />
-
-        {/* Mesures */}
+        {/* Détails physiques */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs flex items-center gap-1">
-              <Scale className="h-3 w-3" /> Poids réel (g)
-            </Label>
+            <Label className="text-xs">Poids réel (g)</Label>
             <Input
               type="number"
-              value={actualWeightG}
-              onChange={(e) => setActualWeightG(e.target.value)}
-              placeholder="Ex: 450"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              placeholder="ex: 450"
               className="h-8 text-xs"
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs flex items-center gap-1">
-              <Hash className="h-3 w-3" /> N° de série
-            </Label>
+            <Label className="text-xs">N° de série</Label>
             <Input
               value={serialNumber}
               onChange={(e) => setSerialNumber(e.target.value)}
-              placeholder="Numéro de série"
+              placeholder="SN..."
               className="h-8 text-xs"
             />
           </div>
         </div>
 
         {/* Emballage */}
-        <div className="space-y-1.5">
-          <Label className="text-xs flex items-center gap-1">
-            <Package className="h-3 w-3" /> État de l'emballage
-          </Label>
-          <Select value={packagingCondition} onValueChange={(v) => setPackagingCondition(v as InspectionData["packagingCondition"])}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="original_intact">Original intact</SelectItem>
-              <SelectItem value="original_damaged">Original endommagé</SelectItem>
-              <SelectItem value="original_missing">Original manquant</SelectItem>
-              <SelectItem value="replacement">Emballage de remplacement</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Separator />
-
-        {/* Décision */}
         <div className="space-y-2">
-          <Label className="text-xs font-medium">Décision de disposition</Label>
-          <div className="space-y-2">
-            {DISPOSITIONS.map((d) => (
+          <Label className="text-xs font-medium flex items-center gap-1">
+            <Package className="h-3 w-3" />
+            État de l&apos;emballage
+          </Label>
+          <div className="flex flex-wrap gap-1.5">
+            {PACKAGING.map((p) => (
               <button
-                key={d.value}
-                onClick={() => setDisposition(d.value)}
-                className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                  disposition === d.value
-                    ? "border-primary bg-primary/10"
-                    : "border-muted hover:border-primary/30"
-                }`}
+                key={p.value}
+                type="button"
+                onClick={() => setPackaging(p.value)}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-md border transition-colors",
+                  packaging === p.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-muted bg-background hover:bg-muted/50",
+                )}
               >
-                <p className="text-xs font-medium">{d.label}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{d.description}</p>
+                {p.label}
               </button>
             ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Frais d'inspection */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Frais d'inspection (XOF)</Label>
-            <Input
-              type="number"
-              value={inspectionCost}
-              onChange={(e) => setInspectionCost(e.target.value)}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Payé par</Label>
-            <Select value={inspectionCostPayer} onValueChange={(v) => setInspectionCostPayer(v as InspectionData["inspectionCostPayer"])}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="kawzone">KawZone</SelectItem>
-                <SelectItem value="vendor">Vendeur</SelectItem>
-                <SelectItem value="client">Client</SelectItem>
-                <SelectItem value="supplier">Fournisseur</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -242,14 +195,39 @@ export function InspectionPanel({ caseId, onSubmit, onCancel, loading }: Inspect
             id="client-fault"
             checked={clientFault}
             onChange={(e) => setClientFault(e.target.checked)}
-            className="rounded"
+            className="rounded border-muted"
           />
-          <Label htmlFor="client-fault" className="text-xs cursor-pointer">
-            Faute du client (impacte la répartition des coûts)
+          <Label htmlFor="client-fault" className="text-xs cursor-pointer flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3 text-amber-500" />
+            Faute du client (impacte le remboursement)
           </Label>
         </div>
 
-        <Separator />
+        {/* Décision de disposition */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Décision de disposition</Label>
+          <div className="space-y-1">
+            {DISPOSITIONS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => setDisposition(d.value)}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-md border transition-colors flex items-center justify-between",
+                  disposition === d.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-muted bg-background hover:bg-muted/50",
+                )}
+              >
+                <div>
+                  <span className="text-xs font-medium">{d.label}</span>
+                  <p className="text-[10px] text-muted-foreground">{d.description}</p>
+                </div>
+                {disposition === d.value && <Check className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Constats */}
         <div className="space-y-1.5">
@@ -257,30 +235,50 @@ export function InspectionPanel({ caseId, onSubmit, onCancel, loading }: Inspect
           <Textarea
             value={findings}
             onChange={(e) => setFindings(e.target.value)}
-            placeholder="Décrivez l'état du produit, les dommages observés, les pièces manquantes..."
-            rows={3}
-            className="text-xs"
+            placeholder="Décrivez l'état du produit, les anomalies constatées..."
+            className="min-h-[60px] text-xs"
           />
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1"
-            size="sm"
-          >
-            <Search className="h-3.5 w-3.5 mr-1.5" />
-            Enregistrer l'inspection
-          </Button>
-          {onCancel && (
-            <Button variant="outline" onClick={onCancel} size="sm">
-              Annuler
-            </Button>
-          )}
+        {/* Frais d'inspection */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Frais d&apos;inspection (XOF)</Label>
+          <Input
+            type="number"
+            value={inspectionCost}
+            onChange={(e) => setInspectionCost(e.target.value)}
+            className="h-8 text-xs w-32"
+          />
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Photos */}
+        <div className="space-y-1.5">
+          <Label className="text-xs flex items-center gap-1">
+            <Camera className="h-3 w-3" />
+            Photos
+          </Label>
+          <div className="border border-dashed rounded-md p-4 text-center text-xs text-muted-foreground">
+            Upload photos à implémenter (Supabase Storage)
+          </div>
+        </div>
+
+        {/* Submit */}
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={!canSubmit || submitting}
+          onClick={handleSubmit}
+        >
+          <Check className="h-3.5 w-3.5 mr-1.5" />
+          {submitting ? "Enregistrement..." : "Enregistrer l&apos;inspection"}
+        </Button>
+
+        {!canSubmit && (
+          <p className="text-[10px] text-muted-foreground text-center">
+            Sélectionnez l&apos;état du produit et la disposition pour valider
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

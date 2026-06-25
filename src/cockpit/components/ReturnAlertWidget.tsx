@@ -1,146 +1,115 @@
-// ============================================================
+// ═══════════════════════════════════════════════════════════════
 // ReturnAlertWidget — KawZone Cockpit
-// Widget d'alertes retour intégré au Cockpit
-// Affiche les retours necessitant une action immediate
-// ============================================================
+// Widget d'alertes COAV pour le dashboard
+// Affiche les dossiers nécessitant une action immédiate
+// ═══════════════════════════════════════════════════════════════
 
-import { useMemo } from "react";
-import { RotateCcw, AlertTriangle, PackageCheck, Clock, Trash2, Truck } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle, PackageCheck, Search, Clock, TrendingDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export interface ReturnAlertItem {
+export interface ReturnAlert {
   id: string;
-  caseId: string;
-  title: string;
-  step: "return_requested" | "product_received" | "inspection_done" | "disposition_decided" | "refund_pending" | "sla_breached";
-  priority: "low" | "medium" | "high" | "urgent";
-  vendorName: string;
-  productName: string;
-  createdAt: string;
-  slaDeadline?: string;
+  case_id: string;
+  type: "shipment_overdue" | "pending_inspection" | "supplier_no_response" | "destruction_needed" | "balance_negative";
+  severity: "critical" | "warning" | "info";
+  message: string;
+  case_ref: string;
+  created_at: string;
+  action_label?: string;
 }
 
 interface ReturnAlertWidgetProps {
-  items: ReturnAlertItem[];
-  loading?: boolean;
-  onAction?: (item: ReturnAlertItem) => void;
+  alerts: ReturnAlert[];
+  onAction?: (alert: ReturnAlert) => void;
+  className?: string;
 }
 
-const STEP_CONFIG: Record<ReturnAlertItem["step"], { label: string; icon: typeof RotateCcw; color: string }> = {
-  return_requested: { label: "Retour à valider", icon: RotateCcw, color: "bg-blue-100 text-blue-700" },
-  product_received: { label: "Inspection à faire", icon: PackageCheck, color: "bg-yellow-100 text-yellow-700" },
-  inspection_done: { label: "Décision à prendre", icon: AlertTriangle, color: "bg-orange-100 text-orange-700" },
-  disposition_decided: { label: "Traitement en cours", icon: Truck, color: "bg-purple-100 text-purple-700" },
-  refund_pending: { label: "Remboursement à faire", icon: Clock, color: "bg-red-100 text-red-700" },
-  sla_breached: { label: "SLA dépassé", icon: AlertTriangle, color: "bg-red-200 text-red-800" },
+const ICON_MAP = {
+  shipment_overdue: PackageCheck,
+  pending_inspection: Search,
+  supplier_no_response: Clock,
+  destruction_needed: AlertTriangle,
+  balance_negative: TrendingDown,
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "bg-gray-100 text-gray-600",
-  medium: "bg-blue-100 text-blue-600",
-  high: "bg-orange-100 text-orange-600",
-  urgent: "bg-red-100 text-red-600 animate-pulse",
+const SEVERITY_STYLES = {
+  critical: "border-red-200 bg-red-50",
+  warning: "border-amber-200 bg-amber-50",
+  info: "border-blue-200 bg-blue-50",
 };
 
-export function ReturnAlertWidget({ items, loading, onAction }: ReturnAlertWidgetProps) {
-  const grouped = useMemo(() => {
-    const groups: Record<string, ReturnAlertItem[]> = {};
-    for (const item of items) {
-      if (!groups[item.step]) groups[item.step] = [];
-      groups[item.step].push(item);
-    }
-    return groups;
-  }, [items]);
+const SEVERITY_DOT = {
+  critical: "bg-red-500",
+  warning: "bg-amber-500",
+  info: "bg-blue-500",
+};
 
-  if (loading) {
+export function ReturnAlertWidget({ alerts, onAction, className }: ReturnAlertWidgetProps) {
+  if (alerts.length === 0) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Alertes Retour
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className={cn("rounded-lg border p-4 text-center text-sm text-muted-foreground", className)}>
+        Aucune alerte COAV
+      </div>
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Alertes Retour
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Aucun retour nécessitant une action
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const critical = alerts.filter((a) => a.severity === "critical").length;
+  const warning = alerts.filter((a) => a.severity === "warning").length;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <RotateCcw className="h-4 w-4" />
-          Alertes Retour
-          <Badge variant="secondary" className="ml-auto">{items.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 max-h-[400px] overflow-y-auto">
-        {Object.entries(grouped).map(([step, stepItems]) => {
-          const config = STEP_CONFIG[step as ReturnAlertItem["step"]]];
-          const Icon = config.icon;
+    <div className={cn("rounded-lg border bg-card shadow-sm", className)}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Alertes COAV</h3>
+          <span className="text-xs text-muted-foreground">({alerts.length})</span>
+        </div>
+        <div className="flex gap-1.5">
+          {critical > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+              {critical} critique{critical > 1 ? "s" : ""}
+            </span>
+          )}
+          {warning > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+              {warning} avertissement{warning > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Liste */}
+      <div className="divide-y">
+        {alerts.map((alert) => {
+          const Icon = ICON_MAP[alert.type];
           return (
-            <div key={step} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${config.color}`}>
-                  <Icon className="h-3 w-3" />
-                  {config.label}
-                </span>
-                <span className="text-[10px] text-muted-foreground">{stepItems.length}</span>
+            <div
+              key={alert.id}
+              className={cn("flex items-start gap-3 px-4 py-2.5", SEVERITY_STYLES[alert.severity])}
+            >
+              <div className="mt-0.5">
+                <Icon className={cn("h-3.5 w-3.5", `text-${alert.severity === "critical" ? "red" : alert.severity === "warning" ? "amber" : "blue"}-500`)} />
               </div>
-              {stepItems.map((item) => (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", SEVERITY_DOT[alert.severity])} />
+                  <span className="text-xs font-medium truncate">{alert.case_ref}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{alert.message}</p>
+              </div>
+              {alert.action_label && onAction && (
                 <button
-                  key={item.id}
-                  onClick={() => onAction?.(item)}
-                  className="w-full text-left rounded-lg border p-2.5 transition-colors hover:bg-accent hover:border-primary/30"
+                  onClick={() => onAction(alert)}
+                  className="text-[10px] px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium truncate">{item.productName}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {item.vendorName}
-                      </p>
-                    </div>
-                    <Badge className={`shrink-0 text-[9px] ${PRIORITY_COLORS[item.priority]}`}>
-                      {item.priority}
-                    </Badge>
-                  </div>
-                  {item.slaDeadline && (
-                    <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      SLA : {new Date(item.slaDeadline).toLocaleDateString("fr-FR")}
-                    </p>
-                  )}
+                  {alert.action_label}
                 </button>
-              ))}
+              )}
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

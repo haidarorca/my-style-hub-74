@@ -1,197 +1,139 @@
-// ============================================================
+// ═══════════════════════════════════════════════════════════════
 // ReturnBalanceCard — KawZone Cockpit
-// Carte de balance financiere d'un dossier retour
-// Affiche tous les calculs automatiques : paye, frais,
-// rembourse, restant, perdu
-// ============================================================
+// Carte de balance financière d'un dossier retour
+// Source : v_case_balances (vue SQL)
+// ═══════════════════════════════════════════════════════════════
 
-import { ArrowDownLeft, ArrowUpRight, Minus, AlertTriangle, Wallet, TrendingDown, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-
-export interface ReturnBalanceData {
-  totalPaid: number;
-  totalFees: number;
-  totalRefunded: number;
-  totalCreditNotes: number;
-  totalRemaining: number;
-  totalLost: number;
-  netPosition: number;
-  feesCurrency: string;
-  feesBreakdown: Record<string, { amount: number; currency: string; payer: string }>;
-}
+import { TrendingDown, TrendingUp, Wallet, Receipt, CreditCard, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { CaseBalance } from "@/lib/return-management.functions";
 
 interface ReturnBalanceCardProps {
-  balance: ReturnBalanceData;
-  loading?: boolean;
+  balance: CaseBalance | null;
+  className?: string;
 }
 
-function formatAmount(amount: number, currency: string = "XOF"): string {
+/**
+ * Formate un montant en FCFA (XOF)
+ */
+function formatXOF(amount: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
-    currency,
+    currency: "XOF",
     minimumFractionDigits: 0,
   }).format(amount);
 }
 
-function AmountRow({
-  label,
-  amount,
-  currency,
-  type = "neutral",
-  icon: Icon,
-}: {
-  label: string;
-  amount: number;
-  currency: string;
-  type?: "positive" | "negative" | "neutral";
-  icon?: typeof Wallet;
-}) {
-  const colorClass =
-    type === "positive" ? "text-green-600" :
-    type === "negative" ? "text-red-600" :
-    "text-foreground";
-
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <div className="flex items-center gap-2">
-        {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-      <span className={`text-xs font-semibold tabular-nums ${colorClass}`}>
-        {formatAmount(amount, currency)}
-      </span>
-    </div>
-  );
-}
-
-export function ReturnBalanceCard({ balance, loading }: ReturnBalanceCardProps) {
-  if (loading) {
+export function ReturnBalanceCard({ balance, className }: ReturnBalanceCardProps) {
+  if (!balance) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
-            Balance financière
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-6 bg-muted rounded animate-pulse" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className={cn("rounded-lg border border-dashed p-4 text-center text-muted-foreground text-sm", className)}>
+        Aucune donnée financière disponible
+      </div>
     );
   }
 
-  const isPositive = balance.netPosition >= 0;
+  const isProfitable = balance.net_position >= 0;
+  const hasLoss = balance.total_lost > 0;
+  const isSettled = balance.balance_status === "settled";
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Wallet className="h-4 w-4" />
-          Balance financière
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {/* Montant paye initialement */}
-        <AmountRow
-          label="Montant payé (commande)"
-          amount={balance.totalPaid}
-          currency={balance.feesCurrency}
-          icon={ArrowDownLeft}
-        />
+    <div className={cn("rounded-lg border bg-card shadow-sm", className)}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Balance financière</h3>
+        </div>
+        <span
+          className={cn(
+            "text-xs px-2 py-0.5 rounded-full font-medium",
+            isSettled && "bg-green-100 text-green-700",
+            balance.balance_status === "open" && "bg-amber-100 text-amber-700",
+            balance.balance_status === "pending_closure" && "bg-blue-100 text-blue-700",
+          )}
+        >
+          {isSettled ? "Réglé" : balance.balance_status === "open" ? "En cours" : "Attente clôture"}
+        </span>
+      </div>
 
-        <Separator />
+      {/* Montants */}
+      <div className="p-4 grid grid-cols-2 gap-3">
+        {/* Montant payé */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Receipt className="h-3 w-3" />
+            Payé par le client
+          </p>
+          <p className="text-base font-bold">{formatXOF(balance.total_paid)}</p>
+        </div>
+
+        {/* Remboursé */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <CreditCard className="h-3 w-3" />
+            Remboursé
+          </p>
+          <p className="text-base font-semibold text-amber-600">{formatXOF(balance.total_refunded)}</p>
+        </div>
 
         {/* Frais */}
-        <AmountRow
-          label="Total des frais retour"
-          amount={balance.totalFees}
-          currency={balance.feesCurrency}
-          type="negative"
-          icon={TrendingDown}
-        />
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Frais retour</p>
+          <p className="text-sm font-medium">{formatXOF(balance.total_fees)}</p>
+        </div>
 
-        {/* Detail des frais */}
-        {Object.entries(balance.feesBreakdown).length > 0 && (
-          <div className="ml-5 space-y-0.5">
-            {Object.entries(balance.feesBreakdown).map(([kind, fee]) => (
-              <div key={kind} className="flex items-center justify-between py-0.5">
-                <span className="text-[10px] text-muted-foreground capitalize">
-                  {kind.replace(/_/g, " ")} ({fee.payer})
-                </span>
-                <span className="text-[10px] text-muted-foreground tabular-nums">
-                  {formatAmount(fee.amount, fee.currency)}
-                </span>
-              </div>
-            ))}
+        {/* Reste dû */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Reste dû client</p>
+          <p className={cn("text-sm font-medium", balance.total_remaining > 0 ? "text-amber-600" : "text-green-600")}>
+            {formatXOF(balance.total_remaining)}
+          </p>
+        </div>
+
+        {/* Crédit fournisseur */}
+        {balance.total_supplier_credit > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Crédit fournisseur</p>
+            <p className="text-sm font-medium text-green-600">
+              {formatXOF(balance.total_supplier_credit)}
+            </p>
           </div>
         )}
-
-        <Separator />
-
-        {/* Remboursements */}
-        <AmountRow
-          label="Remboursé au client"
-          amount={balance.totalRefunded}
-          currency={balance.feesCurrency}
-          type="negative"
-          icon={ArrowUpRight}
-        />
-
-        {balance.totalCreditNotes > 0 && (
-          <AmountRow
-            label="Avoirs / Credit notes"
-            amount={balance.totalCreditNotes}
-            currency={balance.feesCurrency}
-            type="positive"
-            icon={Wallet}
-          />
-        )}
-
-        <Separator />
-
-        {/* Restant */}
-        <AmountRow
-          label="Restant dû"
-          amount={balance.totalRemaining}
-          currency={balance.feesCurrency}
-          type={balance.totalRemaining > 0 ? "negative" : "neutral"}
-          icon={Minus}
-        />
 
         {/* Pertes */}
-        {balance.totalLost > 0 && (
-          <AmountRow
-            label="Pertes définitives"
-            amount={balance.totalLost}
-            currency={balance.feesCurrency}
-            type="negative"
-            icon={AlertTriangle}
-          />
+        {hasLoss && (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Pertes
+            </p>
+            <p className="text-sm font-medium text-red-500">{formatXOF(balance.total_lost)}</p>
+          </div>
         )}
+      </div>
 
-        <Separator />
-
-        {/* Position nette */}
-        <div className={`flex items-center justify-between py-2 rounded-lg px-2 ${isPositive ? "bg-green-50" : "bg-red-50"}`}>
-          <div className="flex items-center gap-2">
-            {isPositive ? (
-              <TrendingUp className="h-4 w-4 text-green-600" />
+      {/* Position nette */}
+      <div className="px-4 py-3 border-t bg-muted/30">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Position nette</span>
+          <div className="flex items-center gap-1.5">
+            {isProfitable ? (
+              <TrendingUp className="h-3.5 w-3.5 text-green-500" />
             ) : (
-              <TrendingDown className="h-4 w-4 text-red-600" />
+              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
             )}
-            <span className={`text-xs font-semibold ${isPositive ? "text-green-700" : "text-red-700"}`}>
-              Position nette
+            <span
+              className={cn(
+                "text-sm font-bold",
+                isProfitable ? "text-green-600" : "text-red-600",
+              )}
+            >
+              {formatXOF(balance.net_position)}
             </span>
           </div>
-          <span className={`text-sm font-bold tabular-nums ${isPositive ? "text-green-700" : "text-red-700"}`}>
-            {formatAmount(balance.netPosition, balance.feesCurrency)}
-          </span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
