@@ -589,13 +589,15 @@ export const updateSupplierResponse = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertPermission(context.userId, "sav_view_all");
-    const { id, ...update } = data;
-    if (update.supplier_response) {
+    const { id, ...rest } = data;
+    const update: Record<string, unknown> = { ...rest };
+    if (rest.supplier_response) {
       update.supplier_response_at = new Date().toISOString();
     }
-    if (update.credit_amount !== undefined && update.credit_amount > 0) {
+    if (rest.credit_amount !== undefined && rest.credit_amount > 0) {
       update.credit_received_at = new Date().toISOString();
     }
+
     const { data: row, error } = await (supabaseAdmin as any)
       .from("supplier_returns")
       .update(update)
