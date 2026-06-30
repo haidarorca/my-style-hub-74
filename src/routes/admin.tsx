@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
-  Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield, Coins,
+  Settings, Inbox, ShieldCheck, Percent, Users, Bell, LifeBuoy, Phone, Globe,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Shield, Coins,
   BarChart3,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
