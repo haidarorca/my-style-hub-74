@@ -184,11 +184,11 @@ export default function DailyClose() {
               count={data.sav_open_count}
               tone="amber"
               icon={AlertTriangle}
-              link="/admin/cockpit/sav"
+              link="/admin/returns"
               totalLabel="Impact financier total"
             >
               <p className="text-xs text-slate-500 mt-1">
-                Voir le détail dans le Centre SAV.
+                Voir le détail dans le Centre Retours & Annulations.
               </p>
             </Card>
 
@@ -198,7 +198,7 @@ export default function DailyClose() {
               count={data.blocked_cases.length}
               tone="red"
               icon={Lock}
-              link="/admin/cockpit/sav"
+              link="/admin/returns"
               totalLabel="Nécessitent une action"
             >
               {data.blocked_cases.length === 0 ? (
@@ -223,7 +223,7 @@ export default function DailyClose() {
               count={data.financial_risks.length}
               tone="red"
               icon={ShieldAlert}
-              link="/admin/cockpit/sav"
+              link="/admin/returns"
               totalLabel="À surveiller"
             >
               {data.financial_risks.length === 0 ? (
