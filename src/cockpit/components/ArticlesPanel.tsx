@@ -54,6 +54,11 @@ export function ArticlesPanel({
   const [overrideStep, setOverrideStep] = useState<"choose" | "confirm">("choose");
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
 
+  // Mode sélection multi-articles (pour créer un dossier groupé Retour/Annulation)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const keyOf = (a: OrderArticle) => `${a.product_id}::${a.variant_id ?? ""}`;
+
   if (!articles || articles.length === 0) return null;
 
   // Articles en attente de réappro non repris → traités dans RestockWaitingPanel (hors workflow normal)
