@@ -609,7 +609,7 @@ function VendorsPage() {
                                 <Link to="/admin/products"><Eye className="mr-2 h-4 w-4" /> Voir les produits</Link>
                               </DropdownMenuItem>
                               <DropdownMenuItem asChild>
-                                <Link to="/admin/orders"><ShoppingBag className="mr-2 h-4 w-4" /> Voir les commandes</Link>
+                                <Link to="/admin/commandes"><ShoppingBag className="mr-2 h-4 w-4" /> Voir les commandes</Link>
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => handleDelete(v.user_id)} className="text-destructive focus:text-destructive">
