@@ -820,15 +820,6 @@ function OrdersPage() {
         />
       )}
 
-      {savTarget && (
-        <OpenSavCaseDialog
-          open={!!savTarget}
-          onOpenChange={(v) => !v && setSavTarget(null)}
-          orderId={savTarget.orderId}
-          orderItemId={savTarget.orderItemId}
-          onCreated={() => qc.invalidateQueries({ queryKey: ["my-sav-cases"] })}
-        />
-      )}
     </div>
   );
 }
