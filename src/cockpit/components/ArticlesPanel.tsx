@@ -17,6 +17,7 @@ import { StockBreakDialog, type StockBreakSubmit } from "./StockBreakDialog";
 import { DecisionOverrideDialog } from "./DecisionOverrideDialog";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import { ReturnArticleAction } from "./OpenReturnCaseButton";
+import { BulkReturnBar } from "./BulkReturnBar";
 import { useAuth } from "@/hooks/use-auth";
 
 const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
