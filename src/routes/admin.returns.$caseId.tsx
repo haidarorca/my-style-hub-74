@@ -278,6 +278,7 @@ function ReturnCaseDetailPage() {
   const [notes, setNotes] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [feeTemplates, setFeeTemplates] = useState<string[]>(() => loadFeeTemplates());
+  const [detailArticle, setDetailArticle] = useState<OrderArticle | null>(null);
 
   const reload = () => qc.invalidateQueries({ queryKey: ["return-case", caseId] });
 
