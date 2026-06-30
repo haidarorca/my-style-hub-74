@@ -108,10 +108,8 @@ export const getSystemPulse = createServerFn({ method: "GET" })
     );
 
     return {
-      sav_open: savRows.length,
-      sav_oldest_days,
-      sav_by_owner,
-      sav_total_impact,
+      returns_open,
+
       outstanding_refund_client,
       outstanding_credit_client,
       outstanding_commission_vendor,
