@@ -28,6 +28,7 @@ const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
 
 interface Props {
   articles: OrderArticle[];
+  orderId?: string;
   onStockBreak?: (productId: string, data: StockBreakSubmit) => void;
   onStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
@@ -38,7 +39,7 @@ interface Props {
 }
 
 export function ArticlesPanel({
-  articles, onStockBreak, onStatusChange, onPartialDeliver, onOverrideDecision,
+  articles, orderId, onStockBreak, onStatusChange, onPartialDeliver, onOverrideDecision,
   paidAmount = 0, orderStatus,
 }: Props) {
   const { isSuperAdmin, profile } = useAuth();
