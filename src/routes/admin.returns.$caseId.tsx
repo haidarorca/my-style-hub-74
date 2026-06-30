@@ -313,6 +313,7 @@ function ReturnCaseDetailPage() {
   const orderItems = data.order_items;
   const payments = data.payments;
   const articleStates = (data as any).article_states ?? [];
+  const subOrderStates = (data as any).sub_order_states ?? [];
   const totalPaid = Number(data.payment_summary?.total_paid ?? 0);
   const orderTotal = Number(order?.total ?? 0);
   const remainingToPay = Math.max(0, orderTotal - totalPaid);
