@@ -951,6 +951,8 @@ function ReturnCaseDetailPage() {
           </div>
         )}
       </section>
+
+      <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
     </div>
   );
 }
