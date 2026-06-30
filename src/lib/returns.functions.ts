@@ -78,8 +78,8 @@ export const openReturnCaseForArticle = createServerFn({ method: "POST" })
       _kind: data.kind,
       _quantity: (oi as any).quantity ?? 1,
       _unit_price_xof: Number((oi as any).unit_price ?? 0),
-      _reason_note: data.reason_note ?? null,
-      _reason_code: data.reason_code ?? null,
+      _reason_note: data.reason_note ?? undefined,
+      _reason_code: data.reason_code ?? undefined,
     });
     if (error) throw error;
     return { id: caseId as unknown as string };
