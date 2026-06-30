@@ -113,7 +113,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
 
     const { data: order } = await sb
       .from("orders")
-      .select("id, status, total, customer_name, customer_phone, address, created_at")
+      .select("id, status, total, customer_name, customer_phone, address, created_at, buyer_id")
       .eq("id", caseRow.order_id)
       .single();
 
@@ -122,14 +122,53 @@ export const getReturnCase = createServerFn({ method: "GET" })
       .select("id, product_id, product_name, quantity, unit_price, vendor_id")
       .eq("order_id", caseRow.order_id);
 
+    const { data: payments } = await sb
+      .from("order_payments")
+      .select("id, amount, method, reference, admin_name, created_at")
+      .eq("order_id", caseRow.order_id)
+      .order("created_at", { ascending: false });
+
+    const { data: paymentSummary } = await sb
+      .from("order_payment_summary")
+      .select("total_paid, updated_at")
+      .eq("order_id", caseRow.order_id)
+      .maybeSingle();
+
+    const { data: orderEvents } = await sb
+      .from("order_events")
+      .select("id, event_type, reason, payload, created_at, vendor_id, order_item_id")
+      .eq("order_id", caseRow.order_id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const { data: statusHistory } = await sb
+      .from("order_status_history")
+      .select("id, from_status, to_status, created_at")
+      .eq("order_id", caseRow.order_id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const { data: actions } = await sb
+      .from("return_case_actions")
+      .select("id, action, payload, actor_email, created_at")
+      .eq("case_id", data.id)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
     return {
       case: caseRow,
       items: items ?? [],
       fees: fees ?? [],
       order,
       order_items: orderItems ?? [],
+      payments: payments ?? [],
+      payment_summary: paymentSummary ?? null,
+      order_events: orderEvents ?? [],
+      status_history: statusHistory ?? [],
+      actions: actions ?? [],
     };
   });
+
 
 // ── Articles : ajout / suppression ────────────────────────────
 export const addCaseItem = createServerFn({ method: "POST" })
