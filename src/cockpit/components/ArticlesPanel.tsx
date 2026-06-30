@@ -247,7 +247,7 @@ export function ArticlesPanel({
                   )}
                 </div>
               </div>
-            </button>
+            </div>
 
             {/* Actions toujours visibles selon le statut métier — pas besoin d'expand */}
             {true && (
