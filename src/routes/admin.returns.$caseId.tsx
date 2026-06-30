@@ -48,6 +48,10 @@ import {
   Home,
   Star,
 } from "lucide-react";
+import { ProductDetailDrawer } from "@/cockpit/components/ProductDetailDrawer";
+import { WorkflowCircuit } from "@/cockpit/components/WorkflowCircuit";
+import { readOrderItemLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
+import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 
 export const Route = createFileRoute("/admin/returns/$caseId")({
   component: ReturnCaseDetailPage,
@@ -274,6 +278,7 @@ function ReturnCaseDetailPage() {
   const [notes, setNotes] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [feeTemplates, setFeeTemplates] = useState<string[]>(() => loadFeeTemplates());
+  const [detailArticle, setDetailArticle] = useState<OrderArticle | null>(null);
 
   const reload = () => qc.invalidateQueries({ queryKey: ["return-case", caseId] });
 
@@ -308,6 +313,7 @@ function ReturnCaseDetailPage() {
   const orderItems = data.order_items;
   const payments = data.payments;
   const articleStates = (data as any).article_states ?? [];
+  const subOrderStates = (data as any).sub_order_states ?? [];
   const totalPaid = Number(data.payment_summary?.total_paid ?? 0);
   const orderTotal = Number(order?.total ?? 0);
   const remainingToPay = Math.max(0, orderTotal - totalPaid);
@@ -436,20 +442,111 @@ function ReturnCaseDetailPage() {
           </span>
         </div>
 
-        {/* Article résumé */}
+        {/* Articles du dossier — un bloc par article cliquable, avec
+            circuit logistique réel issu de sub_order_states. */}
         {items.length > 0 && (
-          <div className="mb-3 p-2 rounded bg-slate-50 border border-slate-200">
+          <div className="mb-3 space-y-3">
             {items.map((it) => {
-              const oi = (it as any).order_item;
+              const oi: any = (it as any).order_item;
+              const fullOi: any = orderItems.find((o: any) => o.id === it.order_item_id);
+              const lineKind: LineKind = fullOi
+                ? readOrderItemLineKind(fullOi, {
+                    destinationCountryId: fullOi.shop_country_id_snapshot,
+                    vendorSourceCountryId: fullOi.product_origin_country_id_snapshot,
+                    productWeightKg: null,
+                  })
+                : "LOCAL";
+              const subKey = subOrderKey(fullOi?.vendor_id, lineKind);
+              const subStatus =
+                (subOrderStates as any[]).find((s) => s.sub_order_key === subKey)?.status ?? "new";
+              const itemIsImport = lineKind !== "LOCAL";
+
               return (
-                <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
-                  <div className="min-w-0 truncate">
-                    <span className="font-medium">{oi?.product_name ?? "Article"}</span>
-                    <span className="text-slate-500 ml-2">
-                      Qté {it.quantity} × {fmt(it.unit_price_xof)}
-                    </span>
+                <div key={it.id} className="rounded-lg border border-slate-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!fullOi) return;
+                      const astate = (articleStates as any[]).find(
+                        (s) =>
+                          s.product_id === fullOi.product_id &&
+                          (fullOi.variant_id ? s.variant_id === fullOi.variant_id : !s.variant_id),
+                      );
+                      const synthetic: OrderArticle = {
+                        product_id: fullOi.product_id,
+                        product_name: fullOi.product_name ?? oi?.product_name ?? "Article",
+                        product_image: fullOi.product_image_url ?? null,
+                        variant_id: fullOi.variant_id ?? null,
+                        variant_label: null,
+                        size: fullOi.size ?? null,
+                        color: fullOi.color ?? null,
+                        quantity: fullOi.quantity ?? it.quantity,
+                        unit_price: Number(fullOi.unit_price ?? it.unit_price_xof),
+                        line_total:
+                          Number(fullOi.unit_price ?? it.unit_price_xof) *
+                          Number(fullOi.quantity ?? it.quantity),
+                        is_import: itemIsImport,
+                        is_local: !itemIsImport,
+                        vendor_id: fullOi.vendor_id ?? null,
+                        vendor_name: fullOi.shop_name_snapshot ?? null,
+                        shop_type_label: fullOi.shop_type_snapshot ?? null,
+                        line_kind: lineKind,
+                        sub_order_key: subKey,
+                        is_admin_shop: fullOi.is_admin_shop_snapshot ?? undefined,
+                        commission_rate: fullOi.commission_rate ?? null,
+                        commission_amount: fullOi.commission_amount ?? null,
+                        status: (astate?.status as ArticleStatus) ?? "pending",
+                        delivered_qty: astate?.delivered_qty ?? 0,
+                        stock_break: astate?.stock_break ?? undefined,
+                        updated_at: astate?.updated_at,
+                      };
+                      setDetailArticle(synthetic);
+                    }}
+                    className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100 transition flex items-center gap-2.5"
+                    title="Voir le détail produit"
+                  >
+                    <div className="shrink-0 w-12 h-12 bg-white rounded-lg overflow-hidden border">
+                      {fullOi?.product_image_url ? (
+                        <img
+                          src={fullOi.product_image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                          <Package className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {oi?.product_name ?? "Article"}
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                        <span>Qté {it.quantity} × {fmt(it.unit_price_xof)}</span>
+                        {(fullOi?.size || fullOi?.color) && (
+                          <span className="text-slate-400">
+                            · {[fullOi.size, fullOi.color].filter(Boolean).join(" / ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-semibold">
+                        {fmt(it.quantity * it.unit_price_xof)}
+                      </div>
+                      <div className="text-[10px] text-blue-600">Voir détails →</div>
+                    </div>
+                  </button>
+
+                  {/* Circuit logistique réel — relié à la sous-commande de cet article. */}
+                  <div className="p-2 bg-white">
+                    <WorkflowCircuit
+                      status={subStatus}
+                      isImport={itemIsImport}
+                      lineKind={lineKind}
+                    />
                   </div>
-                  <span className="font-semibold">{fmt(it.quantity * it.unit_price_xof)}</span>
                 </div>
               );
             })}
@@ -854,6 +951,8 @@ function ReturnCaseDetailPage() {
           </div>
         )}
       </section>
+
+      <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
     </div>
   );
 }

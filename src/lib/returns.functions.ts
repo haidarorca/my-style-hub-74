@@ -85,6 +85,61 @@ export const openReturnCaseForArticle = createServerFn({ method: "POST" })
     return { id: caseId as unknown as string };
   });
 
+// ── Ouverture d'un dossier multi-articles (atomique) ──
+// Tous les articles doivent appartenir à la même commande.
+// Le serveur valide chaque article et refuse les doublons (article déjà
+// dans un dossier non clôturé).
+export const openReturnCaseForArticles = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: {
+    order_id: string;
+    kind: ReturnKind;
+    articles: { product_id: string; variant_id?: string | null }[];
+    reason_note?: string | null;
+    reason_code?: string | null;
+  }) => d)
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const sb = context.supabase;
+
+    if (!data.articles || data.articles.length === 0) {
+      throw new Error("Aucun article sélectionné");
+    }
+
+    // Résolution serveur des order_items à partir de (product_id, variant_id)
+    const { data: rows, error: oiErr } = await sb
+      .from("order_items")
+      .select("id, product_id, variant_id, quantity, unit_price")
+      .eq("order_id", data.order_id);
+    if (oiErr) throw oiErr;
+    const all = (rows ?? []) as any[];
+
+    const items: { order_item_id: string; quantity: number; unit_price_xof: number }[] = [];
+    for (const a of data.articles) {
+      const match = all.find(
+        (oi) =>
+          oi.product_id === a.product_id &&
+          (a.variant_id ? oi.variant_id === a.variant_id : oi.variant_id == null),
+      );
+      if (!match) throw new Error("Article introuvable sur cette commande");
+      items.push({
+        order_item_id: match.id,
+        quantity: match.quantity ?? 1,
+        unit_price_xof: Number(match.unit_price ?? 0),
+      });
+    }
+
+    const { data: caseId, error } = await sb.rpc("open_return_case_for_items", {
+      _order_id: data.order_id,
+      _kind: data.kind,
+      _items: items,
+      _reason_note: data.reason_note ?? undefined,
+      _reason_code: data.reason_code ?? undefined,
+    });
+    if (error) throw error;
+    return { id: caseId as unknown as string };
+  });
+
 // ── Lecture détail d'un dossier (+ contexte commande) ─────────
 export const getReturnCase = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -119,7 +174,12 @@ export const getReturnCase = createServerFn({ method: "GET" })
 
     const { data: orderItems } = await sb
       .from("order_items")
-      .select("id, product_id, variant_id, product_name, quantity, unit_price, vendor_id, shop_type_snapshot, is_admin_shop_snapshot, product_origin_country_id_snapshot, shop_country_id_snapshot")
+      .select("id, product_id, variant_id, product_name, product_image_url, size, color, quantity, unit_price, vendor_id, shop_name_snapshot, shop_type_snapshot, is_admin_shop_snapshot, product_origin_country_id_snapshot, shop_country_id_snapshot, commission_rate, commission_amount, customization")
+      .eq("order_id", caseRow.order_id);
+
+    const { data: subOrderStates } = await sb
+      .from("sub_order_states")
+      .select("sub_order_key, status, updated_at")
       .eq("order_id", caseRow.order_id);
 
     // États article par article (cycle de vie) — pour les articles concernés
@@ -179,6 +239,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
       status_history: statusHistory ?? [],
       actions: actions ?? [],
       article_states: articleStates ?? [],
+      sub_order_states: subOrderStates ?? [],
     };
   });
 

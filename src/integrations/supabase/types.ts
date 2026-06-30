@@ -4106,6 +4106,16 @@ export type Database = {
         }
         Returns: string
       }
+      open_return_case_for_items: {
+        Args: {
+          _items: Json
+          _kind: Database["public"]["Enums"]["return_case_kind"]
+          _order_id: string
+          _reason_code?: string
+          _reason_note?: string
+        }
+        Returns: string
+      }
       preview_currency_recompute: {
         Args: { _code: string }
         Returns: {

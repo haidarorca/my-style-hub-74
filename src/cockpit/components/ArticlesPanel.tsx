@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Package, ChevronRight, AlertTriangle, CheckCircle2,
-  CircleDot, Ban, ArrowDownToLine, ShieldAlert,
+  CircleDot, Ban, ArrowDownToLine, ShieldAlert, CheckSquare, Square,
 } from "lucide-react";
 import {
   ARTICLE_STATUS_COLORS, STOCK_BREAK_ACTIONS,
@@ -17,6 +17,7 @@ import { StockBreakDialog, type StockBreakSubmit } from "./StockBreakDialog";
 import { DecisionOverrideDialog } from "./DecisionOverrideDialog";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import { ReturnArticleAction } from "./OpenReturnCaseButton";
+import { BulkReturnBar } from "./BulkReturnBar";
 import { useAuth } from "@/hooks/use-auth";
 
 const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
@@ -53,6 +54,11 @@ export function ArticlesPanel({
   const [overrideStep, setOverrideStep] = useState<"choose" | "confirm">("choose");
   const [partialQty, setPartialQty] = useState<Record<string, string>>({});
 
+  // Mode sélection multi-articles (pour créer un dossier groupé Retour/Annulation)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const keyOf = (a: OrderArticle) => `${a.product_id}::${a.variant_id ?? ""}`;
+
   if (!articles || articles.length === 0) return null;
 
   // Articles en attente de réappro non repris → traités dans RestockWaitingPanel (hors workflow normal)
@@ -69,13 +75,46 @@ export function ArticlesPanel({
   const deliveredCount = visibleArticles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
   const totalQty = visibleArticles.reduce((s, a) => s + a.quantity, 0);
 
+  // Articles éligibles à un retour/annulation groupé (pas de rupture en cours)
+  const eligibleForBulk = useMemo(
+    () => sortedArticles.filter((a) => !(a.stock_break && !a.stock_break.resolved)),
+    [sortedArticles],
+  );
+  const allSelected =
+    eligibleForBulk.length > 0 && eligibleForBulk.every((a) => selectedKeys.has(keyOf(a)));
+  const toggleSelect = (a: OrderArticle) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      const k = keyOf(a);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    if (allSelected) setSelectedKeys(new Set());
+    else setSelectedKeys(new Set(eligibleForBulk.map((a) => keyOf(a))));
+  };
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+  };
+
+  const selectedItems = useMemo(
+    () =>
+      sortedArticles
+        .filter((a) => selectedKeys.has(keyOf(a)))
+        .map((a) => ({ product_id: a.product_id, variant_id: a.variant_id })),
+    [sortedArticles, selectedKeys],
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           Articles ({articles.length})
         </h4>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {hasBreak && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
@@ -86,6 +125,26 @@ export function ArticlesPanel({
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
               {deliveredCount}/{totalQty} livré
             </span>
+          )}
+          {orderId && eligibleForBulk.length > 1 && (
+            !selectionMode ? (
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="text-[10px] font-semibold px-2 py-1 rounded-full border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 inline-flex items-center gap-1"
+                title="Sélectionner plusieurs articles pour un dossier groupé"
+              >
+                <CheckSquare className="h-3 w-3" />
+                Sélection multiple
+              </button>
+            ) : (
+              <button
+                onClick={toggleAll}
+                className="text-[10px] font-semibold px-2 py-1 rounded-full border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 inline-flex items-center gap-1"
+              >
+                {allSelected ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+                {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
+              </button>
+            )
           )}
         </div>
       </div>
@@ -102,21 +161,50 @@ export function ArticlesPanel({
         const showStatusChange = canChangeArticleStatus(art, orderStatus);
         const showPartial = canPartialDeliver(art, orderStatus);
         const showOverride = canOverrideDecision(art, orderStatus, isSuperAdmin);
+        const k = keyOf(art);
+        const isSelected = selectedKeys.has(k);
+        const canBulkSelect = !isBreakUnresolved;
 
         return (
           <div
             key={art.product_id}
             className={`rounded-xl border transition-all ${
+              isSelected ? "border-amber-400 ring-2 ring-amber-200 bg-amber-50/40" :
               isBreakUnresolved ? "border-red-300 bg-red-50/40" :
               isDelivered ? "border-emerald-200 bg-emerald-50/30" :
               "border-gray-200 bg-white"
             }`}
           >
-            <button
-              onClick={() => setDetailArticle(art)}
-              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors"
-              title="Voir le détail du produit"
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (selectionMode && canBulkSelect) toggleSelect(art);
+                else setDetailArticle(art);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (selectionMode && canBulkSelect) toggleSelect(art);
+                  else setDetailArticle(art);
+                }
+              }}
+              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors cursor-pointer"
+              title={selectionMode ? "Cliquer pour sélectionner" : "Voir le détail du produit"}
             >
+              {selectionMode && (
+                <div className="shrink-0 pt-1">
+                  {canBulkSelect ? (
+                    isSelected ? (
+                      <CheckSquare className="h-5 w-5 text-amber-600" />
+                    ) : (
+                      <Square className="h-5 w-5 text-slate-300" />
+                    )
+                  ) : (
+                    <Square className="h-5 w-5 text-slate-200" />
+                  )}
+                </div>
+              )}
               <div className="shrink-0 w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
                 {art.product_image ? (
                   <img src={art.product_image} alt="" className="w-full h-full object-cover" />
@@ -159,7 +247,7 @@ export function ArticlesPanel({
                   )}
                 </div>
               </div>
-            </button>
+            </div>
 
             {/* Actions toujours visibles selon le statut métier — pas besoin d'expand */}
             {true && (
@@ -199,7 +287,7 @@ export function ArticlesPanel({
                       </div>
                     ) : (
                       <>
-                        {orderId && (
+                        {orderId && !selectionMode && (
                           <ReturnArticleAction
                             orderId={orderId}
                             productId={art.product_id}
@@ -324,6 +412,15 @@ export function ArticlesPanel({
 
       {/* Drawer détail produit (clic sur une ligne) */}
       <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
+
+      {/* Barre d'action groupée — visible uniquement en mode sélection */}
+      {selectionMode && orderId && (
+        <BulkReturnBar
+          orderId={orderId}
+          selected={selectedItems}
+          onClose={exitSelection}
+        />
+      )}
     </div>
   );
 }
