@@ -636,15 +636,6 @@ function OrdersPage() {
                                       >
                                         <Flag className="h-3 w-3" /> Signaler
                                       </button>
-                                      <button
-                                        onClick={() =>
-                                          setSavTarget({ orderId: openOrder.id, orderItemId: it.id })
-                                        }
-                                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-card px-2 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/10"
-                                        title="Demander un retour / échange / SAV"
-                                      >
-                                        <ShieldCheck className="h-3 w-3" /> SAV
-                                      </button>
                                     </div>
                                   )}
                                 </div>
