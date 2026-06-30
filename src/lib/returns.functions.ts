@@ -239,6 +239,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
       status_history: statusHistory ?? [],
       actions: actions ?? [],
       article_states: articleStates ?? [],
+      sub_order_states: subOrderStates ?? [],
     };
   });
 
