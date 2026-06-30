@@ -32,8 +32,9 @@ type Tab = { to: string; label: string; icon: typeof LayoutDashboard; exact?: bo
 const TABS: Tab[] = [
   { to: "/admin/cockpit/daily", label: "Clôture du jour", icon: CalendarCheck },
   { to: "/admin/cockpit", label: "Cockpit", icon: LayoutDashboard, exact: true },
-  { to: "/admin/cockpit/sav", label: "SAV", icon: AlertTriangle },
+  { to: "/admin/returns", label: "Retours & Annulations", icon: AlertTriangle },
 ];
+
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
