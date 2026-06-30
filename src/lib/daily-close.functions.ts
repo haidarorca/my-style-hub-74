@@ -228,7 +228,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
     // ─── 8/9/10. Retours & Annulations (remplace l'ancien SAV)
     const { data: returnsRaw } = await sb
       .from("return_cases")
-      .select("id, code, kind, status, opened_at, refund_suggested_xof, refund_final_xof")
+      .select("id, code, kind, status, created_at, refund_suggested_xof, refund_final_xof")
       .in("status", ["open", "decided"]);
     const returnRows = (returnsRaw ?? []) as any[];
     const now = Date.now();
@@ -236,7 +236,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
     const blocked_cases: BlockedCase[] = [];
     const financial_risks: SavRisk[] = [];
     for (const s of returnRows) {
-      const ageDays = Math.floor((now - new Date(s.opened_at).getTime()) / 86_400_000);
+      const ageDays = Math.floor((now - new Date(s.created_at).getTime()) / 86_400_000);
       const impact = Number(s.refund_final_xof ?? s.refund_suggested_xof ?? 0);
       sav_open_total_impact += impact;
       if (ageDays >= BLOCKED_AGE_DAYS) {
