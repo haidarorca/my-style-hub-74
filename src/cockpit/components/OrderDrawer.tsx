@@ -38,6 +38,8 @@ import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
 import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
 import { ArticlesPanel } from "./ArticlesPanel";
+import { OpenReturnCaseButton } from "./OpenReturnCaseButton";
+
 import { SubOrderProfitabilityPanel } from "./SubOrderProfitabilityPanel";
 import { WorkflowControlPanel } from "./WorkflowControlPanel";
 import { getPendingFinancialActions } from "@/cockpit/lib/article-states";
