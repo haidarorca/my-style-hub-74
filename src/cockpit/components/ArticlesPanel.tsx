@@ -16,6 +16,7 @@ import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import { StockBreakDialog, type StockBreakSubmit } from "./StockBreakDialog";
 import { DecisionOverrideDialog } from "./DecisionOverrideDialog";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
+import { ReturnArticleAction } from "./OpenReturnCaseButton";
 import { useAuth } from "@/hooks/use-auth";
 
 const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
