@@ -48,6 +48,10 @@ import {
   Home,
   Star,
 } from "lucide-react";
+import { ProductDetailDrawer } from "@/cockpit/components/ProductDetailDrawer";
+import { WorkflowCircuit } from "@/cockpit/components/WorkflowCircuit";
+import { readOrderItemLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
+import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 
 export const Route = createFileRoute("/admin/returns/$caseId")({
   component: ReturnCaseDetailPage,
