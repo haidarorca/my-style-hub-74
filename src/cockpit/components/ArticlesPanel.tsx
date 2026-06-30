@@ -412,6 +412,15 @@ export function ArticlesPanel({
 
       {/* Drawer détail produit (clic sur une ligne) */}
       <ProductDetailDrawer article={detailArticle} onClose={() => setDetailArticle(null)} />
+
+      {/* Barre d'action groupée — visible uniquement en mode sélection */}
+      {selectionMode && orderId && (
+        <BulkReturnBar
+          orderId={orderId}
+          selected={selectedItems}
+          onClose={exitSelection}
+        />
+      )}
     </div>
   );
 }
