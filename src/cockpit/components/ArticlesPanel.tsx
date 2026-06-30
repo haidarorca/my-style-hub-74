@@ -161,21 +161,50 @@ export function ArticlesPanel({
         const showStatusChange = canChangeArticleStatus(art, orderStatus);
         const showPartial = canPartialDeliver(art, orderStatus);
         const showOverride = canOverrideDecision(art, orderStatus, isSuperAdmin);
+        const k = keyOf(art);
+        const isSelected = selectedKeys.has(k);
+        const canBulkSelect = !isBreakUnresolved;
 
         return (
           <div
             key={art.product_id}
             className={`rounded-xl border transition-all ${
+              isSelected ? "border-amber-400 ring-2 ring-amber-200 bg-amber-50/40" :
               isBreakUnresolved ? "border-red-300 bg-red-50/40" :
               isDelivered ? "border-emerald-200 bg-emerald-50/30" :
               "border-gray-200 bg-white"
             }`}
           >
-            <button
-              onClick={() => setDetailArticle(art)}
-              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors"
-              title="Voir le détail du produit"
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (selectionMode && canBulkSelect) toggleSelect(art);
+                else setDetailArticle(art);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (selectionMode && canBulkSelect) toggleSelect(art);
+                  else setDetailArticle(art);
+                }
+              }}
+              className="w-full flex items-start gap-2.5 p-2.5 text-left hover:bg-gray-50/60 rounded-t-xl transition-colors cursor-pointer"
+              title={selectionMode ? "Cliquer pour sélectionner" : "Voir le détail du produit"}
             >
+              {selectionMode && (
+                <div className="shrink-0 pt-1">
+                  {canBulkSelect ? (
+                    isSelected ? (
+                      <CheckSquare className="h-5 w-5 text-amber-600" />
+                    ) : (
+                      <Square className="h-5 w-5 text-slate-300" />
+                    )
+                  ) : (
+                    <Square className="h-5 w-5 text-slate-200" />
+                  )}
+                </div>
+              )}
               <div className="shrink-0 w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
                 {art.product_image ? (
                   <img src={art.product_image} alt="" className="w-full h-full object-cover" />
