@@ -1,100 +1,78 @@
+## Objectifs
 
-# Module Retours & Annulations — Espace de travail du dossier
+Rendre le dossier Retour/Annulation aussi lisible et "sans erreur" qu'un dossier dans le Cockpit, et permettre la création multi-articles en un seul dossier.
 
-## Philosophie respectée
+## 1. Article cliquable → fenêtre détail (comme dans la sous-commande)
 
-- Le système **affiche, calcule, trace**. L'admin **décide et valide**.
-- Une page = toutes les infos pour décider. Aucun aller-retour.
-- Workflow linéaire visible. Pas d'automatisation cachée.
-- Historique exhaustif. Aucune action invisible.
+Dans `admin.returns.$caseId.tsx`, chaque ligne d'article devient cliquable et ouvre `ProductDetailDrawer` (déjà utilisé dans `OrderDrawer`/`PipelineView`).
 
-## Ce que je vais construire
+- Mapper la ligne `return_case_items` + `order_items` + `order_article_states` vers le type `OrderArticle` attendu par `ProductDetailDrawer`.
+- Header de drawer : nom, image, badge LOCAL/IMPORT, statut article courant.
+- Section "Logistique & import", "Fournisseur", "Quantité & prix", historique — réutilisation directe.
 
-### 1. Workflow visible (stepper en haut du dossier)
+## 2. Circuit logistique (LOCAL / IMPORT-Poids connu / IMPORT-Poids inconnu)
 
+Sur la fiche du dossier, juste après l'article, afficher le `WorkflowCircuit` exact du Cockpit avec exactement les mêmes libellés :
+
+- LOCAL : Nouvelle → Confirmée → Préparation → Prête → Expédiée → Livrée
+- IMPORT Poids connu : Nouvelle → Confirmée → Commandée → Reçue ent. → Prête → Expédiée → Livrée
+- IMPORT Poids inconnu : variante avec Pesée / Frais / Validée
+
+Étape active = statut réel de la **sous-commande** (table `sub_order_states`, clé `${vendor_id}::${line_kind}`). Fallback : statut de la commande mère, puis statut article. Étendre `getReturnCase` pour renvoyer `sub_order_states` correspondants.
+
+## 3. "Payé client" déjà visible dans le Cockpit
+
+Le bloc financier expose déjà `payment_summary.total_paid` et la liste `payments`. Le rendre plus saillant :
+
+- Card "Payé client" mise en avant (montant + nb paiements + méthode dominante).
+- Lien direct vers la commande dans le Cockpit ("Voir dans Cockpit" → `OrderDrawer`).
+
+## 4. Création multi-articles depuis le Cockpit
+
+Aujourd'hui : 1 bouton par article, 1 dossier par article. Demande : pouvoir cocher plusieurs articles d'une même commande et créer **un seul dossier**.
+
+UI dans `OrderDrawer` (panneau articles) :
+
+- Mode "sélection" activable, chaque article devient cochable.
+- Bouton "Tout sélectionner" en tête.
+- Barre flottante (`BulkActionsBar` réutilisée) : "Retour groupé" / "Annulation groupée".
+- Modale unique : motif global, type (retour/annulation) ; à la validation un seul dossier est créé contenant toutes les lignes cochées.
+
+Garde-fous (impossible de se tromper) :
+
+- Tous les articles doivent appartenir à la même commande (déjà le cas, drawer = 1 cmd).
+- Désactivation visuelle d'un article déjà inclus dans un autre dossier OUVERT (vérifié serveur).
+- Un seul article = comportement actuel inchangé (bouton direct).
+
+## 5. Backend — nouvelle RPC atomique
+
+Ajouter une fonction serveur `openReturnCaseForArticles` :
+
+```text
+open_return_case_for_items(_order_id, _kind, _reason_note,
+  _items: jsonb[]  // [{order_item_id, quantity, unit_price_xof}, ...]
+)
 ```
-Nouvelle  →  Analyse  →  Décision  →  Validation  →  Remboursement  →  Clôturé
-```
 
-Une seule barre d'étapes claire, dérivée du statut + décision. Pas de nouveau champ en base.
+- Crée le dossier (1 row `return_cases`).
+- Insère N lignes `return_case_items` dans la même transaction.
+- Rejette si une ligne référence un `order_item_id` déjà attaché à un dossier non clôturé.
+- Renvoie l'id du dossier créé.
 
-### 2. Espace de travail unique (1 page, sections empilées)
+L'ancienne RPC `open_return_case_for_item` reste pour l'action 1-clic.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ [Code] [Type] [Statut] [Stepper workflow]   [Actions: ↗]   │
-├─────────────────────────────────────────────────────────────┤
-│ 1. Article concerné       │ 4. Commande & client            │
-│ 2. Paiements client       │ 5. Autres articles (lecture)    │
-│ 3. Frais du dossier       │ 6. Historique commande          │
-│ 7. Calcul & décision (la zone d'action principale)          │
-│ 8. Notes internes                                            │
-│ 9. Historique du dossier (qui a fait quoi, quand)           │
-└─────────────────────────────────────────────────────────────┘
-```
+## 6. Détails techniques
 
-### 3. Nouvelle formule de calcul (alignée avec ta vision)
+Fichiers touchés :
 
-Avant : `Articles − Frais = Conseillé`
-Maintenant :
-```
-Montant payé par le client (depuis order_payments)
-   − Total des frais saisis
-   = Montant conseillé à rembourser
-```
-L'admin reste libre d'écraser. Le conseillé est affiché en gros, à côté du champ saisissable.
+- `supabase/migrations/<ts>_returns_multi_items.sql` — nouvelle RPC + index unique partiel `(order_item_id) WHERE status IN ('open','decided')` pour empêcher les doublons.
+- `src/lib/returns.functions.ts` — `openReturnCaseForArticles`, extension `getReturnCase` (ajout `sub_order_states`).
+- `src/cockpit/components/OpenReturnCaseButton.tsx` — bouton individuel conservé.
+- `src/cockpit/components/OrderItemsPanel.tsx` (ou équivalent dans `OrderDrawer`) — mode sélection + "Tout sélectionner" + appel groupé.
+- `src/routes/admin.returns.$caseId.tsx` — chaque item cliquable → `ProductDetailDrawer`, `WorkflowCircuit` par article, mise en avant du payé client, lien Cockpit.
 
-### 4. Panneau Paiements client
+Aucune route ajoutée, aucune nouvelle table, aucune migration de données. Les anciens dossiers restent compatibles.
 
-Lit `order_payments` et `order_payment_summary` :
-- Total commande
-- Total déjà payé
-- Reste à payer
-- Liste de chaque paiement (montant, méthode, date, admin)
+## Hors-scope
 
-### 5. Panneau Historique de la commande
-
-Lit `order_events` + `order_status_history` fusionnés et triés par date.
-Lecture seule. Donne le contexte (livré, expédié, payé fournisseur…).
-
-### 6. Historique du dossier (audit log)
-
-Nouvelle table `return_case_actions` :
-- `case_id`, `action` (open/decide/close/cancel/fee_add/fee_remove/item_add/item_remove/note_update), `actor`, `payload jsonb`, `created_at`
-- Remplie automatiquement par **triggers** sur `return_cases`, `return_case_items`, `return_case_fees` → impossible d'oublier de tracer.
-- Affichée comme une timeline simple en bas de page.
-
-## Changements techniques
-
-**Migration SQL (1 seule)**
-- `CREATE TABLE return_case_actions` + GRANT + RLS (admin only)
-- 3 triggers (sur cases, items, fees) qui insèrent dans `return_case_actions`
-- Permissions GRANT alignées sur le modèle existant
-
-**Server functions (`src/lib/returns.functions.ts`)**
-- `getReturnCase` enrichie : retourne aussi `payments[]`, `payment_summary`, `order_events[]`, `status_history[]`, `actions[]`
-- Aucune nouvelle action côté code : les triggers font le journal
-
-**UI (`src/routes/admin.returns.$caseId.tsx`)**
-- Réécriture complète en composants internes : `WorkflowStepper`, `ArticleCard`, `PaymentsPanel`, `FeesPanel`, `DecisionPanel`, `OrderTimeline`, `CaseActivityLog`
-- Layout 2 colonnes desktop, 1 colonne mobile, sections empilées dans l'ordre des besoins de décision
-- Conseillé recalculé sur `total_paid − feesTotal` (au lieu de `itemsTotal − feesTotal`)
-- Pas de nouveau composant global, tout reste dans le fichier route pour rester lisible
-
-## Ce que je NE fais PAS (volontairement)
-
-- Pas de moteur de règles automatiques
-- Pas de messagerie intégrée (WhatsApp reste hors app, on garde juste les notes)
-- Pas de gestion de stock
-- Pas de nouveau statut : on garde `open / decided / closed / cancelled`
-- Pas de réécriture de la liste — elle est déjà bonne
-
-## Validation
-
-Après implémentation :
-1. Ouvrir un dossier existant → vérifier que toutes les sections s'affichent
-2. Ajouter un frais → vérifier qu'une ligne apparaît dans l'historique du dossier
-3. Valider une décision → vérifier le passage d'étape dans le stepper et la trace
-4. Typecheck
-
-Ok pour démarrer ?
+Pas d'envoi WhatsApp, pas de notif, pas de modification du moteur de remboursement. Le calcul "Payé − Frais = Conseillé" reste identique.
