@@ -2831,6 +2831,44 @@ export type Database = {
           },
         ]
       }
+      return_case_actions: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          case_id: string
+          created_at: string
+          id: string
+          payload: Json | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          case_id: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          case_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_case_actions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "return_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       return_case_counters: {
         Row: {
           kind: Database["public"]["Enums"]["return_case_kind"]
@@ -4046,6 +4084,10 @@ export type Database = {
           _target_type?: string
         }
         Returns: string
+      }
+      log_return_case_action: {
+        Args: { _action: string; _case_id: string; _payload?: Json }
+        Returns: undefined
       }
       migrate_customer_addresses: { Args: never; Returns: number }
       next_return_case_code: {
