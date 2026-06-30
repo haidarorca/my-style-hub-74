@@ -1,8 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
-// /admin/returns/$caseId — Espace de travail du dossier
+// /admin/returns/$caseId — Espace de décision
 //
-// Une seule page = toutes les informations pour décider.
-// Le système affiche, calcule et trace. L'admin décide.
+// Objectif : permettre de décider en quelques secondes.
+//   1. Où en est le produit ? (cycle de vie compact)
+//   2. Quelle est la situation financière ? (payé / reste / frais)
+//   3. Quelle décision ? (calcul + validation)
+//   4. Notes & contexte (replié par défaut)
 // ═══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
@@ -24,6 +27,8 @@ import {
   Banknote,
   Calculator,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ClipboardList,
   History,
   Lock,
@@ -34,6 +39,14 @@ import {
   XCircle,
   User,
   AlertCircle,
+  Plane,
+  Store,
+  Check,
+  Minus,
+  Truck,
+  Warehouse,
+  Home,
+  Star,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/returns/$caseId")({
@@ -47,7 +60,40 @@ const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—";
 
 // ─────────────────────────────────────────────────────────
-// Workflow stepper : dérivé du statut + décision
+// Modèles de frais (templates locaux + presets par défaut)
+// ─────────────────────────────────────────────────────────
+const DEFAULT_FEE_TEMPLATES = [
+  "Transport aller",
+  "Transport retour",
+  "Emballage",
+  "Main d'œuvre",
+  "Frais administratifs",
+  "Autres",
+];
+const FEE_TPL_KEY = "kz_return_fee_templates_v1";
+function loadFeeTemplates(): string[] {
+  if (typeof window === "undefined") return DEFAULT_FEE_TEMPLATES;
+  try {
+    const raw = window.localStorage.getItem(FEE_TPL_KEY);
+    if (!raw) return DEFAULT_FEE_TEMPLATES;
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length === 0) return DEFAULT_FEE_TEMPLATES;
+    return arr;
+  } catch {
+    return DEFAULT_FEE_TEMPLATES;
+  }
+}
+function saveFeeTemplates(list: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FEE_TPL_KEY, JSON.stringify(list.slice(0, 30)));
+  } catch {
+    /* noop */
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Workflow stepper compact
 // ─────────────────────────────────────────────────────────
 const STEPS = [
   { key: "new", label: "Nouvelle" },
@@ -66,9 +112,11 @@ function currentStep(status: string, decision: string | null, refundFinal: numbe
   return 0;
 }
 
-function WorkflowStepper({ status, decision, refundFinal }: {
-  status: string; decision: string | null; refundFinal: number | null;
-}) {
+function WorkflowStepper({
+  status,
+  decision,
+  refundFinal,
+}: { status: string; decision: string | null; refundFinal: number | null }) {
   const active = currentStep(status, decision, refundFinal);
   const cancelled = status === "cancelled";
   return (
@@ -83,10 +131,10 @@ function WorkflowStepper({ status, decision, refundFinal }: {
                 cancelled
                   ? "bg-slate-100 text-slate-400 border-slate-200"
                   : isCurrent
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : done
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-slate-50 text-slate-500 border-slate-200"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : done
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-slate-50 text-slate-500 border-slate-200"
               }`}
             >
               {s.label}
@@ -97,9 +145,7 @@ function WorkflowStepper({ status, decision, refundFinal }: {
           </div>
         );
       })}
-      {cancelled && (
-        <span className="ml-2 text-xs text-rose-600 font-medium shrink-0">• Annulé</span>
-      )}
+      {cancelled && <span className="ml-2 text-xs text-rose-600 font-medium shrink-0">• Annulé</span>}
     </div>
   );
 }
@@ -114,6 +160,90 @@ function StatusBadge({ status }: { status: string }) {
   const m = meta[status];
   if (!m) return null;
   return <span className={`text-xs px-2 py-0.5 rounded border ${m.cls}`}>{m.label}</span>;
+}
+
+// ─────────────────────────────────────────────────────────
+// Cycle de vie article : dérivé du / des order_article_states
+// ─────────────────────────────────────────────────────────
+type LifeFlag = "yes" | "no" | "unknown";
+
+function deriveLifecycle(
+  states: any[],
+  orderStatus: string | null | undefined,
+  isImport: boolean,
+) {
+  // Combine si plusieurs lignes (variantes) — on prend l'état le plus avancé
+  const rank: Record<string, number> = {
+    pending: 0,
+    awaiting_restock: 0,
+    ordered: 1,
+    received: 2,
+    available: 2,
+    ready: 3,
+    shipped: 4,
+    delivered: 5,
+    cancelled: -1,
+  };
+  let best = -2;
+  for (const s of states) {
+    const r = rank[s.status] ?? -2;
+    if (r > best) best = r;
+  }
+  // Fallback sur orderStatus si pas d'état article
+  if (best === -2 && orderStatus) {
+    if (["delivered"].includes(orderStatus)) best = 5;
+    else if (["shipped"].includes(orderStatus)) best = 4;
+    else if (["ready"].includes(orderStatus)) best = 3;
+    else if (["preparing", "confirmed"].includes(orderStatus)) best = 2;
+  }
+
+  const supplierConfirmed: LifeFlag = isImport
+    ? best >= 1
+      ? "yes"
+      : best >= 0
+        ? "no"
+        : "unknown"
+    : "yes"; // LOCAL : vendeur = fournisseur, validé dès la commande
+  const supplierShipped: LifeFlag = isImport
+    ? best >= 2
+      ? "yes"
+      : best >= 1
+        ? "no"
+        : "unknown"
+    : best >= 4
+      ? "yes"
+      : best >= 3
+        ? "no"
+        : "unknown";
+  const kawzoneReceived: LifeFlag = isImport
+    ? best >= 2
+      ? "yes"
+      : "no"
+    : "yes"; // LOCAL : pas applicable, l'article ne transite pas par KZ
+  const clientShipped: LifeFlag = best >= 4 ? "yes" : best >= 3 ? "no" : "unknown";
+  const clientReceived: LifeFlag = best >= 5 ? "yes" : best >= 4 ? "no" : "unknown";
+
+  return { supplierConfirmed, supplierShipped, kawzoneReceived, clientShipped, clientReceived };
+}
+
+function LifeDot({ flag }: { flag: LifeFlag }) {
+  if (flag === "yes")
+    return (
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700">
+        <Check className="w-3 h-3" />
+      </span>
+    );
+  if (flag === "no")
+    return (
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700">
+        <Minus className="w-3 h-3" />
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-400 text-[10px]">
+      ?
+    </span>
+  );
 }
 
 // ─────────────────────────────────────────────────────────
@@ -142,14 +272,14 @@ function ReturnCaseDetailPage() {
   const [finalAmount, setFinalAmount] = useState("");
   const [refundMethod, setRefundMethod] = useState("");
   const [notes, setNotes] = useState<string | null>(null);
+  const [showContext, setShowContext] = useState(false);
+  const [feeTemplates, setFeeTemplates] = useState<string[]>(() => loadFeeTemplates());
 
   const reload = () => qc.invalidateQueries({ queryKey: ["return-case", caseId] });
 
   const orderEvents = data?.order_events ?? [];
   const statusHistory = data?.status_history ?? [];
 
-  // Fusion timeline commande — déclaré AVANT tout early return pour respecter
-  // les règles des hooks (ordre stable entre renders).
   type Tl = { id: string; at: string; label: string; detail?: string };
   const orderTimeline: Tl[] = useMemo(() => {
     const a: Tl[] = orderEvents.map((e: any) => ({
@@ -177,6 +307,7 @@ function ReturnCaseDetailPage() {
   const order = data.order;
   const orderItems = data.order_items;
   const payments = data.payments;
+  const articleStates = (data as any).article_states ?? [];
   const totalPaid = Number(data.payment_summary?.total_paid ?? 0);
   const orderTotal = Number(order?.total ?? 0);
   const remainingToPay = Math.max(0, orderTotal - totalPaid);
@@ -187,15 +318,54 @@ function ReturnCaseDetailPage() {
     (s, it) => s + Number(it.quantity) * Number(it.unit_price_xof),
     0,
   );
-  // Conseillé = ce que le client a payé, moins les frais
   const suggested = Math.max(0, totalPaid - feesTotal);
 
   const isLocked = c.status === "closed" || c.status === "cancelled";
   const usedItemIds = new Set(items.map((i) => i.order_item_id));
 
+  // ── Détecter LOCAL vs IMPORT à partir du premier article concerné ──
+  const firstCaseItemFull = orderItems.find((oi: any) => usedItemIds.has(oi.id));
+  const shopType = (firstCaseItemFull as any)?.shop_type_snapshot as string | undefined;
+  const isImport =
+    shopType === "import" ||
+    shopType === "international" ||
+    ((firstCaseItemFull as any)?.product_origin_country_id_snapshot &&
+      (firstCaseItemFull as any)?.shop_country_id_snapshot &&
+      (firstCaseItemFull as any).product_origin_country_id_snapshot !==
+        (firstCaseItemFull as any).shop_country_id_snapshot);
+  const life = deriveLifecycle(articleStates, order?.status, !!isImport);
+
+  // ── Templates de frais : déjà utilisés vs disponibles ──
+  const usedLabels = new Set(fees.map((f) => f.label));
+  const availableTemplates = feeTemplates.filter((t) => !usedLabels.has(t));
+
+  const applyTemplate = (label: string) => {
+    setFeeLabel(label);
+    // focus the amount input via DOM
+    setTimeout(() => {
+      const el = document.getElementById("fee-amount-input") as HTMLInputElement | null;
+      el?.focus();
+    }, 50);
+  };
+
+  const handleAddFee = async () => {
+    const amt = Number(feeAmount);
+    const label = feeLabel.trim();
+    if (!label || !Number.isFinite(amt) || amt < 0) return;
+    await addFeeFn({ data: { case_id: c.id, label, amount_xof: amt } });
+    // mémorise le libellé pour la prochaine fois
+    if (!feeTemplates.includes(label)) {
+      const next = [...feeTemplates, label];
+      setFeeTemplates(next);
+      saveFeeTemplates(next);
+    }
+    setFeeLabel("");
+    setFeeAmount("");
+    reload();
+  };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
+    <div className="max-w-[1200px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
       {/* ═══════ EN-TÊTE ═══════ */}
       <div className="space-y-3">
         <Link
@@ -247,400 +417,520 @@ function ReturnCaseDetailPage() {
         </div>
       </div>
 
-      {/* ═══════ ZONE PRINCIPALE 2 COLONNES ═══════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* ─── COLONNE GAUCHE (action) ─── */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Article concerné */}
-          <Section icon={<Package className="w-4 h-4" />} title={`Article${items.length > 1 ? "s" : ""} concerné${items.length > 1 ? "s" : ""}`} right={`${items.length}`}>
-            {items.length === 0 ? (
-              <Empty label="Aucun article dans ce dossier" />
-            ) : (
-              <ul className="divide-y">
-                {items.map((it) => {
-                  const oi = (it as any).order_item;
-                  return (
-                    <li key={it.id} className="py-2 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-medium text-sm truncate">
-                          {oi?.product_name ?? "Article"}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          Qté {it.quantity} × {fmt(it.unit_price_xof)} ={" "}
-                          <span className="font-semibold text-slate-700">
-                            {fmt(it.quantity * it.unit_price_xof)}
-                          </span>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {items.length > 0 && (
-              <div className="mt-2 text-xs text-slate-500">
-                Sous-total articles : <span className="font-semibold text-slate-700">{fmt(itemsTotal)}</span>
-              </div>
-            )}
-          </Section>
+      {/* ═══════ 1. OÙ EN EST LE PRODUIT ? ═══════ */}
+      <section className="bg-white border rounded-xl p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-sm flex items-center gap-2">
+            <Package className="w-4 h-4 text-blue-600" />
+            Où en est le produit ?
+          </h2>
+          <span
+            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded border ${
+              isImport
+                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+            }`}
+          >
+            {isImport ? <Plane className="w-3 h-3" /> : <Store className="w-3 h-3" />}
+            {isImport ? "IMPORT" : "LOCAL"}
+          </span>
+        </div>
 
-          {/* Frais */}
-          <Section icon={<Calculator className="w-4 h-4" />} title="Frais liés au dossier">
-            {fees.length === 0 ? (
-              <Empty label="Aucun frais saisi" />
-            ) : (
-              <ul className="divide-y">
-                {fees.map((f) => (
-                  <li key={f.id} className="py-2 flex items-center justify-between gap-2">
-                    <span className="text-sm">{f.label}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{fmt(f.amount_xof)}</span>
-                      {!isLocked && (
-                        <button
-                          onClick={async () => {
-                            await removeFeeFn({ data: { id: f.id } });
-                            reload();
-                          }}
-                          className="text-rose-500 hover:bg-rose-50 p-1 rounded"
-                          aria-label="Supprimer ce frais"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {!isLocked && (
-              <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                <input
-                  value={feeLabel}
-                  onChange={(e) => setFeeLabel(e.target.value)}
-                  placeholder="Libellé (ex. Transport retour)"
-                  className="flex-1 px-2 py-1.5 border rounded text-sm"
-                />
-                <input
-                  value={feeAmount}
-                  onChange={(e) => setFeeAmount(e.target.value)}
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  placeholder="Montant FCFA"
-                  className="sm:w-36 px-2 py-1.5 border rounded text-sm"
-                />
-                <button
-                  onClick={async () => {
-                    const amt = Number(feeAmount);
-                    if (!feeLabel.trim() || !Number.isFinite(amt) || amt < 0) return;
-                    await addFeeFn({
-                      data: { case_id: c.id, label: feeLabel, amount_xof: amt },
-                    });
-                    setFeeLabel("");
-                    setFeeAmount("");
-                    reload();
-                  }}
-                  className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold inline-flex items-center justify-center gap-1"
-                >
-                  <Plus className="w-4 h-4" /> Ajouter
-                </button>
-              </div>
-            )}
-            {fees.length > 0 && (
-              <div className="mt-2 text-xs text-slate-500">
-                Total frais : <span className="font-semibold text-slate-700">{fmt(feesTotal)}</span>
-              </div>
-            )}
-          </Section>
+        {/* Article résumé */}
+        {items.length > 0 && (
+          <div className="mb-3 p-2 rounded bg-slate-50 border border-slate-200">
+            {items.map((it) => {
+              const oi = (it as any).order_item;
+              return (
+                <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0 truncate">
+                    <span className="font-medium">{oi?.product_name ?? "Article"}</span>
+                    <span className="text-slate-500 ml-2">
+                      Qté {it.quantity} × {fmt(it.unit_price_xof)}
+                    </span>
+                  </div>
+                  <span className="font-semibold">{fmt(it.quantity * it.unit_price_xof)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-          {/* Calcul & décision — la zone d'action principale */}
-          <section className="bg-white border-2 border-blue-200 rounded-xl p-4 space-y-3 shadow-sm">
-            <h2 className="font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-600" /> Calcul & décision
-            </h2>
+        {/* Checkpoints du cycle de vie */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {isImport && (
+            <Checkpoint
+              icon={<ClipboardList className="w-3.5 h-3.5" />}
+              label="Fournisseur a confirmé"
+              flag={life.supplierConfirmed}
+            />
+          )}
+          <Checkpoint
+            icon={<Truck className="w-3.5 h-3.5" />}
+            label={isImport ? "Fournisseur a expédié" : "Vendeur a expédié"}
+            flag={life.supplierShipped}
+          />
+          {isImport && (
+            <Checkpoint
+              icon={<Warehouse className="w-3.5 h-3.5" />}
+              label="KawZone a reçu"
+              flag={life.kawzoneReceived}
+            />
+          )}
+          <Checkpoint
+            icon={<Truck className="w-3.5 h-3.5" />}
+            label="Expédié au client"
+            flag={life.clientShipped}
+          />
+          <Checkpoint
+            icon={<Home className="w-3.5 h-3.5" />}
+            label="Client a reçu"
+            flag={life.clientReceived}
+          />
+        </div>
+      </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-              <Stat label="Client a payé" value={fmt(totalPaid)} />
-              <Stat label="Total frais" value={`− ${fmt(feesTotal)}`} />
-              <Stat
-                label="Conseillé à rembourser"
-                value={fmt(suggested)}
-                highlight
-              />
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Formule : <strong>Payé par le client − Total des frais</strong>. Tu peux toujours
-              écraser ce montant.
-            </p>
+      {/* ═══════ 2. SITUATION FINANCIÈRE ═══════ */}
+      <section className="bg-white border rounded-xl p-3 sm:p-4">
+        <h2 className="font-semibold text-sm flex items-center gap-2 mb-3">
+          <Banknote className="w-4 h-4 text-emerald-600" />
+          Situation financière
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Stat label="Total commande" value={fmt(orderTotal)} />
+          <Stat label="Client a payé" value={fmt(totalPaid)} />
+          <Stat
+            label="Reste à payer"
+            value={fmt(remainingToPay)}
+            highlight={remainingToPay > 0}
+            tone={remainingToPay > 0 ? "warn" : "ok"}
+          />
+          <Stat label="Articles du dossier" value={fmt(itemsTotal)} />
+        </div>
+        {payments.length > 0 && (
+          <details className="mt-3 group">
+            <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 flex items-center gap-1">
+              <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
+              Voir les {payments.length} paiement{payments.length > 1 ? "s" : ""}
+            </summary>
+            <ul className="divide-y text-sm mt-2 border rounded">
+              {payments.map((p: any) => (
+                <li key={p.id} className="py-1.5 px-2 flex justify-between items-center">
+                  <div>
+                    <span className="font-semibold">{fmt(p.amount)}</span>
+                    <span className="text-xs text-slate-500 ml-2">{p.method ?? "—"}</span>
+                  </div>
+                  <span className="text-xs text-slate-400">{fmtDate(p.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
 
-            {c.status === "open" && !isLocked && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
-                <select
-                  value={decision}
-                  onChange={(e) => setDecision(e.target.value as ReturnDecision)}
-                  className="px-2 py-2 border rounded text-sm"
-                >
-                  <option value="accepted">Accepté intégralement</option>
-                  <option value="partial">Accepté partiellement</option>
-                  <option value="refused">Refusé</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={finalAmount}
-                  onChange={(e) => setFinalAmount(e.target.value)}
-                  placeholder={`Final (conseillé ${suggested})`}
-                  className="px-2 py-2 border rounded text-sm"
-                />
-                <input
-                  value={refundMethod}
-                  onChange={(e) => setRefundMethod(e.target.value)}
-                  placeholder="Méthode (Wave, Cash…)"
-                  className="px-2 py-2 border rounded text-sm"
-                />
-                <button
-                  onClick={async () => {
-                    const amt = finalAmount === "" ? suggested : Number(finalAmount);
-                    if (!Number.isFinite(amt) || amt < 0) return;
-                    await decideFn({
-                      data: {
-                        id: c.id,
-                        decision,
-                        refund_final_xof: amt,
-                        refund_method: refundMethod || null,
-                      },
-                    });
-                    reload();
-                  }}
-                  className="md:col-span-3 px-3 py-2 rounded bg-blue-600 text-white text-sm font-semibold inline-flex items-center justify-center gap-1"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Valider la décision
-                </button>
-              </div>
-            )}
+      {/* ═══════ 3. FRAIS (avec modèles rapides) ═══════ */}
+      <section className="bg-white border rounded-xl p-3 sm:p-4">
+        <h2 className="font-semibold text-sm flex items-center gap-2 mb-3">
+          <Calculator className="w-4 h-4 text-amber-600" />
+          Frais liés au dossier
+          {feesTotal > 0 && (
+            <span className="ml-auto text-xs font-semibold text-slate-700">
+              Total : {fmt(feesTotal)}
+            </span>
+          )}
+        </h2>
 
-            {c.status !== "open" && (
-              <div className="pt-2 grid grid-cols-2 gap-2 text-sm">
-                <Stat
-                  label="Décision"
-                  value={
-                    c.decision === "accepted"
-                      ? "Accepté"
-                      : c.decision === "partial"
-                      ? "Partiel"
-                      : c.decision === "refused"
+        {/* Frais déjà saisis */}
+        {fees.length > 0 && (
+          <ul className="divide-y mb-3 border rounded">
+            {fees.map((f) => (
+              <li key={f.id} className="py-1.5 px-2 flex items-center justify-between gap-2">
+                <span className="text-sm">{f.label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{fmt(f.amount_xof)}</span>
+                  {!isLocked && (
+                    <button
+                      onClick={async () => {
+                        await removeFeeFn({ data: { id: f.id } });
+                        reload();
+                      }}
+                      className="text-rose-500 hover:bg-rose-50 p-1 rounded"
+                      aria-label="Supprimer ce frais"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Modèles rapides (chips) */}
+        {!isLocked && availableTemplates.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {availableTemplates.map((t) => (
+              <button
+                key={t}
+                onClick={() => applyTemplate(t)}
+                className={`text-xs px-2 py-1 rounded-full border inline-flex items-center gap-1 transition ${
+                  feeLabel === t
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700"
+                }`}
+              >
+                {DEFAULT_FEE_TEMPLATES.includes(t) ? null : <Star className="w-3 h-3" />}
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Saisie unifiée */}
+        {!isLocked && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={feeLabel}
+              onChange={(e) => setFeeLabel(e.target.value)}
+              placeholder="Libellé du frais"
+              className="flex-1 px-2 py-1.5 border rounded text-sm"
+            />
+            <input
+              id="fee-amount-input"
+              value={feeAmount}
+              onChange={(e) => setFeeAmount(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddFee();
+              }}
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Montant FCFA"
+              className="sm:w-36 px-2 py-1.5 border rounded text-sm"
+            />
+            <button
+              onClick={handleAddFee}
+              className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold inline-flex items-center justify-center gap-1"
+            >
+              <Plus className="w-4 h-4" /> Ajouter
+            </button>
+          </div>
+        )}
+        {!isLocked && (
+          <p className="text-[11px] text-slate-400 mt-2">
+            Les libellés que tu utilises sont mémorisés et proposés en raccourci la prochaine fois.
+          </p>
+        )}
+      </section>
+
+      {/* ═══════ 4. CALCUL & DÉCISION ═══════ */}
+      <section className="bg-white border-2 border-blue-300 rounded-xl p-3 sm:p-4 space-y-3 shadow-sm">
+        <h2 className="font-semibold text-sm flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-blue-600" />
+          Décision & remboursement
+        </h2>
+
+        <div className="grid grid-cols-3 gap-2 text-sm">
+          <Stat label="Payé" value={fmt(totalPaid)} small />
+          <Stat label="− Frais" value={fmt(feesTotal)} small />
+          <Stat label="Conseillé" value={fmt(suggested)} small highlight tone="ok" />
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Formule : <strong>Payé par le client − Total des frais</strong>. Tu peux toujours écraser
+          le montant final.
+        </p>
+
+        {c.status === "open" && !isLocked && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+            <select
+              value={decision}
+              onChange={(e) => setDecision(e.target.value as ReturnDecision)}
+              className="px-2 py-2 border rounded text-sm"
+            >
+              <option value="accepted">Accepté intégralement</option>
+              <option value="partial">Accepté partiellement</option>
+              <option value="refused">Refusé</option>
+            </select>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={finalAmount}
+              onChange={(e) => setFinalAmount(e.target.value)}
+              placeholder={`Final (conseillé ${suggested})`}
+              className="px-2 py-2 border rounded text-sm"
+            />
+            <input
+              value={refundMethod}
+              onChange={(e) => setRefundMethod(e.target.value)}
+              placeholder="Méthode (Wave, Cash…)"
+              className="px-2 py-2 border rounded text-sm"
+            />
+            <button
+              onClick={async () => {
+                const amt = finalAmount === "" ? suggested : Number(finalAmount);
+                if (!Number.isFinite(amt) || amt < 0) return;
+                await decideFn({
+                  data: {
+                    id: c.id,
+                    decision,
+                    refund_final_xof: amt,
+                    refund_method: refundMethod || null,
+                  },
+                });
+                reload();
+              }}
+              className="md:col-span-3 px-3 py-2 rounded bg-blue-600 text-white text-sm font-semibold inline-flex items-center justify-center gap-1"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Valider la décision
+            </button>
+          </div>
+        )}
+
+        {c.status !== "open" && (
+          <div className="pt-1 grid grid-cols-2 gap-2 text-sm">
+            <Stat
+              label="Décision"
+              value={
+                c.decision === "accepted"
+                  ? "Accepté"
+                  : c.decision === "partial"
+                    ? "Partiel"
+                    : c.decision === "refused"
                       ? "Refusé"
                       : "—"
-                  }
-                />
-                <Stat label="Montant final" value={fmt(c.refund_final_xof)} />
-                {c.refund_method && (
-                  <div className="col-span-2">
-                    <Stat label="Méthode" value={c.refund_method} />
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Notes internes */}
-          <Section icon={<ClipboardList className="w-4 h-4" />} title="Notes internes">
-            <textarea
-              value={notes ?? c.internal_notes ?? ""}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              disabled={isLocked}
-              className="w-full px-3 py-2 border rounded text-sm"
-              placeholder="Trace des échanges WhatsApp, contexte, décisions…"
+              }
             />
-            {!isLocked && (
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={async () => {
-                    await updateNotesFn({
-                      data: { id: c.id, internal_notes: notes ?? c.internal_notes ?? "" },
-                    });
-                    reload();
-                  }}
-                  className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm"
-                >
-                  Enregistrer
-                </button>
+            <Stat label="Montant final" value={fmt(c.refund_final_xof)} highlight tone="ok" />
+            {c.refund_method && (
+              <div className="col-span-2">
+                <Stat label="Méthode" value={c.refund_method} />
               </div>
             )}
-          </Section>
+          </div>
+        )}
+      </section>
 
-          {/* Historique du dossier */}
-          <Section icon={<History className="w-4 h-4" />} title="Historique du dossier" right={`${actions.length}`}>
-            {actions.length === 0 ? (
-              <Empty label="Aucune action enregistrée" />
-            ) : (
-              <ul className="space-y-1.5 max-h-96 overflow-y-auto">
-                {actions.map((a: any) => (
-                  <li
-                    key={a.id}
-                    className="flex items-start gap-2 text-xs border-l-2 border-slate-200 pl-2 py-1"
-                  >
-                    <div className="min-w-0 flex-1">
+      {/* ═══════ NOTES INTERNES (toujours utile, gardé compact) ═══════ */}
+      <section className="bg-white border rounded-xl p-3 sm:p-4">
+        <h2 className="font-semibold text-sm flex items-center gap-2 mb-2">
+          <ClipboardList className="w-4 h-4 text-slate-500" />
+          Notes internes
+        </h2>
+        <textarea
+          value={notes ?? c.internal_notes ?? ""}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          disabled={isLocked}
+          className="w-full px-3 py-2 border rounded text-sm"
+          placeholder="Trace des échanges WhatsApp, contexte, décisions…"
+        />
+        {!isLocked && (
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={async () => {
+                await updateNotesFn({
+                  data: { id: c.id, internal_notes: notes ?? c.internal_notes ?? "" },
+                });
+                reload();
+              }}
+              className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm"
+            >
+              Enregistrer
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* ═══════ CONTEXTE COMPLET (replié par défaut) ═══════ */}
+      <section className="bg-white border rounded-xl">
+        <button
+          onClick={() => setShowContext((v) => !v)}
+          className="w-full px-3 sm:px-4 py-2.5 flex items-center justify-between text-sm font-semibold hover:bg-slate-50 transition rounded-xl"
+        >
+          <span className="flex items-center gap-2">
+            {showContext ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            Contexte complet (commande, autres articles, historiques)
+          </span>
+          <span className="text-xs font-normal text-slate-400">
+            {orderTimeline.length} év. · {actions.length} actions
+          </span>
+        </button>
+
+        {showContext && (
+          <div className="px-3 sm:px-4 pb-4 grid grid-cols-1 lg:grid-cols-2 gap-4 border-t pt-4">
+            {/* Commande & client */}
+            <SubSection icon={<User className="w-4 h-4" />} title="Commande & client">
+              {order ? (
+                <dl className="space-y-1 text-sm">
+                  <Row
+                    k="N° commande"
+                    v={<span className="font-mono text-xs">{order.id.slice(0, 8)}…</span>}
+                  />
+                  <Row k="Client" v={order.customer_name ?? "—"} />
+                  <Row k="Téléphone" v={order.customer_phone ?? "—"} />
+                  <Row k="Adresse" v={order.address ?? "—"} />
+                  <Row k="Statut" v={<span className="font-medium">{order.status}</span>} />
+                  <Row k="Créée le" v={fmtDate(order.created_at)} />
+                </dl>
+              ) : (
+                <div className="text-sm text-slate-500">Commande introuvable.</div>
+              )}
+            </SubSection>
+
+            {/* Autres articles */}
+            <SubSection icon={<Package className="w-4 h-4" />} title="Autres articles de la commande">
+              {(orderItems ?? []).length === 0 ? (
+                <Empty label="—" />
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {orderItems.map((oi: any) => {
+                    const inCase = usedItemIds.has(oi.id);
+                    return (
+                      <li
+                        key={oi.id}
+                        className={`p-2 rounded border ${
+                          inCase ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        <div className="font-medium text-xs truncate">{oi.product_name}</div>
+                        <div className="text-[11px] text-slate-500 flex justify-between">
+                          <span>
+                            Qté {oi.quantity} × {fmt(oi.unit_price)}
+                          </span>
+                          {inCase && (
+                            <span className="text-amber-700 font-semibold">Dans ce dossier</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </SubSection>
+
+            {/* Historique commande */}
+            <SubSection icon={<History className="w-4 h-4" />} title="Historique commande">
+              {orderTimeline.length === 0 ? (
+                <Empty label="Aucun événement" />
+              ) : (
+                <ul className="space-y-1.5 max-h-80 overflow-y-auto">
+                  {orderTimeline.slice(0, 30).map((t) => (
+                    <li key={t.id} className="text-xs border-l-2 border-slate-200 pl-2 py-1">
+                      <div className="font-medium text-slate-800">{t.label}</div>
+                      {t.detail && <div className="text-slate-500">{t.detail}</div>}
+                      <div className="text-slate-400">{fmtDate(t.at)}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SubSection>
+
+            {/* Historique dossier */}
+            <SubSection icon={<History className="w-4 h-4" />} title="Historique du dossier">
+              {actions.length === 0 ? (
+                <Empty label="Aucune action" />
+              ) : (
+                <ul className="space-y-1.5 max-h-80 overflow-y-auto">
+                  {actions.map((a: any) => (
+                    <li
+                      key={a.id}
+                      className="text-xs border-l-2 border-slate-200 pl-2 py-1"
+                    >
                       <div className="font-medium text-slate-800">{actionLabel(a.action)}</div>
                       {a.payload && (
-                        <div className="text-slate-500 truncate">{formatPayload(a.action, a.payload)}</div>
+                        <div className="text-slate-500 truncate">
+                          {formatPayload(a.action, a.payload)}
+                        </div>
                       )}
                       <div className="text-slate-400">
                         {a.actor_email ?? "système"} · {fmtDate(a.created_at)}
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-        </div>
-
-        {/* ─── COLONNE DROITE (contexte) ─── */}
-        <aside className="space-y-4">
-          {/* Commande & client */}
-          <Section icon={<User className="w-4 h-4" />} title="Commande & client">
-            {order ? (
-              <dl className="space-y-1 text-sm">
-                <Row k="N° commande" v={<span className="font-mono text-xs">{order.id.slice(0, 8)}…</span>} />
-                <Row k="Client" v={order.customer_name ?? "—"} />
-                <Row k="Téléphone" v={order.customer_phone ?? "—"} />
-                <Row k="Adresse" v={order.address ?? "—"} />
-                <Row k="Total commande" v={<span className="font-bold">{fmt(orderTotal)}</span>} />
-                <Row k="Statut" v={<span className="font-medium">{order.status}</span>} />
-                <Row k="Créée le" v={fmtDate(order.created_at)} />
-              </dl>
-            ) : (
-              <div className="text-sm text-slate-500">Commande introuvable.</div>
-            )}
-          </Section>
-
-          {/* Paiements client */}
-          <Section icon={<Banknote className="w-4 h-4" />} title="Paiements client">
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <Stat label="Total cmd" value={fmt(orderTotal)} small />
-              <Stat label="Payé" value={fmt(totalPaid)} small />
-              <Stat
-                label="Reste"
-                value={fmt(remainingToPay)}
-                small
-                highlight={remainingToPay > 0}
-              />
-            </div>
-            {payments.length === 0 ? (
-              <Empty label="Aucun paiement enregistré" />
-            ) : (
-              <ul className="divide-y text-sm">
-                {payments.map((p: any) => (
-                  <li key={p.id} className="py-2">
-                    <div className="flex justify-between">
-                      <span className="font-semibold">{fmt(p.amount)}</span>
-                      <span className="text-xs text-slate-500">{p.method ?? "—"}</span>
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {fmtDate(p.created_at)}
-                      {p.admin_name ? ` · ${p.admin_name}` : ""}
-                      {p.reference ? ` · ${p.reference}` : ""}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          {/* Autres articles de la commande */}
-          <Section icon={<Package className="w-4 h-4" />} title="Autres articles">
-            {(orderItems ?? []).length === 0 ? (
-              <Empty label="—" />
-            ) : (
-              <ul className="space-y-1.5 text-sm">
-                {orderItems.map((oi: any) => {
-                  const inCase = usedItemIds.has(oi.id);
-                  return (
-                    <li
-                      key={oi.id}
-                      className={`p-2 rounded border ${
-                        inCase ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
-                      }`}
-                    >
-                      <div className="font-medium text-xs truncate">{oi.product_name}</div>
-                      <div className="text-[11px] text-slate-500 flex justify-between">
-                        <span>Qté {oi.quantity} × {fmt(oi.unit_price)}</span>
-                        {inCase && (
-                          <span className="text-amber-700 font-semibold">Dans ce dossier</span>
-                        )}
-                      </div>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Section>
-
-          {/* Historique de la commande */}
-          <Section icon={<History className="w-4 h-4" />} title="Historique commande" right={`${orderTimeline.length}`}>
-            {orderTimeline.length === 0 ? (
-              <Empty label="Aucun événement" />
-            ) : (
-              <ul className="space-y-1.5 max-h-80 overflow-y-auto">
-                {orderTimeline.slice(0, 30).map((t) => (
-                  <li key={t.id} className="text-xs border-l-2 border-slate-200 pl-2 py-1">
-                    <div className="font-medium text-slate-800">{t.label}</div>
-                    {t.detail && <div className="text-slate-500">{t.detail}</div>}
-                    <div className="text-slate-400">{fmtDate(t.at)}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-        </aside>
-      </div>
+                  ))}
+                </ul>
+              )}
+            </SubSection>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
 // ─── Petits composants ────────────────────────────────
-function Section({
-  icon, title, right, children,
-}: { icon: React.ReactNode; title: string; right?: string; children: React.ReactNode }) {
+function Checkpoint({
+  icon,
+  label,
+  flag,
+}: { icon: React.ReactNode; label: string; flag: LifeFlag }) {
+  const tone =
+    flag === "yes"
+      ? "bg-emerald-50 border-emerald-200"
+      : flag === "no"
+        ? "bg-rose-50 border-rose-200"
+        : "bg-slate-50 border-slate-200";
   return (
-    <section className="bg-white border rounded-xl">
-      <header className="px-3 sm:px-4 py-2.5 border-b flex items-center justify-between">
-        <h2 className="font-semibold text-sm flex items-center gap-2">{icon} {title}</h2>
-        {right && <span className="text-xs text-slate-500">{right}</span>}
+    <div className={`rounded border p-2 flex items-center gap-2 ${tone}`}>
+      <LifeDot flag={flag} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] text-slate-500 flex items-center gap-1">{icon}</div>
+        <div className="text-xs font-medium text-slate-800 truncate">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function SubSection({
+  icon,
+  title,
+  children,
+}: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="border rounded-lg">
+      <header className="px-3 py-2 border-b bg-slate-50 rounded-t-lg">
+        <h3 className="font-semibold text-xs flex items-center gap-2 text-slate-700">
+          {icon} {title}
+        </h3>
       </header>
-      <div className="px-3 sm:px-4 py-3">{children}</div>
-    </section>
+      <div className="px-3 py-2">{children}</div>
+    </div>
   );
 }
 
 function Empty({ label }: { label: string }) {
   return (
-    <div className="py-4 text-center text-xs text-slate-400 flex flex-col items-center gap-1">
+    <div className="py-3 text-center text-xs text-slate-400 flex flex-col items-center gap-1">
       <AlertCircle className="w-4 h-4" /> {label}
     </div>
   );
 }
 
-function Stat({ label, value, highlight, small }: {
-  label: string; value: React.ReactNode; highlight?: boolean; small?: boolean;
+function Stat({
+  label,
+  value,
+  highlight,
+  small,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  highlight?: boolean;
+  small?: boolean;
+  tone?: "ok" | "warn";
 }) {
+  const palette =
+    highlight && tone === "ok"
+      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+      : highlight && tone === "warn"
+        ? "bg-rose-50 border-rose-200 text-rose-800"
+        : tone === "warn"
+          ? "bg-amber-50 border-amber-200 text-amber-800"
+          : "bg-slate-50 border-slate-200 text-slate-800";
   return (
-    <div
-      className={`rounded p-2 text-center border ${
-        highlight
-          ? "bg-emerald-50 border-emerald-200"
-          : "bg-slate-50 border-slate-200"
-      }`}
-    >
-      <div className={`${small ? "text-[10px]" : "text-xs"} ${highlight ? "text-emerald-700" : "text-slate-500"}`}>
-        {label}
-      </div>
-      <div className={`font-bold ${small ? "text-xs" : "text-sm"} ${highlight ? "text-emerald-800" : "text-slate-800"}`}>
-        {value}
-      </div>
+    <div className={`rounded p-2 text-center border ${palette}`}>
+      <div className={`${small ? "text-[10px]" : "text-xs"} opacity-70`}>{label}</div>
+      <div className={`font-bold ${small ? "text-xs" : "text-sm"}`}>{value}</div>
     </div>
   );
 }
