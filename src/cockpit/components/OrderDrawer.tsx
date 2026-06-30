@@ -405,7 +405,21 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                   onOverrideDecision={onOverrideDecision}
                 />
               )}
+
+              {/* Envoyer au Centre Retours & Annulations */}
+              {order.order_id && scopedArticles && scopedArticles.length > 0 && (
+                <OpenReturnCaseButton
+                  orderId={order.order_id}
+                  articles={scopedArticles.map((a) => ({
+                    id: (a as any).id,
+                    product_name: a.product_name,
+                    quantity: a.quantity,
+                    unit_price: (a as any).unit_price,
+                  }))}
+                />
+              )}
             </TabsContent>
+
 
             {/* ─── Onglet LOGISTIQUE ─── */}
             <TabsContent value="logistique" className="space-y-3 mt-3">
