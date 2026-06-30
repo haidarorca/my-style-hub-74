@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Package, ChevronRight, AlertTriangle, CheckCircle2,
-  CircleDot, Ban, ArrowDownToLine, ShieldAlert,
+  CircleDot, Ban, ArrowDownToLine, ShieldAlert, CheckSquare, Square,
 } from "lucide-react";
 import {
   ARTICLE_STATUS_COLORS, STOCK_BREAK_ACTIONS,
