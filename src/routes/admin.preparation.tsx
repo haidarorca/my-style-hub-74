@@ -57,7 +57,7 @@ function AdminPreparation() {
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-center gap-2 print:hidden">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/admin/orders"><ArrowLeft className="h-4 w-4" /> Retour</Link>
+          <Link to="/admin/commandes"><ArrowLeft className="h-4 w-4" /> Retour</Link>
         </Button>
         <h1 className="text-xl font-bold">Préparation groupée (Admin)</h1>
       </div>
