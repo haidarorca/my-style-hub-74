@@ -145,35 +145,11 @@ function ReturnCaseDetailPage() {
 
   const reload = () => qc.invalidateQueries({ queryKey: ["return-case", caseId] });
 
-  if (isLoading || !data) {
-    return <div className="p-6 text-slate-500">Chargement…</div>;
-  }
+  const orderEvents = data?.order_events ?? [];
+  const statusHistory = data?.status_history ?? [];
 
-  const c = data.case;
-  const items = data.items;
-  const fees = data.fees;
-  const order = data.order;
-  const orderItems = data.order_items;
-  const payments = data.payments;
-  const totalPaid = Number(data.payment_summary?.total_paid ?? 0);
-  const orderTotal = Number(order?.total ?? 0);
-  const remainingToPay = Math.max(0, orderTotal - totalPaid);
-  const orderEvents = data.order_events;
-  const statusHistory = data.status_history;
-  const actions = data.actions;
-
-  const feesTotal = fees.reduce((s, f) => s + Number(f.amount_xof), 0);
-  const itemsTotal = items.reduce(
-    (s, it) => s + Number(it.quantity) * Number(it.unit_price_xof),
-    0,
-  );
-  // Conseillé = ce que le client a payé, moins les frais
-  const suggested = Math.max(0, totalPaid - feesTotal);
-
-  const isLocked = c.status === "closed" || c.status === "cancelled";
-  const usedItemIds = new Set(items.map((i) => i.order_item_id));
-
-  // Fusion timeline commande
+  // Fusion timeline commande — déclaré AVANT tout early return pour respecter
+  // les règles des hooks (ordre stable entre renders).
   type Tl = { id: string; at: string; label: string; detail?: string };
   const orderTimeline: Tl[] = useMemo(() => {
     const a: Tl[] = orderEvents.map((e: any) => ({
@@ -190,6 +166,33 @@ function ReturnCaseDetailPage() {
     }));
     return [...a, ...b].sort((x, y) => +new Date(y.at) - +new Date(x.at));
   }, [orderEvents, statusHistory]);
+
+  if (isLoading || !data) {
+    return <div className="p-6 text-slate-500">Chargement…</div>;
+  }
+
+  const c = data.case;
+  const items = data.items;
+  const fees = data.fees;
+  const order = data.order;
+  const orderItems = data.order_items;
+  const payments = data.payments;
+  const totalPaid = Number(data.payment_summary?.total_paid ?? 0);
+  const orderTotal = Number(order?.total ?? 0);
+  const remainingToPay = Math.max(0, orderTotal - totalPaid);
+  const actions = data.actions;
+
+  const feesTotal = fees.reduce((s, f) => s + Number(f.amount_xof), 0);
+  const itemsTotal = items.reduce(
+    (s, it) => s + Number(it.quantity) * Number(it.unit_price_xof),
+    0,
+  );
+  // Conseillé = ce que le client a payé, moins les frais
+  const suggested = Math.max(0, totalPaid - feesTotal);
+
+  const isLocked = c.status === "closed" || c.status === "cancelled";
+  const usedItemIds = new Set(items.map((i) => i.order_item_id));
+
 
   return (
     <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
