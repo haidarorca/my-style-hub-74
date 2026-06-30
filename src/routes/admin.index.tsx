@@ -286,7 +286,7 @@ function ActionCenter() {
             Commandes récentes
           </h2>
           <Button asChild variant="ghost" size="sm" className="text-xs h-7">
-            <Link to="/admin/orders">Tout voir <ArrowRight className="h-3 w-3 ml-1" /></Link>
+            <Link to="/admin/commandes">Tout voir <ArrowRight className="h-3 w-3 ml-1" /></Link>
           </Button>
         </div>
 
