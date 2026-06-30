@@ -118,7 +118,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
 
     const { data: order } = await sb
       .from("orders")
-      .select("id, status, total_amount, customer_name, customer_phone, customer_address, created_at")
+      .select("id, status, total, customer_name, customer_phone, address, created_at")
       .eq("id", caseRow.order_id)
       .single();
 
