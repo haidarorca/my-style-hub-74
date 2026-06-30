@@ -92,27 +92,21 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
             </Link>
 
             <Link
-              to="/admin/cockpit/sav"
+              to="/admin/returns"
               className={cn(
                 "flex items-center justify-between p-2 rounded border transition",
-                (pulse?.sav_open ?? 0) > 0
+                (pulse?.returns_open ?? 0) > 0
                   ? "bg-amber-50 hover:bg-amber-100 border-amber-200"
                   : "bg-slate-50 hover:bg-slate-100"
               )}
             >
               <span className="text-slate-600 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
-                SAV ouverts
+                Dossiers ouverts
               </span>
-              <span className="font-bold">
-                {pulse?.sav_open ?? "—"}
-                {(pulse?.sav_oldest_days ?? 0) > 0 && (
-                  <span className="text-amber-700 ml-1">
-                    <Clock className="w-3 h-3 inline" /> {pulse?.sav_oldest_days}j
-                  </span>
-                )}
-              </span>
+              <span className="font-bold">{pulse?.returns_open ?? "—"}</span>
             </Link>
+
 
             <Link
               to="/admin/cockpit/daily"
