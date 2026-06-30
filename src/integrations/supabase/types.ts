@@ -802,142 +802,6 @@ export type Database = {
           },
         ]
       }
-      destruction_records: {
-        Row: {
-          case_id: string
-          certificate_url: string | null
-          created_at: string
-          created_by: string | null
-          destroyed_at: string
-          destroyed_by: string | null
-          id: string
-          inspection_report_id: string | null
-          method: string
-          original_currency: string | null
-          original_value: number | null
-          photos: string[] | null
-          reason: string
-          witnessed_by: string | null
-        }
-        Insert: {
-          case_id: string
-          certificate_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          destroyed_at?: string
-          destroyed_by?: string | null
-          id?: string
-          inspection_report_id?: string | null
-          method: string
-          original_currency?: string | null
-          original_value?: number | null
-          photos?: string[] | null
-          reason: string
-          witnessed_by?: string | null
-        }
-        Update: {
-          case_id?: string
-          certificate_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          destroyed_at?: string
-          destroyed_by?: string | null
-          id?: string
-          inspection_report_id?: string | null
-          method?: string
-          original_currency?: string | null
-          original_value?: number | null
-          photos?: string[] | null
-          reason?: string
-          witnessed_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "destruction_records_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
-            foreignKeyName: "destruction_records_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "destruction_records_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_destroyed_by_fkey"
-            columns: ["destroyed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_destroyed_by_fkey"
-            columns: ["destroyed_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "destruction_records_destroyed_by_fkey"
-            columns: ["destroyed_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_inspection_report_id_fkey"
-            columns: ["inspection_report_id"]
-            isOneToOne: false
-            referencedRelation: "inspection_reports"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_witnessed_by_fkey"
-            columns: ["witnessed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "destruction_records_witnessed_by_fkey"
-            columns: ["witnessed_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "destruction_records_witnessed_by_fkey"
-            columns: ["witnessed_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       email_verification_codes: {
         Row: {
           attempts: number
@@ -1426,127 +1290,6 @@ export type Database = {
           },
         ]
       }
-      inspection_reports: {
-        Row: {
-          accessories_missing: string[] | null
-          accessories_present: string[] | null
-          actual_dimensions_cm: number[] | null
-          actual_weight_g: number | null
-          case_id: string
-          client_fault: boolean | null
-          condition: string
-          created_at: string
-          disposition: string
-          findings: string | null
-          id: string
-          inspected_at: string
-          inspected_by: string
-          inspection_cost: number | null
-          inspection_cost_currency: string | null
-          inspection_cost_payer: string | null
-          packaging_condition: string | null
-          photos: string[] | null
-          recommended_action: string | null
-          return_shipment_id: string | null
-          serial_number: string | null
-          updated_at: string
-          videos: string[] | null
-        }
-        Insert: {
-          accessories_missing?: string[] | null
-          accessories_present?: string[] | null
-          actual_dimensions_cm?: number[] | null
-          actual_weight_g?: number | null
-          case_id: string
-          client_fault?: boolean | null
-          condition: string
-          created_at?: string
-          disposition: string
-          findings?: string | null
-          id?: string
-          inspected_at?: string
-          inspected_by: string
-          inspection_cost?: number | null
-          inspection_cost_currency?: string | null
-          inspection_cost_payer?: string | null
-          packaging_condition?: string | null
-          photos?: string[] | null
-          recommended_action?: string | null
-          return_shipment_id?: string | null
-          serial_number?: string | null
-          updated_at?: string
-          videos?: string[] | null
-        }
-        Update: {
-          accessories_missing?: string[] | null
-          accessories_present?: string[] | null
-          actual_dimensions_cm?: number[] | null
-          actual_weight_g?: number | null
-          case_id?: string
-          client_fault?: boolean | null
-          condition?: string
-          created_at?: string
-          disposition?: string
-          findings?: string | null
-          id?: string
-          inspected_at?: string
-          inspected_by?: string
-          inspection_cost?: number | null
-          inspection_cost_currency?: string | null
-          inspection_cost_payer?: string | null
-          packaging_condition?: string | null
-          photos?: string[] | null
-          recommended_action?: string | null
-          return_shipment_id?: string | null
-          serial_number?: string | null
-          updated_at?: string
-          videos?: string[] | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inspection_reports_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inspection_reports_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
-            foreignKeyName: "inspection_reports_inspected_by_fkey"
-            columns: ["inspected_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inspection_reports_inspected_by_fkey"
-            columns: ["inspected_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "inspection_reports_inspected_by_fkey"
-            columns: ["inspected_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inspection_reports_return_shipment_id_fkey"
-            columns: ["return_shipment_id"]
-            isOneToOne: false
-            referencedRelation: "return_shipments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       moderation_reason_templates: {
         Row: {
           created_at: string
@@ -1900,20 +1643,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "order_items_exchange_source_case_id_fkey"
-            columns: ["exchange_source_case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_items_exchange_source_case_id_fkey"
-            columns: ["exchange_source_case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
             foreignKeyName: "order_items_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -1926,13 +1655,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "currencies"
             referencedColumns: ["code"]
-          },
-          {
-            foreignKeyName: "order_items_source_exchange_id_fkey"
-            columns: ["source_exchange_id"]
-            isOneToOne: false
-            referencedRelation: "sav_exchanges"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -3109,87 +2831,181 @@ export type Database = {
           },
         ]
       }
-      return_shipments: {
+      return_case_counters: {
         Row: {
-          carrier_name: string | null
+          kind: Database["public"]["Enums"]["return_case_kind"]
+          value: number
+          year: number
+        }
+        Insert: {
+          kind: Database["public"]["Enums"]["return_case_kind"]
+          value?: number
+          year: number
+        }
+        Update: {
+          kind?: Database["public"]["Enums"]["return_case_kind"]
+          value?: number
+          year?: number
+        }
+        Relationships: []
+      }
+      return_case_fees: {
+        Row: {
+          amount_xof: number
           case_id: string
           created_at: string
           created_by: string | null
-          expected_at: string | null
-          from_address: string | null
           id: string
-          leg_type: string
-          note: string | null
-          received_at: string | null
-          received_condition: string | null
-          reception_photos: string[] | null
-          shipped_at: string | null
-          shipping_cost: number | null
-          shipping_cost_currency: string | null
-          status: string
-          to_address: string | null
-          tracking_number: string | null
-          tracking_url: string | null
-          updated_at: string
+          label: string
         }
         Insert: {
-          carrier_name?: string | null
+          amount_xof?: number
           case_id: string
           created_at?: string
           created_by?: string | null
-          expected_at?: string | null
-          from_address?: string | null
           id?: string
-          leg_type: string
-          note?: string | null
-          received_at?: string | null
-          received_condition?: string | null
-          reception_photos?: string[] | null
-          shipped_at?: string | null
-          shipping_cost?: number | null
-          shipping_cost_currency?: string | null
-          status?: string
-          to_address?: string | null
-          tracking_number?: string | null
-          tracking_url?: string | null
-          updated_at?: string
+          label: string
         }
         Update: {
-          carrier_name?: string | null
+          amount_xof?: number
           case_id?: string
           created_at?: string
           created_by?: string | null
-          expected_at?: string | null
-          from_address?: string | null
           id?: string
-          leg_type?: string
-          note?: string | null
-          received_at?: string | null
-          received_condition?: string | null
-          reception_photos?: string[] | null
-          shipped_at?: string | null
-          shipping_cost?: number | null
-          shipping_cost_currency?: string | null
-          status?: string
-          to_address?: string | null
-          tracking_number?: string | null
-          tracking_url?: string | null
+          label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_case_fees_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "return_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      return_case_items: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          item_decision:
+            | Database["public"]["Enums"]["return_case_decision"]
+            | null
+          order_item_id: string
+          quantity: number
+          unit_price_xof: number
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          item_decision?:
+            | Database["public"]["Enums"]["return_case_decision"]
+            | null
+          order_item_id: string
+          quantity: number
+          unit_price_xof?: number
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          item_decision?:
+            | Database["public"]["Enums"]["return_case_decision"]
+            | null
+          order_item_id?: string
+          quantity?: number
+          unit_price_xof?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_case_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "return_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_case_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      return_cases: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: Database["public"]["Enums"]["return_case_decision"] | null
+          id: string
+          internal_notes: string | null
+          kind: Database["public"]["Enums"]["return_case_kind"]
+          opened_by: string | null
+          order_id: string
+          reason_code: string | null
+          reason_note: string | null
+          refund_final_xof: number | null
+          refund_method: string | null
+          refund_suggested_xof: number
+          status: Database["public"]["Enums"]["return_case_status"]
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          code: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: Database["public"]["Enums"]["return_case_decision"] | null
+          id?: string
+          internal_notes?: string | null
+          kind: Database["public"]["Enums"]["return_case_kind"]
+          opened_by?: string | null
+          order_id: string
+          reason_code?: string | null
+          reason_note?: string | null
+          refund_final_xof?: number | null
+          refund_method?: string | null
+          refund_suggested_xof?: number
+          status?: Database["public"]["Enums"]["return_case_status"]
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          code?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: Database["public"]["Enums"]["return_case_decision"] | null
+          id?: string
+          internal_notes?: string | null
+          kind?: Database["public"]["Enums"]["return_case_kind"]
+          opened_by?: string | null
+          order_id?: string
+          reason_code?: string | null
+          reason_note?: string | null
+          refund_final_xof?: number | null
+          refund_method?: string | null
+          refund_suggested_xof?: number
+          status?: Database["public"]["Enums"]["return_case_status"]
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "return_shipments_case_id_fkey"
-            columns: ["case_id"]
+            foreignKeyName: "return_cases_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "sav_cases"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "return_shipments_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
           },
         ]
       }
@@ -3224,622 +3040,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      sav_actions: {
-        Row: {
-          action_type: Database["public"]["Enums"]["sav_action_type"]
-          actor_id: string | null
-          actor_role: Database["public"]["Enums"]["sav_party"]
-          case_id: string
-          created_at: string
-          from_state: Json | null
-          id: string
-          note: string | null
-          to_state: Json | null
-        }
-        Insert: {
-          action_type: Database["public"]["Enums"]["sav_action_type"]
-          actor_id?: string | null
-          actor_role: Database["public"]["Enums"]["sav_party"]
-          case_id: string
-          created_at?: string
-          from_state?: Json | null
-          id?: string
-          note?: string | null
-          to_state?: Json | null
-        }
-        Update: {
-          action_type?: Database["public"]["Enums"]["sav_action_type"]
-          actor_id?: string | null
-          actor_role?: Database["public"]["Enums"]["sav_party"]
-          case_id?: string
-          created_at?: string
-          from_state?: Json | null
-          id?: string
-          note?: string | null
-          to_state?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_actions_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_actions_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-        ]
-      }
-      sav_attachments: {
-        Row: {
-          caption: string | null
-          case_id: string
-          created_at: string
-          id: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string
-          uploader_id: string | null
-          uploader_role: Database["public"]["Enums"]["sav_party"]
-        }
-        Insert: {
-          caption?: string | null
-          case_id: string
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path: string
-          uploader_id?: string | null
-          uploader_role: Database["public"]["Enums"]["sav_party"]
-        }
-        Update: {
-          caption?: string | null
-          case_id?: string
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path?: string
-          uploader_id?: string | null
-          uploader_role?: Database["public"]["Enums"]["sav_party"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_attachments_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_attachments_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-        ]
-      }
-      sav_cases: {
-        Row: {
-          admin_decided_at: string | null
-          admin_decided_by: string | null
-          admin_decision: Database["public"]["Enums"]["sav_admin_decision"]
-          admin_decision_reason: string | null
-          assigned_to: string | null
-          assisted_channel:
-            | Database["public"]["Enums"]["sav_assisted_channel"]
-            | null
-          assisted_reason: string | null
-          cancellation_stage: string | null
-          case_type: Database["public"]["Enums"]["sav_case_type"]
-          client_visible: boolean
-          closed_at: string | null
-          created_at: string
-          created_by: string | null
-          decided_resolution:
-            | Database["public"]["Enums"]["sav_resolution"]
-            | null
-          description: string | null
-          evidence_count: number
-          financial_impact_amount: number
-          financial_impact_currency: string
-          id: string
-          last_activity_at: string
-          on_behalf_of_user_id: string | null
-          opened_at: string
-          order_id: string
-          order_item_id: string | null
-          owner_party: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type: Database["public"]["Enums"]["sav_problem_type"]
-          requested_by_party: Database["public"]["Enums"]["sav_party"]
-          requested_resolution: Database["public"]["Enums"]["sav_resolution"]
-          resolved_at: string | null
-          rules_snapshot: Json | null
-          scope: Database["public"]["Enums"]["sav_scope"]
-          sla_deadline_at: string | null
-          source_decision_id: string | null
-          source_event_id: string | null
-          status: Database["public"]["Enums"]["sav_status"]
-          title: string
-          updated_at: string
-          vendor_id: string | null
-          vendor_recommendation: Database["public"]["Enums"]["sav_vendor_recommendation"]
-          vendor_recommendation_note: string | null
-          vendor_responded_at: string | null
-          warranty_scope:
-            | Database["public"]["Enums"]["sav_warranty_scope"]
-            | null
-        }
-        Insert: {
-          admin_decided_at?: string | null
-          admin_decided_by?: string | null
-          admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
-          admin_decision_reason?: string | null
-          assigned_to?: string | null
-          assisted_channel?:
-            | Database["public"]["Enums"]["sav_assisted_channel"]
-            | null
-          assisted_reason?: string | null
-          cancellation_stage?: string | null
-          case_type?: Database["public"]["Enums"]["sav_case_type"]
-          client_visible?: boolean
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          decided_resolution?:
-            | Database["public"]["Enums"]["sav_resolution"]
-            | null
-          description?: string | null
-          evidence_count?: number
-          financial_impact_amount?: number
-          financial_impact_currency?: string
-          id?: string
-          last_activity_at?: string
-          on_behalf_of_user_id?: string | null
-          opened_at?: string
-          order_id: string
-          order_item_id?: string | null
-          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type: Database["public"]["Enums"]["sav_problem_type"]
-          requested_by_party?: Database["public"]["Enums"]["sav_party"]
-          requested_resolution?: Database["public"]["Enums"]["sav_resolution"]
-          resolved_at?: string | null
-          rules_snapshot?: Json | null
-          scope?: Database["public"]["Enums"]["sav_scope"]
-          sla_deadline_at?: string | null
-          source_decision_id?: string | null
-          source_event_id?: string | null
-          status?: Database["public"]["Enums"]["sav_status"]
-          title: string
-          updated_at?: string
-          vendor_id?: string | null
-          vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
-          vendor_recommendation_note?: string | null
-          vendor_responded_at?: string | null
-          warranty_scope?:
-            | Database["public"]["Enums"]["sav_warranty_scope"]
-            | null
-        }
-        Update: {
-          admin_decided_at?: string | null
-          admin_decided_by?: string | null
-          admin_decision?: Database["public"]["Enums"]["sav_admin_decision"]
-          admin_decision_reason?: string | null
-          assigned_to?: string | null
-          assisted_channel?:
-            | Database["public"]["Enums"]["sav_assisted_channel"]
-            | null
-          assisted_reason?: string | null
-          cancellation_stage?: string | null
-          case_type?: Database["public"]["Enums"]["sav_case_type"]
-          client_visible?: boolean
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          decided_resolution?:
-            | Database["public"]["Enums"]["sav_resolution"]
-            | null
-          description?: string | null
-          evidence_count?: number
-          financial_impact_amount?: number
-          financial_impact_currency?: string
-          id?: string
-          last_activity_at?: string
-          on_behalf_of_user_id?: string | null
-          opened_at?: string
-          order_id?: string
-          order_item_id?: string | null
-          owner_party?: Database["public"]["Enums"]["sav_owner_party"]
-          problem_type?: Database["public"]["Enums"]["sav_problem_type"]
-          requested_by_party?: Database["public"]["Enums"]["sav_party"]
-          requested_resolution?: Database["public"]["Enums"]["sav_resolution"]
-          resolved_at?: string | null
-          rules_snapshot?: Json | null
-          scope?: Database["public"]["Enums"]["sav_scope"]
-          sla_deadline_at?: string | null
-          source_decision_id?: string | null
-          source_event_id?: string | null
-          status?: Database["public"]["Enums"]["sav_status"]
-          title?: string
-          updated_at?: string
-          vendor_id?: string | null
-          vendor_recommendation?: Database["public"]["Enums"]["sav_vendor_recommendation"]
-          vendor_recommendation_note?: string | null
-          vendor_responded_at?: string | null
-          warranty_scope?:
-            | Database["public"]["Enums"]["sav_warranty_scope"]
-            | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_cases_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_source_decision_id_fkey"
-            columns: ["source_decision_id"]
-            isOneToOne: false
-            referencedRelation: "order_decisions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_source_event_id_fkey"
-            columns: ["source_event_id"]
-            isOneToOne: false
-            referencedRelation: "order_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sav_exchanges: {
-        Row: {
-          case_id: string
-          created_at: string
-          created_by: string | null
-          delta_amount: number
-          delta_currency: string
-          exchange_kind: Database["public"]["Enums"]["sav_exchange_kind"]
-          id: string
-          note: string | null
-          original_item_id: string | null
-          partial_refund_amount: number | null
-          replacement_order_item_id: string | null
-          replacement_product_id: string | null
-          replacement_quantity: number
-          replacement_variant_id: string | null
-          status: Database["public"]["Enums"]["sav_exchange_status"]
-          surcharge_amount: number | null
-          updated_at: string
-        }
-        Insert: {
-          case_id: string
-          created_at?: string
-          created_by?: string | null
-          delta_amount?: number
-          delta_currency?: string
-          exchange_kind?: Database["public"]["Enums"]["sav_exchange_kind"]
-          id?: string
-          note?: string | null
-          original_item_id?: string | null
-          partial_refund_amount?: number | null
-          replacement_order_item_id?: string | null
-          replacement_product_id?: string | null
-          replacement_quantity?: number
-          replacement_variant_id?: string | null
-          status?: Database["public"]["Enums"]["sav_exchange_status"]
-          surcharge_amount?: number | null
-          updated_at?: string
-        }
-        Update: {
-          case_id?: string
-          created_at?: string
-          created_by?: string | null
-          delta_amount?: number
-          delta_currency?: string
-          exchange_kind?: Database["public"]["Enums"]["sav_exchange_kind"]
-          id?: string
-          note?: string | null
-          original_item_id?: string | null
-          partial_refund_amount?: number | null
-          replacement_order_item_id?: string | null
-          replacement_product_id?: string | null
-          replacement_quantity?: number
-          replacement_variant_id?: string | null
-          status?: Database["public"]["Enums"]["sav_exchange_status"]
-          surcharge_amount?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_exchanges_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_exchanges_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
-            foreignKeyName: "sav_exchanges_original_item_id_fkey"
-            columns: ["original_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_exchanges_replacement_order_item_id_fkey"
-            columns: ["replacement_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_exchanges_replacement_product_id_fkey"
-            columns: ["replacement_product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_exchanges_replacement_variant_id_fkey"
-            columns: ["replacement_variant_id"]
-            isOneToOne: false
-            referencedRelation: "product_variants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sav_fee_charges: {
-        Row: {
-          amount: number
-          case_id: string
-          created_at: string
-          created_by: string | null
-          currency: string
-          fee_kind: Database["public"]["Enums"]["sav_fee_kind"]
-          id: string
-          payer_party: Database["public"]["Enums"]["sav_party"]
-          reason: string | null
-        }
-        Insert: {
-          amount: number
-          case_id: string
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          fee_kind: Database["public"]["Enums"]["sav_fee_kind"]
-          id?: string
-          payer_party: Database["public"]["Enums"]["sav_party"]
-          reason?: string | null
-        }
-        Update: {
-          amount?: number
-          case_id?: string
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          fee_kind?: Database["public"]["Enums"]["sav_fee_kind"]
-          id?: string
-          payer_party?: Database["public"]["Enums"]["sav_party"]
-          reason?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_fee_charges_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_fee_charges_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-        ]
-      }
-      sav_messages: {
-        Row: {
-          body: string
-          case_id: string
-          created_at: string
-          id: string
-          is_internal_note: boolean
-          sender_id: string | null
-          sender_role: Database["public"]["Enums"]["sav_party"]
-        }
-        Insert: {
-          body: string
-          case_id: string
-          created_at?: string
-          id?: string
-          is_internal_note?: boolean
-          sender_id?: string | null
-          sender_role: Database["public"]["Enums"]["sav_party"]
-        }
-        Update: {
-          body?: string
-          case_id?: string
-          created_at?: string
-          id?: string
-          is_internal_note?: boolean
-          sender_id?: string | null
-          sender_role?: Database["public"]["Enums"]["sav_party"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_messages_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_messages_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-        ]
-      }
-      sav_refunds: {
-        Row: {
-          amount: number
-          case_id: string
-          created_at: string
-          currency: string
-          direction: Database["public"]["Enums"]["sav_refund_direction"]
-          id: string
-          issued_at: string | null
-          issued_by: string | null
-          linked_movement_id: string | null
-          method: Database["public"]["Enums"]["sav_refund_method"]
-          reference: string | null
-          status: Database["public"]["Enums"]["sav_refund_status"]
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          case_id: string
-          created_at?: string
-          currency?: string
-          direction: Database["public"]["Enums"]["sav_refund_direction"]
-          id?: string
-          issued_at?: string | null
-          issued_by?: string | null
-          linked_movement_id?: string | null
-          method: Database["public"]["Enums"]["sav_refund_method"]
-          reference?: string | null
-          status?: Database["public"]["Enums"]["sav_refund_status"]
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          case_id?: string
-          created_at?: string
-          currency?: string
-          direction?: Database["public"]["Enums"]["sav_refund_direction"]
-          id?: string
-          issued_at?: string | null
-          issued_by?: string | null
-          linked_movement_id?: string | null
-          method?: Database["public"]["Enums"]["sav_refund_method"]
-          reference?: string | null
-          status?: Database["public"]["Enums"]["sav_refund_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_refunds_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_refunds_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
-            foreignKeyName: "sav_refunds_linked_movement_id_fkey"
-            columns: ["linked_movement_id"]
-            isOneToOne: false
-            referencedRelation: "financial_movements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sav_rules: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          note: string | null
-          priority: number
-          rule_key: Database["public"]["Enums"]["sav_rule_key"]
-          scope: Database["public"]["Enums"]["sav_rule_scope"]
-          scope_id: string | null
-          updated_at: string
-          value: Json
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          note?: string | null
-          priority?: number
-          rule_key: Database["public"]["Enums"]["sav_rule_key"]
-          scope: Database["public"]["Enums"]["sav_rule_scope"]
-          scope_id?: string | null
-          updated_at?: string
-          value: Json
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          note?: string | null
-          priority?: number
-          rule_key?: Database["public"]["Enums"]["sav_rule_key"]
-          scope?: Database["public"]["Enums"]["sav_rule_scope"]
-          scope_id?: string | null
-          updated_at?: string
-          value?: Json
-        }
-        Relationships: []
       }
       shipping_services: {
         Row: {
@@ -4019,125 +3219,6 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      supplier_returns: {
-        Row: {
-          case_id: string
-          created_at: string
-          created_by: string | null
-          credit_amount: number | null
-          credit_applied_to_case: boolean | null
-          credit_currency: string | null
-          credit_received_at: string | null
-          id: string
-          inspection_report_id: string | null
-          items_returned: Json | null
-          request_method: string | null
-          request_reference: string | null
-          requested_at: string | null
-          return_shipment_id: string | null
-          supplier_id: string
-          supplier_name: string | null
-          supplier_response: string | null
-          supplier_response_at: string | null
-          supplier_response_note: string | null
-          updated_at: string
-        }
-        Insert: {
-          case_id: string
-          created_at?: string
-          created_by?: string | null
-          credit_amount?: number | null
-          credit_applied_to_case?: boolean | null
-          credit_currency?: string | null
-          credit_received_at?: string | null
-          id?: string
-          inspection_report_id?: string | null
-          items_returned?: Json | null
-          request_method?: string | null
-          request_reference?: string | null
-          requested_at?: string | null
-          return_shipment_id?: string | null
-          supplier_id: string
-          supplier_name?: string | null
-          supplier_response?: string | null
-          supplier_response_at?: string | null
-          supplier_response_note?: string | null
-          updated_at?: string
-        }
-        Update: {
-          case_id?: string
-          created_at?: string
-          created_by?: string | null
-          credit_amount?: number | null
-          credit_applied_to_case?: boolean | null
-          credit_currency?: string | null
-          credit_received_at?: string | null
-          id?: string
-          inspection_report_id?: string | null
-          items_returned?: Json | null
-          request_method?: string | null
-          request_reference?: string | null
-          requested_at?: string | null
-          return_shipment_id?: string | null
-          supplier_id?: string
-          supplier_name?: string | null
-          supplier_response?: string | null
-          supplier_response_at?: string | null
-          supplier_response_note?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "supplier_returns_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "sav_cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "v_case_balances"
-            referencedColumns: ["case_id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_inspection_report_id_fkey"
-            columns: ["inspection_report_id"]
-            isOneToOne: false
-            referencedRelation: "inspection_reports"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_returns_return_shipment_id_fkey"
-            columns: ["return_shipment_id"]
-            isOneToOne: false
-            referencedRelation: "return_shipments"
             referencedColumns: ["id"]
           },
         ]
@@ -4760,70 +3841,6 @@ export type Database = {
           },
         ]
       }
-      v_case_balances: {
-        Row: {
-          balance_status: string | null
-          case_closed_at: string | null
-          case_id: string | null
-          case_opened_at: string | null
-          case_status: Database["public"]["Enums"]["sav_status"] | null
-          case_type: Database["public"]["Enums"]["sav_case_type"] | null
-          fees_breakdown: Json | null
-          net_position: number | null
-          order_id: string | null
-          order_item_id: string | null
-          original_quantity: number | null
-          owner_party: Database["public"]["Enums"]["sav_owner_party"] | null
-          problem_type: Database["public"]["Enums"]["sav_problem_type"] | null
-          total_credit_notes: number | null
-          total_fees: number | null
-          total_lost: number | null
-          total_paid: number | null
-          total_refunded: number | null
-          total_remaining: number | null
-          total_supplier_credit: number | null
-          unit_price: number | null
-          updated_at: string | null
-          vendor_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sav_cases_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_contacts"
-            referencedColumns: ["vendor_id"]
-          },
-          {
-            foreignKeyName: "sav_cases_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "public_vendor_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_sub_order_accounting: {
         Row: {
           cancelled_value: number | null
@@ -5031,6 +4048,10 @@ export type Database = {
         Returns: string
       }
       migrate_customer_addresses: { Args: never; Returns: number }
+      next_return_case_code: {
+        Args: { _kind: Database["public"]["Enums"]["return_case_kind"] }
+        Returns: string
+      }
       preview_currency_recompute: {
         Args: { _code: string }
         Returns: {
@@ -5047,6 +4068,10 @@ export type Database = {
         Returns: boolean
       }
       purge_old_read_notifications: { Args: never; Returns: number }
+      recalc_return_case_suggested: {
+        Args: { _case_id: string }
+        Returns: undefined
+      }
       resolve_commission:
         | {
             Args: { _product_id: string }
@@ -5076,30 +4101,6 @@ export type Database = {
           show_whatsapp: boolean
         }[]
       }
-      resolve_sav_rules:
-        | {
-            Args: {
-              _country_id?: string
-              _product_id?: string
-              _shop_id?: string
-              _source_country_id?: string
-            }
-            Returns: {
-              priority: number
-              rule_key: Database["public"]["Enums"]["sav_rule_key"]
-              scope: Database["public"]["Enums"]["sav_rule_scope"]
-              scope_id: string
-              value: Json
-            }[]
-          }
-        | {
-            Args: {
-              _destination_country_id?: string
-              _product_id?: string
-              _shop_id?: string
-            }
-            Returns: Json
-          }
       set_currency_rate: {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
@@ -5267,6 +4268,9 @@ export type Database = {
         | "support_only"
       product_status: "pending" | "approved" | "rejected"
       report_status: "open" | "reviewed" | "dismissed"
+      return_case_decision: "accepted" | "partial" | "refused"
+      return_case_kind: "return" | "cancellation"
+      return_case_status: "open" | "decided" | "closed" | "cancelled"
       sav_action_type:
         | "open"
         | "client_response"
@@ -5682,6 +4686,9 @@ export const Constants = {
       ],
       product_status: ["pending", "approved", "rejected"],
       report_status: ["open", "reviewed", "dismissed"],
+      return_case_decision: ["accepted", "partial", "refused"],
+      return_case_kind: ["return", "cancellation"],
+      return_case_status: ["open", "decided", "closed", "cancelled"],
       sav_action_type: [
         "open",
         "client_response",
