@@ -75,13 +75,46 @@ export function ArticlesPanel({
   const deliveredCount = visibleArticles.reduce((s, a) => s + (a.delivered_qty ?? 0), 0);
   const totalQty = visibleArticles.reduce((s, a) => s + a.quantity, 0);
 
+  // Articles éligibles à un retour/annulation groupé (pas de rupture en cours)
+  const eligibleForBulk = useMemo(
+    () => sortedArticles.filter((a) => !(a.stock_break && !a.stock_break.resolved)),
+    [sortedArticles],
+  );
+  const allSelected =
+    eligibleForBulk.length > 0 && eligibleForBulk.every((a) => selectedKeys.has(keyOf(a)));
+  const toggleSelect = (a: OrderArticle) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      const k = keyOf(a);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    if (allSelected) setSelectedKeys(new Set());
+    else setSelectedKeys(new Set(eligibleForBulk.map((a) => keyOf(a))));
+  };
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+  };
+
+  const selectedItems = useMemo(
+    () =>
+      sortedArticles
+        .filter((a) => selectedKeys.has(keyOf(a)))
+        .map((a) => ({ product_id: a.product_id, variant_id: a.variant_id })),
+    [sortedArticles, selectedKeys],
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           Articles ({articles.length})
         </h4>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {hasBreak && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
@@ -92,6 +125,26 @@ export function ArticlesPanel({
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
               {deliveredCount}/{totalQty} livré
             </span>
+          )}
+          {orderId && eligibleForBulk.length > 1 && (
+            !selectionMode ? (
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="text-[10px] font-semibold px-2 py-1 rounded-full border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 inline-flex items-center gap-1"
+                title="Sélectionner plusieurs articles pour un dossier groupé"
+              >
+                <CheckSquare className="h-3 w-3" />
+                Sélection multiple
+              </button>
+            ) : (
+              <button
+                onClick={toggleAll}
+                className="text-[10px] font-semibold px-2 py-1 rounded-full border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 inline-flex items-center gap-1"
+              >
+                {allSelected ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+                {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
+              </button>
+            )
           )}
         </div>
       </div>
