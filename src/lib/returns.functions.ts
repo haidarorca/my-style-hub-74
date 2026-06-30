@@ -27,7 +27,7 @@ async function assertAdmin(sb: any, userId: string) {
 // ── Liste des dossiers ─────────────────────────────────────────
 export const listReturnCases = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { status?: ReturnStatus | "all"; kind?: ReturnKind | "all"; search?: string } | undefined) => d ?? {})
+  .inputValidator((d: { status?: ReturnStatus | "all"; kind?: ReturnKind | "all"; search?: string } | undefined) => d ?? {})
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     let q = context.supabase
@@ -46,7 +46,7 @@ export const listReturnCases = createServerFn({ method: "POST" })
 // ── Ouverture d'un dossier ─────────────────────────────────────
 export const openReturnCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: {
+  .inputValidator((d: {
     order_id: string;
     kind: ReturnKind;
     reason_code?: string | null;
@@ -93,7 +93,7 @@ export const openReturnCase = createServerFn({ method: "POST" })
 // ── Lecture détail d'un dossier (+ contexte commande) ─────────
 export const getReturnCase = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string }) => d)
+  .inputValidator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const sb = context.supabase;
@@ -139,7 +139,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
 // ── Articles : ajout / suppression ────────────────────────────
 export const addCaseItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { case_id: string; order_item_id: string; quantity: number; unit_price_xof: number }) => d)
+  .inputValidator((d: { case_id: string; order_item_id: string; quantity: number; unit_price_xof: number }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase.from("return_case_items").insert({
@@ -154,7 +154,7 @@ export const addCaseItem = createServerFn({ method: "POST" })
 
 export const removeCaseItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string }) => d)
+  .inputValidator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase.from("return_case_items").delete().eq("id", data.id);
@@ -165,7 +165,7 @@ export const removeCaseItem = createServerFn({ method: "POST" })
 // ── Frais : ajout / suppression ───────────────────────────────
 export const addCaseFee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { case_id: string; label: string; amount_xof: number }) => d)
+  .inputValidator((d: { case_id: string; label: string; amount_xof: number }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     if (data.amount_xof < 0) throw new Error("Le montant doit être ≥ 0");
@@ -181,7 +181,7 @@ export const addCaseFee = createServerFn({ method: "POST" })
 
 export const removeCaseFee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string }) => d)
+  .inputValidator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase.from("return_case_fees").delete().eq("id", data.id);
@@ -192,7 +192,7 @@ export const removeCaseFee = createServerFn({ method: "POST" })
 // ── Notes internes ────────────────────────────────────────────
 export const updateCaseNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string; internal_notes: string }) => d)
+  .inputValidator((d: { id: string; internal_notes: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase
@@ -206,7 +206,7 @@ export const updateCaseNotes = createServerFn({ method: "POST" })
 // ── Décision (l'humain garde la main) ─────────────────────────
 export const decideReturnCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: {
+  .inputValidator((d: {
     id: string;
     decision: ReturnDecision;
     refund_final_xof: number;
@@ -233,7 +233,7 @@ export const decideReturnCase = createServerFn({ method: "POST" })
 // ── Clôture / annulation du dossier ──────────────────────────
 export const closeReturnCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string }) => d)
+  .inputValidator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase
@@ -250,7 +250,7 @@ export const closeReturnCase = createServerFn({ method: "POST" })
 
 export const cancelReturnCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { id: string }) => d)
+  .inputValidator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase
