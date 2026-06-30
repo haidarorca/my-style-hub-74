@@ -45,10 +45,6 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
     refetchInterval: 60_000,
   });
 
-  const totalOutstanding =
-    (pulse?.outstanding_refund_client ?? 0) +
-    (pulse?.outstanding_credit_client ?? 0) +
-    (pulse?.outstanding_commission_vendor ?? 0);
 
   return (
     <div className="min-h-screen bg-slate-50">
