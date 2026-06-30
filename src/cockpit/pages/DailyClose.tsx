@@ -96,7 +96,7 @@ export default function DailyClose() {
               count={data.refunds_due.length}
               tone="orange"
               icon={Wallet}
-              link="/admin/cockpit/finance"
+              link="/admin/cockpit/daily"
             >
               {data.refunds_due.length === 0 ? (
                 <Empty text="Aucun remboursement en attente." />
@@ -120,7 +120,7 @@ export default function DailyClose() {
               count={data.vendors_to_pay.length}
               tone="blue"
               icon={Users}
-              link="/admin/cockpit/finance"
+              link="/admin/cockpit/daily"
             >
               {data.vendors_to_pay.length === 0 ? (
                 <Empty text="Aucun vendeur en attente de paiement." />
@@ -156,7 +156,7 @@ export default function DailyClose() {
               count={data.clients_owe.length}
               tone="purple"
               icon={Users}
-              link="/admin/cockpit/finance"
+              link="/admin/cockpit/daily"
               totalLabel="Compléments attendus (remplacement)"
             >
               {data.clients_owe.length === 0 ? (
