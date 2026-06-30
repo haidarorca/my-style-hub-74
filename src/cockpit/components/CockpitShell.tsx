@@ -14,7 +14,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSystemPulse } from "@/lib/cockpit-pulse.functions";
 import {
-  LayoutDashboard, AlertTriangle, Wallet, Archive as ArchiveIcon,
+  LayoutDashboard, AlertTriangle,
   Activity, Clock, TrendingUp, TrendingDown, CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,8 +33,6 @@ const TABS: Tab[] = [
   { to: "/admin/cockpit/daily", label: "Clôture du jour", icon: CalendarCheck },
   { to: "/admin/cockpit", label: "Cockpit", icon: LayoutDashboard, exact: true },
   { to: "/admin/cockpit/sav", label: "SAV", icon: AlertTriangle },
-  { to: "/admin/cockpit/finance", label: "Finance", icon: Wallet },
-  { to: "/admin/cockpit/archive", label: "Archive", icon: ArchiveIcon },
 ];
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {
