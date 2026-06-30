@@ -225,39 +225,34 @@ export const getDailyClose = createServerFn({ method: "GET" })
     const vendors_to_pay = Array.from(vendorAgg.values()).sort((a, b) => b.amount - a.amount);
     const clients_owe = Array.from(clientsOweMap.values()).sort((a, b) => b.amount - a.amount);
 
-    // ─── 8/9/10. SAV
-    const { data: savRaw } = await sb
-      .from("sav_cases")
-      .select("id, vendor_id, title, status, owner_party, opened_at, financial_impact_amount")
-      .neq("status", "closed");
-    const savRows = inScope((savRaw ?? []) as any[], scope, true);
+    // ─── 8/9/10. Retours & Annulations (remplace l'ancien SAV)
+    const { data: returnsRaw } = await sb
+      .from("return_cases")
+      .select("id, code, kind, status, opened_at, refund_suggested_xof, refund_final_xof")
+      .in("status", ["open", "decided"]);
+    const returnRows = (returnsRaw ?? []) as any[];
     const now = Date.now();
     let sav_open_total_impact = 0;
     const blocked_cases: BlockedCase[] = [];
     const financial_risks: SavRisk[] = [];
-    for (const s of savRows as any[]) {
+    for (const s of returnRows) {
       const ageDays = Math.floor((now - new Date(s.opened_at).getTime()) / 86_400_000);
-      const impact = Number(s.financial_impact_amount ?? 0);
+      const impact = Number(s.refund_final_xof ?? s.refund_suggested_xof ?? 0);
       sav_open_total_impact += impact;
-      // Dossier bloqué : status='blocked' OU à charge de Kawzone et vieux
-      const isBlocked =
-        s.status === "blocked" ||
-        (s.owner_party === "kawzone" && ageDays >= BLOCKED_AGE_DAYS);
-      if (isBlocked) {
+      if (ageDays >= BLOCKED_AGE_DAYS) {
         blocked_cases.push({
           id: s.id,
-          title: s.title ?? "(sans titre)",
+          title: `${s.code} — ${s.kind === "cancellation" ? "Annulation" : "Retour"}`,
           age_days: ageDays,
           impact_amount: impact,
           status: s.status,
         });
       }
-      // Risque : montant important OU très vieux
       if (impact >= RISK_AMOUNT_THRESHOLD || ageDays >= RISK_AGE_DAYS) {
         financial_risks.push({
           id: s.id,
-          title: s.title ?? "(sans titre)",
-          owner_party: s.owner_party,
+          title: `${s.code} — ${s.kind === "cancellation" ? "Annulation" : "Retour"}`,
+          owner_party: "kawzone",
           age_days: ageDays,
           impact_amount: impact,
           reason: impact >= RISK_AMOUNT_THRESHOLD ? "amount" : "age",
@@ -266,6 +261,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
     }
     blocked_cases.sort((a, b) => b.age_days - a.age_days);
     financial_risks.sort((a, b) => b.impact_amount - a.impact_amount);
+
 
     return {
       date: dayStart.toISOString().slice(0, 10),
