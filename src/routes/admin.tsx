@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
-  Settings, Inbox, ShieldCheck, Percent, Briefcase, Users, Bell, LifeBuoy, Phone, Globe, Truck,
-  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Wallet, Archive, Shield, Coins,
+  Settings, Inbox, ShieldCheck, Percent, Users, Bell, LifeBuoy, Phone, Globe,
+  Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Shield, Coins,
   BarChart3,
 } from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
@@ -64,17 +64,10 @@ const NAV_GROUPS: NavGroup[] = [
     id: "sales",
     label: "Ventes & Logistique",
     items: [
-      { to: "/admin/commandes", label: "Commandes", icon: ShoppingBag, perm: "orders", badge: "NEW" },
-      { to: "/admin/orders", label: "Commandes (legacy)", icon: ShoppingBag, perm: "orders" },
-      { to: "/admin/logistics", label: "Logistique ERP", icon: Truck, perm: "orders" },
-      { to: "/admin/workflow-center", label: "Workflow Center", icon: Zap, perm: "orders", badge: "BETA" },
-      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true, badge: "NEW" },
+      { to: "/admin/commandes", label: "Commandes", icon: ShoppingBag, perm: "orders" },
+      { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true },
       { to: "/admin/cockpit/sav", label: "Centre SAV", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/sav-rules", label: "Règles SAV", icon: AlertTriangle, perm: "orders" },
-      { to: "/admin/cockpit/finance", label: "Centre Financier", icon: Wallet, perm: "orders" },
-      { to: "/admin/cockpit/archive", label: "Archive Cockpit", icon: Archive, perm: "orders" },
-      { to: "/admin/commission-orders", label: "Cmd commission", icon: Briefcase, perm: "orders" },
-      { to: "/admin/shipments", label: "Expéditions Chine", icon: PackageCheck, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
     ],
   },

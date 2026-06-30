@@ -14,7 +14,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSystemPulse } from "@/lib/cockpit-pulse.functions";
 import {
-  LayoutDashboard, AlertTriangle, Wallet, Archive as ArchiveIcon,
+  LayoutDashboard, AlertTriangle,
   Activity, Clock, TrendingUp, TrendingDown, CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,8 +33,6 @@ const TABS: Tab[] = [
   { to: "/admin/cockpit/daily", label: "Clôture du jour", icon: CalendarCheck },
   { to: "/admin/cockpit", label: "Cockpit", icon: LayoutDashboard, exact: true },
   { to: "/admin/cockpit/sav", label: "SAV", icon: AlertTriangle },
-  { to: "/admin/cockpit/finance", label: "Finance", icon: Wallet },
-  { to: "/admin/cockpit/archive", label: "Archive", icon: ArchiveIcon },
 ];
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {
@@ -47,10 +45,6 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
     refetchInterval: 60_000,
   });
 
-  const totalOutstanding =
-    (pulse?.outstanding_refund_client ?? 0) +
-    (pulse?.outstanding_credit_client ?? 0) +
-    (pulse?.outstanding_commission_vendor ?? 0);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -87,7 +81,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* KPI cross-zones */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-3 gap-2 text-xs">
             <Link
               to="/admin/cockpit"
               className="flex items-center justify-between p-2 rounded border bg-slate-50 hover:bg-slate-100 transition"
@@ -120,23 +114,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
             </Link>
 
             <Link
-              to="/admin/cockpit/finance"
-              className={cn(
-                "flex items-center justify-between p-2 rounded border transition",
-                totalOutstanding > 0
-                  ? "bg-orange-50 hover:bg-orange-100 border-orange-200"
-                  : "bg-slate-50 hover:bg-slate-100"
-              )}
-            >
-              <span className="text-slate-600 flex items-center gap-1">
-                <Wallet className="w-3 h-3" />
-                Engagements
-              </span>
-              <span className="font-bold">{fmt(totalOutstanding)}</span>
-            </Link>
-
-            <Link
-              to="/admin/cockpit/finance"
+              to="/admin/cockpit/daily"
               className="flex items-center justify-between p-2 rounded border bg-slate-50 hover:bg-slate-100 transition"
             >
               <span className="text-slate-600 flex items-center gap-1">
@@ -155,17 +133,6 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
               >
                 {fmt(pulse?.net_today ?? 0)}
               </span>
-            </Link>
-
-            <Link
-              to="/admin/cockpit/archive"
-              className="flex items-center justify-between p-2 rounded border bg-slate-50 hover:bg-slate-100 transition"
-            >
-              <span className="text-slate-600 flex items-center gap-1">
-                <ArchiveIcon className="w-3 h-3" />
-                Archivé 7j
-              </span>
-              <span className="font-bold">{pulse?.archived_7d ?? "—"}</span>
             </Link>
           </div>
         </div>
