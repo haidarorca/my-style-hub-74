@@ -66,8 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/commandes", label: "Commandes", icon: ShoppingBag, perm: "orders" },
       { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true },
-      { to: "/admin/cockpit/sav", label: "Centre SAV", icon: AlertTriangle, perm: "orders" },
-      { to: "/admin/sav-rules", label: "Règles SAV", icon: AlertTriangle, perm: "orders" },
+      { to: "/admin/returns", label: "Retours & Annulations", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
     ],
   },
