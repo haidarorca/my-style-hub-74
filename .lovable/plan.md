@@ -1,114 +1,111 @@
-# Audit & plan de nettoyage de l'espace Administration
+# Centre Retours & Annulations — Nouvelle architecture
 
-Objectif : faire du **Cockpit** l'unique centre opérationnel, sans perte de logique métier.
+## Philosophie retenue
 
----
+- **Un seul objet** : le *dossier*, de type `return` ou `cancellation`.
+- **Granularité article** : un dossier porte sur 1..N `order_items` d'une même commande, jamais sur la commande entière.
+- **Contexte affiché, jamais modifié** : la commande, ses autres sous-commandes et articles sont lus en lecture seule pour aider la décision.
+- **L'humain décide** : le logiciel calcule et trace, l'admin tranche.
+- **Pas de stock, pas de messagerie, pas de garantie/litige** : hors périmètre tant que les modules correspondants n'existent pas. WhatsApp reste le canal client.
 
-## 1. Découverte importante (à valider avant toute suppression)
+## Ce qui est supprimé
 
-Deux des modules listés sont **des zones internes du Cockpit lui-même**, accessibles via les onglets de `CockpitShell` (`Cockpit ▸ SAV ▸ Finance ▸ Archive ▸ Clôture du jour`) :
+Tout l'ancien SAV et toute la logique de retour intégrée au Cockpit :
 
-- **Centre Financier** = `/admin/cockpit/finance` → page `FinanceCenter.tsx`
-- **Archive Cockpit** = `/admin/cockpit/archive` → page `ArchiveCenter.tsx`
+- Tables : `sav_cases`, `sav_messages`, `sav_actions`, `sav_attachments`, `sav_rules`, `sav_refunds`, `sav_exchanges`, `sav_fee_charges`, `return_shipments`, `inspection_reports`, `destruction_records`, `supplier_returns`, vue `v_case_balances`, fonction `resolve_sav_rules`.
+- Routes : `/admin/cockpit/sav`, `/admin/sav-rules`, `/vendor/sav`, `/my-sav`.
+- Code : `src/cockpit/pages/SavCenter.tsx`, dossier `src/components/sav/`, `src/lib/sav-workflow.functions.ts`, `src/lib/return-management.functions.ts`, hook `useSavCounts`, composants Cockpit `ReturnAlertWidget`, `ReturnBadge`, `ReturnBalanceCard`, `ReturnTimeline`, et toute action "créer un retour" dans `OrderDrawer` / `SubOrderActionCard`.
 
-Les supprimer signifie **retirer ces deux onglets du Cockpit**. La page **Clôture du jour** (`DailyClose`) contient 3 liens "Voir détails" qui pointent vers `/admin/cockpit/finance` — ces liens seront aussi à neutraliser.
+Le Cockpit conserve uniquement **un bouton "Ouvrir un dossier"** par article qui redirige vers le nouveau centre.
 
-⚠️ **Question à confirmer avant action** : veux-tu vraiment retirer ces deux zones du Cockpit, ou simplement supprimer leurs **doublons dans le menu latéral admin** (lignes 74-75 de `admin.tsx`) en laissant les onglets dans le Cockpit ? Mon plan ci-dessous **les retire complètement** comme demandé.
+## Modèle de données (minimal)
 
----
+Deux tables seulement.
 
-## 2. Audit module par module
+```text
+cases
+├── id, code (RET-2026-0001 / ANN-2026-0001)
+├── kind            : 'return' | 'cancellation'
+├── order_id        : FK orders
+├── status          : 'open' | 'decided' | 'closed' | 'cancelled'
+├── decision        : 'accepted' | 'partial' | 'refused' | null
+├── refund_suggested_xof, refund_final_xof, refund_method
+├── reason_code, reason_note, internal_notes
+├── opened_by, decided_by, closed_by, *_at timestamps
 
-### A. Expéditions Chine — `/admin/shipments`
-- **Contenu** : tableau des évaluations d'expédition (poids, prix transport, validation admin), envoi WhatsApp client.
-- **Déjà couvert par le Cockpit** : toute la logique d'évaluation est intégrée dans le drawer Cockpit via `ShipmentAssessmentDialog` + `shipment-assessments.functions.ts`.
-- **À migrer** : rien. La lib `shipment-assessments.functions.ts` est déjà partagée et **reste**.
-- **À supprimer** : route + page UI uniquement.
+case_items                       case_fees
+├── case_id                      ├── case_id
+├── order_item_id                ├── label    (texte libre : "Livraison retour"…)
+├── quantity                     ├── amount_xof
+├── item_decision                ├── created_by, created_at
+                                 (autant de lignes que voulu)
+```
 
-### B. Cmd Commission — `/admin/commission-orders`
-- **Contenu** : liste filtrée des commandes "commission", WhatsApp vendeur, archivage manuel.
-- **Déjà couvert** : le Cockpit affiche toutes les commandes (commission incluses) avec le même drawer. L'archivage est géré par les statuts terminaux + zone Archive.
-- **À migrer** : rien d'unique (les utilitaires `whatsapp.ts`, `admin-archive.functions`, `shipment-assessments` sont partagés et restent).
-- **À supprimer** : route + page UI uniquement.
+Optionnel pour audit : `case_events(case_id, type, payload, actor, at)` append-only — un seul journal, pas 4 tables.
 
-### C. Archive Cockpit — `/admin/cockpit/archive`
-- **Contenu** : liste lecture seule des sous-commandes terminales sans engagement financier (vue `v_sub_order_accounting`).
-- **Déjà couvert** : le filtre "statut terminal" existe dans Cockpit principal et la Clôture du jour donne la même info agrégée.
-- **À migrer** : rien (vue SQL conservée, elle est utilisée par Finance/Daily).
-- **À supprimer** : route, page `ArchiveCenter.tsx`, fonction `src/lib/archive.functions.ts` (utilisée uniquement ici + une référence morte dans commission-orders qui part avec).
-- **Effet UI** : onglet "Archive" retiré de `CockpitShell`, tuile "Archivé 7j" retirée du pulse.
+Tout le reste (montant produit, payé, reste à payer, PayZ, paiements) est déjà calculable depuis `order_items`, `order_payments`, `order_payment_summary` — **on ne duplique rien**.
 
-### D. Centre Financier — `/admin/cockpit/finance`
-- **Contenu** : KPIs financiers, dettes commissions, remboursements en attente, paiement bulk commissions.
-- **Logique unique à préserver** : `markCommissionPaid` / `payAllOutstandingForVendor` (`commission-payments.functions.ts`).
-- **À migrer** : intégrer un panneau "Engagements financiers" + bouton paiement commission **dans le drawer Cockpit** (par sous-commande) — ou conserver ces fonctions serveur invoquées depuis le drawer existant. Les fonctions serveur restent ; seule l'UI dédiée disparaît.
-- **À supprimer** : route, page `FinanceCenter.tsx`, liens depuis `DailyClose` (les 3 boutons "Voir détails" deviennent statiques ou pointent vers le Cockpit principal), onglet "Finance" + tuiles "Engagements" / "Net du jour" liées dans `CockpitShell`.
+## Workflow (4 états, c'est tout)
 
-### E. Workflow Center — `/admin/workflow-center` (BETA)
-- **Contenu** : vue "actions à faire aujourd'hui" basée sur `useWorkflowOrders` / `useWorkflowFilters` / `WorkflowTable` / `WorkflowDrawer` / `WorkflowFilterPanel`.
-- **Déjà couvert** : Cockpit a sa propre vue Pipeline + filtres + drawer plus complet.
-- **À migrer** : rien (le concept "actions du jour" est déjà couvert par `NextActionBanner` + `PendingFinancialActions` + Daily Close).
-- **À supprimer** : route, page, hooks `use-workflow-orders.ts` / `use-workflow-filters.ts` / `use-workflow-actions.ts`, dossier `src/components/workflow/`, type `src/types/workflow.ts`.
+```text
+open ──► decided ──► closed
+  │
+  └────────────────► cancelled
+```
 
-### F. Logistique ERP — `/admin/logistics`
-- **Contenu** : ancien ERP logistique complet (filtres Excel-like, pesée, paiement transport, notifications client, retours).
-- **Logique métier critique** : toute la lib `admin-logistics.functions.ts` (1331 lignes) — **ELLE EST UTILISÉE PARTOUT DANS LE COCKPIT** (`useRealOrders`, `useSubOrderRows`, `OrderDrawer`, `Dashboard`, `Timeline`, `PipelineView`, `OrderCard`, `CockpitOrderDrawerHost`, `OrderAuditTimeline`, `useOrderAggregatesBatch`, `WeightAnomalyPanel`).
-- **À migrer** : rien — la lib **reste intacte**. Le Cockpit est déjà l'évolution moderne de cette page.
-- **À supprimer** : route `admin.logistics.tsx` + page UI uniquement. La lib `admin-logistics.functions.ts` est **conservée**.
+- **open** : dossier créé, admin analyse.
+- **decided** : admin a choisi `accepted` / `partial` / `refused` + montant final.
+- **closed** : remboursement effectué (ou refus communiqué), dossier verrouillé.
+- **cancelled** : dossier annulé par erreur de saisie.
 
-### G. Commandes (Legacy) — `/admin/orders`
-- **Contenu** : Order Hub legacy (fusion ancienne de orders + logistics + shipments + commission), utilise `admin-orders.functions` + `admin-logistics.functions`.
-- **Déjà couvert** : `/admin/commandes` (vue mère) + Cockpit (drawer sous-commande).
-- **À migrer** : rien.
-- **À supprimer** : route + page UI uniquement. La lib `admin-orders.functions.ts` est gardée si utilisée ailleurs (à vérifier au moment du retrait — sinon supprimée aussi).
+Pas de "waiting_vendor", "in_arbitration", "in_execution", "escalated"… Ces nuances vivent dans la tête de l'admin et dans WhatsApp.
 
-### Bonus détecté — `/admin/admin1`
-Pointe vers `Admin1WorkflowCenter` (alias du Workflow Center). Aucun lien dans le menu. **À supprimer** avec le module Workflow Center (route + dossier `src/admin1/`).
+## Calcul du montant conseillé
 
----
+```text
+montant_articles      = Σ (unit_price × quantity) sur case_items
+frais                 = Σ amount_xof sur case_fees
+refund_suggested_xof  = montant_articles − frais   (jamais < 0)
+```
 
-## 3. Tableau de synthèse
+Affiché en permanence, recalculé à chaque modif. `refund_final_xof` est saisi par l'admin (pré-rempli avec la suggestion, modifiable librement).
 
-| Module | Route à supprimer | Fichiers UI à supprimer | Logique métier à migrer | Lib serveur conservée |
-|---|---|---|---|---|
-| Expéditions Chine | `admin.shipments.tsx` | la route | — | `shipment-assessments.functions.ts` |
-| Cmd Commission | `admin.commission-orders.tsx` | la route | — | `admin-archive.functions.ts` |
-| Archive Cockpit | `admin.cockpit.archive.tsx` | `cockpit/pages/ArchiveCenter.tsx`, `lib/archive.functions.ts` | — | vue SQL `v_sub_order_accounting` |
-| Centre Financier | `admin.cockpit.finance.tsx` | `cockpit/pages/FinanceCenter.tsx` | Boutons "Payer commission" à brancher dans le drawer Cockpit | `commission-payments.functions.ts` |
-| Workflow Center | `admin.workflow-center.tsx`, `admin.admin1.tsx` | page + `components/workflow/`, hooks `use-workflow-*`, `types/workflow.ts`, dossier `src/admin1/` | — | — |
-| Logistique ERP | `admin.logistics.tsx` | la route uniquement | — | `admin-logistics.functions.ts` (CONSERVÉ — utilisé par Cockpit) |
-| Commandes Legacy | `admin.orders.tsx` | la route uniquement | — | `admin-orders.functions.ts` (à vérifier au moment du retrait) |
+## UI — trois écrans seulement
 
-**Aucune fonction métier unique n'est perdue.** Seule la fonction `listArchive` (lib `archive.functions.ts`) disparaît, car elle ne sert qu'à la page Archive.
+**1. `/admin/returns` — Liste**
+Filtres : type (retour/annulation), statut, date, recherche commande/client. KPI haut de page : ouverts, décidés non clôturés, clôturés du mois.
 
----
+**2. `/admin/returns/$id` — Dossier**
+Layout deux colonnes :
+- *Gauche (action)* : articles du dossier, frais (ajout/suppression de lignes), bloc financier (suggéré vs final), décision, bouton "Clôturer".
+- *Droite (contexte, lecture seule)* : carte commande, liste de tous les articles et sous-commandes avec leur statut, historique paiements, journal du dossier.
 
-## 4. Plan d'exécution (ordre proposé)
+**3. Bouton "Ouvrir un dossier"** sur chaque ligne article du `OrderDrawer` du Cockpit → pré-remplit `order_id` + `order_item_id` + choix `return`/`cancellation` → redirige vers `/admin/returns/$id`.
 
-1. **Migration préalable** : ajouter un petit bouton "Payer commission" dans le drawer Cockpit (`OrderDrawer` → section financière) qui appelle `markCommissionPaid`. Conserver `commission-payments.functions.ts`.
-2. **Nettoyer les références entrantes** :
-   - `src/routes/admin.tsx` : retirer les 7 lignes du menu latéral (67, 68, 69, 70, 74, 75, 76, 77).
-   - `src/cockpit/components/CockpitShell.tsx` : retirer les onglets "Finance" et "Archive", retirer les tuiles Pulse correspondantes ou les rendre non-cliquables vers `/admin/cockpit`.
-   - `src/cockpit/pages/DailyClose.tsx` : neutraliser les 3 liens vers `/admin/cockpit/finance` (les retirer ou pointer vers `/admin/cockpit`).
-3. **Supprimer les routes & pages** :
-   - `src/routes/admin.shipments.tsx`
-   - `src/routes/admin.commission-orders.tsx`
-   - `src/routes/admin.cockpit.archive.tsx` + `src/cockpit/pages/ArchiveCenter.tsx` + `src/lib/archive.functions.ts`
-   - `src/routes/admin.cockpit.finance.tsx` + `src/cockpit/pages/FinanceCenter.tsx`
-   - `src/routes/admin.workflow-center.tsx` + `src/components/workflow/` + `src/hooks/use-workflow-*` + `src/types/workflow.ts`
-   - `src/routes/admin.admin1.tsx` + `src/admin1/`
-   - `src/routes/admin.logistics.tsx` (la lib reste)
-   - `src/routes/admin.orders.tsx` (puis vérifier si `admin-orders.functions.ts` peut partir)
-4. **Vérifications** : `tsgo` (typecheck) + relecture des imports orphelins + test navigation (menu admin + onglets Cockpit + Daily Close).
+Pas d'espace vendeur, pas d'espace client : la communication passe par WhatsApp, comme demandé.
 
----
+## Permissions
 
-## 5. Validation demandée
+- Admin (rôle existant) : tout.
+- Vendeur / client : aucun accès aux dossiers — RLS verrouillée à `has_role(auth.uid(), 'admin')`.
 
-Avant d'exécuter, merci de me confirmer :
+## Réutilisation de l'existant
 
-- **a)** OK pour retirer **complètement** les zones Finance et Archive du Cockpit (pas seulement les doublons du menu) ?
-- **b)** OK pour migrer le bouton "Payer commission" dans le drawer Cockpit (étape 1) ?
-- **c)** OK pour supprimer aussi `/admin/admin1` (alias du Workflow Center, non listé mais identique) ?
+- `orders`, `order_items`, `order_payments`, `order_payment_summary` : source unique des données financières.
+- `notifications` : une notif admin quand un dossier est ouvert depuis le Cockpit (optionnel).
+- Pattern `createServerFn` + `requireSupabaseAuth` + composants `shadcn` déjà en place.
 
-Dès que tu confirmes, je procède dans l'ordre du §4 avec un typecheck à chaque étape.
+## Plan d'exécution (quand tu valides)
+
+1. **Migration de purge** : drop des tables SAV + return-management + nettoyage des FK Cockpit.
+2. **Migration de création** : `cases`, `case_items`, `case_fees`, `case_events` + RLS admin-only + GRANT.
+3. **Server functions** : `openCase`, `addCaseItem`, `addFee`, `removeFee`, `decideCase`, `closeCase`, `cancelCase`, `getCase`, `listCases`.
+4. **UI** : route liste, route dossier, bouton "Ouvrir un dossier" dans `OrderDrawer`.
+5. **Nettoyage** : suppression des anciens fichiers listés plus haut + entrées sidebar.
+
+## Points à confirmer avant de coder
+
+1. **Code dossier** : format `RET-YYYY-NNNN` / `ANN-YYYY-NNNN` te convient ?
+2. **Frais négatifs** : autorise-t-on des lignes négatives (remise/avoir compensatoire) ou strictement ≥ 0 ?
+3. **Pièces jointes** (photos produit retourné) : utiles dès maintenant, ou WhatsApp suffit pour l'instant ?
+4. **Journal `case_events`** : on le garde dès le départ (recommandé pour la traçabilité) ou on attend ?
