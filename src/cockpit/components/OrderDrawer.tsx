@@ -396,6 +396,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
 
               {scopedArticles && scopedArticles.length > 0 && (
                 <ArticlesPanel
+                  orderId={order.order_id ?? undefined}
                   articles={scopedArticles}
                   paidAmount={tp}
                   orderStatus={status}
