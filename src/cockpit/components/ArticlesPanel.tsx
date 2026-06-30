@@ -16,6 +16,7 @@ import type { OrderArticle, ArticleStatus } from "@/cockpit/lib/article-states";
 import { StockBreakDialog, type StockBreakSubmit } from "./StockBreakDialog";
 import { DecisionOverrideDialog } from "./DecisionOverrideDialog";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
+import { ReturnArticleAction } from "./OpenReturnCaseButton";
 import { useAuth } from "@/hooks/use-auth";
 
 const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
@@ -27,6 +28,7 @@ const STATUS_ICONS: Partial<Record<ArticleStatus, React.ElementType>> = {
 
 interface Props {
   articles: OrderArticle[];
+  orderId?: string;
   onStockBreak?: (productId: string, data: StockBreakSubmit) => void;
   onStatusChange?: (productId: string, status: ArticleStatus) => void;
   onPartialDeliver?: (productId: string, qty: number) => void;
@@ -37,7 +39,7 @@ interface Props {
 }
 
 export function ArticlesPanel({
-  articles, onStockBreak, onStatusChange, onPartialDeliver, onOverrideDecision,
+  articles, orderId, onStockBreak, onStatusChange, onPartialDeliver, onOverrideDecision,
   paidAmount = 0, orderStatus,
 }: Props) {
   const { isSuperAdmin, profile } = useAuth();
@@ -197,14 +199,12 @@ export function ArticlesPanel({
                       </div>
                     ) : (
                       <>
-                        {showSignal && onStockBreak && (
-                          <button
-                            onClick={() => setStockBreakProduct(art)}
-                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors min-h-[40px]"
-                          >
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            Signaler rupture de stock
-                          </button>
+                        {orderId && (
+                          <ReturnArticleAction
+                            orderId={orderId}
+                            productId={art.product_id}
+                            variantId={art.variant_id}
+                          />
                         )}
 
                         {/* La reprise wait_restock est gérée dans RestockWaitingPanel — hors workflow normal. */}

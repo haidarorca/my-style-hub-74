@@ -109,8 +109,71 @@ function ReturnsListPage() {
         </select>
       </div>
 
-      {/* Tableau */}
-      <div className="bg-white border rounded-xl overflow-hidden">
+      {/* Cartes — mobile (visible < md) */}
+      <div className="md:hidden space-y-2">
+        {isLoading && (
+          <div className="text-center text-slate-500 py-6">Chargement…</div>
+        )}
+        {!isLoading && (rows?.length ?? 0) === 0 && (
+          <div className="text-center text-slate-500 py-10 bg-white border rounded-xl">
+            Aucun dossier.
+          </div>
+        )}
+        {(rows ?? []).map((r) => {
+          const meta = STATUS_META[r.status];
+          return (
+            <Link
+              key={r.id}
+              to="/admin/returns/$caseId"
+              params={{ caseId: r.id }}
+              className="block bg-white border rounded-xl p-3 active:bg-slate-50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-mono font-bold text-sm">{r.code}</div>
+                <span className={`px-2 py-0.5 rounded border text-[11px] ${meta.cls}`}>
+                  {meta.label}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-600">
+                {r.kind === "return" ? (
+                  <span className="inline-flex items-center gap-1 text-blue-700">
+                    <Undo2 className="w-3.5 h-3.5" /> Retour
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-rose-700">
+                    <XCircle className="w-3.5 h-3.5" /> Annulation
+                  </span>
+                )}
+                <span className="text-slate-400">·</span>
+                <span>
+                  {new Date(r.created_at).toLocaleDateString("fr-FR", {
+                    day: "2-digit",
+                    month: "short",
+                  })}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded bg-slate-50 px-2 py-1.5">
+                  <div className="text-[10px] text-slate-500 uppercase">Conseillé</div>
+                  <div className="font-semibold">{fmt(r.refund_suggested_xof)}</div>
+                </div>
+                <div className="rounded bg-slate-50 px-2 py-1.5">
+                  <div className="text-[10px] text-slate-500 uppercase">Final</div>
+                  <div className="font-semibold">
+                    {r.refund_final_xof != null ? fmt(r.refund_final_xof) : "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-right text-xs text-blue-600 font-semibold inline-flex items-center gap-1 w-full justify-end">
+                Ouvrir <ArrowRight className="w-3 h-3" />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Tableau — desktop (md+) */}
+      <div className="hidden md:block bg-white border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-600">
             <tr>
