@@ -178,6 +178,7 @@ export const getReturnCase = createServerFn({ method: "GET" })
       order_events: orderEvents ?? [],
       status_history: statusHistory ?? [],
       actions: actions ?? [],
+      article_states: articleStates ?? [],
     };
   });
 
