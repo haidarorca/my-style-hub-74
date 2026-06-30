@@ -43,51 +43,46 @@ export const listReturnCases = createServerFn({ method: "POST" })
     return rows ?? [];
   });
 
-// ── Ouverture d'un dossier ─────────────────────────────────────
-export const openReturnCase = createServerFn({ method: "POST" })
+// ── Ouverture d'un dossier (atomique, 1 article par dossier) ──
+// L'article est résolu côté serveur à partir de (order_id, product_id,
+// variant_id) afin d'éviter les erreurs d'identifiant côté client.
+export const openReturnCaseForArticle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: {
     order_id: string;
+    product_id: string;
+    variant_id?: string | null;
     kind: ReturnKind;
-    reason_code?: string | null;
     reason_note?: string | null;
-    items: { order_item_id: string; quantity: number; unit_price_xof: number }[];
+    reason_code?: string | null;
   }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
-    // Génère le code (RET-YYYY-NNNN / ANN-YYYY-NNNN)
-    const { data: code, error: codeErr } = await sb.rpc("next_return_case_code", { _kind: data.kind });
-    if (codeErr) throw codeErr;
+    // Résolution stricte du order_item correspondant à l'article cliqué.
+    let q = sb
+      .from("order_items")
+      .select("id, quantity, unit_price")
+      .eq("order_id", data.order_id)
+      .eq("product_id", data.product_id);
+    q = data.variant_id ? q.eq("variant_id", data.variant_id) : q.is("variant_id", null);
+    const { data: oi, error: oiErr } = await q.maybeSingle();
+    if (oiErr) throw oiErr;
+    if (!oi) throw new Error("Article introuvable sur cette commande");
 
-    const { data: created, error } = await sb
-      .from("return_cases")
-      .insert({
-        code: code as string,
-        kind: data.kind,
-        order_id: data.order_id,
-        opened_by: context.userId,
-        reason_code: data.reason_code ?? null,
-        reason_note: data.reason_note ?? null,
-      })
-      .select("id")
-      .single();
+    // RPC atomique : crée le dossier + sa ligne en une seule transaction.
+    const { data: caseId, error } = await sb.rpc("open_return_case_for_item", {
+      _order_id: data.order_id,
+      _order_item_id: (oi as any).id,
+      _kind: data.kind,
+      _quantity: (oi as any).quantity ?? 1,
+      _unit_price_xof: Number((oi as any).unit_price ?? 0),
+      _reason_note: data.reason_note ?? null,
+      _reason_code: data.reason_code ?? null,
+    });
     if (error) throw error;
-
-    if (data.items.length > 0) {
-      const { error: itErr } = await sb.from("return_case_items").insert(
-        data.items.map((it) => ({
-          case_id: created.id,
-          order_item_id: it.order_item_id,
-          quantity: it.quantity,
-          unit_price_xof: it.unit_price_xof,
-        })),
-      );
-      if (itErr) throw itErr;
-    }
-
-    return { id: created.id, code: code as string };
+    return { id: caseId as unknown as string };
   });
 
 // ── Lecture détail d'un dossier (+ contexte commande) ─────────
