@@ -276,7 +276,7 @@ export const getDailyClose = createServerFn({ method: "GET" })
       vendors_to_pay: vendors_to_pay.slice(0, 50),
       clients_owe_total,
       clients_owe: clients_owe.slice(0, 50),
-      sav_open_count: savRows.length,
+      sav_open_count: returnRows.length,
       sav_open_total_impact,
       blocked_cases: blocked_cases.slice(0, 50),
       financial_risks: financial_risks.slice(0, 50),
