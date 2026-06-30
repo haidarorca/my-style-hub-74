@@ -4052,6 +4052,18 @@ export type Database = {
         Args: { _kind: Database["public"]["Enums"]["return_case_kind"] }
         Returns: string
       }
+      open_return_case_for_item: {
+        Args: {
+          _kind: Database["public"]["Enums"]["return_case_kind"]
+          _order_id: string
+          _order_item_id: string
+          _quantity: number
+          _reason_code?: string
+          _reason_note?: string
+          _unit_price_xof: number
+        }
+        Returns: string
+      }
       preview_currency_recompute: {
         Args: { _code: string }
         Returns: {
