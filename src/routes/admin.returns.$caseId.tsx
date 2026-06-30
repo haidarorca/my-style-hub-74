@@ -431,11 +431,11 @@ function ReturnCaseDetailPage() {
                 </div>
                 <div>
                   <span className="text-slate-500">Adresse :</span>{" "}
-                  {order.customer_address ?? "—"}
+                  {order.address ?? "—"}
                 </div>
                 <div>
                   <span className="text-slate-500">Total commande :</span>{" "}
-                  <span className="font-bold">{fmt(order.total_amount)}</span>
+                  <span className="font-bold">{fmt(order.total)}</span>
                 </div>
                 <div>
                   <span className="text-slate-500">Statut :</span>{" "}
