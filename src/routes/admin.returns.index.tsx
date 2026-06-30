@@ -14,7 +14,7 @@ import {
 } from "@/lib/returns.functions";
 import { AlertTriangle, ArrowRight, Search, Undo2, XCircle } from "lucide-react";
 
-export const Route = createFileRoute("/admin/returns")({
+export const Route = createFileRoute("/admin/returns/")({
   component: ReturnsListPage,
 });
 
