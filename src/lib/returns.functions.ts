@@ -119,8 +119,20 @@ export const getReturnCase = createServerFn({ method: "GET" })
 
     const { data: orderItems } = await sb
       .from("order_items")
-      .select("id, product_id, product_name, quantity, unit_price, vendor_id")
+      .select("id, product_id, variant_id, product_name, quantity, unit_price, vendor_id, shop_type_snapshot, is_admin_shop_snapshot, product_origin_country_id_snapshot, shop_country_id_snapshot")
       .eq("order_id", caseRow.order_id);
+
+    // États article par article (cycle de vie) — pour les articles concernés
+    const caseProductIds = Array.from(
+      new Set(((items ?? []) as any[]).map((i) => (i as any).order_item?.product_id).filter(Boolean)),
+    );
+    const { data: articleStates } = caseProductIds.length
+      ? await sb
+          .from("order_article_states")
+          .select("product_id, variant_id, status, delivered_qty, stock_break, updated_at")
+          .eq("order_id", caseRow.order_id)
+          .in("product_id", caseProductIds)
+      : { data: [] as any[] };
 
     const { data: payments } = await sb
       .from("order_payments")
