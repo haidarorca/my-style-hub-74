@@ -287,7 +287,7 @@ export function ArticlesPanel({
                       </div>
                     ) : (
                       <>
-                        {orderId && (
+                        {orderId && !selectionMode && (
                           <ReturnArticleAction
                             orderId={orderId}
                             productId={art.product_id}
