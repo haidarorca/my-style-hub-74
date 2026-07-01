@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Copy, Check, Share2, Download, MessageCircle, Facebook, Send, Mail,
-  Twitter, Smartphone,
+  Twitter, Smartphone, Instagram,
 } from "lucide-react";
 
 import {
