@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// Templates visuels marketing : Poster (feed), Story (vertical),
-// Square, Thumb WhatsApp. Rendus offscreen puis capturés via
-// html2canvas → PNG téléchargeable.
+// Templates visuels marketing style "Alibaba card" :
+// - Badges promo (pills rouge/orange à puces) en haut à gauche
+// - Grande image produit centrée
+// - Bandeau jaune "prix" + bandeau orange "bonus / promo"
+// - Bloc titre noir bas + attribution KawZone
 // ═══════════════════════════════════════════════════════════════
 
 import { forwardRef } from "react";
@@ -11,10 +13,14 @@ export interface PosterData {
   imageUrl?: string | null;
   priceLabel: string;
   oldPriceLabel?: string | null;
-  promoLabel?: string | null;
+  promoLabel?: string | null;   // ex: "-30%", "-30 USD"
   shopName?: string | null;
   url: string;
   qrDataUrl?: string | null;
+  /** Puces avantages affichées en haut (max 3). Défauts si vide. */
+  badges?: string[];
+  /** Sous-titre du bandeau orange (ex: "Profitez de -30% en plus via ce lien"). */
+  promoSubtitle?: string | null;
 }
 
 export type PosterFormat = "poster" | "story" | "square" | "thumb";
@@ -31,13 +37,31 @@ interface Props {
   data: PosterData;
 }
 
+const DEFAULT_BADGES = ["Produit vérifié", "Livraison KawZone", "Paiement sécurisé"];
+
 export const PosterTemplate = forwardRef<HTMLDivElement, Props>(function PosterTemplate(
   { format, data },
   ref,
 ) {
   const { w, h } = DIM[format];
-  const isVertical = h > w;
   const isThumb = format === "thumb";
+  const isStory = format === "story";
+
+  // Échelle globale : toutes les dimensions internes sont en "unités" (base 1080)
+  // puis multipliées par s. Le layout reste identique sur tous les formats.
+  const s = w / 1080;
+
+  const badges = (data.badges && data.badges.length > 0 ? data.badges : DEFAULT_BADGES).slice(0, 3);
+
+  // Cadre principal (marges internes)
+  const pad = 48 * s;
+  const cardR = 40 * s;
+
+  // Zone image (carrée pour poster/square/thumb, rectangulaire pour story)
+  const imgH = isStory ? 1180 * s : 780 * s;
+
+  // Bloc prix jaune
+  const priceBarH = isThumb ? 120 * s : 170 * s;
 
   return (
     <div
@@ -47,210 +71,303 @@ export const PosterTemplate = forwardRef<HTMLDivElement, Props>(function PosterT
         height: h,
         position: "relative",
         overflow: "hidden",
-        fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+        fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
         color: "#0a0a0a",
-        background:
-          "linear-gradient(160deg, #fff7ed 0%, #ffe4d1 40%, #fed7aa 100%)",
+        background: "#f5f5f5",
       }}
     >
-      {/* Ornements */}
+      {/* Header KawZone */}
       <div
         style={{
           position: "absolute",
-          top: -160,
-          right: -160,
-          width: 520,
-          height: 520,
-          borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(234,88,12,0.28), transparent 70%)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -220,
-          left: -180,
-          width: 620,
-          height: 620,
-          borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(2,132,199,0.18), transparent 70%)",
-        }}
-      />
-
-      {/* Header logo */}
-      <div
-        style={{
-          position: "absolute",
-          top: isThumb ? 20 : 44,
-          left: isThumb ? 24 : 56,
-          right: isThumb ? 24 : 56,
+          top: pad * 0.6,
+          left: pad,
+          right: pad,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          zIndex: 3,
+          zIndex: 5,
         }}
       >
         <div
           style={{
             fontWeight: 900,
-            fontSize: isThumb ? 26 : 44,
-            letterSpacing: -1,
+            fontSize: (isThumb ? 32 : 48) * s,
+            letterSpacing: -1.5 * s,
             color: "#111",
           }}
         >
           <span style={{ color: "#ea580c" }}>K</span>awZone
         </div>
-        {data.promoLabel && !isThumb && (
-          <div
-            style={{
-              background: "#dc2626",
-              color: "#fff",
-              padding: "10px 20px",
-              borderRadius: 999,
-              fontWeight: 900,
-              fontSize: 32,
-              boxShadow: "0 8px 24px rgba(220,38,38,0.35)",
-            }}
-          >
-            {data.promoLabel}
-          </div>
-        )}
-      </div>
-
-      {/* Image produit */}
-      <div
-        style={{
-          position: "absolute",
-          top: isThumb ? 70 : isVertical ? 160 : 140,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: isThumb ? 460 : isVertical ? 900 : 780,
-          height: isThumb ? 360 : isVertical ? 900 : 780,
-          borderRadius: 32,
-          overflow: "hidden",
-          background: "#fff",
-          boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 2,
-        }}
-      >
-        {data.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={data.imageUrl}
-            alt=""
-            crossOrigin="anonymous"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ) : (
-          <div style={{ fontSize: 120, color: "#ddd" }}>📦</div>
-        )}
-      </div>
-
-      {/* Bloc bas — nom, prix, CTA */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: isThumb ? 20 : 60,
-          left: isThumb ? 24 : 56,
-          right: isThumb ? 24 : 56,
-          zIndex: 3,
-        }}
-      >
         <div
           style={{
-            fontSize: isThumb ? 22 : isVertical ? 56 : 48,
-            fontWeight: 800,
-            lineHeight: 1.1,
-            color: "#111",
-            marginBottom: isThumb ? 8 : 20,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
+            fontSize: 22 * s,
+            color: "#666",
+            fontWeight: 600,
           }}
         >
-          {data.productName}
+          kawzone.com
         </div>
+      </div>
 
-        <div style={{ display: "flex", alignItems: "baseline", gap: isThumb ? 8 : 16, flexWrap: "wrap" }}>
+      {/* Carte principale */}
+      <div
+        style={{
+          position: "absolute",
+          top: 130 * s,
+          left: pad,
+          right: pad,
+          bottom: pad,
+          background: "#ffffff",
+          borderRadius: cardR,
+          overflow: "hidden",
+          boxShadow: `0 ${30 * s}px ${80 * s}px rgba(0,0,0,0.15)`,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Zone image + badges overlay */}
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: imgH,
+            background: "#fafafa",
+            flexShrink: 0,
+          }}
+        >
+          {/* Badges avantages (top-left) */}
           <div
             style={{
-              fontSize: isThumb ? 36 : isVertical ? 96 : 80,
-              fontWeight: 900,
-              color: "#ea580c",
-              letterSpacing: -2,
-              lineHeight: 1,
+              position: "absolute",
+              top: 32 * s,
+              left: 32 * s,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14 * s,
+              zIndex: 4,
+              maxWidth: "70%",
             }}
           >
-            {data.priceLabel}
+            {badges.map((b, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "linear-gradient(90deg, #ef4444 0%, #f97316 100%)",
+                  color: "#fff",
+                  padding: `${14 * s}px ${22 * s}px ${14 * s}px ${18 * s}px`,
+                  borderRadius: 999,
+                  fontWeight: 800,
+                  fontSize: 30 * s,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12 * s,
+                  boxShadow: `0 ${6 * s}px ${16 * s}px rgba(220,38,38,0.35)`,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  style={{
+                    width: 20 * s,
+                    height: 20 * s,
+                    borderRadius: "50%",
+                    border: `${3 * s}px solid #fff`,
+                    display: "inline-block",
+                    flexShrink: 0,
+                  }}
+                />
+                {b}
+              </div>
+            ))}
           </div>
-          {data.oldPriceLabel && (
+
+          {/* Image produit */}
+          {data.imageUrl ? (
+            <img
+              src={data.imageUrl}
+              alt=""
+              crossOrigin="anonymous"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
             <div
               style={{
-                fontSize: isThumb ? 18 : 36,
-                color: "#666",
-                textDecoration: "line-through",
-                fontWeight: 600,
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 200 * s,
+                color: "#ddd",
               }}
             >
-              {data.oldPriceLabel}
+              📦
             </div>
           )}
         </div>
 
-        {!isThumb && (
+        {/* Bandeau prix (jaune) + promo (orange dégradé) */}
+        <div
+          style={{
+            display: "flex",
+            width: "100%",
+            height: priceBarH,
+            flexShrink: 0,
+          }}
+        >
+          {/* Prix jaune */}
           <div
             style={{
-              marginTop: 28,
+              background: "#fbbf24",
+              flex: "0 0 42%",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: 20,
+              justifyContent: "center",
+              padding: `0 ${24 * s}px`,
             }}
           >
             <div
               style={{
-                background: "#111",
-                color: "#fff",
-                padding: "22px 36px",
-                borderRadius: 999,
-                fontWeight: 800,
-                fontSize: isVertical ? 34 : 30,
-                boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
+                fontSize: (isThumb ? 44 : 78) * s,
+                fontWeight: 900,
+                color: "#111",
+                letterSpacing: -2 * s,
+                lineHeight: 1,
               }}
             >
-              Acheter maintenant →
+              {data.priceLabel}
             </div>
-            {data.qrDataUrl && (
-              <div
-                style={{
-                  background: "#fff",
-                  padding: 12,
-                  borderRadius: 16,
-                  boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
-                }}
-              >
-                <img src={data.qrDataUrl} alt="" style={{ width: 130, height: 130, display: "block" }} />
-              </div>
-            )}
           </div>
-        )}
-
-        {!isThumb && (
+          {/* Promo orange */}
           <div
             style={{
-              marginTop: 20,
-              fontSize: isVertical ? 24 : 22,
-              color: "#555",
-              fontWeight: 600,
+              background: "linear-gradient(90deg, #f97316 0%, #ec4899 100%)",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: `0 ${28 * s}px`,
+              textAlign: "center",
+              color: "#fff",
             }}
           >
-            {data.shopName ? `${data.shopName} · ` : ""}kawzone.com
+            {data.oldPriceLabel && (
+              <div
+                style={{
+                  fontSize: 24 * s,
+                  textDecoration: "line-through",
+                  opacity: 0.85,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  marginBottom: 6 * s,
+                }}
+              >
+                {data.oldPriceLabel}
+              </div>
+            )}
+            <div
+              style={{
+                fontSize: (isThumb ? 22 : 30) * s,
+                fontWeight: 800,
+                lineHeight: 1.15,
+              }}
+            >
+              {data.promoSubtitle || (data.promoLabel
+                ? `Profitez de ${data.promoLabel} en plus via ce lien`
+                : "Meilleur prix garanti via ce lien")}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Bloc titre (noir) */}
+        <div
+          style={{
+            background: "#0f172a",
+            color: "#fff",
+            flex: 1,
+            padding: `${28 * s}px ${36 * s}px`,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            gap: 16 * s,
+          }}
+        >
+          <div
+            style={{
+              fontSize: (isThumb ? 22 : 38) * s,
+              fontWeight: 800,
+              lineHeight: 1.2,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {data.productName}
+          </div>
+
+          {!isThumb && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 20 * s,
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 * s, minWidth: 0 }}>
+                <div style={{ fontSize: 22 * s, color: "#94a3b8", fontWeight: 600 }}>
+                  {data.shopName ? `en provenance de ${data.shopName}` : "Boutique vérifiée KawZone"}
+                </div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 12 * s,
+                    background: "#ea580c",
+                    color: "#fff",
+                    padding: `${16 * s}px ${28 * s}px`,
+                    borderRadius: 999,
+                    fontWeight: 900,
+                    fontSize: 28 * s,
+                    marginTop: 10 * s,
+                    alignSelf: "flex-start",
+                    boxShadow: `0 ${8 * s}px ${20 * s}px rgba(234,88,12,0.4)`,
+                  }}
+                >
+                  Acheter maintenant →
+                </div>
+              </div>
+
+              {data.qrDataUrl && (
+                <div
+                  style={{
+                    background: "#fff",
+                    padding: 10 * s,
+                    borderRadius: 14 * s,
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src={data.qrDataUrl}
+                    alt=""
+                    style={{
+                      width: (isStory ? 160 : 130) * s,
+                      height: (isStory ? 160 : 130) * s,
+                      display: "block",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
