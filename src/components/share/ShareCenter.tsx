@@ -86,11 +86,42 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
     url: buildTrackedUrl(baseUrl, platform),
   });
 
-  const handleShare = (platform: SharePlatform) => {
+  const handleShare = async (platform: SharePlatform) => {
+    if (platform === "instagram") {
+      await handleInstagramShare();
+      return;
+    }
     const sp = shareProduct(platform);
     const msg = buildShareMessage(sp, platform);
     const url = shareLinkFor(platform, sp.url, msg);
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleInstagramShare = async () => {
+    setBusy(true);
+    try {
+      // 1. Copie légende
+      const sp = shareProduct("instagram");
+      const msg = buildShareMessage(sp, "instagram");
+      try { await navigator.clipboard.writeText(msg); } catch { /* ignore */ }
+      // 2. Télécharge la Story (format vertical prêt à publier)
+      if (storyRef.current) {
+        const blob = await nodeToBlob(storyRef.current, 1);
+        downloadBlob(blob, `${safeFilename(product.name)}-instagram-story.png`);
+      }
+      toast.success("Visuel téléchargé + légende copiée", {
+        description: "Ouverture d'Instagram… collez la légende sur votre Story ou publication.",
+        duration: 4500,
+      });
+      // 3. Ouvre Instagram (app mobile via deep link sinon web)
+      setTimeout(() => {
+        window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      }, 400);
+    } catch (e: any) {
+      toast.error(e?.message || "Instagram : action impossible");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleCopy = async () => {
