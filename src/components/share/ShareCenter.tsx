@@ -84,6 +84,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState<SharePlatform>("whatsapp");
+  const [forceRefresh, setForceRefresh] = useState(false);
   const posterRef = useRef<HTMLDivElement | null>(null);
   const storyRef = useRef<HTMLDivElement | null>(null);
 
@@ -108,7 +109,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
     shopName: product.shopName ?? null,
     originType: product.originType ?? null,
     originLabel: product.originLabel ?? null,
-    url: buildTrackedUrl(baseUrl, platform),
+    url: buildTrackedUrl(baseUrl, platform, { forceRefresh }),
   });
 
   const handleShare = async (platform: SharePlatform) => {
