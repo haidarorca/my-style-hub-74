@@ -8,6 +8,7 @@ export type SharePlatform =
   | "messenger"
   | "telegram"
   | "twitter"
+  | "instagram"
   | "email"
   | "sms"
   | "copy"
@@ -47,6 +48,10 @@ export function shareLinkFor(platform: SharePlatform, url: string, message: stri
       return `https://t.me/share/url?url=${u}&text=${m}`;
     case "twitter":
       return `https://twitter.com/intent/tweet?url=${u}&text=${m}`;
+    case "instagram":
+      // Instagram n'accepte pas d'URL pré-remplie. On ouvre l'app / le site,
+      // la légende est copiée séparément et le visuel Story est téléchargé.
+      return `https://www.instagram.com/`;
     case "email":
       return `mailto:?subject=${encodeURIComponent("Découverte KawZone")}&body=${m}`;
     case "sms":

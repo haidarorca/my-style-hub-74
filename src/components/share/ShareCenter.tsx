@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Copy, Check, Share2, Download, MessageCircle, Facebook, Send, Mail,
-  Twitter, Smartphone,
+  Twitter, Smartphone, Instagram,
 } from "lucide-react";
 
 import {
@@ -40,6 +40,7 @@ export interface ShareCenterProps {
 
 const PLATFORMS: { key: SharePlatform; label: string; icon: any; color: string }[] = [
   { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "bg-emerald-500 hover:bg-emerald-600" },
+  { key: "instagram", label: "Instagram", icon: Instagram, color: "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 hover:opacity-90" },
   { key: "facebook", label: "Facebook", icon: Facebook, color: "bg-blue-600 hover:bg-blue-700" },
   { key: "messenger", label: "Messenger", icon: Send, color: "bg-sky-500 hover:bg-sky-600" },
   { key: "telegram", label: "Telegram", icon: Send, color: "bg-cyan-500 hover:bg-cyan-600" },
@@ -61,6 +62,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const posterRef = useRef<HTMLDivElement | null>(null);
+  const storyRef = useRef<HTMLDivElement | null>(null);
 
   const baseUrl = useMemo(() => productUrl(product.id), [product.id]);
   const nativeAvailable = typeof navigator !== "undefined" && "share" in navigator;
@@ -84,11 +86,42 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
     url: buildTrackedUrl(baseUrl, platform),
   });
 
-  const handleShare = (platform: SharePlatform) => {
+  const handleShare = async (platform: SharePlatform) => {
+    if (platform === "instagram") {
+      await handleInstagramShare();
+      return;
+    }
     const sp = shareProduct(platform);
     const msg = buildShareMessage(sp, platform);
     const url = shareLinkFor(platform, sp.url, msg);
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleInstagramShare = async () => {
+    setBusy(true);
+    try {
+      // 1. Copie légende
+      const sp = shareProduct("instagram");
+      const msg = buildShareMessage(sp, "instagram");
+      try { await navigator.clipboard.writeText(msg); } catch { /* ignore */ }
+      // 2. Télécharge la Story (format vertical prêt à publier)
+      if (storyRef.current) {
+        const blob = await nodeToBlob(storyRef.current, 1);
+        downloadBlob(blob, `${safeFilename(product.name)}-instagram-story.png`);
+      }
+      toast.success("Visuel téléchargé + légende copiée", {
+        description: "Ouverture d'Instagram… collez la légende sur votre Story ou publication.",
+        duration: 4500,
+      });
+      // 3. Ouvre Instagram (app mobile via deep link sinon web)
+      setTimeout(() => {
+        window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      }, 400);
+    } catch (e: any) {
+      toast.error(e?.message || "Instagram : action impossible");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleCopy = async () => {
@@ -261,23 +294,6 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
               Astuce : la Story se prête parfaitement à WhatsApp Status et Instagram/Facebook Stories.
             </p>
 
-            {/* Node offscreen pour capture haute-résolution */}
-            <div style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }} aria-hidden>
-              <PosterTemplate
-                ref={posterRef}
-                format={format}
-                data={{
-                  productName: product.name,
-                  imageUrl: product.imageUrl ?? null,
-                  priceLabel: product.priceLabel,
-                  oldPriceLabel: product.oldPriceLabel ?? null,
-                  promoLabel: product.promoLabel ?? null,
-                  shopName: product.shopName ?? null,
-                  url: baseUrl,
-                  qrDataUrl,
-                }}
-              />
-            </div>
           </TabsContent>
 
           {/* ─── QR & LIEN ─── */}
@@ -285,6 +301,38 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
             <QrBlock url={baseUrl} filenameBase={product.name} />
           </TabsContent>
         </Tabs>
+
+        {/* Nodes offscreen persistants pour capture haute-résolution */}
+        <div style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }} aria-hidden>
+          <PosterTemplate
+            ref={posterRef}
+            format={format}
+            data={{
+              productName: product.name,
+              imageUrl: product.imageUrl ?? null,
+              priceLabel: product.priceLabel,
+              oldPriceLabel: product.oldPriceLabel ?? null,
+              promoLabel: product.promoLabel ?? null,
+              shopName: product.shopName ?? null,
+              url: baseUrl,
+              qrDataUrl,
+            }}
+          />
+          <PosterTemplate
+            ref={storyRef}
+            format="story"
+            data={{
+              productName: product.name,
+              imageUrl: product.imageUrl ?? null,
+              priceLabel: product.priceLabel,
+              oldPriceLabel: product.oldPriceLabel ?? null,
+              promoLabel: product.promoLabel ?? null,
+              shopName: product.shopName ?? null,
+              url: baseUrl,
+              qrDataUrl,
+            }}
+          />
+        </div>
       </SheetContent>
     </Sheet>
   );

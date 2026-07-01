@@ -32,6 +32,9 @@ export function buildShareMessage(p: ShareProduct, platform: SharePlatform): str
       return `Bonjour,\n\nJe voulais te faire découvrir ce produit sur KawZone :\n\n${p.name}\nPrix : ${p.priceLabel}${promo}${shop}\n\nLien : ${p.url}\n\nÀ bientôt !`;
     case "sms":
       return `${p.name} — ${p.priceLabel}${promo} sur KawZone : ${p.url}`;
+    case "instagram":
+      // Légende Instagram : hashtags + emoji + lien en bio
+      return `✨ ${p.name}\n\n💰 ${p.priceLabel}${promo}${p.oldPriceLabel ? ` (au lieu de ${p.oldPriceLabel})` : ""}${shop}\n\n🛒 Commande directe sur KawZone 👉 ${p.url}\n(lien aussi disponible en bio)\n\n#KawZone #Senegal #Dakar #ShoppingSenegal #BonPlan #Promo`;
     case "facebook":
     case "messenger":
       // Facebook impose son propre aperçu OG, texte souvent ignoré
