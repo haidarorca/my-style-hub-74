@@ -394,7 +394,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
 
           {/* ─── QR & LIEN ─── */}
           <TabsContent value="qr" className="flex-1 overflow-y-auto p-4 mt-0">
-            <QrBlock url={baseUrl} filenameBase={product.name} />
+            <QrBlock url={buildTrackedUrl(baseUrl, "copy", { forceRefresh })} filenameBase={product.name} />
           </TabsContent>
         </Tabs>
 
