@@ -149,15 +149,29 @@ export function ProductCard({ product, onQuickAdd }: Props) {
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
         </button>
-        <ShareButton
-          variant="icon"
-          product={{
-            id: product.id,
-            name: displayName,
-            imageUrl: img ?? null,
-            priceLabel: dp ? fmt(Number(dp.final_price)) : `${product.price} XOF`,
-          }}
-        />
+        {(() => {
+          const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
+          const vendorSrc = (Array.isArray(product.profiles) ? product.profiles[0]?.source_country_id : product.profiles?.source_country_id) ?? null;
+          const originType: "local" | "import" | null = vendorSrc
+            ? "import"
+            : oc?.name
+            ? "local"
+            : null;
+          const originLabel = oc?.name ? `${oc.flag_emoji ? oc.flag_emoji + " " : ""}${oc.name}` : null;
+          return (
+            <ShareButton
+              variant="icon"
+              product={{
+                id: product.id,
+                name: displayName,
+                imageUrl: img ?? null,
+                priceLabel: dp ? fmt(Number(dp.final_price)) : `${product.price} XOF`,
+                originType,
+                originLabel,
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );

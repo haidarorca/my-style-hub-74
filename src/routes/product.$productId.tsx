@@ -461,16 +461,35 @@ function ProductPage() {
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
             <div className="mt-3">
-              <ShareButton
-                variant="cta"
-                product={{
-                  id: data.id,
-                  name: productName,
-                  imageUrl: data.product_images?.[0]?.url ?? null,
-                  priceLabel: displayPrice !== null ? fmt(Number(displayPrice)) : `${data.price} XOF`,
-                  shopName,
-                }}
-              />
+              {(() => {
+                const oc = (data as any).origin_country;
+                const ocObj = Array.isArray(oc) ? oc[0] : oc;
+                const vendorSrc = ((data as any).profiles?.source_country_id ??
+                  (Array.isArray((data as any).profiles) ? (data as any).profiles[0]?.source_country_id : null)) as string | null;
+                // Heuristique : produit importé si vendeur international connu, sinon local.
+                const originType: "local" | "import" | null = vendorSrc
+                  ? "import"
+                  : ocObj?.name
+                  ? "local"
+                  : null;
+                const originLabel = ocObj?.name
+                  ? `${ocObj.flag_emoji ? ocObj.flag_emoji + " " : ""}${ocObj.name}`
+                  : null;
+                return (
+                  <ShareButton
+                    variant="cta"
+                    product={{
+                      id: data.id,
+                      name: productName,
+                      imageUrl: data.product_images?.[0]?.url ?? null,
+                      priceLabel: displayPrice !== null ? fmt(Number(displayPrice)) : `${data.price} XOF`,
+                      shopName,
+                      originType,
+                      originLabel,
+                    }}
+                  />
+                );
+              })()}
             </div>
           </div>
 
