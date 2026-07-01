@@ -14,11 +14,31 @@ export type SharePlatform =
   | "copy"
   | "native";
 
-export function buildTrackedUrl(baseUrl: string, platform: SharePlatform): string {
+/**
+ * Version stamp par défaut : YYYYMMDD.
+ * → Nouvelle URL chaque jour ⇒ WhatsApp / Facebook / Telegram refont un scrape
+ *   et récupèrent les balises Open Graph à jour (image, titre, prix, promo).
+ *   Même jour = même URL = cache réutilisé (pas de scrape inutile).
+ */
+export function currentShareVersion(): string {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+export function buildTrackedUrl(
+  baseUrl: string,
+  platform: SharePlatform,
+  opts: { forceRefresh?: boolean } = {},
+): string {
   try {
     const u = new URL(baseUrl);
     u.searchParams.set("ref", "share");
     u.searchParams.set("via", platform);
+    // Cache-buster OG : force les crawlers à refaire un scrape.
+    u.searchParams.set("v", opts.forceRefresh ? String(Date.now()) : currentShareVersion());
     return u.toString();
   } catch {
     return baseUrl;
