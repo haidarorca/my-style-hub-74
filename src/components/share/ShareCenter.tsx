@@ -40,6 +40,7 @@ export interface ShareCenterProps {
 
 const PLATFORMS: { key: SharePlatform; label: string; icon: any; color: string }[] = [
   { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "bg-emerald-500 hover:bg-emerald-600" },
+  { key: "instagram", label: "Instagram", icon: Instagram, color: "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 hover:opacity-90" },
   { key: "facebook", label: "Facebook", icon: Facebook, color: "bg-blue-600 hover:bg-blue-700" },
   { key: "messenger", label: "Messenger", icon: Send, color: "bg-sky-500 hover:bg-sky-600" },
   { key: "telegram", label: "Telegram", icon: Send, color: "bg-cyan-500 hover:bg-cyan-600" },
