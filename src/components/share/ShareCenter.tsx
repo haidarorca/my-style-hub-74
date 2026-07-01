@@ -62,6 +62,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const posterRef = useRef<HTMLDivElement | null>(null);
+  const storyRef = useRef<HTMLDivElement | null>(null);
 
   const baseUrl = useMemo(() => productUrl(product.id), [product.id]);
   const nativeAvailable = typeof navigator !== "undefined" && "share" in navigator;
