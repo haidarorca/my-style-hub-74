@@ -37,6 +37,7 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
