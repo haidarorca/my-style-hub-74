@@ -37,6 +37,7 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
@@ -459,6 +460,18 @@ function ProductPage() {
             {productDesignation && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
+            <div className="mt-3">
+              <ShareButton
+                variant="cta"
+                product={{
+                  id: data.id,
+                  name: productName,
+                  imageUrl: data.product_images?.[0]?.url ?? null,
+                  priceLabel: displayPrice !== null ? fmt(Number(displayPrice)) : `${data.price} XOF`,
+                  shopName,
+                }}
+              />
+            </div>
           </div>
 
           {(warrantyText || isFragile || fitInfo || (isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)))) && (
