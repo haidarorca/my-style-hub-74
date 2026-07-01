@@ -84,6 +84,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState<SharePlatform>("whatsapp");
+  const [forceRefresh, setForceRefresh] = useState(false);
   const posterRef = useRef<HTMLDivElement | null>(null);
   const storyRef = useRef<HTMLDivElement | null>(null);
 
@@ -108,7 +109,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
     shopName: product.shopName ?? null,
     originType: product.originType ?? null,
     originLabel: product.originLabel ?? null,
-    url: buildTrackedUrl(baseUrl, platform),
+    url: buildTrackedUrl(baseUrl, platform, { forceRefresh }),
   });
 
   const handleShare = async (platform: SharePlatform) => {
@@ -282,6 +283,21 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
               </p>
             </div>
 
+            <label className="flex items-start gap-2.5 rounded-xl border bg-amber-50/60 p-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={forceRefresh}
+                onChange={(e) => setForceRefresh(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-orange-600"
+              />
+              <span className="text-[11px] leading-snug">
+                <b>Forcer un nouvel aperçu</b> (WhatsApp / Facebook)
+                <span className="block text-muted-foreground">
+                  Ajoute un identifiant unique au lien pour que les réseaux refassent le scrape et affichent la <b>dernière image + prix</b>. À activer si l'aperçu semble figé sur une ancienne version.
+                </span>
+              </span>
+            </label>
+
             <div className="text-[11px] text-muted-foreground text-center">
               💡 Chaque lien est tracé pour mesurer vos ventes issues du partage.
             </div>
@@ -378,7 +394,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
 
           {/* ─── QR & LIEN ─── */}
           <TabsContent value="qr" className="flex-1 overflow-y-auto p-4 mt-0">
-            <QrBlock url={baseUrl} filenameBase={product.name} />
+            <QrBlock url={buildTrackedUrl(baseUrl, "copy", { forceRefresh })} filenameBase={product.name} />
           </TabsContent>
         </Tabs>
 
