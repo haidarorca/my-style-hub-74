@@ -294,24 +294,49 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
               Astuce : la Story se prête parfaitement à WhatsApp Status et Instagram/Facebook Stories.
             </p>
 
-            {/* Node offscreen pour capture haute-résolution */}
-            <div style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }} aria-hidden>
-              <PosterTemplate
-                ref={posterRef}
-                format={format}
-                data={{
-                  productName: product.name,
-                  imageUrl: product.imageUrl ?? null,
-                  priceLabel: product.priceLabel,
-                  oldPriceLabel: product.oldPriceLabel ?? null,
-                  promoLabel: product.promoLabel ?? null,
-                  shopName: product.shopName ?? null,
-                  url: baseUrl,
-                  qrDataUrl,
-                }}
-              />
-            </div>
           </TabsContent>
+
+          {/* ─── QR & LIEN ─── */}
+          <TabsContent value="qr" className="flex-1 overflow-y-auto p-4 mt-0">
+            <QrBlock url={baseUrl} filenameBase={product.name} />
+          </TabsContent>
+        </Tabs>
+
+        {/* Nodes offscreen persistants pour capture haute-résolution */}
+        <div style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }} aria-hidden>
+          <PosterTemplate
+            ref={posterRef}
+            format={format}
+            data={{
+              productName: product.name,
+              imageUrl: product.imageUrl ?? null,
+              priceLabel: product.priceLabel,
+              oldPriceLabel: product.oldPriceLabel ?? null,
+              promoLabel: product.promoLabel ?? null,
+              shopName: product.shopName ?? null,
+              url: baseUrl,
+              qrDataUrl,
+            }}
+          />
+          <PosterTemplate
+            ref={storyRef}
+            format="story"
+            data={{
+              productName: product.name,
+              imageUrl: product.imageUrl ?? null,
+              priceLabel: product.priceLabel,
+              oldPriceLabel: product.oldPriceLabel ?? null,
+              promoLabel: product.promoLabel ?? null,
+              shopName: product.shopName ?? null,
+              url: baseUrl,
+              qrDataUrl,
+            }}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
           {/* ─── QR & LIEN ─── */}
           <TabsContent value="qr" className="flex-1 overflow-y-auto p-4 mt-0">
