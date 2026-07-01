@@ -135,18 +135,29 @@ export function ProductCard({ product, onQuickAdd }: Props) {
         </div>
       </Link>
 
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onQuickAdd(product.id);
-        }}
-        aria-label={t("product.quick_add_aria")}
-        className="absolute top-2 end-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground backdrop-blur-sm shadow-soft transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-90"
-      >
-        <Plus className="h-4 w-4" strokeWidth={2.5} />
-      </button>
+      <div className="absolute top-2 end-2 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onQuickAdd(product.id);
+          }}
+          aria-label={t("product.quick_add_aria")}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground backdrop-blur-sm shadow-soft transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-90"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+        </button>
+        <ShareButton
+          variant="icon"
+          product={{
+            id: product.id,
+            name: displayName,
+            imageUrl: img ?? null,
+            priceLabel: dp ? fmt(Number(dp.final_price)) : `${product.price} XOF`,
+          }}
+        />
+      </div>
     </div>
   );
 }
