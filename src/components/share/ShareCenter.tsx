@@ -283,6 +283,21 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
               </p>
             </div>
 
+            <label className="flex items-start gap-2.5 rounded-xl border bg-amber-50/60 p-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={forceRefresh}
+                onChange={(e) => setForceRefresh(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-orange-600"
+              />
+              <span className="text-[11px] leading-snug">
+                <b>Forcer un nouvel aperçu</b> (WhatsApp / Facebook)
+                <span className="block text-muted-foreground">
+                  Ajoute un identifiant unique au lien pour que les réseaux refassent le scrape et affichent la <b>dernière image + prix</b>. À activer si l'aperçu semble figé sur une ancienne version.
+                </span>
+              </span>
+            </label>
+
             <div className="text-[11px] text-muted-foreground text-center">
               💡 Chaque lien est tracé pour mesurer vos ventes issues du partage.
             </div>
