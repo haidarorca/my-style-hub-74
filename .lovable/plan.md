@@ -1,78 +1,69 @@
-## Objectifs
+# Centre de partage marketing KawZone
 
-Rendre le dossier Retour/Annulation aussi lisible et "sans erreur" qu'un dossier dans le Cockpit, et permettre la création multi-articles en un seul dossier.
+Objectif : transformer chaque partage produit en outil marketing pro. Un vrai centre, pas un bouton.
 
-## 1. Article cliquable → fenêtre détail (comme dans la sous-commande)
+## Expérience utilisateur
 
-Dans `admin.returns.$caseId.tsx`, chaque ligne d'article devient cliquable et ouvre `ProductDetailDrawer` (déjà utilisé dans `OrderDrawer`/`PipelineView`).
+Un bouton **Partager** sur chaque fiche produit (et sur la carte produit) ouvre un **ShareCenter** (Sheet plein écran mobile / modal desktop) organisé en 3 onglets :
 
-- Mapper la ligne `return_case_items` + `order_items` + `order_article_states` vers le type `OrderArticle` attendu par `ProductDetailDrawer`.
-- Header de drawer : nom, image, badge LOCAL/IMPORT, statut article courant.
-- Section "Logistique & import", "Fournisseur", "Quantité & prix", historique — réutilisation directe.
+1. **Envoyer** — WhatsApp, Facebook, Messenger, Telegram, X/Twitter, Email, SMS, Copier le lien. Message pré-rédigé attractif (nom, prix, promo, CTA, lien tracké).
+2. **Visuels** — Génération à la volée de visuels téléchargeables :
+   - Affiche marketing (1080×1350, format Feed Instagram/Facebook)
+   - Story verticale (1080×1920, WhatsApp/IG/FB Story)
+   - Carré (1080×1080)
+   - Miniature WhatsApp (600×600 optimisée aperçu)
+   Chaque visuel contient : photo produit, nom, prix (barré si promo), badge promo, logo KawZone, mention "Acheter maintenant" + URL courte + QR code discret.
+3. **QR & Lien** — QR Code haute résolution téléchargeable (PNG/SVG), lien court copiable, aperçu Open Graph.
 
-## 2. Circuit logistique (LOCAL / IMPORT-Poids connu / IMPORT-Poids inconnu)
+## Architecture technique
 
-Sur la fiche du dossier, juste après l'article, afficher le `WorkflowCircuit` exact du Cockpit avec exactement les mêmes libellés :
+### Génération visuels (côté client, zéro coût serveur)
+- `html2canvas` + composant React `<ProductPoster />` rendu offscreen dans un template stylé (dégradé de marque, photo cover, prix XXL, badge promo, logo, QR).
+- 4 templates dimensionnés via CSS. Bouton "Télécharger" → `html2canvas` → `canvas.toBlob()` → download.
+- QR code via `qrcode` (lib légère).
 
-- LOCAL : Nouvelle → Confirmée → Préparation → Prête → Expédiée → Livrée
-- IMPORT Poids connu : Nouvelle → Confirmée → Commandée → Reçue ent. → Prête → Expédiée → Livrée
-- IMPORT Poids inconnu : variante avec Pesée / Frais / Validée
+### Tracking / attribution
+- Chaque lien partagé ajoute `?ref=share&via=<platform>&sid=<userIdOrAnon>` pour analytique future (aucune table nouvelle maintenant, juste params dans l'URL).
 
-Étape active = statut réel de la **sous-commande** (table `sub_order_states`, clé `${vendor_id}::${line_kind}`). Fallback : statut de la commande mère, puis statut article. Étendre `getReturnCase` pour renvoyer `sub_order_states` correspondants.
+### Meta OG côté route produit
+- Vérifier/renforcer `head()` de `src/routes/product.$productId.tsx` : `og:image` = première image produit, `og:title` = nom + prix, `og:description` = description courte, `twitter:card = summary_large_image`. Garantit un aperçu riche sur WhatsApp/FB/Telegram.
 
-## 3. "Payé client" déjà visible dans le Cockpit
+### Messages plateformes
+- Utilitaire `buildShareMessage(product, platform)` : formats adaptés (WhatsApp = emojis + saut de ligne ; X = 280 chars ; Email = sujet + corps HTML).
+- Deep links natifs :
+  - WhatsApp : `https://wa.me/?text=...`
+  - Facebook : `https://www.facebook.com/sharer/sharer.php?u=...`
+  - Messenger : `fb-messenger://share?link=...` avec fallback web
+  - Telegram : `https://t.me/share/url?url=...&text=...`
+  - X : `https://twitter.com/intent/tweet?text=...&url=...`
+  - Email : `mailto:?subject=...&body=...`
+  - SMS : `sms:?body=...`
+- API Web Share native (`navigator.share`) proposée en premier sur mobile si dispo.
 
-Le bloc financier expose déjà `payment_summary.total_paid` et la liste `payments`. Le rendre plus saillant :
+## Fichiers
 
-- Card "Payé client" mise en avant (montant + nb paiements + méthode dominante).
-- Lien direct vers la commande dans le Cockpit ("Voir dans Cockpit" → `OrderDrawer`).
+Nouveaux :
+- `src/components/share/ShareCenter.tsx` — Sheet/Modal principal avec les 3 onglets.
+- `src/components/share/ShareButton.tsx` — Bouton réutilisable qui ouvre le centre.
+- `src/components/share/PosterTemplate.tsx` — Composants visuels (Poster, Story, Square, Thumb).
+- `src/components/share/QrBlock.tsx` — Génération/téléchargement QR.
+- `src/lib/share/messages.ts` — Builders de messages par plateforme.
+- `src/lib/share/links.ts` — Deep links + tracking params.
+- `src/lib/share/download.ts` — Helper html2canvas → PNG.
 
-## 4. Création multi-articles depuis le Cockpit
+Modifiés :
+- `src/routes/product.$productId.tsx` — insertion du `<ShareButton />` proéminent + renforcement `head()` OG.
+- `src/components/product/ProductCard.tsx` — petit bouton share secondaire (icône) à côté du "quick add".
 
-Aujourd'hui : 1 bouton par article, 1 dossier par article. Demande : pouvoir cocher plusieurs articles d'une même commande et créer **un seul dossier**.
+## Dépendances
+- `html2canvas` (~45 KB gz)
+- `qrcode` (~15 KB gz)
 
-UI dans `OrderDrawer` (panneau articles) :
+## Périmètre volontairement exclu (proposable plus tard)
+- Tracking analytique persistant (table share_events)
+- Codes de parrainage / commission influenceur
+- Génération vidéo courte
+- Personnalisation du message par l'utilisateur avant envoi (v2)
 
-- Mode "sélection" activable, chaque article devient cochable.
-- Bouton "Tout sélectionner" en tête.
-- Barre flottante (`BulkActionsBar` réutilisée) : "Retour groupé" / "Annulation groupée".
-- Modale unique : motif global, type (retour/annulation) ; à la validation un seul dossier est créé contenant toutes les lignes cochées.
-
-Garde-fous (impossible de se tromper) :
-
-- Tous les articles doivent appartenir à la même commande (déjà le cas, drawer = 1 cmd).
-- Désactivation visuelle d'un article déjà inclus dans un autre dossier OUVERT (vérifié serveur).
-- Un seul article = comportement actuel inchangé (bouton direct).
-
-## 5. Backend — nouvelle RPC atomique
-
-Ajouter une fonction serveur `openReturnCaseForArticles` :
-
-```text
-open_return_case_for_items(_order_id, _kind, _reason_note,
-  _items: jsonb[]  // [{order_item_id, quantity, unit_price_xof}, ...]
-)
-```
-
-- Crée le dossier (1 row `return_cases`).
-- Insère N lignes `return_case_items` dans la même transaction.
-- Rejette si une ligne référence un `order_item_id` déjà attaché à un dossier non clôturé.
-- Renvoie l'id du dossier créé.
-
-L'ancienne RPC `open_return_case_for_item` reste pour l'action 1-clic.
-
-## 6. Détails techniques
-
-Fichiers touchés :
-
-- `supabase/migrations/<ts>_returns_multi_items.sql` — nouvelle RPC + index unique partiel `(order_item_id) WHERE status IN ('open','decided')` pour empêcher les doublons.
-- `src/lib/returns.functions.ts` — `openReturnCaseForArticles`, extension `getReturnCase` (ajout `sub_order_states`).
-- `src/cockpit/components/OpenReturnCaseButton.tsx` — bouton individuel conservé.
-- `src/cockpit/components/OrderItemsPanel.tsx` (ou équivalent dans `OrderDrawer`) — mode sélection + "Tout sélectionner" + appel groupé.
-- `src/routes/admin.returns.$caseId.tsx` — chaque item cliquable → `ProductDetailDrawer`, `WorkflowCircuit` par article, mise en avant du payé client, lien Cockpit.
-
-Aucune route ajoutée, aucune nouvelle table, aucune migration de données. Les anciens dossiers restent compatibles.
-
-## Hors-scope
-
-Pas d'envoi WhatsApp, pas de notif, pas de modification du moteur de remboursement. Le calcul "Payé − Frais = Conseillé" reste identique.
+## Question rapide
+Aucune bloquante — je propose une palette poster alignée sur les tokens KawZone (primary + gradient existant). Si tu veux une identité visuelle spécifique pour les affiches (couleur dominante, style "premium sombre" vs "clair coloré"), dis-le, sinon je pars sur la charte actuelle.
