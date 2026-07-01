@@ -8,6 +8,7 @@ export type SharePlatform =
   | "messenger"
   | "telegram"
   | "twitter"
+  | "instagram"
   | "email"
   | "sms"
   | "copy"
