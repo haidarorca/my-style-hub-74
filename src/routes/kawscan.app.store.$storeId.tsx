@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Pencil, Plus, QrCode, Search, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Camera, Download, Pencil, Plus, QrCode, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -222,7 +222,7 @@ function StoreManage() {
         open={scanOpen}
         onOpenChange={setScanOpen}
         onDetected={(code) => {
-          const existing = (products ?? []).find((p) => p.code === code);
+          const existing = (products.data ?? []).find((p) => p.code === code);
           setEditing(existing ?? null);
           setScannedCode(existing ? undefined : code);
           setFormOpen(true);
