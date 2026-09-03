@@ -29,13 +29,38 @@ function checksumOk(code: string): boolean {
 }
 
 /**
+ * Convertit un point cliqué à l'écran en coordonnées normalisées (0..1) dans l'image
+ * de la caméra, en tenant compte du recadrage `object-cover` de la balise <video>.
+ */
+export function videoPointFromClient(video: HTMLVideoElement | null, clientX: number, clientY: number) {
+  if (!video || !video.videoWidth) return null;
+  const rect = video.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
+  const dispW = video.videoWidth * scale;
+  const dispH = video.videoHeight * scale;
+  const offX = (dispW - rect.width) / 2;
+  const offY = (dispH - rect.height) / 2;
+  const x = (clientX - rect.left + offX) / dispW;
+  const y = (clientY - rect.top + offY) / dispH;
+  return {
+    x: Math.min(1, Math.max(0, x)),
+    y: Math.min(1, Math.max(0, y)),
+    left: clientX - rect.left,
+    top: clientY - rect.top,
+  };
+}
+
+/**
  * Scanner caméra robuste (caméras bas de gamme incluses) :
- * - flux haute résolution, autofocus continu, zoom matériel léger si disponible
+ * - flux haute résolution (jusqu'à 2560×1440), autofocus continu, aucune réduction de qualité
  * - deux moteurs en parallèle dès le départ : BarcodeDetector natif + ZXing (WASM-free)
- * - plusieurs zones d'analyse par cycle (cadre serré ×3, cadre large ×2, image entière)
+ * - plusieurs zones d'analyse par cycle (cadre serré, cadre large, image entière)
+ * - tap-to-focus : l'analyse et l'autofocus se concentrent sur la zone touchée pendant ~6 s
  * - prétraitement niveaux de gris + renforcement du contraste
  * - anti-erreur : clé de contrôle EAN/UPC + double lecture identique avant validation
  */
+
 export function useScanner(onResult: (code: string) => void, active: boolean) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
