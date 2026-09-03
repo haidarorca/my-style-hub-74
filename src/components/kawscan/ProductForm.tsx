@@ -20,12 +20,14 @@ export function ProductForm({
   open,
   onOpenChange,
   editing,
+  initialCode,
   onSaved,
 }: {
   storeId: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Editing;
+  initialCode?: string;
   onSaved: () => void;
 }) {
   const [code, setCode] = useState("");
@@ -64,7 +66,7 @@ export function ProductForm({
 
   useEffect(() => {
     if (!open) return;
-    setCode(editing?.code ?? "");
+    setCode(editing?.code ?? initialCode ?? "");
     setInternal(editing?.is_internal_code ?? false);
     setName(editing?.name ?? "");
     setUnit(editing?.unit ?? "piece");
@@ -76,7 +78,7 @@ export function ProductForm({
     setShowName(editing?.show_name_on_label ?? false);
     setShowPrice(editing?.show_price_on_label ?? true);
     setTiers((editing?.kawscan_price_tiers ?? []).map((t) => ({ label: t.label, price: String(t.price) })));
-  }, [open, editing]);
+  }, [open, editing, initialCode]);
 
   async function save() {
     const cleanCode = normalizeCode(code);

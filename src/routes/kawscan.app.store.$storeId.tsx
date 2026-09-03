@@ -10,6 +10,7 @@ import { formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
 import { normalizeCode, storeScanUrl } from "@/lib/kawscan/codes";
 import { qrDataUrl } from "@/lib/kawscan/render";
 import { ProductForm } from "@/components/kawscan/ProductForm";
+import { ScanDialog } from "@/components/kawscan/ScanDialog";
 import { PrintLabels } from "@/components/kawscan/PrintLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,8 @@ function StoreManage() {
   const [q, setQ] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<FullProduct | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scannedCode, setScannedCode] = useState<string | undefined>(undefined);
   const [qr, setQr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -131,8 +134,11 @@ function StoreManage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un produit" className="pl-9" />
             </div>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
+            <Button onClick={() => { setEditing(null); setScannedCode(undefined); setFormOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" /> Produit
+            </Button>
+            <Button variant="secondary" onClick={() => setScanOpen(true)}>
+              <Camera className="mr-2 h-4 w-4" /> Scanner
             </Button>
             <Button variant="outline" onClick={() => fileRef.current?.click()}>
               <Upload className="mr-2 h-4 w-4" /> Importer
@@ -212,8 +218,20 @@ function StoreManage() {
         </TabsContent>
       </Tabs>
 
+      <ScanDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onDetected={(code) => {
+          const existing = (products ?? []).find((p) => p.code === code);
+          setEditing(existing ?? null);
+          setScannedCode(existing ? undefined : code);
+          setFormOpen(true);
+        }}
+      />
+
       <ProductForm
         storeId={storeId}
+        initialCode={scannedCode}
         open={formOpen}
         onOpenChange={setFormOpen}
         editing={editing}
