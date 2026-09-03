@@ -4322,6 +4322,10 @@ export type Database = {
         Returns: boolean
       }
       kawscan_lookup: { Args: { _code: string; _slug: string }; Returns: Json }
+      kawscan_next_internal_code: {
+        Args: { _store_id: string }
+        Returns: string
+      }
       kawscan_public_store: {
         Args: { _slug: string }
         Returns: {
