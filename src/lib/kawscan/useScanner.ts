@@ -223,11 +223,8 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
 
       const advanced: MediaTrackConstraintSet[] = [];
       if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
-      // zoom léger : agrandit optiquement le code, décisif sur les capteurs bas de gamme
-      if (caps.zoom && caps.zoom.max > caps.zoom.min) {
-        const target = Math.min(caps.zoom.max, caps.zoom.min + (caps.zoom.max - caps.zoom.min) * 0.25, 2);
-        advanced.push({ zoom: target } as unknown as MediaTrackConstraintSet);
-      }
+      // pas de zoom matériel automatique : il dégrade l'image sur beaucoup de capteurs
+
       if (advanced.length) {
         try {
           await track.applyConstraints({ advanced } as MediaTrackConstraints);
