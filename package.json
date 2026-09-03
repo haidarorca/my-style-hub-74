@@ -53,6 +53,8 @@
     "@tanstack/router-plugin": "^1.167.28",
     "@tanstack/zod-adapter": "^1.166.9",
     "@types/jsbarcode": "^3.11.4",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
