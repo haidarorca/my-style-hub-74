@@ -1,69 +1,47 @@
-# Centre de partage marketing KawZone
+# KawScan — Prix en magasin (mini-application intégrée à Kawzone)
 
-Objectif : transformer chaque partage produit en outil marketing pro. Un vrai centre, pas un bouton.
+Nouvelle fonctionnalité sous `kawzone.com/kawscan`, techniquement dans Kawzone (même domaine, même base, même authentification), mais visuellement et fonctionnellement isolée du marketplace : pas de header marketplace, pas de panier, pas de catalogue.
 
-## Expérience utilisateur
+## Parcours
 
-Un bouton **Partager** sur chaque fiche produit (et sur la carte produit) ouvre un **ShareCenter** (Sheet plein écran mobile / modal desktop) organisé en 3 onglets :
+- Vendeur : compte Kawzone existant → crée un magasin KawScan → ajoute/importe ses produits et prix → génère et imprime les étiquettes (QR / code-barres) et l'affiche du magasin.
+- Client : scanne le QR du magasin → arrive directement sur le scanner → scanne un produit → voit le prix en grand. Aucun compte, aucune inscription.
 
-1. **Envoyer** — WhatsApp, Facebook, Messenger, Telegram, X/Twitter, Email, SMS, Copier le lien. Message pré-rédigé attractif (nom, prix, promo, CTA, lien tracké).
-2. **Visuels** — Génération à la volée de visuels téléchargeables :
-   - Affiche marketing (1080×1350, format Feed Instagram/Facebook)
-   - Story verticale (1080×1920, WhatsApp/IG/FB Story)
-   - Carré (1080×1080)
-   - Miniature WhatsApp (600×600 optimisée aperçu)
-   Chaque visuel contient : photo produit, nom, prix (barré si promo), badge promo, logo KawZone, mention "Acheter maintenant" + URL courte + QR code discret.
-3. **QR & Lien** — QR Code haute résolution téléchargeable (PNG/SVG), lien court copiable, aperçu Open Graph.
+## Structure de données (nouvelles tables isolées, préfixe `kawscan_`)
 
-## Architecture technique
+- `kawscan_stores` — magasin : propriétaire, nom, slug public permanent, devise (XOF par défaut), logo/nom affichés, options d'affichage (accueil, retour, lien Kawzone, logo Kawzone), statut.
+- `kawscan_subscriptions` — abonnement par magasin : date de début, date d'expiration, statut (actif / suspendu / expiré), géré uniquement par l'admin.
+- `kawscan_products` — produit d'un magasin : code (EAN/UPC/QR existant ou code interne généré), nom (facultatif), unité de vente, prix, prix promo + dates, options d'étiquette. Unicité du code par magasin.
+- `kawscan_price_tiers` — niveaux de prix facultatifs (libellé + prix : pièce, 2 pièces, carton…).
+- `kawscan_store_users` — employés rattachés à un magasin (rôle simple : propriétaire / employé).
 
-### Génération visuels (côté client, zéro coût serveur)
-- `html2canvas` + composant React `<ProductPoster />` rendu offscreen dans un template stylé (dégradé de marque, photo cover, prix XXL, badge promo, logo, QR).
-- 4 templates dimensionnés via CSS. Bouton "Télécharger" → `html2canvas` → `canvas.toBlob()` → download.
-- QR code via `qrcode` (lib légère).
+Sécurité : RLS stricte + GRANT. Le vendeur ne voit et modifie que ses magasins. La lecture publique (scan client) passe par une fonction serveur en lecture seule qui vérifie que le magasin est actif et l'abonnement valide — jamais d'écriture côté client.
 
-### Tracking / attribution
-- Chaque lien partagé ajoute `?ref=share&via=<platform>&sid=<userIdOrAnon>` pour analytique future (aucune table nouvelle maintenant, juste params dans l'URL).
+## Écrans
 
-### Meta OG côté route produit
-- Vérifier/renforcer `head()` de `src/routes/product.$productId.tsx` : `og:image` = première image produit, `og:title` = nom + prix, `og:description` = description courte, `twitter:card = summary_large_image`. Garantit un aperçu riche sur WhatsApp/FB/Telegram.
+Espace vendeur `/kawscan/app` (mise en page dédiée, indépendante) :
+- Tableau de bord : mes magasins, produits, abonnement.
+- Produits : liste, recherche, ajout manuel un par un, édition rapide des prix, niveaux de prix, promotions.
+- Codes : génération automatique de codes internes, choix QR ou code-barres.
+- Impression : sélection des produits, type (QR / code-barres), format A3/A4/A5, disposition 1/2/4/8 par page, aperçu puis impression.
+- Affiche magasin : « Scannez pour connaître le prix » + QR, en A3/A4/A5.
+- Import Excel/CSV avec rapport (ajoutés / modifiés / ignorés / erreurs) et export Excel/CSV.
+- Multi-magasins avec copie des produits et prix d'un magasin vers un autre.
+- Suppression d'un magasin protégée par une confirmation explicite (saisie du nom du magasin + mot de passe du compte).
 
-### Messages plateformes
-- Utilitaire `buildShareMessage(product, platform)` : formats adaptés (WhatsApp = emojis + saut de ligne ; X = 280 chars ; Email = sujet + corps HTML).
-- Deep links natifs :
-  - WhatsApp : `https://wa.me/?text=...`
-  - Facebook : `https://www.facebook.com/sharer/sharer.php?u=...`
-  - Messenger : `fb-messenger://share?link=...` avec fallback web
-  - Telegram : `https://t.me/share/url?url=...&text=...`
-  - X : `https://twitter.com/intent/tweet?text=...&url=...`
-  - Email : `mailto:?subject=...&body=...`
-  - SMS : `sms:?body=...`
-- API Web Share native (`navigator.share`) proposée en premier sur mobile si dispo.
+Écran client `/kawscan/store/<slug>` :
+- Scanner plein écran, demande caméra, cadre de visée, bouton flash, détection code-barres et QR.
+- Résultat : prix très grand, unité, promo et niveaux de prix si définis.
+- États d'erreur clairs : code inconnu, magasin désactivé, abonnement expiré, caméra refusée, QR invalide.
 
-## Fichiers
+Espace admin `/admin/kawscan` :
+- Liste vendeurs / magasins / abonnements, nombre de produits, statut et date d'expiration.
+- Actions : activer, suspendre, prolonger, désactiver, voir le magasin et ses produits.
+- Filtres : actif, expiré, suspendu, bientôt expiré. Expiration automatique appliquée côté serveur.
 
-Nouveaux :
-- `src/components/share/ShareCenter.tsx` — Sheet/Modal principal avec les 3 onglets.
-- `src/components/share/ShareButton.tsx` — Bouton réutilisable qui ouvre le centre.
-- `src/components/share/PosterTemplate.tsx` — Composants visuels (Poster, Story, Square, Thumb).
-- `src/components/share/QrBlock.tsx` — Génération/téléchargement QR.
-- `src/lib/share/messages.ts` — Builders de messages par plateforme.
-- `src/lib/share/links.ts` — Deep links + tracking params.
-- `src/lib/share/download.ts` — Helper html2canvas → PNG.
+## Points techniques
 
-Modifiés :
-- `src/routes/product.$productId.tsx` — insertion du `<ShareButton />` proéminent + renforcement `head()` OG.
-- `src/components/product/ProductCard.tsx` — petit bouton share secondaire (icône) à côté du "quick add".
-
-## Dépendances
-- `html2canvas` (~45 KB gz)
-- `qrcode` (~15 KB gz)
-
-## Périmètre volontairement exclu (proposable plus tard)
-- Tracking analytique persistant (table share_events)
-- Codes de parrainage / commission influenceur
-- Génération vidéo courte
-- Personnalisation du message par l'utilisateur avant envoi (v2)
-
-## Question rapide
-Aucune bloquante — je propose une palette poster alignée sur les tokens KawZone (primary + gradient existant). Si tu veux une identité visuelle spécifique pour les affiches (couleur dominante, style "premium sombre" vs "clair coloré"), dis-le, sinon je pars sur la charte actuelle.
+- Réutilisation de l'authentification, des rôles et du design system existants ; aucune table du marketplace modifiée ni dupliquée.
+- Scan via l'API navigateur `BarcodeDetector` avec repli sur une librairie (ZXing) pour iOS ; génération des codes-barres avec une librairie légère, QR via `qrcode` déjà présent.
+- Un lien « Gestion des prix en magasin » est ajouté dans l'espace vendeur Kawzone ; c'est la seule modification visible du marketplace.
+- Vérification finale : typecheck, build et test du parcours complet vendeur → impression → scan client.
