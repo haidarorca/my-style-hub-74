@@ -139,11 +139,19 @@ function StoreScanner() {
       </div>
 
       {/* Caméra */}
-      <div className="relative h-screen w-full overflow-hidden">
+      <div className="relative h-screen w-full overflow-hidden" onPointerDown={handleTap}>
         <video ref={scanner.videoRef} className="h-full w-full object-cover" muted playsInline />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-52 w-72 rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]" />
         </div>
+        {ring && (
+          <div
+            key={ring.id}
+            className="pointer-events-none absolute z-10 h-24 w-24 -translate-x-1/2 -translate-y-1/2 animate-in fade-in zoom-in rounded-full border-2 border-white"
+            style={{ left: ring.left, top: ring.top }}
+          />
+        )}
+
 
         {scanner.state === "denied" && (
           <Overlay
