@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, ScanLine, Store, Bell, Star, Flag, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/vendor")({
   component: VendorLayout,
 });
 
-const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
+const NAV: { to: string; labelKey: string; fallback?: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
   { to: "/vendor", labelKey: "vendor.dashboard", icon: LayoutDashboard, exact: true },
   { to: "/vendor/orders", labelKey: "vendor.orders", icon: ShoppingBag },
   
@@ -23,6 +23,7 @@ const NAV: { to: string; labelKey: string; icon: typeof LayoutDashboard; exact?:
   { to: "/vendor/reports", labelKey: "vendor.reports", icon: Flag },
   { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },
   { to: "/vendor/messages", labelKey: "vendor.messages", icon: MessageSquare },
+  { to: "/kawscan/app", labelKey: "vendor.kawscan", fallback: "Prix en magasin", icon: ScanLine },
   { to: "/vendor/settings", labelKey: "vendor.settings", icon: Settings },
 ];
 
@@ -98,7 +99,7 @@ function VendorLayout() {
                   active ? "bg-primary text-primary-foreground" : "bg-card text-foreground hover:bg-accent",
                 )}
               >
-                <Icon className="h-3.5 w-3.5" /> {t(item.labelKey)}
+                <Icon className="h-3.5 w-3.5" /> {t(item.labelKey, item.fallback)}
                 {item.to === "/vendor/notifications" && unread && unread > 0 ? (
                   <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{unread}</span>
                 ) : null}
