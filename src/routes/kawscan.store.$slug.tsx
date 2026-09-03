@@ -55,6 +55,8 @@ function StoreScanner() {
   const [busy, setBusy] = useState(false);
   const [manual, setManual] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
+
 
   const storeQuery = useQuery({
     queryKey: ["kawscan-store", slug],
