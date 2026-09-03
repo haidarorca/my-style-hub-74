@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { ScanLine } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,6 @@ export const Route = createFileRoute("/kawscan/app")({
 
 function KawscanAppLayout() {
   const { loading, user } = useAuth();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   if (loading) {
     return <div className="p-10 text-center text-sm text-muted-foreground">Chargement…</div>;
@@ -24,7 +23,7 @@ function KawscanAppLayout() {
           Connectez-vous avec votre compte pour gérer les prix de vos magasins.
         </p>
         <Button asChild>
-          <Link to="/login" search={{ redirect: pathname }}>Se connecter</Link>
+          <Link to="/login">Se connecter</Link>
         </Button>
       </div>
     );
