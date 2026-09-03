@@ -88,6 +88,14 @@ function StoreScanner() {
 
   const scanner = useScanner(lookup, Boolean(canScan) && !result);
 
+  const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = videoPointFromClient(scanner.videoRef.current, e.clientX, e.clientY);
+    if (!p) return;
+    scanner.focusAt(p.x, p.y);
+    setRing({ left: p.left, top: p.top, id: Date.now() });
+  };
+
+
   useEffect(() => {
     document.body.style.background = "#000";
     return () => {
