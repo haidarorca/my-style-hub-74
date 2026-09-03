@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, CameraOff, Home, Keyboard, Loader2, ScanLine, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useScanner } from "@/lib/kawscan/useScanner";
+import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
