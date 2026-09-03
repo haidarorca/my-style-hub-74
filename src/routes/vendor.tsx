@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
-import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, ScanLine, Store, Bell, Star, Flag, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { Home, LayoutDashboard, Plus, Package, ShoppingBag, MessageSquare, Settings, Store, Bell, Star, Flag, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,7 +23,7 @@ const NAV: { to: string; labelKey: string; fallback?: string; icon: typeof Layou
   { to: "/vendor/reports", labelKey: "vendor.reports", icon: Flag },
   { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },
   { to: "/vendor/messages", labelKey: "vendor.messages", icon: MessageSquare },
-  { to: "/kawscan/app", labelKey: "vendor.kawscan", fallback: "Prix en magasin", icon: ScanLine },
+  
   { to: "/vendor/settings", labelKey: "vendor.settings", icon: Settings },
 ];
 
