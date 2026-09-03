@@ -44,11 +44,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const candidateRef = useRef<{ code: string; hits: number; at: number }>({ code: "", hits: 0, at: 0 });
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  /** Zone visée par l'utilisateur (tap sur l'écran), en coordonnées normalisées 0..1. */
+  const poiRef = useRef<{ x: number; y: number; at: number } | null>(null);
 
   const [state, setState] = useState<ScannerState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; id: number } | null>(null);
+
 
   /** Une lecture brute : validée seulement si la clé est bonne et si elle est confirmée 2 fois. */
   const emit = useCallback((raw: string) => {
