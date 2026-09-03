@@ -181,7 +181,10 @@ function StoreScanner() {
         )}
 
         <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 p-6">
-          <p className="text-center text-sm text-white/80">Placez le code du produit dans le cadre</p>
+          <p className="text-center text-sm text-white/80">
+            Placez le code dans le cadre — touchez l'écran sur le code pour faire la mise au point
+          </p>
+
           <div className="flex gap-3">
             {scanner.torchAvailable && (
               <Button variant="secondary" onClick={() => void scanner.toggleTorch()}>
