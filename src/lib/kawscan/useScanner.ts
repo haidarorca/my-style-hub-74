@@ -89,6 +89,38 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     }
   }, [torchOn]);
 
+  /**
+   * Mise au point sur la zone touchée (comme sur les grandes applis) :
+   * - demande à la caméra un autofocus/exposition sur ce point si le matériel le permet
+   * - et surtout : l'analyse logicielle se concentre sur cette zone pendant ~6 s
+   */
+  const focusAt = useCallback((x: number, y: number) => {
+    const nx = Math.min(1, Math.max(0, x));
+    const ny = Math.min(1, Math.max(0, y));
+    poiRef.current = { x: nx, y: ny, at: Date.now() };
+    setFocusPoint({ x: nx, y: ny, id: Date.now() });
+    candidateRef.current = { code: "", hits: 0, at: 0 };
+
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const caps = (track.getCapabilities?.() ?? {}) as MediaTrackCapabilities & {
+      focusMode?: string[];
+      exposureMode?: string[];
+      pointsOfInterest?: unknown;
+    };
+    const advanced: MediaTrackConstraintSet[] = [];
+    if (caps.pointsOfInterest !== undefined) {
+      advanced.push({ pointsOfInterest: [{ x: nx, y: ny }] } as unknown as MediaTrackConstraintSet);
+    }
+    if (caps.focusMode?.includes("single-shot")) advanced.push({ focusMode: "single-shot" } as MediaTrackConstraintSet);
+    else if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
+    if (caps.exposureMode?.includes("continuous")) advanced.push({ exposureMode: "continuous" } as MediaTrackConstraintSet);
+    if (!advanced.length) return;
+    void track.applyConstraints({ advanced } as MediaTrackConstraints).catch(() => {});
+  }, []);
+
+
+
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
