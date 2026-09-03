@@ -37,7 +37,7 @@ function MyStores() {
   const create = useMutation({
     mutationFn: () => createStore({ name, currency_code: currency, owner_id: user!.id }),
     onSuccess: () => {
-      toast.success("Magasin créé. L'accès doit être activé par l'administration.");
+      toast.success("Magasin créé. Essai actif pendant 30 jours.");
       setOpen(false);
       setName("");
       void qc.invalidateQueries({ queryKey: ["kawscan-my-stores"] });
