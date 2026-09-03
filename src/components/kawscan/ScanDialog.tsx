@@ -73,7 +73,7 @@ export function ScanDialog({
         </div>
 
         <div className="flex items-center justify-between gap-2 p-4 pt-3">
-          <p className="text-xs text-muted-foreground">Placez le code-barres dans le cadre</p>
+          <p className="text-xs text-muted-foreground">Touchez le code à l'écran pour la mise au point</p>
           <div className="flex gap-2">
             {scanner.torchAvailable && (
               <Button type="button" variant="outline" size="sm" onClick={() => void scanner.toggleTorch()}>
