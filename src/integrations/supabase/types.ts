@@ -1290,6 +1290,242 @@ export type Database = {
           },
         ]
       }
+      kawscan_price_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          position: number
+          price: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          position?: number
+          price: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          position?: number
+          price?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_price_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "kawscan_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kawscan_products: {
+        Row: {
+          code: string
+          code_kind: string
+          created_at: string
+          currency_code: string | null
+          id: string
+          is_active: boolean
+          is_internal_code: boolean
+          name: string | null
+          price: number
+          promo_active: boolean
+          promo_ends_at: string | null
+          promo_price: number | null
+          promo_starts_at: string | null
+          show_name_on_label: boolean
+          show_price_on_label: boolean
+          store_id: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          code_kind?: string
+          created_at?: string
+          currency_code?: string | null
+          id?: string
+          is_active?: boolean
+          is_internal_code?: boolean
+          name?: string | null
+          price?: number
+          promo_active?: boolean
+          promo_ends_at?: string | null
+          promo_price?: number | null
+          promo_starts_at?: string | null
+          show_name_on_label?: boolean
+          show_price_on_label?: boolean
+          store_id: string
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          code_kind?: string
+          created_at?: string
+          currency_code?: string | null
+          id?: string
+          is_active?: boolean
+          is_internal_code?: boolean
+          name?: string | null
+          price?: number
+          promo_active?: boolean
+          promo_ends_at?: string | null
+          promo_price?: number | null
+          promo_starts_at?: string | null
+          show_name_on_label?: boolean
+          show_price_on_label?: boolean
+          store_id?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_products_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kawscan_store_users: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          store_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          store_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          store_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_store_users_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kawscan_stores: {
+        Row: {
+          created_at: string
+          currency_code: string
+          display_name: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          owner_id: string
+          show_back_button: boolean
+          show_home_button: boolean
+          show_kawzone_link: boolean
+          show_kawzone_logo: boolean
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency_code?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          owner_id: string
+          show_back_button?: boolean
+          show_home_button?: boolean
+          show_kawzone_link?: boolean
+          show_kawzone_logo?: boolean
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency_code?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          owner_id?: string
+          show_back_button?: boolean
+          show_home_button?: boolean
+          show_kawzone_link?: boolean
+          show_kawzone_logo?: boolean
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kawscan_subscriptions: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          id: string
+          note: string | null
+          starts_at: string | null
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          note?: string | null
+          starts_at?: string | null
+          status?: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          note?: string | null
+          starts_at?: string | null
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_subscriptions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_reason_templates: {
         Row: {
           created_at: string
@@ -4076,6 +4312,31 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      kawscan_can_manage: {
+        Args: { _store_id: string; _uid: string }
+        Returns: boolean
+      }
+      kawscan_is_admin: { Args: { _uid: string }; Returns: boolean }
+      kawscan_is_owner: {
+        Args: { _store_id: string; _uid: string }
+        Returns: boolean
+      }
+      kawscan_lookup: { Args: { _code: string; _slug: string }; Returns: Json }
+      kawscan_public_store: {
+        Args: { _slug: string }
+        Returns: {
+          access_state: string
+          currency_code: string
+          display_name: string
+          id: string
+          logo_url: string
+          name: string
+          show_back_button: boolean
+          show_home_button: boolean
+          show_kawzone_link: boolean
+          show_kawzone_logo: boolean
+        }[]
+      }
       log_admin_action: {
         Args: {
           _action: string

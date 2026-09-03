@@ -163,7 +163,7 @@ function AdminLayout() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
                 <Link
-                  to="/products"
+                  to="/categories"
                   onClick={() => setMenuOpen(false)}
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
                 >

@@ -181,6 +181,8 @@ function AuthInvalidator() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // KawScan est une mini-application isolée : aucun élément du marketplace.
+  const isKawscan = pathname.startsWith("/kawscan");
   useEffect(() => { installGlobalErrorLogger(); runPwaCleanup(); startBuildVersionWatcher(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
@@ -191,11 +193,11 @@ function RootComponent() {
               <DeliveryCountryProvider>
                 <CurrenciesProvider>
                 <AuthInvalidator />
-                <PromoBar />
+                {!isKawscan && <PromoBar />}
                 <ErrorBoundary label="Application" resetKey={pathname}>
-                  <SwipeNavigator><Outlet /></SwipeNavigator>
+                  {isKawscan ? <Outlet /> : <SwipeNavigator><Outlet /></SwipeNavigator>}
                 </ErrorBoundary>
-                <MobileBottomNav />
+                {!isKawscan && <MobileBottomNav />}
                 <AutoUpdatePrompt />
                 <Toaster richColors position="top-center" />
                 </CurrenciesProvider>
