@@ -265,12 +265,20 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       let rafId = 0;
       let vfcId = 0;
 
-      // zones analysées en rotation : cadre serré ×3, cadre large ×2, image entière
-      const ZONES: ({ w: number; h: number; scale: number } | null)[] = [
+      // zones analysées en rotation : cadre serré, cadre large, image entière
+      type Zone = { w: number; h: number; scale: number } | null;
+      const ZONES: Zone[] = [
         { w: 0.7, h: 0.3, scale: 3 },
         { w: 0.95, h: 0.55, scale: 2 },
         null,
       ];
+      // zones prioritaires quand l'utilisateur a touché l'écran (tap-to-focus)
+      const POI_ZONES: Zone[] = [
+        { w: 0.45, h: 0.22, scale: 3 },
+        { w: 0.7, h: 0.35, scale: 2 },
+        { w: 0.28, h: 0.14, scale: 4 },
+      ];
+      const POI_TTL = 6000;
 
       /** niveaux de gris + étirement de contraste : aide sur images floues/sombres */
       const enhance = () => {
@@ -299,25 +307,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         if (!v || v.readyState < 2 || !v.videoWidth) return;
         busy = true;
         try {
-          const zone = ZONES[pass % ZONES.length];
+          const poi = poiRef.current && Date.now() - poiRef.current.at < POI_TTL ? poiRef.current : null;
+          const zone = poi ? POI_ZONES[pass % POI_ZONES.length] : ZONES[pass % ZONES.length];
           pass++;
           let source: CanvasImageSource = v;
           if (zone && ctx) {
             const cw = Math.round(v.videoWidth * zone.w);
             const ch = Math.round(v.videoHeight * zone.h);
-            canvas.width = Math.min(1600, cw * zone.scale);
+            // centre de la zone : le point touché, sinon le centre de l'image
+            const centerX = poi ? poi.x * v.videoWidth : v.videoWidth / 2;
+            const centerY = poi ? poi.y * v.videoHeight : v.videoHeight / 2;
+            const sx = Math.round(Math.min(Math.max(0, centerX - cw / 2), Math.max(0, v.videoWidth - cw)));
+            const sy = Math.round(Math.min(Math.max(0, centerY - ch / 2), Math.max(0, v.videoHeight - ch)));
+            canvas.width = Math.min(2400, Math.round(cw * zone.scale));
             canvas.height = Math.round((ch / cw) * canvas.width);
-            ctx.drawImage(
-              v,
-              Math.round((v.videoWidth - cw) / 2),
-              Math.round((v.videoHeight - ch) / 2),
-              cw,
-              ch,
-              0,
-              0,
-              canvas.width,
-              canvas.height,
-            );
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(v, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
             enhance();
             source = canvas;
           }
@@ -328,6 +334,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         } finally {
           busy = false;
         }
+
       };
 
       const v = video as HTMLVideoElement & {
