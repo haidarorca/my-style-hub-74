@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Printer } from "lucide-react";
 import type { KawscanProduct } from "@/lib/kawscan/api";
-import { PAPER_FORMATS, SHEET_LAYOUTS, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
+import { PAPER_FORMATS, SHEET_LAYOUTS, formatKawscanPrice, unitLabel, type PaperFormat } from "@/lib/kawscan/constants";
 import { barcodeDataUrl, qrDataUrl } from "@/lib/kawscan/render";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -46,8 +46,8 @@ export function PrintLabels({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen.map((p) => p.id).join(",")]);
 
-  const paper = PAPER_FORMATS.find((f) => f.value === format)!;
-  const layout = SHEET_LAYOUTS.find((l) => String(l.value) === perPage)!;
+  const paper = PAPER_FORMATS[format as PaperFormat];
+  const layout = SHEET_LAYOUTS[Number(perPage)];
 
   return (
     <div className="space-y-4">
@@ -57,7 +57,7 @@ export function PrintLabels({
           <Select value={format} onValueChange={setFormat}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {PAPER_FORMATS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+              {Object.entries(PAPER_FORMATS).map(([key, f]) => <SelectItem key={key} value={key}>{f.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -66,7 +66,7 @@ export function PrintLabels({
           <Select value={perPage} onValueChange={setPerPage}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {SHEET_LAYOUTS.map((l) => <SelectItem key={l.value} value={String(l.value)}>{l.label}</SelectItem>)}
+              {Object.keys(SHEET_LAYOUTS).map((n) => <SelectItem key={n} value={n}>{n} par page</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
