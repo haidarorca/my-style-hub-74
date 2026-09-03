@@ -29,13 +29,38 @@ function checksumOk(code: string): boolean {
 }
 
 /**
+ * Convertit un point cliqué à l'écran en coordonnées normalisées (0..1) dans l'image
+ * de la caméra, en tenant compte du recadrage `object-cover` de la balise <video>.
+ */
+export function videoPointFromClient(video: HTMLVideoElement | null, clientX: number, clientY: number) {
+  if (!video || !video.videoWidth) return null;
+  const rect = video.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
+  const dispW = video.videoWidth * scale;
+  const dispH = video.videoHeight * scale;
+  const offX = (dispW - rect.width) / 2;
+  const offY = (dispH - rect.height) / 2;
+  const x = (clientX - rect.left + offX) / dispW;
+  const y = (clientY - rect.top + offY) / dispH;
+  return {
+    x: Math.min(1, Math.max(0, x)),
+    y: Math.min(1, Math.max(0, y)),
+    left: clientX - rect.left,
+    top: clientY - rect.top,
+  };
+}
+
+/**
  * Scanner caméra robuste (caméras bas de gamme incluses) :
- * - flux haute résolution, autofocus continu, zoom matériel léger si disponible
+ * - flux haute résolution (jusqu'à 2560×1440), autofocus continu, aucune réduction de qualité
  * - deux moteurs en parallèle dès le départ : BarcodeDetector natif + ZXing (WASM-free)
- * - plusieurs zones d'analyse par cycle (cadre serré ×3, cadre large ×2, image entière)
+ * - plusieurs zones d'analyse par cycle (cadre serré, cadre large, image entière)
+ * - tap-to-focus : l'analyse et l'autofocus se concentrent sur la zone touchée pendant ~6 s
  * - prétraitement niveaux de gris + renforcement du contraste
  * - anti-erreur : clé de contrôle EAN/UPC + double lecture identique avant validation
  */
+
 export function useScanner(onResult: (code: string) => void, active: boolean) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -44,11 +69,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const candidateRef = useRef<{ code: string; hits: number; at: number }>({ code: "", hits: 0, at: 0 });
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  /** Zone visée par l'utilisateur (tap sur l'écran), en coordonnées normalisées 0..1. */
+  const poiRef = useRef<{ x: number; y: number; at: number } | null>(null);
 
   const [state, setState] = useState<ScannerState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; id: number } | null>(null);
+
 
   /** Une lecture brute : validée seulement si la clé est bonne et si elle est confirmée 2 fois. */
   const emit = useCallback((raw: string) => {
@@ -84,6 +113,38 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setTorchAvailable(false);
     }
   }, [torchOn]);
+
+  /**
+   * Mise au point sur la zone touchée (comme sur les grandes applis) :
+   * - demande à la caméra un autofocus/exposition sur ce point si le matériel le permet
+   * - et surtout : l'analyse logicielle se concentre sur cette zone pendant ~6 s
+   */
+  const focusAt = useCallback((x: number, y: number) => {
+    const nx = Math.min(1, Math.max(0, x));
+    const ny = Math.min(1, Math.max(0, y));
+    poiRef.current = { x: nx, y: ny, at: Date.now() };
+    setFocusPoint({ x: nx, y: ny, id: Date.now() });
+    candidateRef.current = { code: "", hits: 0, at: 0 };
+
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const caps = (track.getCapabilities?.() ?? {}) as MediaTrackCapabilities & {
+      focusMode?: string[];
+      exposureMode?: string[];
+      pointsOfInterest?: unknown;
+    };
+    const advanced: MediaTrackConstraintSet[] = [];
+    if (caps.pointsOfInterest !== undefined) {
+      advanced.push({ pointsOfInterest: [{ x: nx, y: ny }] } as unknown as MediaTrackConstraintSet);
+    }
+    if (caps.focusMode?.includes("single-shot")) advanced.push({ focusMode: "single-shot" } as MediaTrackConstraintSet);
+    else if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
+    if (caps.exposureMode?.includes("continuous")) advanced.push({ exposureMode: "continuous" } as MediaTrackConstraintSet);
+    if (!advanced.length) return;
+    void track.applyConstraints({ advanced } as MediaTrackConstraints).catch(() => {});
+  }, []);
+
+
 
   useEffect(() => {
     if (!active) return;
@@ -139,12 +200,13 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 2560 },
+            height: { ideal: 1440 },
             frameRate: { ideal: 30 },
           },
           audio: false,
         });
+
       } catch {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -186,11 +248,8 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
 
       const advanced: MediaTrackConstraintSet[] = [];
       if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
-      // zoom léger : agrandit optiquement le code, décisif sur les capteurs bas de gamme
-      if (caps.zoom && caps.zoom.max > caps.zoom.min) {
-        const target = Math.min(caps.zoom.max, caps.zoom.min + (caps.zoom.max - caps.zoom.min) * 0.25, 2);
-        advanced.push({ zoom: target } as unknown as MediaTrackConstraintSet);
-      }
+      // pas de zoom matériel automatique : il dégrade l'image sur beaucoup de capteurs
+
       if (advanced.length) {
         try {
           await track.applyConstraints({ advanced } as MediaTrackConstraints);
@@ -231,12 +290,20 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       let rafId = 0;
       let vfcId = 0;
 
-      // zones analysées en rotation : cadre serré ×3, cadre large ×2, image entière
-      const ZONES: ({ w: number; h: number; scale: number } | null)[] = [
+      // zones analysées en rotation : cadre serré, cadre large, image entière
+      type Zone = { w: number; h: number; scale: number } | null;
+      const ZONES: Zone[] = [
         { w: 0.7, h: 0.3, scale: 3 },
         { w: 0.95, h: 0.55, scale: 2 },
         null,
       ];
+      // zones prioritaires quand l'utilisateur a touché l'écran (tap-to-focus)
+      const POI_ZONES: Zone[] = [
+        { w: 0.45, h: 0.22, scale: 3 },
+        { w: 0.7, h: 0.35, scale: 2 },
+        { w: 0.28, h: 0.14, scale: 4 },
+      ];
+      const POI_TTL = 6000;
 
       /** niveaux de gris + étirement de contraste : aide sur images floues/sombres */
       const enhance = () => {
@@ -265,25 +332,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         if (!v || v.readyState < 2 || !v.videoWidth) return;
         busy = true;
         try {
-          const zone = ZONES[pass % ZONES.length];
+          const poi = poiRef.current && Date.now() - poiRef.current.at < POI_TTL ? poiRef.current : null;
+          const zone = poi ? POI_ZONES[pass % POI_ZONES.length] : ZONES[pass % ZONES.length];
           pass++;
           let source: CanvasImageSource = v;
           if (zone && ctx) {
             const cw = Math.round(v.videoWidth * zone.w);
             const ch = Math.round(v.videoHeight * zone.h);
-            canvas.width = Math.min(1600, cw * zone.scale);
+            // centre de la zone : le point touché, sinon le centre de l'image
+            const centerX = poi ? poi.x * v.videoWidth : v.videoWidth / 2;
+            const centerY = poi ? poi.y * v.videoHeight : v.videoHeight / 2;
+            const sx = Math.round(Math.min(Math.max(0, centerX - cw / 2), Math.max(0, v.videoWidth - cw)));
+            const sy = Math.round(Math.min(Math.max(0, centerY - ch / 2), Math.max(0, v.videoHeight - ch)));
+            canvas.width = Math.min(2400, Math.round(cw * zone.scale));
             canvas.height = Math.round((ch / cw) * canvas.width);
-            ctx.drawImage(
-              v,
-              Math.round((v.videoWidth - cw) / 2),
-              Math.round((v.videoHeight - ch) / 2),
-              cw,
-              ch,
-              0,
-              0,
-              canvas.width,
-              canvas.height,
-            );
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(v, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
             enhance();
             source = canvas;
           }
@@ -294,6 +359,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         } finally {
           busy = false;
         }
+
       };
 
       const v = video as HTMLVideoElement & {
@@ -335,10 +401,13 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       candidateRef.current = { code: "", hits: 0, at: 0 };
+      poiRef.current = null;
+      setFocusPoint(null);
       setState("idle");
       setTorchOn(false);
     };
   }, [active, emit]);
 
-  return { videoRef, state, error, torchOn, torchAvailable, toggleTorch };
+  return { videoRef, state, error, torchOn, torchAvailable, toggleTorch, focusAt, focusPoint };
 }
+

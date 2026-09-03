@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, CameraOff, Home, Keyboard, Loader2, ScanLine, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useScanner } from "@/lib/kawscan/useScanner";
+import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,8 @@ function StoreScanner() {
   const [busy, setBusy] = useState(false);
   const [manual, setManual] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
+
 
   const storeQuery = useQuery({
     queryKey: ["kawscan-store", slug],
@@ -87,6 +89,14 @@ function StoreScanner() {
   );
 
   const scanner = useScanner(lookup, Boolean(canScan) && !result);
+
+  const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = videoPointFromClient(scanner.videoRef.current, e.clientX, e.clientY);
+    if (!p) return;
+    scanner.focusAt(p.x, p.y);
+    setRing({ left: p.left, top: p.top, id: Date.now() });
+  };
+
 
   useEffect(() => {
     document.body.style.background = "#000";
@@ -139,11 +149,19 @@ function StoreScanner() {
       </div>
 
       {/* Caméra */}
-      <div className="relative h-screen w-full overflow-hidden">
+      <div className="relative h-screen w-full overflow-hidden" onPointerDown={handleTap}>
         <video ref={scanner.videoRef} className="h-full w-full object-cover" muted playsInline />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-52 w-72 rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]" />
         </div>
+        {ring && (
+          <div
+            key={ring.id}
+            className="pointer-events-none absolute z-10 h-24 w-24 -translate-x-1/2 -translate-y-1/2 animate-in fade-in zoom-in rounded-full border-2 border-white"
+            style={{ left: ring.left, top: ring.top }}
+          />
+        )}
+
 
         {scanner.state === "denied" && (
           <Overlay
@@ -163,7 +181,10 @@ function StoreScanner() {
         )}
 
         <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 p-6">
-          <p className="text-center text-sm text-white/80">Placez le code du produit dans le cadre</p>
+          <p className="text-center text-sm text-white/80">
+            Placez le code dans le cadre — touchez l'écran sur le code pour faire la mise au point
+          </p>
+
           <div className="flex gap-3">
             {scanner.torchAvailable && (
               <Button variant="secondary" onClick={() => void scanner.toggleTorch()}>
