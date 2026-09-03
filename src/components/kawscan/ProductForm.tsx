@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Wand2 } from "lucide-react";
+import { Camera, Plus, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { KawscanProduct, KawscanTier } from "@/lib/kawscan/api";
 import { KAWSCAN_UNITS } from "@/lib/kawscan/constants";
 import { generateInternalCode, normalizeCode } from "@/lib/kawscan/codes";
+import { ScanDialog } from "./ScanDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,26 @@ export function ProductForm({
   const [showPrice, setShowPrice] = useState(true);
   const [tiers, setTiers] = useState<{ label: string; price: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  /** Code interne séquentiel par magasin : 1, 2, 3… */
+  async function generateCode() {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "kawscan_next_internal_code" as never,
+        { _store_id: storeId } as never,
+      );
+      if (error) throw error;
+      setCode(String(data));
+    } catch {
+      setCode(generateInternalCode());
+    } finally {
+      setInternal(true);
+      setGenerating(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -114,6 +135,15 @@ export function ProductForm({
   }
 
   return (
+    <>
+    <ScanDialog
+      open={scanOpen}
+      onOpenChange={setScanOpen}
+      onDetected={(c) => {
+        setCode(c);
+        setInternal(false);
+      }}
+    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -125,19 +155,16 @@ export function ProductForm({
             <Label htmlFor="p-code">Code-barres / QR</Label>
             <div className="flex gap-2">
               <Input id="p-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="5449000000996" inputMode="text" />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCode(generateInternalCode());
-                  setInternal(true);
-                }}
-              >
+              <Button type="button" variant="secondary" onClick={() => setScanOpen(true)}>
+                <Camera className="mr-2 h-4 w-4" /> Scanner
+              </Button>
+              <Button type="button" variant="outline" disabled={generating} onClick={() => void generateCode()}>
                 <Wand2 className="mr-2 h-4 w-4" /> Générer
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Produit sans code-barres (tomate, légumes…) : générez un code interne à imprimer.
+              Scannez le code-barres de l'article avec la caméra, saisissez-le à la main, ou générez un code
+              interne (numérotation du magasin : 1, 2, 3…) pour les produits sans code-barres.
             </p>
           </div>
 
@@ -224,5 +251,6 @@ export function ProductForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
