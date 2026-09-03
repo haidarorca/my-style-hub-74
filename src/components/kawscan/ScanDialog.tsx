@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { CameraOff, Loader2 } from "lucide-react";
-import { useScanner } from "@/lib/kawscan/useScanner";
+import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -15,11 +16,19 @@ export function ScanDialog({
   onDetected: (code: string) => void;
   title?: string;
 }) {
+  const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
   const scanner = useScanner((code) => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(40);
     onDetected(code);
     onOpenChange(false);
   }, open);
+
+  const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = videoPointFromClient(scanner.videoRef.current, e.clientX, e.clientY);
+    if (!p) return;
+    scanner.focusAt(p.x, p.y);
+    setRing({ left: p.left, top: p.top, id: Date.now() });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -28,11 +37,19 @@ export function ScanDialog({
           <DialogTitle className="text-base">{title}</DialogTitle>
         </DialogHeader>
 
-        <div className="relative aspect-[3/4] w-full bg-black">
+        <div className="relative aspect-[3/4] w-full bg-black" onPointerDown={handleTap}>
           <video ref={scanner.videoRef} className="h-full w-full object-cover" muted playsInline />
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="h-40 w-60 rounded-xl border-4 border-white/80" />
           </div>
+          {ring && (
+            <div
+              key={ring.id}
+              className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 animate-in fade-in zoom-in rounded-full border-2 border-primary shadow-[0_0_0_2px_rgba(0,0,0,0.25)]"
+              style={{ left: ring.left, top: ring.top }}
+            />
+          )}
+
 
           {scanner.state === "starting" && (
             <div className="absolute inset-0 flex items-center justify-center text-white">
