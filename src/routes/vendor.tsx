@@ -23,7 +23,7 @@ const NAV: { to: string; labelKey: string; fallback?: string; icon: typeof Layou
   { to: "/vendor/reports", labelKey: "vendor.reports", icon: Flag },
   { to: "/vendor/notifications", labelKey: "vendor.notifications", icon: Bell },
   { to: "/vendor/messages", labelKey: "vendor.messages", icon: MessageSquare },
-  { to: "/kawscan/app", labelKey: "vendor.kawscan", fallback: "Prix en magasin", icon: ScanLine },
+  
   { to: "/vendor/settings", labelKey: "vendor.settings", icon: Settings },
 ];
 
