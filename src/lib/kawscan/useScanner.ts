@@ -376,10 +376,13 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       candidateRef.current = { code: "", hits: 0, at: 0 };
+      poiRef.current = null;
+      setFocusPoint(null);
       setState("idle");
       setTorchOn(false);
     };
   }, [active, emit]);
 
-  return { videoRef, state, error, torchOn, torchAvailable, toggleTorch };
+  return { videoRef, state, error, torchOn, torchAvailable, toggleTorch, focusAt, focusPoint };
 }
+
