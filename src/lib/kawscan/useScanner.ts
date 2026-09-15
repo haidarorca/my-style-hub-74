@@ -278,19 +278,19 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const deviceId = await pickRearCameraId();
       if (cancelled) return;
 
-      const portrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
-      const targetWidth = portrait ? 2160 : 3840;
-      const targetHeight = portrait ? 3840 : 2160;
-      const primary: MediaStreamConstraints = {
-        video: {
-          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }),
-          width: { min: portrait ? 720 : 1280, ideal: targetWidth },
-          height: { min: portrait ? 1280 : 720, ideal: targetHeight },
-          aspectRatio: { ideal: portrait ? 9 / 16 : 16 / 9 },
-          frameRate: { ideal: 30, min: 15 },
-        },
-        audio: false,
-      };
+      // Aucune limite artificielle : on demande la définition maximale du capteur
+      // sans imposer de ratio ni de minimum (un ratio forcé oblige le navigateur
+      // à recadrer/réduire le flux, ce qui rendait l'image molle).
+      const maxVideo = (id: string | null): MediaTrackConstraints =>
+        ({
+          ...(id ? { deviceId: { exact: id } } : { facingMode: { ideal: "environment" } }),
+          width: { ideal: 7680 },
+          height: { ideal: 4320 },
+          frameRate: { ideal: 30 },
+          resizeMode: { ideal: "none" },
+        }) as unknown as MediaTrackConstraints;
+
+      const primary: MediaStreamConstraints = { video: maxVideo(deviceId), audio: false };
 
       let stream: MediaStream;
       try {
@@ -298,11 +298,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       } catch {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: portrait ? 1080 : 1920 },
-              height: { ideal: portrait ? 1920 : 1080 },
-            },
+            video: { facingMode: { ideal: "environment" } },
             audio: false,
           });
         } catch (e2) {
@@ -324,12 +320,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       if (preferredId && preferredId !== selectedId) {
         try {
           const preferredStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: preferredId },
-              width: { min: portrait ? 720 : 1280, ideal: targetWidth },
-              height: { min: portrait ? 1280 : 720, ideal: targetHeight },
-              frameRate: { ideal: 30, min: 15 },
-            },
+            video: maxVideo(preferredId),
             audio: false,
           });
           stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
@@ -366,16 +357,32 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setTorchAvailable(Boolean(caps.torch));
 
       // Chaque réglage est appliqué séparément : un autofocus non supporté ne doit
-      // jamais annuler la résolution haute définition négociée.
+      // jamais annuler la résolution négociée.
+      // On ne plafonne plus la définition : on monte exactement au maximum que le
+      // capteur déclare, et on n'applique la contrainte que si elle AUGMENTE le
+      // nombre de pixels réellement livrés (jamais l'inverse).
       const settingsBefore = track?.getSettings?.() ?? {};
-      const currentRatio = settingsBefore.aspectRatio ||
-        (settingsBefore.width && settingsBefore.height ? settingsBefore.width / settingsBefore.height : 16 / 9);
-      const maxW = Math.min(caps.width?.max ?? 3840, 3840);
-      const maxHForRatio = Math.round(maxW / currentRatio);
-      const maxH = Math.min(caps.height?.max ?? maxHForRatio, maxHForRatio);
-      const targetW = Math.min(maxW, Math.round(maxH * currentRatio));
-      if (targetW >= 1280 && maxH >= 720) {
-        await track.applyConstraints({ width: { ideal: targetW }, height: { ideal: maxH } }).catch(() => {});
+      const currentPixels = (settingsBefore.width ?? 0) * (settingsBefore.height ?? 0);
+      const capW = caps.width?.max ?? 0;
+      const capH = caps.height?.max ?? 0;
+      if (capW && capH && capW * capH > currentPixels) {
+        await track
+          .applyConstraints({
+            width: { ideal: capW },
+            height: { ideal: capH },
+            resizeMode: { ideal: "none" },
+          } as unknown as MediaTrackConstraints)
+          .catch(() => {});
+        const after = track.getSettings?.() ?? {};
+        // Sécurité : si le pilote a répondu par une définition plus faible, on revient.
+        if ((after.width ?? 0) * (after.height ?? 0) < currentPixels && settingsBefore.width) {
+          await track
+            .applyConstraints({
+              width: { ideal: settingsBefore.width },
+              height: { ideal: settingsBefore.height },
+            })
+            .catch(() => {});
+        }
       }
       if (caps.focusMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});

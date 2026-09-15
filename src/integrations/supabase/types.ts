@@ -4875,8 +4875,6 @@ export type Database = {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
       taobao_session_clear: { Args: never; Returns: undefined }
       taobao_session_load: { Args: { _key: string }; Returns: Json }
       taobao_session_mark_expired: { Args: never; Returns: undefined }
