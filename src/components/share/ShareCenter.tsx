@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// ShareCenter — Centre de partage marketing Diakounda (v2).
+// ShareCenter — Centre de partage marketing KawZone (v2).
 // 3 onglets : Envoyer · Visuels · QR & Lien.
 // Nouveautés v2 :
 //  • 4 thèmes visuels distincts (Marketplace, Discount, Spotlight, Editorial)
