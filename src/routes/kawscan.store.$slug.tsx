@@ -123,7 +123,10 @@ function StoreScanner() {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<HTMLCanvasElement | null>(null);
   const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  /** Numéro de requête : seule la dernière réponse est affichée (pas de résultat périmé). */
+  const searchSeq = useRef(0);
 
   const storeQuery = useQuery({
     queryKey: ["kawscan-store", slug],
