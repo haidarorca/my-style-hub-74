@@ -1,47 +1,17 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ADMIN_PERMISSION_LABELS,
+  PERMISSION_MODULES,
+  permissionGranted,
+  type AdminPermission,
+} from "@/lib/admin-permissions";
 
 export type AppRole = "super_admin" | "admin" | "vendeur" | "acheteur";
 
-export type AdminPermission =
-  | "orders"
-  | "products"
-  | "product_validation"
-  | "categories"
-  | "vendors"
-  | "customers"
-  | "support"
-  | "settings"
-  | "commissions"
-  | "sav_view_all"
-  | "sav_assign"
-  | "sav_decide"
-  | "sav_override"
-  | "sav_rules_manage"
-  | "sav_refund_issue"
-  | "sav_exception_create"
-  | "studio_access";
-
-export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
-  orders: "Commandes",
-  products: "Produits",
-  product_validation: "Validation des produits",
-  categories: "Catégories",
-  vendors: "Vendeurs",
-  customers: "Clients",
-  support: "Support (avis & signalements)",
-  settings: "Paramètres du site",
-  commissions: "Commissions (lecture seule)",
-  sav_view_all: "SAV — Voir tous les dossiers",
-  sav_assign: "SAV — Assigner",
-  sav_decide: "SAV — Décider",
-  sav_override: "SAV — Surcharger une décision",
-  sav_rules_manage: "SAV — Gérer les règles",
-  sav_refund_issue: "SAV — Émettre un remboursement",
-  sav_exception_create: "SAV — Créer une exception",
-  studio_access: "Studio (Vues Configurables)",
-};
+export type { AdminPermission };
+export { ADMIN_PERMISSION_LABELS, PERMISSION_MODULES };
 
 export interface ProfileData {
   id: string;
@@ -140,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can = (perm: AdminPermission) => {
     if (isSuspended) return false;
     if (isSuperAdmin) return true;
-    return permissions.includes(perm);
+    return permissionGranted(permissions, perm);
   };
 
   const value: AuthContextValue = {

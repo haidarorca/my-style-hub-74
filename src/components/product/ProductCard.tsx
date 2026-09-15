@@ -7,8 +7,16 @@ import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { ProductBadges } from "./ProductBadges";
-import { CatalogImage } from "@/components/images/CatalogImage";
 import { ShareButton } from "@/components/share/ShareButton";
+import { CatalogImage } from "@/components/images/CatalogImage";
+import {
+  CARD_PADDING,
+  DEFAULT_DISPLAY,
+  NAME_CLASS,
+  PRICE_CLASS,
+  type DisplayConfig,
+} from "@/lib/display/display-config";
+
 import type { CompositionItem } from "@/lib/textile-materials";
 
 export interface ProductCardProduct {
@@ -17,6 +25,11 @@ export interface ProductCardProduct {
   price: number;
   code: string;
   name_i18n?: unknown;
+  category_id?: string | null;
+  // Merchandising vitrine (piloté depuis l'admin) — optionnels.
+  home_priority?: number | null;
+  home_position?: number | null;
+  home_excluded?: boolean | null;
   product_images: { url: string }[] | null;
   // Optionnels — quand fournis par le fetcher, permettent d'afficher
   // un "Total estimé" (produit + transport) sur la carte.
@@ -44,9 +57,12 @@ export interface ProductCardProduct {
 interface Props {
   product: ProductCardProduct;
   onQuickAdd: (productId: string) => void;
+  /** Configuration d'affichage résolue (globale / catégorie / produit). */
+  display?: DisplayConfig;
 }
 
-export function ProductCard({ product, onQuickAdd }: Props) {
+export function ProductCard({ product, onQuickAdd, display }: Props) {
+  const cfg = display ?? DEFAULT_DISPLAY;
   const { lang, t } = useI18n();
   const fmt = useFormatDisplay();
   const img = product.product_images?.[0]?.url;
@@ -66,46 +82,48 @@ export function ProductCard({ product, onQuickAdd }: Props) {
   const total = showTotal ? Number(dp!.final_price) + est.cheapest!.price : null;
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
+    <div className="group relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
       <Link
         to="/product/$productId"
         params={{ productId: product.id }}
-        className="block"
+        className="flex min-w-0 flex-1 flex-col"
       >
         <CatalogImage
           src={img}
           alt={displayName}
-          ratio="3/4"
-          imgClassName="transition-transform duration-500 group-hover:scale-[1.04]"
-        >
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-        </CatalogImage>
-        <div className="p-[clamp(0.5rem,2vw,0.75rem)]">
-          <p className="line-clamp-2 text-[clamp(11px,3.2vw,13px)] leading-snug text-foreground/90 min-h-[2.4em]">
-            {displayName}
-          </p>
-          {dp ? (
-            showTotal ? (
-              <div className="mt-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/80 leading-none">
-                  Total estimé
-                </p>
-                <p className="mt-0.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                  {fmt(total!)}
-                </p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
-                  produit + transport
-                </p>
-              </div>
-            ) : (
-              <p className="mt-1.5 text-[clamp(13px,3.6vw,15px)] font-bold tracking-tight text-primary">
-                {fmt(dp.final_price)}
-              </p>
-            )
-          ) : (
-            <Skeleton className="mt-1.5 h-4 w-1/2" />
+          ratio={cfg.imageRatio}
+          className="shrink-0 bg-muted/30"
+        />
+
+        <div className={`flex min-w-0 flex-1 flex-col ${CARD_PADDING[cfg.cardStyle]}`}>
+          {cfg.showName && (
+            <p className={`line-clamp-2 min-h-[2.4em] text-foreground/90 ${NAME_CLASS[cfg.cardStyle]}`}>
+              {displayName}
+            </p>
           )}
-          {(() => {
+          {cfg.showPrice &&
+            (dp ? (
+              showTotal ? (
+                <div className="mt-1.5">
+                  <p className="text-[10px] font-semibold uppercase leading-none tracking-wide text-emerald-700/80">
+                    Total estimé
+                  </p>
+                  <p className={`mt-0.5 font-bold tracking-tight text-primary ${PRICE_CLASS[cfg.cardStyle]}`}>
+                    {fmt(total!)}
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                    produit + transport
+                  </p>
+                </div>
+              ) : (
+                <p className={`mt-1.5 font-bold tracking-tight text-primary ${PRICE_CLASS[cfg.cardStyle]}`}>
+                  {fmt(dp.final_price)}
+                </p>
+              )
+            ) : (
+              <Skeleton className="mt-1.5 h-4 w-1/2" />
+            ))}
+          {cfg.showBadges && (() => {
             const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
             const hasSizeGuide = (product.product_variants ?? []).some((v: any) => {
               const m = v?.measurements;
@@ -131,19 +149,21 @@ export function ProductCard({ product, onQuickAdd }: Props) {
         </div>
       </Link>
 
-      <div className="absolute top-2 end-2 flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onQuickAdd(product.id);
-          }}
-          aria-label={t("product.quick_add_aria")}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground backdrop-blur-sm shadow-soft transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-90"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2.5} />
-        </button>
+      <div className="absolute end-2 top-2 flex flex-col gap-1.5">
+        {cfg.showButton && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onQuickAdd(product.id);
+            }}
+            aria-label={t("product.quick_add_aria")}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground shadow-soft backdrop-blur-sm transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-90"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+          </button>
+        )}
         {(() => {
           const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
           const vendorSrc = (Array.isArray(product.profiles) ? product.profiles[0]?.source_country_id : product.profiles?.source_country_id) ?? null;

@@ -401,6 +401,51 @@ export type Database = {
           },
         ]
       }
+      category_classification_feedback: {
+        Row: {
+          chosen_category_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          signals: string
+          suggested_category_id: string | null
+          was_correction: boolean
+        }
+        Insert: {
+          chosen_category_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signals: string
+          suggested_category_id?: string | null
+          was_correction?: boolean
+        }
+        Update: {
+          chosen_category_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signals?: string
+          suggested_category_id?: string | null
+          was_correction?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_classification_feedback_chosen_category_id_fkey"
+            columns: ["chosen_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_classification_feedback_suggested_category_id_fkey"
+            columns: ["suggested_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_requests: {
         Row: {
           admin_note: string | null
@@ -802,6 +847,33 @@ export type Database = {
           },
         ]
       }
+      display_presets: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          scope: string
+          scope_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          scope: string
+          scope_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          scope?: string
+          scope_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_verification_codes: {
         Row: {
           attempts: number
@@ -831,6 +903,32 @@ export type Database = {
           used?: boolean
         }
         Relationships: []
+      }
+      favorites: {
+        Row: {
+          created_at: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       financial_movements: {
         Row: {
@@ -1048,6 +1146,59 @@ export type Database = {
           zoom?: number
         }
         Relationships: []
+      }
+      home_sections: {
+        Row: {
+          category_id: string | null
+          config: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          kind: string
+          max_items: number
+          position: number
+          product_ids: string[]
+          subtitle: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind: string
+          max_items?: number
+          position?: number
+          product_ids?: string[]
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind?: string
+          max_items?: number
+          position?: number
+          product_ids?: string[]
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "home_sections_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       import_batches: {
         Row: {
@@ -2348,6 +2499,104 @@ export type Database = {
           },
         ]
       }
+      product_group_media: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          media_type: string
+          position: number
+          poster_url: string | null
+          source_product_id: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          media_type?: string
+          position?: number
+          poster_url?: string | null
+          source_product_id?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          media_type?: string
+          position?: number
+          poster_url?: string | null
+          source_product_id?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_group_media_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "product_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_group_media_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_groups: {
+        Row: {
+          category_id: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          criterion_label: string
+          description: string | null
+          id: string
+          name: string
+          show_in_catalog: boolean
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          criterion_label?: string
+          description?: string | null
+          id?: string
+          name: string
+          show_in_catalog?: boolean
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          category_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          criterion_label?: string
+          description?: string | null
+          id?: string
+          name?: string
+          show_in_catalog?: boolean
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_groups_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_images: {
         Row: {
           created_at: string
@@ -2700,7 +2949,13 @@ export type Database = {
           designation_i18n: Json | null
           fit_type: string | null
           gender: string | null
+          group_id: string | null
+          group_option_label: string | null
+          group_position: number
           height_cm: number | null
+          home_excluded: boolean
+          home_position: number | null
+          home_priority: number | null
           id: string
           is_active: boolean
           is_edit: boolean
@@ -2722,6 +2977,7 @@ export type Database = {
           rejection_reason: string | null
           requires_international_shipping: boolean
           season: string | null
+          show_individually: boolean
           sku: string | null
           source_country_id: string | null
           status: Database["public"]["Enums"]["product_status"]
@@ -2755,7 +3011,13 @@ export type Database = {
           designation_i18n?: Json | null
           fit_type?: string | null
           gender?: string | null
+          group_id?: string | null
+          group_option_label?: string | null
+          group_position?: number
           height_cm?: number | null
+          home_excluded?: boolean
+          home_position?: number | null
+          home_priority?: number | null
           id?: string
           is_active?: boolean
           is_edit?: boolean
@@ -2777,6 +3039,7 @@ export type Database = {
           rejection_reason?: string | null
           requires_international_shipping?: boolean
           season?: string | null
+          show_individually?: boolean
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -2810,7 +3073,13 @@ export type Database = {
           designation_i18n?: Json | null
           fit_type?: string | null
           gender?: string | null
+          group_id?: string | null
+          group_option_label?: string | null
+          group_position?: number
           height_cm?: number | null
+          home_excluded?: boolean
+          home_position?: number | null
+          home_priority?: number | null
           id?: string
           is_active?: boolean
           is_edit?: boolean
@@ -2832,6 +3101,7 @@ export type Database = {
           rejection_reason?: string | null
           requires_international_shipping?: boolean
           season?: string | null
+          show_individually?: boolean
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -2858,6 +3128,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "product_groups"
             referencedColumns: ["id"]
           },
           {
@@ -3315,6 +3592,79 @@ export type Database = {
           },
         ]
       }
+      share_events: {
+        Row: {
+          code: string
+          created_at: string
+          event_type: string
+          id: string
+          platform: string | null
+          referer: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          platform?: string | null
+          referer?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          platform?: string | null
+          referer?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "share_events_code_fkey"
+            columns: ["code"]
+            isOneToOne: false
+            referencedRelation: "share_links"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      share_links: {
+        Row: {
+          click_count: number
+          code: string
+          created_at: string
+          platform: string | null
+          product_id: string
+          shared_by: string | null
+        }
+        Insert: {
+          click_count?: number
+          code: string
+          created_at?: string
+          platform?: string | null
+          product_id: string
+          shared_by?: string | null
+        }
+        Update: {
+          click_count?: number
+          code?: string
+          created_at?: string
+          platform?: string | null
+          product_id?: string
+          shared_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "share_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipping_services: {
         Row: {
           created_at: string
@@ -3755,6 +4105,60 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      user_events: {
+        Row: {
+          anon_id: string | null
+          category_id: string | null
+          created_at: string
+          dwell_ms: number | null
+          id: number
+          product_id: string | null
+          query: string | null
+          type: string
+          user_id: string | null
+          weight: number
+        }
+        Insert: {
+          anon_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          dwell_ms?: number | null
+          id?: number
+          product_id?: string | null
+          query?: string | null
+          type: string
+          user_id?: string | null
+          weight?: number
+        }
+        Update: {
+          anon_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          dwell_ms?: number | null
+          id?: number
+          product_id?: string | null
+          query?: string | null
+          type?: string
+          user_id?: string | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_role_assignments: {
         Row: {
@@ -4401,6 +4805,38 @@ export type Database = {
         Args: { _case_id: string }
         Returns: undefined
       }
+      reco_category_affinity: {
+        Args: { _anon: string; _user: string }
+        Returns: {
+          category_id: string
+          score: number
+        }[]
+      }
+      reco_products: {
+        Args: {
+          _anon: string
+          _exclude?: string[]
+          _limit?: number
+          _user: string
+        }
+        Returns: {
+          category_id: string
+          product_id: string
+          score: number
+        }[]
+      }
+      reco_trending: {
+        Args: { _limit?: number }
+        Returns: {
+          category_id: string
+          product_id: string
+          score: number
+        }[]
+      }
+      register_share_click: {
+        Args: { _code: string; _referer?: string; _user_agent?: string }
+        Returns: undefined
+      }
       resolve_commission:
         | {
             Args: { _product_id: string }
@@ -4521,6 +4957,65 @@ export type Database = {
         | "sav_rules_manage"
         | "sav_refund_issue"
         | "sav_exception_create"
+        | "studio_access"
+        | "products.view"
+        | "products.create"
+        | "products.update"
+        | "products.delete"
+        | "products.publish"
+        | "products.import_export"
+        | "products.media"
+        | "products.groups"
+        | "product_validation.view"
+        | "product_validation.approve"
+        | "product_validation.reject"
+        | "categories.view"
+        | "categories.create"
+        | "categories.update"
+        | "categories.delete"
+        | "orders.view"
+        | "orders.update"
+        | "orders.confirm"
+        | "orders.cancel"
+        | "orders.delete"
+        | "orders.logistics"
+        | "orders.payments"
+        | "orders.returns"
+        | "customers.view"
+        | "customers.update"
+        | "customers.delete"
+        | "customers.export"
+        | "vendors.view"
+        | "vendors.create"
+        | "vendors.update"
+        | "vendors.delete"
+        | "vendors.suspend"
+        | "vendors.shops"
+        | "support.view"
+        | "support.reply"
+        | "support.reviews"
+        | "support.reports"
+        | "settings.view"
+        | "settings.update"
+        | "settings.content"
+        | "settings.countries"
+        | "settings.currencies"
+        | "settings.shipping"
+        | "settings.contact"
+        | "settings.integrations"
+        | "commissions.view"
+        | "commissions.manage"
+        | "finance"
+        | "finance.view"
+        | "finance.manage"
+        | "admins"
+        | "admins.view"
+        | "admins.manage"
+        | "audit"
+        | "audit.view"
+        | "notifications"
+        | "notifications.view"
+        | "notifications.send"
       app_role: "admin" | "vendeur" | "acheteur" | "super_admin"
       category_request_status: "pending" | "approved" | "rejected" | "merged"
       cost_attribution: "kawzone" | "vendor" | "client" | "shared"
@@ -4933,6 +5428,65 @@ export const Constants = {
         "sav_rules_manage",
         "sav_refund_issue",
         "sav_exception_create",
+        "studio_access",
+        "products.view",
+        "products.create",
+        "products.update",
+        "products.delete",
+        "products.publish",
+        "products.import_export",
+        "products.media",
+        "products.groups",
+        "product_validation.view",
+        "product_validation.approve",
+        "product_validation.reject",
+        "categories.view",
+        "categories.create",
+        "categories.update",
+        "categories.delete",
+        "orders.view",
+        "orders.update",
+        "orders.confirm",
+        "orders.cancel",
+        "orders.delete",
+        "orders.logistics",
+        "orders.payments",
+        "orders.returns",
+        "customers.view",
+        "customers.update",
+        "customers.delete",
+        "customers.export",
+        "vendors.view",
+        "vendors.create",
+        "vendors.update",
+        "vendors.delete",
+        "vendors.suspend",
+        "vendors.shops",
+        "support.view",
+        "support.reply",
+        "support.reviews",
+        "support.reports",
+        "settings.view",
+        "settings.update",
+        "settings.content",
+        "settings.countries",
+        "settings.currencies",
+        "settings.shipping",
+        "settings.contact",
+        "settings.integrations",
+        "commissions.view",
+        "commissions.manage",
+        "finance",
+        "finance.view",
+        "finance.manage",
+        "admins",
+        "admins.view",
+        "admins.manage",
+        "audit",
+        "audit.view",
+        "notifications",
+        "notifications.view",
+        "notifications.send",
       ],
       app_role: ["admin", "vendeur", "acheteur", "super_admin"],
       category_request_status: ["pending", "approved", "rejected", "merged"],

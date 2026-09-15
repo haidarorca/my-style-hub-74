@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
+import { rankBy, scoreLabel, scoreProduct } from "@/lib/search-rank";
+import { RecommendationBlock } from "@/components/product/RecommendationBlock";
+import { useRecommendations } from "@/hooks/use-recommendations";
+import { useTracker } from "@/hooks/use-tracker";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFormatDisplay } from "@/hooks/use-currencies";
@@ -128,7 +132,8 @@ function SearchPage() {
       const first = term.charAt(0);
       let q1 = supabase
         .from("products")
-        .select("id, name, name_i18n, price, designation, designation_i18n, product_images(url), product_variants(size, color)")
+        .select("id, name, name_i18n, price, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)")
+        .order("position", { referencedTable: "product_images", ascending: true })
         .eq("status", "approved")
         .or(
           `name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%,designation.ilike.${first}%`,
@@ -152,13 +157,8 @@ function SearchPage() {
           p.product_variants?.some((v) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())),
         );
       }
-      // Rank: exact substring match before first-letter-only match
-      rows.sort((a, b) => {
-        const ai = (a.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        const bi = (b.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        return ai - bi;
-      });
-      return rows;
+      // Pertinence : Code/SKU exact > début de nom > nom > désignation
+      return rankBy(rows, (r) => scoreProduct(r as any, term));
     },
   });
 
@@ -174,13 +174,7 @@ function SearchPage() {
         .select("id, name, name_i18n, level, logo_url")
         .or(`name.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
-      const rows = data ?? [];
-      rows.sort((a, b) => {
-        const ai = (a.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        const bi = (b.name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        return ai - bi;
-      });
-      return rows;
+      return rankBy(data ?? [], (r) => scoreLabel(r.name, term));
     },
   });
 
@@ -203,12 +197,7 @@ function SearchPage() {
       }
       const { data } = await qs;
       const rows = (data ?? []) as Array<{ id: string; shop_name: string | null; shop_logo_url: string | null; address: string | null }>;
-      rows.sort((a, b) => {
-        const ai = (a.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        const bi = (b.shop_name ?? "").toLowerCase().includes(term.toLowerCase()) ? 0 : 1;
-        return ai - bi;
-      });
-      return rows;
+      return rankBy(rows, (r) => scoreLabel(r.shop_name, term));
     },
   });
 

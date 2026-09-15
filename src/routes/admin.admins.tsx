@@ -1,18 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, ShieldCheck, ShieldOff, Trash2, History, UserPlus, Crown, Pause, Play } from "lucide-react";
+import { Plus, ShieldCheck, ShieldOff, Trash2, History, UserPlus, Crown, Pause, Play, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, ADMIN_PERMISSION_LABELS, type AdminPermission } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { PermissionGate } from "@/components/admin/PermissionGate";
+import { PermissionMatrix } from "@/components/admin/PermissionMatrix";
+import {
+  setAdminPermissions,
+  promoteToAdmin,
+  setAdminSuspended,
+  revokeAdmin,
+} from "@/lib/admin-permissions.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminTabs, AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { AdminTabList, AdminTabTrigger } from "@/components/admin/AdminTabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -25,18 +32,13 @@ export const Route = createFileRoute("/admin/admins")({
   ),
 });
 
-const ALL_PERMS: AdminPermission[] = [
-  "orders", "products", "product_validation", "categories",
-  "vendors", "customers", "support", "settings", "commissions",
-];
-
 interface AdminRow {
   user_id: string;
   role: "admin" | "super_admin";
   is_suspended: boolean;
   full_name: string | null;
   email: string | null;
-  permissions: AdminPermission[];
+  permissions: string[];
 }
 
 function AdminsPage() {
@@ -45,6 +47,10 @@ function AdminsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState("");
   const [adding, setAdding] = useState(false);
+
+  const promote = useServerFn(promoteToAdmin);
+  const suspendFn = useServerFn(setAdminSuspended);
+  const revokeFn = useServerFn(revokeAdmin);
 
   const { data: admins, isLoading } = useQuery({
     queryKey: ["admins-list"],
@@ -56,7 +62,6 @@ function AdminsPage() {
       if (rErr) throw rErr;
       const rows = (roleRows ?? []) as { user_id: string; role: "admin" | "super_admin"; is_suspended: boolean }[];
 
-      // Group by user_id (a user may have both admin + super_admin)
       const byUser = new Map<string, { role: "admin" | "super_admin"; is_suspended: boolean }>();
       for (const r of rows) {
         const existing = byUser.get(r.user_id);
@@ -72,8 +77,8 @@ function AdminsPage() {
         (supabase as any).from("admin_permissions").select("user_id, permission").in("user_id", userIds),
       ]);
       const profMap = new Map((profs ?? []).map((p: any) => [p.id, p]));
-      const permMap = new Map<string, AdminPermission[]>();
-      for (const row of (perms ?? []) as { user_id: string; permission: AdminPermission }[]) {
+      const permMap = new Map<string, string[]>();
+      for (const row of (perms ?? []) as { user_id: string; permission: string }[]) {
         const arr = permMap.get(row.user_id) ?? [];
         arr.push(row.permission);
         permMap.set(row.user_id, arr);
@@ -99,61 +104,25 @@ function AdminsPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["admins-list"] });
 
-  async function togglePermission(adminUserId: string, perm: AdminPermission, checked: boolean) {
-    if (checked) {
-      const { error } = await (supabase as any).from("admin_permissions").insert({
-        user_id: adminUserId, permission: perm, granted_by: user?.id ?? null,
-      });
-      if (error) return toast.error(error.message);
-      await (supabase as any).rpc("log_admin_action", {
-        _action: "admin.permission.grant", _target_type: "user", _target_id: adminUserId,
-        _details: { permission: perm },
-      });
-    } else {
-      const { error } = await (supabase as any).from("admin_permissions")
-        .delete().eq("user_id", adminUserId).eq("permission", perm);
-      if (error) return toast.error(error.message);
-      await (supabase as any).rpc("log_admin_action", {
-        _action: "admin.permission.revoke", _target_type: "user", _target_id: adminUserId,
-        _details: { permission: perm },
-      });
-    }
-    refresh();
-  }
-
   async function toggleSuspend(adminUserId: string, suspend: boolean) {
-    const { error } = await (supabase as any)
-      .from("user_roles")
-      .update({ is_suspended: suspend })
-      .eq("user_id", adminUserId)
-      .in("role", ["admin", "super_admin"]);
-    if (error) return toast.error(error.message);
-    await (supabase as any).rpc("log_admin_action", {
-      _action: suspend ? "admin.suspend" : "admin.unsuspend",
-      _target_type: "user", _target_id: adminUserId,
-    });
-    toast.success(suspend ? "Admin suspendu" : "Admin réactivé");
-    refresh();
+    try {
+      await suspendFn({ data: { user_id: adminUserId, suspended: suspend } });
+      toast.success(suspend ? "Admin suspendu" : "Admin réactivé");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Action impossible");
+    }
   }
 
   async function removeAdmin(adminUserId: string) {
     if (!confirm("Retirer le rôle admin et toutes ses permissions ? Le compte devient un compte client.")) return;
-    // Delete permissions
-    await (supabase as any).from("admin_permissions").delete().eq("user_id", adminUserId);
-    // Remove admin role
-    const { error } = await (supabase as any)
-      .from("user_roles").delete()
-      .eq("user_id", adminUserId).eq("role", "admin");
-    if (error) return toast.error(error.message);
-    // Ensure they have acheteur role
-    await (supabase as any).from("user_roles")
-      .insert({ user_id: adminUserId, role: "acheteur" })
-      .select();
-    await (supabase as any).rpc("log_admin_action", {
-      _action: "admin.remove", _target_type: "user", _target_id: adminUserId,
-    });
-    toast.success("Admin retiré");
-    refresh();
+    try {
+      await revokeFn({ data: { user_id: adminUserId } });
+      toast.success("Admin retiré");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Action impossible");
+    }
   }
 
   async function addAdmin() {
@@ -161,26 +130,13 @@ function AdminsPage() {
     if (!email) return toast.error("Email requis");
     setAdding(true);
     try {
-      const { data: prof } = await supabase
-        .from("profiles").select("id, email").eq("email", email).maybeSingle();
-      if (!prof) {
-        toast.error("Aucun utilisateur trouvé avec cet email. Demandez-lui de créer un compte d'abord.");
-        return;
-      }
-      const { error } = await (supabase as any).from("user_roles")
-        .insert({ user_id: prof.id, role: "admin" });
-      if (error && !String(error.message).includes("duplicate")) {
-        toast.error(error.message);
-        return;
-      }
-      await (supabase as any).rpc("log_admin_action", {
-        _action: "admin.create", _target_type: "user", _target_id: prof.id,
-        _details: { email },
-      });
+      await promote({ data: { email } });
       toast.success(`${email} est maintenant admin. Configurez ses permissions.`);
       setEmailToAdd("");
       setAddOpen(false);
       refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Promotion impossible");
     } finally {
       setAdding(false);
     }
@@ -188,10 +144,12 @@ function AdminsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold">Gestion des administrateurs</h1>
-          <p className="text-sm text-muted-foreground">Créez et configurez les permissions de chaque admin.</p>
+          <p className="text-sm text-muted-foreground">
+            Créez des administrateurs et réglez précisément ce que chacun peut voir et faire.
+          </p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="rounded-full">
           <UserPlus className="mr-1 h-4 w-4" /> Ajouter un admin
@@ -211,69 +169,14 @@ function AdminsPage() {
             <p className="text-sm text-muted-foreground">Aucun admin pour le moment.</p>
           ) : (
             admins.map((a) => (
-              <Card key={a.user_id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        {a.role === "super_admin" && <Crown className="h-4 w-4 text-amber-500" />}
-                        <span className="truncate">{a.full_name || a.email || "Sans nom"}</span>
-                        {a.role === "super_admin" ? (
-                          <Badge>Super admin</Badge>
-                        ) : (
-                          <Badge variant="secondary">Admin</Badge>
-                        )}
-                        {a.is_suspended && <Badge variant="destructive">Suspendu</Badge>}
-                      </CardTitle>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{a.email}</p>
-                    </div>
-                    {a.role !== "super_admin" && (
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm" variant="outline"
-                          onClick={() => toggleSuspend(a.user_id, !a.is_suspended)}
-                        >
-                          {a.is_suspended ? <><Play className="mr-1 h-3 w-3" /> Réactiver</> : <><Pause className="mr-1 h-3 w-3" /> Suspendre</>}
-                        </Button>
-                        <Button
-                          size="sm" variant="outline"
-                          className="text-destructive"
-                          onClick={() => removeAdmin(a.user_id)}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" /> Retirer
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {a.role === "super_admin" ? (
-                    <p className="text-xs text-muted-foreground">Le super administrateur a toutes les permissions par défaut.</p>
-                  ) : (
-                    <div>
-                      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Permissions</p>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {ALL_PERMS.map((perm) => {
-                          const checked = a.permissions.includes(perm);
-                          return (
-                            <label
-                              key={perm}
-                              className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 hover:bg-accent"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) => togglePermission(a.user_id, perm, !!v)}
-                                disabled={a.is_suspended}
-                              />
-                              <span className="text-sm">{ADMIN_PERMISSION_LABELS[perm]}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <AdminCard
+                key={a.user_id}
+                admin={a}
+                isSelf={a.user_id === user?.id}
+                onSuspend={toggleSuspend}
+                onRemove={removeAdmin}
+                onSaved={refresh}
+              />
             ))
           )}
         </TabsContent>
@@ -306,6 +209,99 @@ function AdminsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function AdminCard({
+  admin, isSelf, onSuspend, onRemove, onSaved,
+}: {
+  admin: AdminRow;
+  isSelf: boolean;
+  onSuspend: (id: string, suspend: boolean) => void;
+  onRemove: (id: string) => void;
+  onSaved: () => void;
+}) {
+  const savePerms = useServerFn(setAdminPermissions);
+  const [draft, setDraft] = useState<string[]>(admin.permissions);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setDraft(admin.permissions); }, [admin.permissions.join("|")]);
+
+  const dirty =
+    draft.length !== admin.permissions.length ||
+    draft.some((p) => !admin.permissions.includes(p));
+
+  async function save() {
+    setSaving(true);
+    try {
+      await savePerms({ data: { user_id: admin.user_id, permissions: draft } });
+      toast.success("Permissions enregistrées");
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Enregistrement impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+              {admin.role === "super_admin" && <Crown className="h-4 w-4 text-amber-500" />}
+              <span className="truncate">{admin.full_name || admin.email || "Sans nom"}</span>
+              {admin.role === "super_admin" ? (
+                <Badge>Super admin</Badge>
+              ) : (
+                <Badge variant="secondary">Admin</Badge>
+              )}
+              {admin.is_suspended && <Badge variant="destructive">Suspendu</Badge>}
+              {isSelf && <Badge variant="outline">Vous</Badge>}
+            </CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">{admin.email}</p>
+          </div>
+          {admin.role !== "super_admin" && !isSelf && (
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" onClick={() => onSuspend(admin.user_id, !admin.is_suspended)}>
+                {admin.is_suspended
+                  ? <><Play className="mr-1 h-3 w-3" /> Réactiver</>
+                  : <><Pause className="mr-1 h-3 w-3" /> Suspendre</>}
+              </Button>
+              <Button size="sm" variant="outline" className="text-destructive" onClick={() => onRemove(admin.user_id)}>
+                <Trash2 className="mr-1 h-3 w-3" /> Retirer
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {admin.role === "super_admin" ? (
+          <p className="text-xs text-muted-foreground">
+            Le super administrateur a toutes les permissions par défaut.
+          </p>
+        ) : isSelf ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ShieldOff className="h-4 w-4" /> Vous ne pouvez pas modifier vos propres droits.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <PermissionMatrix value={draft} disabled={admin.is_suspended || saving} onChange={setDraft} />
+            <div className="flex items-center justify-end gap-2">
+              {dirty && (
+                <Button size="sm" variant="ghost" onClick={() => setDraft(admin.permissions)} disabled={saving}>
+                  Annuler
+                </Button>
+              )}
+              <Button size="sm" onClick={save} disabled={!dirty || saving}>
+                <Save className="mr-1 h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
