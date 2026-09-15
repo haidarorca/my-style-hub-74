@@ -167,7 +167,6 @@ export async function importImagesZip(params: {
         const { error: insErr } = await supabaseAdmin.from("product_images").insert({
           product_id: productId,
           url: pub.publicUrl,
-          media_type: "image",
           position: position++,
         });
         if (insErr) throw new Error(insErr.message);
