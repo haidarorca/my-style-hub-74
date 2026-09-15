@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { getContactSettings, updateContactSettings } from "@/lib/support.functions";
+import { getContactSettingsAdmin, updateContactSettings } from "@/lib/support.functions";
 import type { ContactSettings } from "@/lib/contact-policy";
 
 export const Route = createFileRoute("/admin/contact-settings")({
@@ -37,7 +37,7 @@ const DEFAULT: ContactSettings = {
 function ContactSettingsPage() {
   const { isSuperAdmin, isAdmin } = useAuth();
   const qc = useQueryClient();
-  const getFn = useServerFn(getContactSettings);
+  const getFn = useServerFn(getContactSettingsAdmin);
   const updateFn = useServerFn(updateContactSettings);
 
   const { data, isLoading } = useQuery({
