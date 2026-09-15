@@ -8,14 +8,15 @@ import {
   Loader2,
   ScanLine,
   Search,
-  TextCursorInput,
+  ScanSearch,
   X,
   Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
-import { readTextFromVideo } from "@/lib/kawscan/ocr";
+import { ZoneAnalyzer } from "@/components/kawscan/ZoneAnalyzer";
+import type { ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -94,6 +95,7 @@ function StoreScanner() {
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState<HTMLCanvasElement | null>(null);
   const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -128,7 +130,7 @@ function StoreScanner() {
   );
 
   // Le scanner est en pause pendant l'affichage d'un résultat ou d'une recherche.
-  const scanner = useScanner(lookup, Boolean(canScan) && !result && !searchOpen);
+  const scanner = useScanner(lookup, Boolean(canScan) && !result && !searchOpen && !capturedFrame);
 
   /** Recherche intelligente : nom, code complet ou fragment de code. */
   const runSearch = useCallback(
@@ -161,29 +163,45 @@ function StoreScanner() {
   }, [query, searchOpen, runSearch]);
 
   const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button, input, a")) return;
     const p = videoPointFromClient(scanner.videoRef.current, e.clientX, e.clientY);
     if (!p) return;
     scanner.focusAt(p.x, p.y);
     setRing({ left: p.left, top: p.top, id: Date.now() });
   };
 
-  /** OCR : lecture ponctuelle du texte visé, en secours du code-barres. */
-  const readText = async () => {
-    const video = scanner.videoRef.current;
-    if (!video) return;
+  /** Capture ponctuelle haute définition, conservée uniquement en mémoire. */
+  const openZoneAnalyzer = async () => {
     setOcrBusy(true);
     try {
-      const text = await readTextFromVideo(video);
-      if (!text) {
-        setResult({ error: "code_not_found" });
-        return;
-      }
-      setQuery(text);
-      setSearchOpen(true);
-      void runSearch(text);
+      const frame = await scanner.captureFrame();
+      if (frame) setCapturedFrame(frame);
+      else setResult({ error: "code_not_found" });
     } finally {
       setOcrBusy(false);
     }
+  };
+
+  const releaseCapturedFrame = () => {
+    setCapturedFrame((frame) => {
+      if (frame) frame.width = frame.height = 0;
+      return null;
+    });
+  };
+
+  const handleZoneResult = (analysis: ZoneAnalysis) => {
+    releaseCapturedFrame();
+    if (!analysis) {
+      setResult({ error: "code_not_found" });
+      return;
+    }
+    if (analysis.kind === "barcode") {
+      void lookup(analysis.value);
+      return;
+    }
+    setQuery(analysis.value);
+    setSearchOpen(true);
+    void runSearch(analysis.value);
   };
 
   const goBack = () => {
@@ -253,7 +271,7 @@ function StoreScanner() {
 
       {/* Caméra */}
       <div className="relative h-screen w-full overflow-hidden" onPointerDown={handleTap}>
-        <video ref={scanner.videoRef} className="h-full w-full object-cover" muted playsInline />
+        <video ref={scanner.videoRef} className="h-full w-full bg-black object-contain" muted playsInline />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-48 w-[17rem] rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
         </div>
@@ -291,6 +309,13 @@ function StoreScanner() {
             Placez le code dans le cadre — touchez le code à l'écran pour la mise au point
           </p>
 
+          {scanner.diagnostics && (
+            <p className="text-center text-[10px] font-medium text-white/55" aria-label="Qualité caméra réelle">
+              Caméra {scanner.diagnostics.width} × {scanner.diagnostics.height}
+              {scanner.diagnostics.frameRate ? ` · ${Math.round(scanner.diagnostics.frameRate)} i/s` : ""}
+            </p>
+          )}
+
           <button
             onClick={() => {
               setSearchOpen(true);
@@ -308,9 +333,9 @@ function StoreScanner() {
                 <Zap className="h-4 w-4" strokeWidth={1.75} /> Flash
               </ToolButton>
             )}
-            <ToolButton onClick={() => void readText()} disabled={ocrBusy}>
-              {ocrBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <TextCursorInput className="h-4 w-4" strokeWidth={1.75} />}
-              Lire le texte
+            <ToolButton onClick={() => void openZoneAnalyzer()} disabled={ocrBusy || scanner.state !== "running"}>
+              {ocrBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" strokeWidth={1.75} />}
+              Analyser une zone
             </ToolButton>
           </div>
 
@@ -328,6 +353,10 @@ function StoreScanner() {
           )}
         </div>
       </div>
+
+      {capturedFrame && (
+        <ZoneAnalyzer source={capturedFrame} onCancel={releaseCapturedFrame} onResult={handleZoneResult} />
+      )}
 
       {/* Recherche manuelle */}
       {searchOpen && (

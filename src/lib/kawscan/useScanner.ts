@@ -2,6 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type ScannerState = "idle" | "starting" | "running" | "denied" | "unsupported" | "error";
 
+export type CameraDiagnostics = {
+  width: number;
+  height: number;
+  frameRate: number | null;
+  aspectRatio: number | null;
+  facingMode: string | null;
+  deviceLabel: string | null;
+  focusMode: string | null;
+};
+
 const FORMATS = [
   "ean_13",
   "ean_8",
@@ -98,6 +108,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; id: number } | null>(null);
   /** Résolution réelle du flux (diagnostic + affichage qualité). */
   const [resolution, setResolution] = useState<{ w: number; h: number } | null>(null);
+  const [diagnostics, setDiagnostics] = useState<CameraDiagnostics | null>(null);
   const [zoom, setZoomState] = useState(1);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
 
@@ -147,6 +158,41 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     } catch {
       /* zoom non supporté */
     }
+  }, []);
+
+  /** Capture ponctuelle en mémoire à la meilleure définition livrée par le navigateur. */
+  const captureFrame = useCallback(async (): Promise<HTMLCanvasElement | null> => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    const video = videoRef.current;
+    if (!track || !video || !video.videoWidth || !video.videoHeight) return null;
+
+    let source: CanvasImageSource = video;
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+    let bitmap: ImageBitmap | null = null;
+    try {
+      if (typeof ImageCapture !== "undefined") {
+        bitmap = await new ImageCapture(track).grabFrame();
+        source = bitmap;
+        width = bitmap.width;
+        height = bitmap.height;
+      }
+    } catch {
+      // Safari et certains Android utilisent directement la frame vidéo intrinsèque.
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) {
+      bitmap?.close();
+      return null;
+    }
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0, width, height);
+    bitmap?.close();
+    return canvas;
   }, []);
 
   /**
@@ -232,11 +278,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const deviceId = await pickRearCameraId();
       if (cancelled) return;
 
+      const portrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
+      const targetWidth = portrait ? 2160 : 3840;
+      const targetHeight = portrait ? 3840 : 2160;
       const primary: MediaStreamConstraints = {
         video: {
           ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }),
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { min: portrait ? 720 : 1280, ideal: targetWidth },
+          height: { min: portrait ? 1280 : 720, ideal: targetHeight },
+          aspectRatio: { ideal: portrait ? 9 / 16 : 16 / 9 },
           frameRate: { ideal: 30, min: 15 },
         },
         audio: false,
@@ -248,7 +298,11 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       } catch {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: portrait ? 1080 : 1920 },
+              height: { ideal: portrait ? 1920 : 1080 },
+            },
             audio: false,
           });
         } catch (e2) {
@@ -259,6 +313,29 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
             setError("Impossible d'accéder à la caméra de cet appareil.");
           }
           return;
+        }
+      }
+
+      // Après la première autorisation, Android/iOS rendent souvent enfin les
+      // libellés des objectifs disponibles. On peut alors remplacer un éventuel
+      // ultra-grand-angle choisi par défaut par la caméra arrière principale.
+      const selectedId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+      const preferredId = await pickRearCameraId();
+      if (preferredId && preferredId !== selectedId) {
+        try {
+          const preferredStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: preferredId },
+              width: { min: portrait ? 720 : 1280, ideal: targetWidth },
+              height: { min: portrait ? 1280 : 720, ideal: targetHeight },
+              frameRate: { ideal: 30, min: 15 },
+            },
+            audio: false,
+          });
+          stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
+          stream = preferredStream;
+        } catch {
+          // La caméra déjà ouverte reste utilisable si le changement est refusé.
         }
       }
       if (cancelled) {
@@ -288,23 +365,26 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       };
       setTorchAvailable(Boolean(caps.torch));
 
-      // Résolution réelle : on demande le maximum du capteur, plafonné à 1920×1080
-      // (au-delà, le débit de frames s'effondre sans gain de lisibilité des codes).
-      const maxW = Math.min(caps.width?.max ?? 1920, 1920);
-      const maxH = Math.min(caps.height?.max ?? 1080, 1080);
-      const advanced: MediaTrackConstraintSet[] = [];
-      if (maxW >= 1280) advanced.push({ width: maxW, height: maxH } as MediaTrackConstraintSet);
-      if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
-      if (caps.exposureMode?.includes("continuous")) advanced.push({ exposureMode: "continuous" } as MediaTrackConstraintSet);
-      if (caps.whiteBalanceMode?.includes("continuous")) {
-        advanced.push({ whiteBalanceMode: "continuous" } as MediaTrackConstraintSet);
+      // Chaque réglage est appliqué séparément : un autofocus non supporté ne doit
+      // jamais annuler la résolution haute définition négociée.
+      const settingsBefore = track?.getSettings?.() ?? {};
+      const currentRatio = settingsBefore.aspectRatio ||
+        (settingsBefore.width && settingsBefore.height ? settingsBefore.width / settingsBefore.height : 16 / 9);
+      const maxW = Math.min(caps.width?.max ?? 3840, 3840);
+      const maxHForRatio = Math.round(maxW / currentRatio);
+      const maxH = Math.min(caps.height?.max ?? maxHForRatio, maxHForRatio);
+      const targetW = Math.min(maxW, Math.round(maxH * currentRatio));
+      if (targetW >= 1280 && maxH >= 720) {
+        await track.applyConstraints({ width: { ideal: targetW }, height: { ideal: maxH } }).catch(() => {});
       }
-      if (advanced.length) {
-        try {
-          await track.applyConstraints({ advanced } as MediaTrackConstraints);
-        } catch {
-          /* ignoré */
-        }
+      if (caps.focusMode?.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+      }
+      if (caps.exposureMode?.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ exposureMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+      }
+      if (caps.whiteBalanceMode?.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ whiteBalanceMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
       }
 
       if (caps.zoom && typeof caps.zoom.min === "number") {
@@ -313,12 +393,26 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         setZoomState(current ?? caps.zoom.min);
       }
 
+      await new Promise<void>((resolve) => {
+        if (video.readyState >= 1 && video.videoWidth) resolve();
+        else video.addEventListener("loadedmetadata", () => resolve(), { once: true });
+      });
       const settings = track?.getSettings?.() ?? {};
-      if (settings.width && settings.height) setResolution({ w: settings.width, h: settings.height });
+      const actualWidth = settings.width ?? video.videoWidth;
+      const actualHeight = settings.height ?? video.videoHeight;
+      if (actualWidth && actualHeight) {
+        setResolution({ w: actualWidth, h: actualHeight });
+        setDiagnostics({
+          width: actualWidth,
+          height: actualHeight,
+          frameRate: settings.frameRate ?? null,
+          aspectRatio: settings.aspectRatio ?? actualWidth / actualHeight,
+          facingMode: settings.facingMode ?? null,
+          deviceLabel: track.label || null,
+          focusMode: (settings as MediaTrackSettings & { focusMode?: string }).focusMode ?? null,
+        });
+      }
       setState("running");
-
-      // ZXing démarre tout de suite, en parallèle du moteur natif
-      void startZxing(video);
 
       const Detector = (
         window as unknown as {
@@ -338,7 +432,12 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         }
       }
       const usable = supported.length ? FORMATS.filter((f) => supported.includes(f)) : [...FORMATS];
-      if (!Detector || !usable.length) return; // ZXing seul
+      if (!Detector || !usable.length) {
+        // Repli local, principalement pour iPhone. On évite de faire tourner deux
+        // moteurs en parallèle, ce qui faisait chuter la fluidité du preview.
+        void startZxing(video);
+        return;
+      }
 
       const detector = new Detector({ formats: usable });
       const canvas = document.createElement("canvas");
@@ -408,10 +507,10 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
             const centerY = poi ? poi.y * v.videoHeight : v.videoHeight / 2;
             const sx = Math.round(Math.min(Math.max(0, centerX - cw / 2), Math.max(0, v.videoWidth - cw)));
             const sy = Math.round(Math.min(Math.max(0, centerY - ch / 2), Math.max(0, v.videoHeight - ch)));
-            canvas.width = Math.min(1600, Math.round(cw * zone.scale));
-            canvas.height = Math.round((ch / cw) * canvas.width);
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = "high";
+            // Aucun agrandissement artificiel : les barres gardent leurs contours réels.
+            canvas.width = cw;
+            canvas.height = ch;
+            ctx.imageSmoothingEnabled = false;
             ctx.drawImage(v, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
             enhance();
             source = canvas;
@@ -434,7 +533,8 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         const onFrame = () => {
           if (cancelled) return;
           void analyse();
-          vfcId = v.requestVideoFrameCallback!(onFrame);
+          const requestFrame = v.requestVideoFrameCallback;
+          if (requestFrame) vfcId = requestFrame.call(v, onFrame);
         };
         vfcId = v.requestVideoFrameCallback(onFrame);
         registerStop(() => v.cancelVideoFrameCallback?.(vfcId));
@@ -469,6 +569,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setState("idle");
       setTorchOn(false);
       setResolution(null);
+      setDiagnostics(null);
       setZoomRange(null);
     };
   }, [active, emit]);
@@ -483,8 +584,10 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     focusAt,
     focusPoint,
     resolution,
+    diagnostics,
     zoom,
     zoomRange,
     setZoom,
+    captureFrame,
   };
 }

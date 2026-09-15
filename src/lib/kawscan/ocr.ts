@@ -35,40 +35,20 @@ export function ocrAvailable(): boolean {
   return typeof window !== "undefined";
 }
 
-/** Extrait les mots utiles d'une image de la caméra (une capture ponctuelle, pas chaque frame). */
-export async function readTextFromVideo(video: HTMLVideoElement): Promise<string | null> {
-  if (!video.videoWidth) return null;
+/** Extrait les mots utiles d'une image locale ponctuelle. */
+export async function readTextFromCanvas(canvas: HTMLCanvasElement): Promise<string | null> {
+  if (!canvas.width || !canvas.height) return null;
   const worker = await getWorker();
   if (!worker) return null;
-
-  // On n'analyse que la bande centrale : c'est là que l'utilisateur vise le produit.
-  const canvas = document.createElement("canvas");
-  const sw = Math.round(video.videoWidth * 0.9);
-  const sh = Math.round(video.videoHeight * 0.5);
-  canvas.width = sw;
-  canvas.height = sh;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(
-    video,
-    Math.round((video.videoWidth - sw) / 2),
-    Math.round((video.videoHeight - sh) / 2),
-    sw,
-    sh,
-    0,
-    0,
-    sw,
-    sh,
-  );
 
   try {
     const { data } = await worker.recognize(canvas);
     const words = (data.text || "")
       .split(/\s+/)
-      .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
-      .filter((w) => w.length >= 3);
+      .map((w) => w.replace(/[^\p{L}\p{N}.,-]/gu, ""))
+      .filter((w) => w.replace(/[^\p{L}\p{N}]/gu, "").length >= 2);
     if (!words.length) return null;
-    return words.slice(0, 5).join(" ");
+    return words.slice(0, 8).join(" ");
   } catch {
     return null;
   }
