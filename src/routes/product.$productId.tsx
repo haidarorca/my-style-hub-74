@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
+import { Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { warrantyLabel } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
 import { fitTypeOption } from "@/lib/fit-types";
