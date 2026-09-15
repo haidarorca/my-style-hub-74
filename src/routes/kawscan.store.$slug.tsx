@@ -403,10 +403,57 @@ function StoreScanner() {
           </p>
 
           {scanner.diagnostics && (
-            <p className="text-center text-[10px] font-medium text-white/55" aria-label="Qualité caméra réelle">
+            <button
+              type="button"
+              onClick={() => setShowDiag((v) => !v)}
+              className="mx-auto flex items-center gap-1.5 text-[10px] font-medium text-white/60"
+            >
+              <Info className="h-3 w-3" />
               Caméra {scanner.diagnostics.width} × {scanner.diagnostics.height}
               {scanner.diagnostics.frameRate ? ` · ${Math.round(scanner.diagnostics.frameRate)} i/s` : ""}
-            </p>
+              {showDiag ? " — masquer le diagnostic" : " — diagnostic"}
+            </button>
+          )}
+
+          {showDiag && scanner.diagnostics && (
+            <div className="mx-auto max-h-56 w-full overflow-auto rounded-xl bg-black/80 p-3 text-[11px] leading-5 text-white/85 backdrop-blur">
+              <p className="mb-1 font-semibold text-white">Diagnostic caméra</p>
+              <DiagRow label="Objectif" value={scanner.diagnostics.deviceLabel ?? "inconnu"} />
+              <DiagRow label="Orientation" value={scanner.diagnostics.facingMode ?? "inconnue"} />
+              <DiagRow label="deviceId" value={(scanner.diagnostics.deviceId ?? "—").slice(0, 16) + "…"} />
+              <DiagRow label="Caméras détectées" value={String(scanner.diagnostics.cameraCount)} />
+              <DiagRow label="Flux réel" value={`${scanner.diagnostics.width} × ${scanner.diagnostics.height}`} />
+              <DiagRow
+                label="Maximum du capteur"
+                value={
+                  scanner.diagnostics.maxWidth
+                    ? `${scanner.diagnostics.maxWidth} × ${scanner.diagnostics.maxHeight}`
+                    : "non exposé"
+                }
+              />
+              <DiagRow
+                label="FPS déclaré"
+                value={scanner.diagnostics.frameRate ? `${Math.round(scanner.diagnostics.frameRate)} i/s` : "—"}
+              />
+              <DiagRow label="Autofocus utilisé" value={scanner.diagnostics.focusMode ?? "non exposé"} />
+              <DiagRow
+                label="Autofocus disponibles"
+                value={scanner.diagnostics.focusModes.join(", ") || "non exposé"}
+              />
+              <DiagRow label="Flash" value={scanner.diagnostics.torch ? "oui" : "non"} />
+              <DiagRow label="Zoom max" value={scanner.diagnostics.zoomMax ? `${scanner.diagnostics.zoomMax}×` : "non"} />
+              <DiagRow label="Moteur de scan" value={scanner.diagnostics.engine} />
+              {scanner.live && (
+                <>
+                  <DiagRow label="video.videoWidth/Height" value={`${scanner.live.videoWidth} × ${scanner.live.videoHeight}`} />
+                  <DiagRow label="Affichage CSS" value={`${scanner.live.displayWidth} × ${scanner.live.displayHeight}`} />
+                  <DiagRow label="Canvas d'analyse" value={`${scanner.live.scanWidth} × ${scanner.live.scanHeight}`} />
+                  <DiagRow label="Image reçue par le moteur" value={`${scanner.live.scanWidth} × ${scanner.live.scanHeight}`} />
+                  <DiagRow label="FPS mesuré" value={`${scanner.live.measuredFps} i/s`} />
+                  <DiagRow label="devicePixelRatio" value={String(scanner.live.devicePixelRatio)} />
+                </>
+              )}
+            </div>
           )}
 
           <button
