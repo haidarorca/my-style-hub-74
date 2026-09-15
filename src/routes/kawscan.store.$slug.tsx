@@ -161,24 +161,27 @@ function StoreScanner() {
   // Le scanner est en pause pendant l'affichage d'un résultat ou d'une recherche.
   const scanner = useScanner(lookup, Boolean(canScan) && !result && !searchOpen && !capturedFrame);
 
-  /** Recherche intelligente : nom, code complet ou fragment de code. */
+  /** Recherche intelligente : nom, mots dans le désordre, fautes de frappe, code même partiel. */
   const runSearch = useCallback(
     async (q: string) => {
       const text = q.trim();
+      const seq = ++searchSeq.current;
       if (text.length < 2) {
         setHits(null);
+        setSearching(false);
         return;
       }
       setSearching(true);
       try {
-        const { data, error } = await rpc("kawscan_search", { _slug: slug, _q: text, _limit: 25 });
+        const { data, error } = await rpc("kawscan_search", { _slug: slug, _q: text, _limit: 30 });
         if (error) throw new Error(error.message);
+        if (seq !== searchSeq.current) return;
         const payload = data as { results?: SearchHit[] } | null;
         setHits(payload?.results ?? []);
       } catch {
-        setHits([]);
+        if (seq === searchSeq.current) setHits([]);
       } finally {
-        setSearching(false);
+        if (seq === searchSeq.current) setSearching(false);
       }
     },
     [slug],
@@ -187,9 +190,22 @@ function StoreScanner() {
   // Recherche différée pendant la frappe (économie réseau et batterie).
   useEffect(() => {
     if (!searchOpen) return;
-    const t = setTimeout(() => void runSearch(query), 280);
+    const t = setTimeout(() => void runSearch(query), 220);
     return () => clearTimeout(t);
   }, [query, searchOpen, runSearch]);
+
+  useEffect(() => {
+    if (searchOpen) setRecent(loadRecent(slug));
+  }, [searchOpen, slug]);
+
+  /** Ouvre un produit trouvé et mémorise la recherche. */
+  const openHit = (hit: SearchHit) => {
+    setRecent(saveRecent(slug, productLabel(hit) || hit.code));
+    setSearchOpen(false);
+    setQuery("");
+    setHits(null);
+    void lookup(hit.code);
+  };
 
   const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("button, input, a")) return;
