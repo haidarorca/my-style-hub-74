@@ -259,6 +259,44 @@ function StoreScanner() {
     void runSearch(analysis.value);
   };
 
+  /** Analyse d'une image complète : code d'abord, sinon on propose la sélection de zone. */
+  const analyzeCanvas = async (canvas: HTMLCanvasElement) => {
+    const code = await detectBarcode(canvas);
+    if (code) {
+      canvas.width = canvas.height = 0;
+      void lookup(code);
+      return;
+    }
+    setCapturedFrame(canvas);
+  };
+
+  /** MODE B — photo pleine définition prise par le capteur, jamais enregistrée. */
+  const shootPhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      const canvas = await scanner.takePhoto();
+      if (canvas) await analyzeCanvas(canvas);
+      else setResult({ error: "code_not_found" });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  /** MODE C — image existante choisie dans la galerie. */
+  const onGalleryPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const canvas = await fileToCanvas(file);
+      if (canvas) await analyzeCanvas(canvas);
+      else setResult({ error: "code_not_found" });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.history.back();
     else void router.navigate({ to: "/" });
