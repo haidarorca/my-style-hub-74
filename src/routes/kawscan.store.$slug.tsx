@@ -421,45 +421,133 @@ function StoreScanner() {
             >
               <X className="h-5 w-5" strokeWidth={1.75} />
             </button>
-            <Input
-              ref={searchInputRef}
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nom du produit ou code (même partiel)"
-              className="h-11 flex-1"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void runSearch(query);
-              }}
-            />
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={searchInputRef}
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Nom, marque ou code (même partiel)"
+                className="h-11 w-full ps-9 pe-9"
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-label="Rechercher un produit"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void runSearch(query);
+                  if (e.key === "Escape") setQuery("");
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setHits(null);
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label="Effacer la recherche"
+                  className="absolute end-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
+                >
+                  <X className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">
+            {/* Code saisi en entier : accès direct au prix, sans passer par la liste */}
+            {/^\d{6,}$/.test(query.trim()) && (
+              <button
+                onClick={() => {
+                  const code = query.trim();
+                  setRecent(saveRecent(slug, code));
+                  setSearchOpen(false);
+                  setQuery("");
+                  setHits(null);
+                  void lookup(code);
+                }}
+                className="mb-3 flex w-full items-center gap-2.5 rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-3 text-start text-sm font-semibold text-primary"
+              >
+                <Hash className="h-4 w-4" strokeWidth={1.75} />
+                Voir le prix du code {query.trim()}
+              </button>
+            )}
+
             {searching && (
               <div className="flex justify-center py-8 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
               </div>
             )}
+
+            {!searching && hits && hits.length > 0 && (
+              <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {hits.length} résultat{hits.length > 1 ? "s" : ""}
+              </p>
+            )}
+
             {!searching && hits?.length === 0 && query.trim().length >= 2 && (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                Aucun produit ne correspond à « {query.trim()} ».
-              </p>
+              <div className="py-10 text-center">
+                <p className="text-sm text-muted-foreground">Aucun produit ne correspond à « {query.trim()} ».</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Essayez un mot plus court, une autre orthographe ou quelques chiffres du code.
+                </p>
+              </div>
             )}
+
             {!searching && !hits && (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                Saisissez un nom (« Coca »), un code complet ou seulement quelques chiffres (« 0996 »).
-              </p>
+              <div className="pt-2">
+                {recent.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between px-1 pb-1.5">
+                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Clock className="h-3 w-3" /> Recherches récentes
+                      </span>
+                      <button
+                        onClick={() => {
+                          try {
+                            window.localStorage.removeItem(recentKey(slug));
+                          } catch {
+                            /* stockage indisponible */
+                          }
+                          setRecent([]);
+                        }}
+                        className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        Effacer
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {recent.map((term) => (
+                        <button
+                          key={term}
+                          onClick={() => {
+                            setQuery(term);
+                            void runSearch(term);
+                          }}
+                          className="max-w-full truncate rounded-full border border-border bg-card px-3 py-1.5 text-xs"
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Saisissez un nom (« Coca »), plusieurs mots (« casa 200 »), une orthographe approximative
+                  ou quelques chiffres du code (« 0996 »).
+                </p>
+              </div>
             )}
+
             <ul className="space-y-2">
               {(hits ?? []).map((h) => (
                 <li key={h.id}>
                   <button
-                    onClick={() => {
-                      setSearchOpen(false);
-                      setQuery("");
-                      setHits(null);
-                      void lookup(h.code);
-                    }}
+                    onClick={() => openHit(h)}
                     className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-start transition-colors hover:border-primary/30"
                   >
                     <span className="min-w-0">
