@@ -52,15 +52,34 @@ export function videoPointFromClient(video: HTMLVideoElement | null, clientX: nu
 }
 
 /**
- * Scanner caméra robuste (caméras bas de gamme incluses) :
- * - flux haute résolution (jusqu'à 2560×1440), autofocus continu, aucune réduction de qualité
- * - deux moteurs en parallèle dès le départ : BarcodeDetector natif + ZXing (WASM-free)
- * - plusieurs zones d'analyse par cycle (cadre serré, cadre large, image entière)
- * - tap-to-focus : l'analyse et l'autofocus se concentrent sur la zone touchée pendant ~6 s
- * - prétraitement niveaux de gris + renforcement du contraste
- * - anti-erreur : clé de contrôle EAN/UPC + double lecture identique avant validation
+ * Choisit la caméra arrière PRINCIPALE.
+ * Beaucoup de téléphones exposent aussi un ultra grand-angle / macro / téléobjectif :
+ * ces capteurs rendent une image molle et ruinent la lecture des codes.
  */
+async function pickRearCameraId(): Promise<string | null> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter((d) => d.kind === "videoinput");
+    if (cams.length <= 1) return null;
+    if (!cams.some((c) => c.label)) return null; // labels indisponibles avant autorisation
+    const bad = /(ultra|wide|grand|macro|t[ée]l[ée]|tele|depth|profondeur|infrared|ir\b)/i;
+    const rear = cams.filter((c) => /(back|rear|arri[èe]re|environment|world)/i.test(c.label));
+    const pool = rear.length ? rear : cams;
+    return (pool.find((c) => !bad.test(c.label)) ?? pool[0]).deviceId;
+  } catch {
+    return null;
+  }
+}
 
+/**
+ * Scanner caméra de qualité « terminal magasin » :
+ * - sélection de la caméra arrière principale (jamais l'ultra grand-angle, source de flou)
+ * - résolution réellement maximale négociée avec le capteur (capabilities), sans downscale CSS
+ * - autofocus + exposition + balance des blancs continus, zoom matériel si disponible
+ * - analyse cadencée (≈12 analyses/s) pour laisser le rendu vidéo fluide et net
+ * - deux moteurs : BarcodeDetector natif + ZXing en repli (iOS)
+ * - anti-doublon : clé de contrôle EAN/UPC + double lecture identique
+ */
 export function useScanner(onResult: (code: string) => void, active: boolean) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -77,7 +96,10 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; id: number } | null>(null);
-
+  /** Résolution réelle du flux (diagnostic + affichage qualité). */
+  const [resolution, setResolution] = useState<{ w: number; h: number } | null>(null);
+  const [zoom, setZoomState] = useState(1);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
 
   /** Une lecture brute : validée seulement si la clé est bonne et si elle est confirmée 2 fois. */
   const emit = useCallback((raw: string) => {
@@ -86,7 +108,8 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     if (!checksumOk(clean)) return;
 
     const now = Date.now();
-    if (lastRef.current.code === clean && now - lastRef.current.at < 1500) return;
+    // anti-scan multiple accidentel du même produit
+    if (lastRef.current.code === clean && now - lastRef.current.at < 2500) return;
 
     const c = candidateRef.current;
     if (c.code !== clean || now - c.at > 2000) {
@@ -113,6 +136,18 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setTorchAvailable(false);
     }
   }, [torchOn]);
+
+  /** Zoom optique/numérique du capteur (bien plus net qu'un zoom CSS). */
+  const setZoom = useCallback(async (value: number) => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: value } as unknown as MediaTrackConstraintSet] } as MediaTrackConstraints);
+      setZoomState(value);
+    } catch {
+      /* zoom non supporté */
+    }
+  }, []);
 
   /**
    * Mise au point sur la zone touchée (comme sur les grandes applis) :
@@ -143,8 +178,6 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     if (!advanced.length) return;
     void track.applyConstraints({ advanced } as MediaTrackConstraints).catch(() => {});
   }, []);
-
-
 
   useEffect(() => {
     if (!active) return;
@@ -178,7 +211,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
           BarcodeFormat.QR_CODE,
           BarcodeFormat.DATA_MATRIX,
         ]);
-        const reader = new BrowserMultiFormatReader(hints as never, { delayBetweenScanAttempts: 40 });
+        const reader = new BrowserMultiFormatReader(hints as never, { delayBetweenScanAttempts: 80 });
         const controls = await reader.decodeFromVideoElement(video, (result) => {
           if (result) emit(result.getText());
         });
@@ -195,18 +228,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         setState("unsupported");
         return;
       }
+
+      const deviceId = await pickRearCameraId();
+      if (cancelled) return;
+
+      const primary: MediaStreamConstraints = {
+        video: {
+          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }),
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, min: 15 },
+        },
+        audio: false,
+      };
+
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 2560 },
-            height: { ideal: 1440 },
-            frameRate: { ideal: 30 },
-          },
-          audio: false,
-        });
-
+        stream = await navigator.mediaDevices.getUserMedia(primary);
       } catch {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -242,14 +280,25 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const caps = (track?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & {
         torch?: boolean;
         focusMode?: string[];
+        exposureMode?: string[];
+        whiteBalanceMode?: string[];
         zoom?: { min: number; max: number; step?: number };
+        width?: { max?: number };
+        height?: { max?: number };
       };
       setTorchAvailable(Boolean(caps.torch));
 
+      // Résolution réelle : on demande le maximum du capteur, plafonné à 1920×1080
+      // (au-delà, le débit de frames s'effondre sans gain de lisibilité des codes).
+      const maxW = Math.min(caps.width?.max ?? 1920, 1920);
+      const maxH = Math.min(caps.height?.max ?? 1080, 1080);
       const advanced: MediaTrackConstraintSet[] = [];
+      if (maxW >= 1280) advanced.push({ width: maxW, height: maxH } as MediaTrackConstraintSet);
       if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" } as MediaTrackConstraintSet);
-      // pas de zoom matériel automatique : il dégrade l'image sur beaucoup de capteurs
-
+      if (caps.exposureMode?.includes("continuous")) advanced.push({ exposureMode: "continuous" } as MediaTrackConstraintSet);
+      if (caps.whiteBalanceMode?.includes("continuous")) {
+        advanced.push({ whiteBalanceMode: "continuous" } as MediaTrackConstraintSet);
+      }
       if (advanced.length) {
         try {
           await track.applyConstraints({ advanced } as MediaTrackConstraints);
@@ -257,6 +306,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
           /* ignoré */
         }
       }
+
+      if (caps.zoom && typeof caps.zoom.min === "number") {
+        setZoomRange({ min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step ?? 0.1 });
+        const current = (track.getSettings?.() as { zoom?: number })?.zoom;
+        setZoomState(current ?? caps.zoom.min);
+      }
+
+      const settings = track?.getSettings?.() ?? {};
+      if (settings.width && settings.height) setResolution({ w: settings.width, h: settings.height });
       setState("running");
 
       // ZXing démarre tout de suite, en parallèle du moteur natif
@@ -289,19 +347,22 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       let busy = false;
       let rafId = 0;
       let vfcId = 0;
+      let lastRun = 0;
+      /** ≈12 analyses/s : assez pour un scan instantané, sans saturer le CPU ni la batterie. */
+      const MIN_INTERVAL = 80;
 
       // zones analysées en rotation : cadre serré, cadre large, image entière
       type Zone = { w: number; h: number; scale: number } | null;
       const ZONES: Zone[] = [
-        { w: 0.7, h: 0.3, scale: 3 },
-        { w: 0.95, h: 0.55, scale: 2 },
+        { w: 0.75, h: 0.32, scale: 2 },
+        { w: 0.95, h: 0.55, scale: 1.5 },
         null,
       ];
       // zones prioritaires quand l'utilisateur a touché l'écran (tap-to-focus)
       const POI_ZONES: Zone[] = [
-        { w: 0.45, h: 0.22, scale: 3 },
+        { w: 0.45, h: 0.22, scale: 2.5 },
         { w: 0.7, h: 0.35, scale: 2 },
-        { w: 0.28, h: 0.14, scale: 4 },
+        { w: 0.28, h: 0.14, scale: 3 },
       ];
       const POI_TTL = 6000;
 
@@ -328,6 +389,9 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
 
       const analyse = async () => {
         if (cancelled || busy) return;
+        const now = performance.now();
+        if (now - lastRun < MIN_INTERVAL) return;
+        lastRun = now;
         const v = videoRef.current;
         if (!v || v.readyState < 2 || !v.videoWidth) return;
         busy = true;
@@ -344,7 +408,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
             const centerY = poi ? poi.y * v.videoHeight : v.videoHeight / 2;
             const sx = Math.round(Math.min(Math.max(0, centerX - cw / 2), Math.max(0, v.videoWidth - cw)));
             const sy = Math.round(Math.min(Math.max(0, centerY - ch / 2), Math.max(0, v.videoHeight - ch)));
-            canvas.width = Math.min(2400, Math.round(cw * zone.scale));
+            canvas.width = Math.min(1600, Math.round(cw * zone.scale));
             canvas.height = Math.round((ch / cw) * canvas.width);
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = "high";
@@ -359,7 +423,6 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
         } finally {
           busy = false;
         }
-
       };
 
       const v = video as HTMLVideoElement & {
@@ -405,9 +468,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setFocusPoint(null);
       setState("idle");
       setTorchOn(false);
+      setResolution(null);
+      setZoomRange(null);
     };
   }, [active, emit]);
 
-  return { videoRef, state, error, torchOn, torchAvailable, toggleTorch, focusAt, focusPoint };
+  return {
+    videoRef,
+    state,
+    error,
+    torchOn,
+    torchAvailable,
+    toggleTorch,
+    focusAt,
+    focusPoint,
+    resolution,
+    zoom,
+    zoomRange,
+    setZoom,
+  };
 }
-
