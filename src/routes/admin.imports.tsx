@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
 import InstructionsPanel from "@/components/admin/InstructionsPanel";
 
+import { AdminImagesZipSection } from "@/components/import-export/AdminImagesZipSection";
+
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
 const fmtFcfa = (n: number | null) => n === null || n === 0 ? "-" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 type Pick = string; const idOf = (v: Pick) => v.slice(4);
