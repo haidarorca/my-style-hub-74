@@ -1,10 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CameraOff, Home, Keyboard, Loader2, ScanLine, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  CameraOff,
+  Home,
+  Loader2,
+  ScanLine,
+  Search,
+  TextCursorInput,
+  X,
+  Zap,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
+import { readTextFromVideo } from "@/lib/kawscan/ocr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -49,14 +60,42 @@ type LookupResult = {
   tiers?: { label: string; price: number }[];
 };
 
+type SearchHit = {
+  id: string;
+  code: string;
+  name: string | null;
+  unit: string;
+  price: number;
+  promo: boolean;
+  promo_price: number | null;
+  effective_price: number;
+  currency: string;
+};
+
+/** Un produit sans nom n'est jamais « introuvable » : son code sert de nom. */
+function productLabel(p: { name?: string | null; code?: string | null }) {
+  const n = (p.name ?? "").trim();
+  return n || p.code || "Produit";
+}
+
+/** Appel RPC générique (fonctions KawScan non typées dans le client généré). */
+const rpc = supabase.rpc as unknown as (
+  fn: string,
+  args: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
 function StoreScanner() {
   const { slug } = Route.useParams();
+  const router = useRouter();
   const [result, setResult] = useState<LookupResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [manual, setManual] = useState("");
-  const [manualOpen, setManualOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [ocrBusy, setOcrBusy] = useState(false);
   const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
-
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const storeQuery = useQuery({
     queryKey: ["kawscan-store", slug],
@@ -88,7 +127,38 @@ function StoreScanner() {
     [slug],
   );
 
-  const scanner = useScanner(lookup, Boolean(canScan) && !result);
+  // Le scanner est en pause pendant l'affichage d'un résultat ou d'une recherche.
+  const scanner = useScanner(lookup, Boolean(canScan) && !result && !searchOpen);
+
+  /** Recherche intelligente : nom, code complet ou fragment de code. */
+  const runSearch = useCallback(
+    async (q: string) => {
+      const text = q.trim();
+      if (text.length < 2) {
+        setHits(null);
+        return;
+      }
+      setSearching(true);
+      try {
+        const { data, error } = await rpc("kawscan_search", { _slug: slug, _q: text, _limit: 25 });
+        if (error) throw new Error(error.message);
+        const payload = data as { results?: SearchHit[] } | null;
+        setHits(payload?.results ?? []);
+      } catch {
+        setHits([]);
+      } finally {
+        setSearching(false);
+      }
+    },
+    [slug],
+  );
+
+  // Recherche différée pendant la frappe (économie réseau et batterie).
+  useEffect(() => {
+    if (!searchOpen) return;
+    const t = setTimeout(() => void runSearch(query), 280);
+    return () => clearTimeout(t);
+  }, [query, searchOpen, runSearch]);
 
   const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
     const p = videoPointFromClient(scanner.videoRef.current, e.clientX, e.clientY);
@@ -97,6 +167,29 @@ function StoreScanner() {
     setRing({ left: p.left, top: p.top, id: Date.now() });
   };
 
+  /** OCR : lecture ponctuelle du texte visé, en secours du code-barres. */
+  const readText = async () => {
+    const video = scanner.videoRef.current;
+    if (!video) return;
+    setOcrBusy(true);
+    try {
+      const text = await readTextFromVideo(video);
+      if (!text) {
+        setResult({ error: "code_not_found" });
+        return;
+      }
+      setQuery(text);
+      setSearchOpen(true);
+      void runSearch(text);
+    } finally {
+      setOcrBusy(false);
+    }
+  };
+
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) router.history.back();
+    else void router.navigate({ to: "/" });
+  };
 
   useEffect(() => {
     document.body.style.background = "#000";
@@ -130,19 +223,29 @@ function StoreScanner() {
 
   return (
     <div className="relative min-h-screen bg-black text-white">
-      {/* Barre supérieure minimale, entièrement paramétrable par l'admin */}
-      <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-3 p-4">
-        {store.show_back_button && (
-          <button onClick={() => window.history.back()} aria-label="Retour" className="rounded-full bg-white/10 p-2">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        )}
+      {/* Barre supérieure : retour toujours disponible */}
+      <div
+        className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-4 pb-3"
+        style={{ paddingTop: "calc(0.75rem + var(--safe-top, 0px))" }}
+      >
+        <button
+          onClick={goBack}
+          aria-label="Retour"
+          className="flex h-10 items-center gap-1.5 rounded-full bg-white/15 pe-3.5 ps-3 text-sm font-semibold backdrop-blur transition-colors active:bg-white/25"
+        >
+          <ArrowLeft className="h-4.5 w-4.5" strokeWidth={1.75} />
+          Retour
+        </button>
         {store.show_home_button && (
-          <Link to="/" aria-label="Accueil" className="rounded-full bg-white/10 p-2">
-            <Home className="h-5 w-5" />
+          <Link
+            to="/"
+            aria-label="Accueil"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 backdrop-blur"
+          >
+            <Home className="h-4.5 w-4.5" strokeWidth={1.75} />
           </Link>
         )}
-        <div className="flex items-center gap-2 truncate">
+        <div className="ms-auto flex min-w-0 items-center gap-2">
           {store.logo_url && <img src={store.logo_url} alt="" className="h-7 w-7 rounded-full object-cover" />}
           <span className="truncate text-sm font-semibold">{store.display_name || store.name}</span>
         </div>
@@ -152,7 +255,7 @@ function StoreScanner() {
       <div className="relative h-screen w-full overflow-hidden" onPointerDown={handleTap}>
         <video ref={scanner.videoRef} className="h-full w-full object-cover" muted playsInline />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-52 w-72 rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]" />
+          <div className="h-48 w-[17rem] rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
         </div>
         {ring && (
           <div
@@ -161,7 +264,6 @@ function StoreScanner() {
             style={{ left: ring.left, top: ring.top }}
           />
         )}
-
 
         {scanner.state === "denied" && (
           <Overlay
@@ -175,46 +277,131 @@ function StoreScanner() {
           <Overlay
             icon={<CameraOff className="h-8 w-8" />}
             title="Caméra indisponible"
-            message={scanner.error ?? "Votre navigateur ne permet pas le scan. Saisissez le code à la main."}
-            action={<Button onClick={() => setManualOpen(true)}>Saisir le code</Button>}
+            message={scanner.error ?? "Votre navigateur ne permet pas le scan. Recherchez le produit à la main."}
+            action={<Button onClick={() => setSearchOpen(true)}>Rechercher un produit</Button>}
           />
         )}
 
-        <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 p-6">
-          <p className="text-center text-sm text-white/80">
-            Placez le code dans le cadre — touchez l'écran sur le code pour faire la mise au point
+        {/* Zone d'action basse : recherche + outils, compacte pour ne pas masquer la caméra */}
+        <div
+          className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pt-4"
+          style={{ paddingBottom: "calc(1.25rem + var(--safe-bottom, 0px))" }}
+        >
+          <p className="text-center text-xs text-white/70">
+            Placez le code dans le cadre — touchez le code à l'écran pour la mise au point
           </p>
 
-          <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 80);
+            }}
+            className="flex h-12 w-full items-center gap-2.5 rounded-full bg-white px-4 text-start text-sm font-medium text-black shadow-lg"
+          >
+            <Search className="h-4.5 w-4.5 text-black/50" strokeWidth={1.75} />
+            Rechercher un nom ou un code…
+          </button>
+
+          <div className="flex items-center justify-center gap-2">
             {scanner.torchAvailable && (
-              <Button variant="secondary" onClick={() => void scanner.toggleTorch()}>
-                <Zap className="mr-2 h-4 w-4" /> {scanner.torchOn ? "Flash activé" : "Flash"}
-              </Button>
+              <ToolButton onClick={() => void scanner.toggleTorch()} active={scanner.torchOn}>
+                <Zap className="h-4 w-4" strokeWidth={1.75} /> Flash
+              </ToolButton>
             )}
-            <Button variant="secondary" onClick={() => setManualOpen((v) => !v)}>
-              <Keyboard className="mr-2 h-4 w-4" /> Saisir le code
-            </Button>
+            <ToolButton onClick={() => void readText()} disabled={ocrBusy}>
+              {ocrBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <TextCursorInput className="h-4 w-4" strokeWidth={1.75} />}
+              Lire le texte
+            </ToolButton>
           </div>
-          {manualOpen && (
-            <form
-              className="flex w-full max-w-sm gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (manual.trim()) void lookup(manual.trim());
-              }}
-            >
-              <Input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                placeholder="Code du produit"
-                inputMode="numeric"
-                className="bg-white text-black"
-              />
-              <Button type="submit" disabled={busy}>OK</Button>
-            </form>
+
+          {scanner.zoomRange && scanner.zoomRange.max > scanner.zoomRange.min && (
+            <input
+              type="range"
+              aria-label="Zoom"
+              min={scanner.zoomRange.min}
+              max={scanner.zoomRange.max}
+              step={scanner.zoomRange.step}
+              value={scanner.zoom}
+              onChange={(e) => void scanner.setZoom(Number(e.target.value))}
+              className="mx-auto w-48 accent-white"
+            />
           )}
         </div>
       </div>
+
+      {/* Recherche manuelle */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground">
+          <div
+            className="flex items-center gap-2 border-b border-border px-3 pb-3"
+            style={{ paddingTop: "calc(0.75rem + var(--safe-top, 0px))" }}
+          >
+            <button
+              onClick={() => {
+                setSearchOpen(false);
+                setHits(null);
+                setQuery("");
+              }}
+              aria-label="Fermer la recherche"
+              className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-accent"
+            >
+              <X className="h-5 w-5" strokeWidth={1.75} />
+            </button>
+            <Input
+              ref={searchInputRef}
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nom du produit ou code (même partiel)"
+              className="h-11 flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void runSearch(query);
+              }}
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {searching && (
+              <div className="flex justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            )}
+            {!searching && hits?.length === 0 && query.trim().length >= 2 && (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Aucun produit ne correspond à « {query.trim()} ».
+              </p>
+            )}
+            {!searching && !hits && (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Saisissez un nom (« Coca »), un code complet ou seulement quelques chiffres (« 0996 »).
+              </p>
+            )}
+            <ul className="space-y-2">
+              {(hits ?? []).map((h) => (
+                <li key={h.id}>
+                  <button
+                    onClick={() => {
+                      setSearchOpen(false);
+                      setQuery("");
+                      setHits(null);
+                      void lookup(h.code);
+                    }}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-start transition-colors hover:border-primary/30"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{productLabel(h)}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{h.code}</span>
+                    </span>
+                    <span className="shrink-0 text-base font-extrabold text-primary">
+                      {formatKawscanPrice(h.effective_price, h.currency ?? currency)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Résultat */}
       {result && (
@@ -226,10 +413,13 @@ function StoreScanner() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {ACCESS_STATE_MESSAGES[result.error] ?? "Impossible de lire ce code. Réessayez."}
                 </p>
+                <Button variant="outline" className="mt-4 h-11 w-full" onClick={() => { setResult(null); setSearchOpen(true); }}>
+                  <Search className="mr-2 h-4 w-4" /> Rechercher à la main
+                </Button>
               </>
             ) : (
               <>
-                {result.name && <p className="text-lg font-medium">{result.name}</p>}
+                <p className="text-lg font-medium">{productLabel(result)}</p>
                 {result.promo && (
                   <p className="text-base text-muted-foreground line-through">
                     {formatKawscanPrice(result.price ?? 0, result.currency ?? currency)}
@@ -255,22 +445,44 @@ function StoreScanner() {
                 )}
               </>
             )}
-            <Button className="mt-6 h-12 w-full text-base" onClick={() => setResult(null)}>
+            <Button className="mt-6 h-12 w-full text-base" disabled={busy} onClick={() => setResult(null)}>
               <ScanLine className="mr-2 h-5 w-5" /> Scanner un autre produit
             </Button>
           </div>
         </div>
       )}
 
-      {store.show_kawzone_link && (
-        <a
-          href="/"
-          className="absolute bottom-1 left-0 right-0 z-10 text-center text-[11px] text-white/50"
-        >
+      {store.show_kawzone_link && !searchOpen && (
+        <a href="/" className="absolute bottom-1 left-0 right-0 z-10 text-center text-[11px] text-white/50">
           Propulsé par Kawzone
         </a>
       )}
     </div>
+  );
+}
+
+function ToolButton({
+  children,
+  onClick,
+  active,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-10 items-center gap-2 rounded-full px-4 text-xs font-semibold backdrop-blur transition-colors disabled:opacity-60 ${
+        active ? "bg-white text-black" : "bg-white/15 text-white active:bg-white/25"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
