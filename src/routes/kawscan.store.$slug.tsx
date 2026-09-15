@@ -3,8 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Camera,
   CameraOff,
   Home,
+  Images,
+  Info,
   Loader2,
   ScanLine,
   Search,
@@ -18,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
 import { ZoneAnalyzer } from "@/components/kawscan/ZoneAnalyzer";
-import type { ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
+import { detectBarcode, fileToCanvas, type ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
