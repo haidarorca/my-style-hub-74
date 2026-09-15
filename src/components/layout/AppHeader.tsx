@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { ShoppingCart, UserRound, LogOut, ShieldCheck, Storefront, MapPinned, PackageSearch, MessagesSquare, LifeBuoy } from "lucide-react";
+import { ShoppingCart, UserRound, LogOut, ShieldCheck, Building2, MapPinned, PackageSearch, MessagesSquare, LifeBuoy } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -78,7 +78,7 @@ export function AppHeader() {
           <LanguageSwitcher />
           <Link to="/cart" className="relative">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
-              <ShoppingBag className="h-[18px] w-[18px]" />
+              <ShoppingCart className="h-[18px] w-[18px]" />
             </Button>
             {count > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -91,7 +91,7 @@ export function AppHeader() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full sm:h-9 sm:w-9">
-                  <User className="h-[18px] w-[18px]" />
+                  <UserRound className="h-[18px] w-[18px]" />
                   {unread > 0 && (
                     <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                       {unread > 9 ? "9+" : unread}
@@ -105,14 +105,14 @@ export function AppHeader() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/orders"><Package className="mr-2 h-4 w-4" /> {t("nav.orders")}</Link>
+                  <Link to="/orders"><PackageSearch className="mr-2 h-4 w-4" /> {t("nav.orders")}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/account"><MapPin className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
+                  <Link to="/account"><MapPinned className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/messages" className="flex items-center justify-between gap-2 w-full">
-                    <span className="flex items-center"><MessageSquare className="mr-2 h-4 w-4" /> Mes messages</span>
+                    <span className="flex items-center"><MessagesSquare className="mr-2 h-4 w-4" /> Mes messages</span>
                     {unread > 0 && (
                       <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{unread}</span>
                     )}
@@ -128,7 +128,7 @@ export function AppHeader() {
                 )}
                 {(isVendor || isAdmin) && (
                   <DropdownMenuItem asChild>
-                    <Link to="/vendor"><Store className="mr-2 h-4 w-4" /> {t("nav.vendor")}</Link>
+                    <Link to="/vendor"><Building2 className="mr-2 h-4 w-4" /> {t("nav.vendor")}</Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
