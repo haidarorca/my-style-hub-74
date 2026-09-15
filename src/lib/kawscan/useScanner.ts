@@ -427,6 +427,12 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const settings = track?.getSettings?.() ?? {};
       const actualWidth = settings.width ?? video.videoWidth;
       const actualHeight = settings.height ?? video.videoHeight;
+      let cameraCount = 0;
+      try {
+        cameraCount = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput").length;
+      } catch {
+        cameraCount = 0;
+      }
       if (actualWidth && actualHeight) {
         setResolution({ w: actualWidth, h: actualHeight });
         setDiagnostics({
@@ -436,7 +442,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
           aspectRatio: settings.aspectRatio ?? actualWidth / actualHeight,
           facingMode: settings.facingMode ?? null,
           deviceLabel: track.label || null,
+          deviceId: settings.deviceId ?? null,
           focusMode: (settings as MediaTrackSettings & { focusMode?: string }).focusMode ?? null,
+          focusModes: caps.focusMode ?? [],
+          maxWidth: caps.width?.max ?? null,
+          maxHeight: caps.height?.max ?? null,
+          torch: Boolean(caps.torch),
+          zoomMax: caps.zoom?.max ?? null,
+          engine: "…",
+          cameraCount,
         });
       }
       setState("running");
@@ -462,10 +476,12 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       if (!Detector || !usable.length) {
         // Repli local, principalement pour iPhone. On évite de faire tourner deux
         // moteurs en parallèle, ce qui faisait chuter la fluidité du preview.
+        setDiagnostics((d) => (d ? { ...d, engine: "ZXing (local)" } : d));
         void startZxing(video);
         return;
       }
 
+      setDiagnostics((d) => (d ? { ...d, engine: `BarcodeDetector (${usable.length} formats)` } : d));
       const detector = new Detector({ formats: usable });
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -542,6 +558,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
             enhance();
             source = canvas;
           }
+          // Diagnostic : taille EXACTE de l'image remise au moteur de scan.
+          const sw = source === v ? v.videoWidth : canvas.width;
+          const sh = source === v ? v.videoHeight : canvas.height;
+          const rect = v.getBoundingClientRect();
+          const prev = liveRef.current;
+          const dt = now - (prev?.at ?? now - 1000);
+          liveRef.current = {
+            at: now,
+            videoWidth: v.videoWidth,
+            videoHeight: v.videoHeight,
+            displayWidth: Math.round(rect.width),
+            displayHeight: Math.round(rect.height),
+            scanWidth: sw,
+            scanHeight: sh,
+            measuredFps: dt > 0 ? Math.round(1000 / dt) : 0,
+            devicePixelRatio: window.devicePixelRatio,
+          };
           const codes = await detector.detect(source);
           if (codes?.length) emit(codes[0].rawValue);
         } catch {
@@ -616,5 +649,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     zoomRange,
     setZoom,
     captureFrame,
+    takePhoto,
+    live,
   };
 }
