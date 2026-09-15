@@ -145,6 +145,7 @@ export function AppHeader() {
           )}
         </div>
       </div>
+      <DesktopNav />
     </header>
   );
 }
