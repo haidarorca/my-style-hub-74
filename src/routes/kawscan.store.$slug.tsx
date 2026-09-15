@@ -271,7 +271,14 @@ function StoreScanner() {
       void lookup(code);
       return;
     }
-    setCapturedFrame(canvas);
+    setNoCodeFrame(canvas);
+  };
+
+  const releaseNoCodeFrame = () => {
+    setNoCodeFrame((frame) => {
+      if (frame) frame.width = frame.height = 0;
+      return null;
+    });
   };
 
   /** MODE B — photo pleine définition prise par le capteur, jamais enregistrée. */
