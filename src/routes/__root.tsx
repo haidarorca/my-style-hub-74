@@ -88,7 +88,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Kawzone — Marketplace Shopping" },
       { name: "description", content: "Marketplace moderne au Sénégal : vêtements, accessoires, maison, électronique et plus." },
-      { name: "theme-color", content: "#e5277a" },
+      { name: "theme-color", content: "#1e2a4a" },
       { property: "og:title", content: "Kawzone — Marketplace Shopping" },
       { name: "twitter:title", content: "Kawzone — Marketplace Shopping" },
       { property: "og:description", content: "Marketplace moderne au Sénégal : vêtements, accessoires, maison, électronique et plus." },
@@ -116,7 +116,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" },
     ],
     scripts: [
       {
