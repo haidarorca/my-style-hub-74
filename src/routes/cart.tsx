@@ -4,7 +4,8 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { BackButton } from "@/components/layout/BackButton";
 
-import { Minus, Plus, Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
+import { Trash2, Store, ShoppingBag, MapPin, Crosshair, Check, MessageCircle, ShieldCheck } from "lucide-react";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
