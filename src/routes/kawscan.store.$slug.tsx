@@ -173,7 +173,10 @@ function StoreScanner() {
   );
 
   // Le scanner est en pause pendant l'affichage d'un résultat ou d'une recherche.
-  const scanner = useScanner(lookup, Boolean(canScan) && !result && !searchOpen && !capturedFrame);
+  const scanner = useScanner(
+    lookup,
+    Boolean(canScan) && !result && !searchOpen && !capturedFrame && !noCodeFrame,
+  );
 
   /** Recherche intelligente : nom, mots dans le désordre, fautes de frappe, code même partiel. */
   const runSearch = useCallback(
