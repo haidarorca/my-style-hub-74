@@ -57,12 +57,12 @@ export function DesktopNav() {
         className="mx-auto flex max-w-7xl items-center gap-1 px-3"
         onMouseLeave={() => setOpen(false)}
       >
-        <Link to="/" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }} activeOptions={{ exact: true }}>
+        <Link to="/" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }} activeOptions={{ exact: true }}>
           <House className="h-4 w-4" /> {t("nav.home")}
         </Link>
 
         <div className="relative" onMouseEnter={() => setOpen(true)}>
-          <Link to="/categories" className={cn(linkCls, open && "bg-accent text-foreground")}>
+          <Link to="/categories" className={cn(linkCls, open && "text-foreground after:scale-x-100")}>
             <Boxes className="h-4 w-4" /> {t("nav.categories")}
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
           </Link>
@@ -125,13 +125,13 @@ export function DesktopNav() {
           )}
         </div>
 
-        <Link to="/search" search={{ q: "" }} className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
+        <Link to="/search" search={{ q: "" }} className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
           <Search className="h-4 w-4" /> {t("nav.search")}
         </Link>
-        <Link to="/account" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
+        <Link to="/account" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
           <UserRound className="h-4 w-4" /> {t("nav.account")}
         </Link>
-        <Link to="/cart" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
+        <Link to="/cart" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
           <ShoppingCart className="h-4 w-4" /> {t("nav.cart")}
         </Link>
       </nav>
