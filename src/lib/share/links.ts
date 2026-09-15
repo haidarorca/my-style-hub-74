@@ -7,6 +7,7 @@ export type SharePlatform =
   | "facebook"
   | "messenger"
   | "telegram"
+  | "linkedin"
   | "twitter"
   | "instagram"
   | "email"
@@ -20,6 +21,17 @@ export type SharePlatform =
  *   et récupèrent les balises Open Graph à jour (image, titre, prix, promo).
  *   Même jour = même URL = cache réutilisé (pas de scrape inutile).
  */
+export function siteOrigin(): string {
+  return typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : "https://kawzone.com";
+}
+
+/** URL du lien court /s/{code} — c'est elle qui porte l'aperçu social serveur. */
+export function shortUrl(code: string): string {
+  return `${siteOrigin()}/s/${code}`;
+}
+
 export function currentShareVersion(): string {
   const d = new Date();
   const y = d.getUTCFullYear();
@@ -28,17 +40,30 @@ export function currentShareVersion(): string {
   return `${y}${m}${day}`;
 }
 
+function shareContentVersion(source?: string | null): string {
+  if (!source) return currentShareVersion();
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export function buildTrackedUrl(
   baseUrl: string,
   platform: SharePlatform,
-  opts: { forceRefresh?: boolean } = {},
+  opts: { forceRefresh?: boolean; versionSource?: string | null } = {},
 ): string {
   try {
     const u = new URL(baseUrl);
     u.searchParams.set("ref", "share");
     u.searchParams.set("via", platform);
     // Cache-buster OG : force les crawlers à refaire un scrape.
-    u.searchParams.set("v", opts.forceRefresh ? String(Date.now()) : currentShareVersion());
+    u.searchParams.set(
+      "v",
+      opts.forceRefresh ? String(Date.now()) : shareContentVersion(opts.versionSource),
+    );
     return u.toString();
   } catch {
     return baseUrl;
@@ -72,6 +97,8 @@ export function shareLinkFor(platform: SharePlatform, url: string, message: stri
       // Instagram n'accepte pas d'URL pré-remplie. On ouvre l'app / le site,
       // la légende est copiée séparément et le visuel Story est téléchargé.
       return `https://www.instagram.com/`;
+    case "linkedin":
+      return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
     case "email":
       return `mailto:?subject=${encodeURIComponent("Découverte KawZone")}&body=${m}`;
     case "sms":

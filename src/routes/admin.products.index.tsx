@@ -8,11 +8,14 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   Search, X, Check, Pencil, Flag, ShieldAlert, PackageCheck, PackageX, Hourglass, Eye, Trash2, Archive,
+  Layers,
 } from "lucide-react";
 import {
   listAdminProducts, listReportedProducts, setProductStatus, setReportStatus, deleteOrArchiveProduct,
   type AdminProductRow, type AdminReportRow,
 } from "@/lib/admin-products.functions";
+import { GroupManagementDialog } from "@/components/product/GroupManagementDialog";
+import { listProductGroups } from "@/lib/product-groups.functions";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const searchSchema = z.object({
-  tab: fallback(z.enum(["moderation", "reported"]), "moderation").default("moderation"),
+  tab: fallback(z.enum(["moderation", "reported", "groups"]), "moderation").default("moderation"),
   page: fallback(z.number().int().min(1), 1).default(1),
   q: fallback(z.string(), "").default(""),
   // moderation
@@ -88,16 +91,19 @@ function ProductsAdminPage() {
       <Tabs
         value={search.tab}
         onValueChange={(v) =>
-          navigate({ search: (prev: SearchState) => ({ ...prev, tab: v as "moderation" | "reported", page: 1 }) })
+          navigate({ search: (prev: SearchState) => ({ ...prev, tab: v as "moderation" | "reported" | "groups", page: 1 }) })
         }
       >
         <AdminTabList>
           <AdminTabTrigger value="moderation"><PackageCheck className="mr-1 h-3 w-3" /> Modération</AdminTabTrigger>
           <AdminTabTrigger value="reported"><Flag className="mr-1 h-3 w-3" /> Signalés</AdminTabTrigger>
+          <AdminTabTrigger value="groups"><Layers className="mr-1 h-3 w-3" /> Groupes</AdminTabTrigger>
         </AdminTabList>
       </Tabs>
 
-      {search.tab === "moderation" ? (
+      {search.tab === "groups" ? (
+        <GroupsPanel />
+      ) : search.tab === "moderation" ? (
         <ModerationPanel
           search={search}
           navigate={navigate}
@@ -113,6 +119,68 @@ function ProductsAdminPage() {
         />
       )}
     </div>
+  );
+}
+
+/* ---------------------- Groupes de produits ---------------------- */
+
+function GroupsPanel() {
+  const fetchGroups = useServerFn(listProductGroups);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["product-groups"],
+    queryFn: () => fetchGroups({ data: { q: "", mine: false } }),
+    staleTime: 30_000,
+  });
+
+  const groups = data ?? [];
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{groups.length} groupe{groups.length > 1 ? "s" : ""}</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Les groupes se créent depuis la boutique du vendeur : sélectionnez plusieurs produits puis « Regrouper ».
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2 p-3">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Chargement…</p>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun groupe pour le moment.</p>
+          ) : (
+            groups.map((g) => (
+              <div key={g.id} className="flex items-center gap-3 rounded-lg border p-2">
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted">
+                  {g.cover_url ? <img src={g.cover_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{g.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {g.members_count} produit{g.members_count > 1 ? "s" : ""} · critère « {g.criterion_label} »
+                    {g.show_in_catalog ? "" : " · masqué du catalogue"}
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setEditing(g.id)}>
+                  <Pencil className="mr-1 h-3 w-3" /> Gérer
+                </Button>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {editing ? (
+        <GroupManagementDialog
+          open={!!editing}
+          onOpenChange={(o) => { if (!o) setEditing(null); }}
+          groupId={editing}
+          onDone={() => refetch()}
+        />
+      ) : null}
+    </>
   );
 }
 

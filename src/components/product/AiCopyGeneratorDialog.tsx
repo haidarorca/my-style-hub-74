@@ -53,7 +53,7 @@ import {
   DEFAULT_PRODUCT_COMMANDS,
 } from "@/hooks/use-slash-commands";
 import { SlashCommandMenu } from "@/components/ai/SlashCommandMenu";
-import { AiCategoryDetector } from "@/components/ai/AiCategoryDetector";
+import { AiCategoryClassifier } from "@/components/ai/AiCategoryClassifier";
 
 type Result = { name: string; designation: string; description: string };
 type Mode = "image" | "text" | "combined";
@@ -82,6 +82,8 @@ export function AiCopyGeneratorDialog({
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const [lastImageDataUrls, setLastImageDataUrls] = useState<string[]>([]);
+  const [autoClassifyKey, setAutoClassifyKey] = useState(0);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // Slash commands
@@ -163,7 +165,7 @@ export function AiCopyGeneratorDialog({
   }, []);
 
   // Lancer la generation
-  const run = async () => {
+  const run = async (alsoClassify = false) => {
     setLoading(true);
     setResult(null);
 
@@ -204,7 +206,11 @@ export function AiCopyGeneratorDialog({
       });
 
       setResult(r);
+      setLastImageDataUrls(imageDataUrls ?? []);
       toast.success("Proposition prete ! Verifiez et appliquez.");
+      if (alsoClassify && onCategoryApply) {
+        setAutoClassifyKey((k) => k + 1);
+      }
     } catch (err: any) {
       console.error("[AiCopyGenerator] Erreur:", err);
 
@@ -345,21 +351,44 @@ export function AiCopyGeneratorDialog({
           </TabsContent>
         </Tabs>
 
-        {/* Bouton generer */}
-        <Button
-          type="button"
-          onClick={run}
-          disabled={loading || (imageFiles.length === 0 && text.trim().length === 0)}
-          className="w-full gap-2"
-          size="lg"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Wand2 className="h-4 w-4" />
+        {/* Boutons IA */}
+        <div className="space-y-2">
+          <Button
+            type="button"
+            onClick={() => run(false)}
+            disabled={loading || (imageFiles.length === 0 && text.trim().length === 0)}
+            className="w-full gap-2"
+            size="lg"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            {loading ? "Analyse en cours..." : "✨ Generer le contenu avec l'IA"}
+          </Button>
+
+          {onCategoryApply && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => run(true)}
+              disabled={loading || (imageFiles.length === 0 && text.trim().length === 0)}
+              className="w-full gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              ✨ Generer + Classifier automatiquement
+            </Button>
           )}
-          {loading ? "Analyse en cours..." : "Generer avec l'IA"}
-        </Button>
+
+          {onCategoryApply && !result && (
+            <AiCategoryClassifier
+              description={text}
+              onApply={onCategoryApply}
+              compact
+            />
+          )}
+        </div>
 
         {/* Resultat */}
         {result && (
@@ -401,13 +430,15 @@ export function AiCopyGeneratorDialog({
                 />
               </div>
 
-              {/* Detection auto des categories (optionnel) */}
+              {/* Classification dans le catalogue existant */}
               {onCategoryApply && (
-                <AiCategoryDetector
+                <AiCategoryClassifier
                   name={result.name}
                   designation={result.designation}
-                  description={result.description}
+                  description={result.description || text}
+                  imageDataUrls={lastImageDataUrls}
                   onApply={onCategoryApply}
+                  autoRunKey={autoClassifyKey}
                 />
               )}
 

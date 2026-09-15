@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
+import { Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video, Heart } from "lucide-react";
 import { QuantityInput } from "@/components/ui/quantity-input";
 import { warrantyLabel } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
@@ -38,6 +38,12 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
+import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
+import { GroupSelector } from "@/components/product/GroupSelector";
+import { useTracker, useTrackProductView } from "@/hooks/use-tracker";
+import { useFavorites } from "@/hooks/use-favorites";
+import { RecommendationBlock } from "@/components/product/RecommendationBlock";
+import { useRecommendations } from "@/hooks/use-recommendations";
 import { ShareButton } from "@/components/share/ShareButton";
 
 export const Route = createFileRoute("/product/$productId")({
@@ -47,7 +53,8 @@ export const Route = createFileRoute("/product/$productId")({
       const { supabase } = await import("@/integrations/supabase/client");
       const { data } = await supabase
         .from("products")
-        .select("id, name, description, price, product_images(url)")
+        .select("id, name, description, price, product_images(url, position)")
+        .order("position", { referencedTable: "product_images", ascending: true })
         .eq("id", params.productId)
         .eq("status", "approved")
         .maybeSingle();
@@ -69,14 +76,20 @@ export const Route = createFileRoute("/product/$productId")({
       { property: "og:title", content: title },
       { property: "og:description", content: desc },
       { property: "og:url", content: url },
+      { property: "og:site_name", content: "Kawzone" },
+      { property: "og:locale", content: "fr_FR" },
       { property: "og:type", content: "product" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: desc },
     ];
+    // Aperçu social : image composée côté serveur (photo + nom + prix + marque).
+    const ogImage = `https://kawzone.com/api/public/og/product/${params.productId}`;
+    meta.push({ property: "og:image", content: ogImage });
+    meta.push({ property: "og:image:width", content: "800" });
+    meta.push({ property: "og:image:height", content: "420" });
+    meta.push({ name: "twitter:image", content: ogImage });
     if (img) {
-      meta.push({ property: "og:image", content: img });
-      meta.push({ name: "twitter:image", content: img });
     }
     const scripts: Array<{ type: string; children: string }> = [];
     if (seo) {
@@ -180,6 +193,7 @@ function ProductPage() {
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
            weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
 
+           group_id, group_option_label,
            product_images(url, position),
            product_variants(*),
            product_customizations(*),
@@ -256,6 +270,20 @@ function ProductPage() {
   // Build gallery images: product images + variant images
   // MUST be declared AFTER matchedVariant to avoid Temporal Dead Zone (TDZ).
   // When a variant is selected, its image is prioritized (prepended).
+  const track = useTracker();
+  const favorites = useFavorites();
+  const navigate = useNavigate();
+
+  // Profil d'intérêt : consultation produit (une fois par session).
+  useTrackProductView(data?.id ?? null, (data as any)?.category_id ?? null);
+
+  const { data: complementary, isLoading: complementaryLoading } = useRecommendations({
+    context: "product",
+    exclude: data?.id ? [data.id] : [],
+    limit: 8,
+    enabled: !!data?.id,
+  });
+
   const images = useMemo(() => {
     const productImgs = (data?.product_images ?? []) as { url: string; position: number | null }[];
     const variantImgs = (data?.product_variants ?? []) as Variant[];
@@ -445,10 +473,12 @@ function ProductPage() {
                 <p className="text-xl font-extrabold text-primary">
                   {fmt(Number(displayPrice))}
                 </p>
-                {transportIncluded && (
+                {transportIncluded ? (
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
                     Transport inclus — modifiable au panier
                   </p>
+                ) : (
+                  <DeliveryToConfirmNotice className="mt-2" />
                 )}
               </>
             ) : (
@@ -491,7 +521,28 @@ function ProductPage() {
                   />
                 );
               })()}
+
+              {/* Favori — uniquement sur la fiche produit */}
+              <button
+                type="button"
+                onClick={() => {
+                  const res = favorites.toggle(data.id);
+                  if (res.needsLogin) {
+                    toast.info("Connectez-vous pour retrouver vos favoris.");
+                    void navigate({ to: "/login" });
+                  }
+                }}
+                aria-pressed={favorites.isFavorite(data.id)}
+                aria-label={favorites.isFavorite(data.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                className="ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-accent active:scale-95"
+              >
+                <Heart className={`h-5 w-5 ${favorites.isFavorite(data.id) ? "fill-primary text-primary" : ""}`} />
+              </button>
             </div>
+
+            {(data as any).group_id ? (
+              <GroupSelector groupId={(data as any).group_id} currentProductId={data.id} className="mt-3" />
+            ) : null}
           </div>
 
           {(warrantyText || isFragile || fitInfo || (isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)))) && (
@@ -949,6 +1000,14 @@ function ProductPage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Complémentaires — moteur de recommandations central */}
+        <RecommendationBlock
+          title="🧰 Vous pourriez aussi en avoir besoin"
+          subtitle="Produits souvent utiles avec celui-ci"
+          products={complementary}
+          isLoading={complementaryLoading}
+        />
       </main>
 
       {/* Bottom bar */}

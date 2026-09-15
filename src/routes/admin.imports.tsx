@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadImportMedia, extractVideoFrames, analyzeVisualMedia, publishDraft, type VisualDraft, type SimpleVariant, type MediaGroup } from "@/lib/visual-ai-import.service";
 import InstructionsPanel from "@/components/admin/InstructionsPanel";
 
+import { AdminImagesZipSection } from "@/components/import-export/AdminImagesZipSection";
+
 export const Route = createFileRoute("/admin/imports")({ component: () => (<PermissionGate perm="products"><AdminImports /></PermissionGate>) });
 const fmtFcfa = (n: number | null) => n === null || n === 0 ? "-" : `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
 type Pick = string; const idOf = (v: Pick) => v.slice(4);
@@ -66,6 +68,7 @@ export default function AdminImports() {
               {preview && <Button onClick={async () => { try { const b64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve((r.result as string).split(",")[1] ?? ""); r.onerror = reject; r.readAsDataURL(excelFile!); }); await fnCommit({ data: { importId: (preview as any)?.id ?? "" } as any }); toast.success("Importe !"); setPreview(null); setExcelFile(null); } catch (e: any) { toast.error(e.message); } }} className="w-full"><CheckCircle2 className="h-4 w-4 mr-1" /> Importer</Button>}
             </CardContent>
           </Card>
+          <AdminImagesZipSection />
         </AdminTabContent>
         <AdminTabContent value="visual"><VisualImporter onDraftCreated={(d) => { setDrafts(p => [d, ...p]); setEditingId(d.id); setMainTab("drafts"); }} /></AdminTabContent>
         <AdminTabContent value="drafts">
