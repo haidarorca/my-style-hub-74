@@ -190,7 +190,7 @@ export async function exportImagesZip(params: {
 }): Promise<ZipExportResult> {
   let query = supabaseAdmin
     .from("products")
-    .select("id, code, name, product_images(url, position, media_type)")
+    .select("id, code, name, product_images(url, position)")
     .eq("vendor_id", params.shopId)
     .limit(2000);
 
@@ -207,7 +207,7 @@ export async function exportImagesZip(params: {
   for (const p of (data ?? []) as any[]) {
     const code: string = p.code || slug(p.name ?? p.id);
     const list = (p.product_images ?? [])
-      .filter((i: any) => (i.media_type ?? "image") === "image")
+      
       .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 
     if (list.length === 0) continue;
