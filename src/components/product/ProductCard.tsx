@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { ShoppingBasket } from "lucide-react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -150,7 +150,7 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
         </div>
       </Link>
 
-      <div className="absolute end-2 top-2 flex flex-col gap-1.5">
+      <div className="absolute end-2.5 top-2.5 flex flex-col gap-2 opacity-95 transition-opacity duration-300 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
         {cfg.showButton && (
           <button
             type="button"
@@ -160,9 +160,9 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
               onQuickAdd(product.id);
             }}
             aria-label={t("product.quick_add_aria")}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground shadow-soft backdrop-blur-sm transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-90"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-soft backdrop-blur transition-all duration-200 hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-90"
           >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <ShoppingBasket className="h-[17px] w-[17px]" />
           </button>
         )}
         {(() => {
