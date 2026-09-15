@@ -9,7 +9,6 @@ import {
   ScanLine,
   Search,
   ScanSearch,
-  TextCursorInput,
   X,
   Zap,
 } from "lucide-react";
