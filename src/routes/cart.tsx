@@ -911,7 +911,7 @@ function CartPage() {
   return (
     <div className="min-h-screen bg-background pb-32">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-[var(--page-px)] py-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+      <main className="mx-auto max-w-3xl px-[var(--page-px)] py-3 pb-[calc(7rem+var(--bottom-nav-total))] md:pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <BackButton fallbackTo="/" />
         <h1 className="mb-3 mt-2 text-lg font-bold">{t("cart.title")}</h1>
 
@@ -1040,7 +1040,7 @@ function CartPage() {
       </main>
 
       {items.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
+        <div className="kz-above-nav fixed inset-x-0 z-30 border-t border-border bg-background/95 backdrop-blur" style={{ paddingBottom: "var(--safe-bottom, 0px)" }}>
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-[var(--page-px)] py-3">
             <div className="flex items-center gap-2 pe-1">
               <Checkbox

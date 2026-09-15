@@ -126,6 +126,10 @@
   --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 }
 
+/* Barres d'action fixes : restent au-dessus de la navigation mobile du bas */
+.kz-above-nav { bottom: var(--bottom-nav-total); }
+@media (min-width: 768px) { .kz-above-nav { bottom: 0; } }
+
 /* ═══════════════════════════════════════════════════════════
    ADMIN PREMIUM UTILITIES — Garde le thème clair existant
    ═══════════════════════════════════════════════════════════ */
