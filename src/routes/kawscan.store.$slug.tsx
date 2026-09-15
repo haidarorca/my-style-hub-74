@@ -134,7 +134,11 @@ function StoreScanner() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  /** Photo analysée sans code détecté : l'utilisateur peut encadrer la zone. */
+  const [noCodeFrame, setNoCodeFrame] = useState<HTMLCanvasElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
   /** Numéro de requête : seule la dernière réponse est affichée (pas de résultat périmé). */
   const searchSeq = useRef(0);
 
