@@ -718,6 +718,16 @@ function StoreScanner() {
   );
 }
 
+/** Ligne du panneau de diagnostic caméra (valeurs réelles, pas demandées). */
+function DiagRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-white/55">{label}</span>
+      <span className="text-end font-medium">{value}</span>
+    </div>
+  );
+}
+
 function ToolButton({
   children,
   onClick,
