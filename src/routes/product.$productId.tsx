@@ -477,6 +477,8 @@ function ProductPage() {
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
                     Transport inclus — modifiable au panier
                   </p>
+                ) : (
+                  <DeliveryToConfirmNotice className="mt-2" />
                 )}
               </>
             ) : (
@@ -519,7 +521,28 @@ function ProductPage() {
                   />
                 );
               })()}
+
+              {/* Favori — uniquement sur la fiche produit */}
+              <button
+                type="button"
+                onClick={() => {
+                  const res = favorites.toggle(data.id);
+                  if (res.needsLogin) {
+                    toast.info("Connectez-vous pour retrouver vos favoris.");
+                    void navigate({ to: "/login" });
+                  }
+                }}
+                aria-pressed={favorites.isFavorite(data.id)}
+                aria-label={favorites.isFavorite(data.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                className="ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-accent active:scale-95"
+              >
+                <Heart className={`h-5 w-5 ${favorites.isFavorite(data.id) ? "fill-primary text-primary" : ""}`} />
+              </button>
             </div>
+
+            {(data as any).group_id ? (
+              <GroupSelector groupId={(data as any).group_id} currentProductId={data.id} className="mt-3" />
+            ) : null}
           </div>
 
           {(warrantyText || isFragile || fitInfo || (isClothing && variants.some((v) => hasAnyMeasurement(v.measurements)))) && (
@@ -977,6 +1000,14 @@ function ProductPage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Complémentaires — moteur de recommandations central */}
+        <RecommendationBlock
+          title="🧰 Vous pourriez aussi en avoir besoin"
+          subtitle="Produits souvent utiles avec celui-ci"
+          products={complementary}
+          isLoading={complementaryLoading}
+        />
       </main>
 
       {/* Bottom bar */}
