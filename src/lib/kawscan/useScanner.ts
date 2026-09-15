@@ -320,12 +320,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       if (preferredId && preferredId !== selectedId) {
         try {
           const preferredStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: preferredId },
-              width: { min: portrait ? 720 : 1280, ideal: targetWidth },
-              height: { min: portrait ? 1280 : 720, ideal: targetHeight },
-              frameRate: { ideal: 30, min: 15 },
-            },
+            video: maxVideo(preferredId),
             audio: false,
           });
           stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
