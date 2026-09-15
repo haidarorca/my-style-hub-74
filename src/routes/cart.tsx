@@ -1010,15 +1010,12 @@ function CartPage() {
                                         <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
                                           <Trash2 className="h-4 w-4" />
                                         </button>
-                                        <div className="inline-flex items-center rounded-md border border-border">
-                                          <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity - 1)}>
-                                            <Minus className="h-3.5 w-3.5" />
-                                          </button>
-                                          <span className="w-8 text-center text-sm font-semibold">{it.quantity}</span>
-                                          <button className="flex h-7 w-7 items-center justify-center" onClick={() => updateQuantity(it.id, it.quantity + 1)}>
-                                            <Plus className="h-3.5 w-3.5" />
-                                          </button>
-                                        </div>
+                                        <QuantityInput
+                                          size="sm"
+                                          value={it.quantity}
+                                          min={Math.max(1, Number(it.products?.min_order_qty ?? 1) || 1)}
+                                          onChange={(next) => updateQuantity(it.id, next)}
+                                        />
                                       </div>
                                     </div>
                                   </div>
