@@ -281,16 +281,16 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       // Aucune limite artificielle : on demande la définition maximale du capteur
       // sans imposer de ratio ni de minimum (un ratio forcé oblige le navigateur
       // à recadrer/réduire le flux, ce qui rendait l'image molle).
-      const primary: MediaStreamConstraints = {
-        video: {
-          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }),
+      const maxVideo = (id: string | null): MediaTrackConstraints =>
+        ({
+          ...(id ? { deviceId: { exact: id } } : { facingMode: { ideal: "environment" } }),
           width: { ideal: 7680 },
           height: { ideal: 4320 },
           frameRate: { ideal: 30 },
           resizeMode: { ideal: "none" },
-        } as MediaTrackConstraints,
-        audio: false,
-      };
+        }) as unknown as MediaTrackConstraints;
+
+      const primary: MediaStreamConstraints = { video: maxVideo(deviceId), audio: false };
 
       let stream: MediaStream;
       try {
