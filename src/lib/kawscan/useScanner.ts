@@ -278,17 +278,17 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const deviceId = await pickRearCameraId();
       if (cancelled) return;
 
-      const portrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
-      const targetWidth = portrait ? 2160 : 3840;
-      const targetHeight = portrait ? 3840 : 2160;
+      // Aucune limite artificielle : on demande la définition maximale du capteur
+      // sans imposer de ratio ni de minimum (un ratio forcé oblige le navigateur
+      // à recadrer/réduire le flux, ce qui rendait l'image molle).
       const primary: MediaStreamConstraints = {
         video: {
           ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }),
-          width: { min: portrait ? 720 : 1280, ideal: targetWidth },
-          height: { min: portrait ? 1280 : 720, ideal: targetHeight },
-          aspectRatio: { ideal: portrait ? 9 / 16 : 16 / 9 },
-          frameRate: { ideal: 30, min: 15 },
-        },
+          width: { ideal: 7680 },
+          height: { ideal: 4320 },
+          frameRate: { ideal: 30 },
+          resizeMode: { ideal: "none" },
+        } as MediaTrackConstraints,
         audio: false,
       };
 
@@ -298,11 +298,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       } catch {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: portrait ? 1080 : 1920 },
-              height: { ideal: portrait ? 1920 : 1080 },
-            },
+            video: { facingMode: { ideal: "environment" } },
             audio: false,
           });
         } catch (e2) {
