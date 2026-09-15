@@ -2,12 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ProductCard } from "@/components/product/ProductCard";
+import { ProductCard, type ProductCardProduct } from "@/components/product/ProductCard";
+import { RecommendationBlock } from "@/components/product/RecommendationBlock";
+import { PRODUCT_CARD_SELECT } from "@/lib/product-select";
+import { useRecommendations } from "@/hooks/use-recommendations";
+import { useTracker } from "@/hooks/use-tracker";
 import { ProductPricesProvider } from "@/components/product/ProductPricesProvider";
 import { ProductGridSkeleton } from "@/components/product/ProductCardSkeleton";
 import { QuickAddSheet } from "@/components/product/QuickAddSheet";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
@@ -164,7 +168,10 @@ function CategoryPage() {
 
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url), product_variants(measurements)")
+        .select(PRODUCT_CARD_SELECT)
+        .order("position", { referencedTable: "product_images", ascending: true })
+        // Groupes : on n'affiche que les articles visibles seuls + l'article principal du groupe
+        .or("group_id.is.null,show_individually.eq.true,group_position.eq.0")
         .eq("status", "approved")
         .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
         .in("category_id", descendantIds)
@@ -256,19 +263,13 @@ function CategoryPage() {
             <ProductPricesProvider productIds={products.map((p) => p.id)}>
               <div className="grid-products">
                 {products.map((p) => (
-                  <ProductCard key={p.id} product={p} onQuickAdd={setQuickAdd} />
+                  <ProductCard key={p.id} product={p as ProductCardProduct} onQuickAdd={setQuickAdd} />
                 ))}
               </div>
             </ProductPricesProvider>
           ) : (
             <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               <p>{t("category.empty")}</p>
-              {/* CORRECTION: Message d'aide pour le débogage */}
-              {descendantIds && descendantIds.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Catégories recherchées: {descendantIds.length} ID(s)
-                </p>
-              )}
             </div>
           )}
         </section>

@@ -229,6 +229,19 @@ function SearchPage() {
   };
 
   const showResults = debounced.length >= 1;
+
+  // Suivi des recherches (profil d'intérêt) + recommandations complémentaires.
+  const track = useTracker();
+  useEffect(() => {
+    if (debounced.length >= 2) track("search", { query: debounced });
+  }, [debounced, track]);
+
+  const { data: reco, isLoading: recoLoading } = useRecommendations({
+    context: "search",
+    exclude: (products ?? []).map((p: { id: string }) => p.id),
+    limit: 8,
+    enabled: debounced.length >= 1 && !pLoading,
+  });
   const showProducts = tab === "all" || tab === "products";
   const showCategories = tab === "all" || tab === "categories";
   const showShops = tab === "all" || tab === "shops";
@@ -551,6 +564,14 @@ function SearchPage() {
                   {t("search.no_results_for")} « {debounced} ». {t("search.check_spelling")}
                 </p>
               )}
+
+            {/* Recommandations — séparées des résultats de recherche */}
+            <RecommendationBlock
+              title="⭐ Vous pourriez aussi aimer"
+              subtitle="Suggestions personnalisées"
+              products={reco}
+              isLoading={recoLoading}
+            />
           </div>
         )}
       </div>
