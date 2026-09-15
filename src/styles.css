@@ -224,6 +224,13 @@
       gap: 1rem;
     }
   }
+  /* Grille pilotée par la configuration d'affichage admin */
+  @media (min-width: 768px) {
+    .grid-products-cfg {
+      grid-template-columns: repeat(var(--pg-cols-desktop, 4), minmax(0, 1fr)) !important;
+      gap: var(--pg-gap-desktop, 1rem) !important;
+    }
+  }
 }
 
 @layer utilities {
