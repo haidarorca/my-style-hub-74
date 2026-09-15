@@ -30,7 +30,12 @@ import { removeVendorAccount } from "@/lib/vendor-offboarding.functions";
 import { UpdateAppButton } from "@/components/UpdateAppButton";
 import { useCurrencies } from "@/hooks/use-currencies";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coins } from "lucide-react";
+import { Coins, ShieldCheck, RefreshCw, Globe2 } from "lucide-react";
+import {
+  SettingsSection,
+  SettingsLinkRow,
+  SettingsPanel,
+} from "@/components/kz/SettingsSection";
 
 function DisplayCurrencyCard() {
   const { currencies, displayCurrency, setDisplayCurrency, loading } = useCurrencies();
@@ -60,7 +65,7 @@ function DisplayCurrencyCard() {
           </SelectContent>
         </Select>
       </div>
-    </div>
+    </SettingsPanel>
   );
 }
 
