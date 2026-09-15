@@ -257,27 +257,14 @@ function EditProductPage() {
     try {
       const orig = data.product;
 
-      // Upload new images
-      if (newImages.length > 0) {
-        const rows: { product_id: string; url: string; position: number }[] = [];
-        const basePos = existingImages.length;
-        for (let i = 0; i < newImages.length; i++) {
-          const file = newImages[i];
-          const ext = file.name.split(".").pop() || "jpg";
-          const path = `${user.id}/${productId}/${Date.now()}-${i}.${ext}`;
-          const { error: upErr } = await supabase.storage.from("product-images").upload(path, file);
-          if (upErr) throw upErr;
-          const url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
-          rows.push({ product_id: productId, url, position: basePos + i });
-        }
-        const { error: insErr } = await supabase.from("product_images").insert(rows);
-        if (insErr) throw insErr;
-      }
-
-      if (removedImageIds.length > 0) {
-        const { error: delErr } = await supabase.from("product_images").delete().in("id", removedImageIds);
-        if (delErr) throw delErr;
-      }
+      // Images : suppression + renumérotation + ajout (ordre fiable)
+      await syncProductImages({
+        productId,
+        folder: user.id,
+        keptImages: existingImages,
+        removedImageIds,
+        newFiles: newImages,
+      });
 
       // Variants: delete removed
       if (removedVariantIds.length > 0) {
