@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { ShoppingBag, User, LogOut, ShieldCheck, Store, MapPin, Package, MessageSquare, LifeBuoy } from "lucide-react";
+import { ShoppingCart, UserRound, LogOut, ShieldCheck, Storefront, MapPinned, PackageSearch, MessagesSquare, LifeBuoy } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
