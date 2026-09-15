@@ -18,7 +18,8 @@ async function getWorker(): Promise<Worker | null> {
   if (!workerPromise) {
     workerPromise = (async () => {
       try {
-        const mod = (await import(/* @vite-ignore */ "https://esm.sh/tesseract.js@5")) as {
+        const url = "https://esm.sh/tesseract.js@5";
+        const mod = (await import(/* @vite-ignore */ url)) as {
           createWorker: (lang: string) => Promise<Worker>;
         };
         return await mod.createWorker("eng");
