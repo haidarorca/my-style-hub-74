@@ -199,6 +199,7 @@ function RootComponent() {
                   {isKawscan ? <Outlet /> : <SwipeNavigator><Outlet /></SwipeNavigator>}
                 </ErrorBoundary>
                 {!isKawscan && <MobileBottomNav />}
+                {!isKawscan && <InstallAppBanner />}
                 <AutoUpdatePrompt />
                 <Toaster richColors position="top-center" />
                 </CurrenciesProvider>
