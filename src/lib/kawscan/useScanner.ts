@@ -9,7 +9,27 @@ export type CameraDiagnostics = {
   aspectRatio: number | null;
   facingMode: string | null;
   deviceLabel: string | null;
+  deviceId: string | null;
   focusMode: string | null;
+  focusModes: string[];
+  maxWidth: number | null;
+  maxHeight: number | null;
+  torch: boolean;
+  zoomMax: number | null;
+  engine: string;
+  cameraCount: number;
+};
+
+/** Mesures vivantes : ce que le <video> et le canvas d'analyse contiennent réellement. */
+export type LiveDiagnostics = {
+  videoWidth: number;
+  videoHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  scanWidth: number;
+  scanHeight: number;
+  measuredFps: number;
+  devicePixelRatio: number;
 };
 
 const FORMATS = [
