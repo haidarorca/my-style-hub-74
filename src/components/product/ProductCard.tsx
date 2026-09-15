@@ -7,6 +7,7 @@ import { useProductDisplayPrice } from "./ProductPricesProvider";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { ProductBadges } from "./ProductBadges";
+import { CatalogImage } from "@/components/images/CatalogImage";
 import { ShareButton } from "@/components/share/ShareButton";
 import type { CompositionItem } from "@/lib/textile-materials";
 
