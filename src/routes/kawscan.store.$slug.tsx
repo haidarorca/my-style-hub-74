@@ -178,7 +178,8 @@ function StoreScanner() {
         if (seq !== searchSeq.current) return;
         const payload = data as { results?: SearchHit[] } | null;
         setHits(payload?.results ?? []);
-      } catch {
+      } catch (err) {
+        console.error("kawscan_search", err);
         if (seq === searchSeq.current) setHits([]);
       } finally {
         if (seq === searchSeq.current) setSearching(false);
