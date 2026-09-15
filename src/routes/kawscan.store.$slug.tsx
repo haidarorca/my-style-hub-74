@@ -9,6 +9,8 @@ import {
   ScanLine,
   Search,
   ScanSearch,
+  Clock,
+  Hash,
   X,
   Zap,
 } from "lucide-react";
