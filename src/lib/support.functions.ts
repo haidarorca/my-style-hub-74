@@ -49,6 +49,7 @@ export const getPublicVendorContacts = createServerFn({ method: "POST" })
 // ============================================================
 // Settings (admin)
 // ============================================================
+// Version publique : n'expose jamais les identifiants internes des admins.
 export const getContactSettings = createServerFn({ method: "GET" }).handler(async () => {
   const { data, error } = await supabaseAdmin
     .from("contact_settings" as never)
@@ -56,8 +57,27 @@ export const getContactSettings = createServerFn({ method: "GET" }).handler(asyn
     .eq("id", "main")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data as ContactSettings | null;
+  if (!data) return null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { default_assigned_admin_ids, ...pub } = data as ContactSettings & {
+    default_assigned_admin_ids?: string[];
+  };
+  return pub as ContactSettings;
 });
+
+// Version admin : inclut les champs internes, réservée aux administrateurs.
+export const getContactSettingsAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!(await isAdmin(context.userId))) throw new Error("Accès refusé");
+    const { data, error } = await supabaseAdmin
+      .from("contact_settings" as never)
+      .select("*")
+      .eq("id", "main")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as ContactSettings | null;
+  });
 
 export const updateContactSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
