@@ -4730,6 +4730,7 @@ export type Database = {
         Args: { _store_id: string }
         Returns: string
       }
+      kawscan_norm: { Args: { _t: string }; Returns: string }
       kawscan_public_store: {
         Args: { _slug: string }
         Returns: {
@@ -4744,6 +4745,10 @@ export type Database = {
           show_kawzone_link: boolean
           show_kawzone_logo: boolean
         }[]
+      }
+      kawscan_search: {
+        Args: { _limit?: number; _q: string; _slug: string }
+        Returns: Json
       }
       log_admin_action: {
         Args: {
