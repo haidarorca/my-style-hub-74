@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Home, LayoutGrid, Search, ShoppingBag, User } from "lucide-react";
+import { ChevronDown, House, Boxes, Search, ShoppingCart, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 import { useI18n } from "@/hooks/use-i18n";
