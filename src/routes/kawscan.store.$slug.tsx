@@ -479,6 +479,24 @@ function StoreScanner() {
             </ToolButton>
           </div>
 
+          <div className="flex items-center justify-center gap-2">
+            <ToolButton onClick={() => void shootPhoto()} disabled={photoBusy || scanner.state !== "running"}>
+              {photoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" strokeWidth={1.75} />}
+              Prendre une photo
+            </ToolButton>
+            <ToolButton onClick={() => galleryInputRef.current?.click()} disabled={photoBusy}>
+              <Images className="h-4 w-4" strokeWidth={1.75} />
+              Choisir une image
+            </ToolButton>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => void onGalleryPick(e)}
+            />
+          </div>
+
           {scanner.zoomRange && scanner.zoomRange.max > scanner.zoomRange.min && (
             <input
               type="range"
