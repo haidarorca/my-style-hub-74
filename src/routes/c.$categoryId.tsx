@@ -194,6 +194,21 @@ function CategoryPage() {
     },
   });
 
+  // Suivi de la consultation de catégorie (profil d'intérêt).
+  const track = useTracker();
+  useEffect(() => {
+    if (categoryId) track("category_view", { categoryId });
+  }, [categoryId, track]);
+
+  // Recommandations complémentaires, jamais mélangées aux résultats.
+  const { data: reco, isLoading: recoLoading } = useRecommendations({
+    context: "category",
+    categoryIds: descendantIds ?? null,
+    exclude: (products ?? []).map((p) => p.id),
+    limit: 8,
+    enabled: !productsLoading,
+  });
+
   const categoryName = category ? pickI18n(category.name, (category as { name_i18n?: Record<string, string> | null }).name_i18n, lang) : "";
   const parentName = parent ? pickI18n(parent.name, (parent as { name_i18n?: Record<string, string> | null }).name_i18n, lang) : "";
 
@@ -273,6 +288,15 @@ function CategoryPage() {
             </div>
           )}
         </section>
+
+        {/* Recommandations — clairement séparées des résultats */}
+        <RecommendationBlock
+          title="⭐ Vous pourriez aussi aimer"
+          subtitle="Suggestions basées sur vos consultations"
+          products={reco}
+          isLoading={recoLoading}
+          onQuickAdd={setQuickAdd}
+        />
       </main>
 
       <QuickAddSheet
