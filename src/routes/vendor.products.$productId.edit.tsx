@@ -1,3 +1,4 @@
+import { syncProductImages } from "@/lib/product-images";
 import { useEffect, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
