@@ -84,7 +84,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     if (settings.primary_color) root.style.setProperty("--primary", settings.primary_color);
-    if (settings.accent_color) root.style.setProperty("--accent", settings.accent_color);
+    // La couleur secondaire pilote l'accent de marque (cuivre KawZone),
+    // pas le token --accent qui sert de surface claire.
+    if (settings.accent_color) root.style.setProperty("--brand", settings.accent_color);
     if (settings.site_name) document.title = settings.site_name;
     runtimeSettings.whatsapp_number = settings.whatsapp_number || DEFAULTS.whatsapp_number!;
     runtimeSettings.whatsapp_default_message = settings.whatsapp_default_message || DEFAULTS.whatsapp_default_message!;
