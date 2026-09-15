@@ -824,6 +824,28 @@ function DiagRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Option secondaire sous le bouton principal : grande cible tactile, style sobre. */
+function SecondaryButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-14 flex-col items-center justify-center gap-1 rounded-xl bg-white/15 text-[11px] font-semibold text-white backdrop-blur transition-colors active:bg-white/25 disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
 function ToolButton({
   children,
   onClick,
