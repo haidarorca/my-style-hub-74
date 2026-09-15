@@ -131,6 +131,25 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const [diagnostics, setDiagnostics] = useState<CameraDiagnostics | null>(null);
   const [zoom, setZoomState] = useState(1);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
+  /** Mesures rafraîchies en continu dans la boucle d'analyse (sans re-render à chaque frame). */
+  const liveRef = useRef<(LiveDiagnostics & { at: number }) | null>(null);
+  const [live, setLive] = useState<LiveDiagnostics | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setLive(null);
+      liveRef.current = null;
+      return;
+    }
+    const id = window.setInterval(() => {
+      const l = liveRef.current;
+      if (l) {
+        const { at: _at, ...rest } = l;
+        setLive(rest);
+      }
+    }, 700);
+    return () => window.clearInterval(id);
+  }, [active]);
 
   /** Une lecture brute : validée seulement si la clé est bonne et si elle est confirmée 2 fois. */
   const emit = useCallback((raw: string) => {
