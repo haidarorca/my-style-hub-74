@@ -341,17 +341,22 @@ function Home() {
         {/* Catégories — cartes compactes */}
         {showKind("categories") && universes && universes.length > 0 && (
 
-          <section className="mt-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <h2 className="min-w-0 truncate text-base font-bold">{t("home.section.categories")}</h2>
+          <section className="mt-9">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="kz-eyebrow">Univers</p>
+                <h2 className="kz-rule mt-1 min-w-0 truncate font-display text-lg font-semibold sm:text-xl">
+                  {t("home.section.categories")}
+                </h2>
+              </div>
               <Link
                 to="/categories"
-                className="shrink-0 text-xs font-semibold text-primary"
+                className="shrink-0 pb-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
               >
                 {t("common.all")} →
               </Link>
             </div>
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+            <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6 lg:grid-cols-8">
               {universes.slice(0, 8).map((c) => {
                 const cName = pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang);
                 return (
@@ -359,24 +364,24 @@ function Home() {
                     key={c.id}
                     to="/c/$categoryId"
                     params={{ categoryId: c.id }}
-                    className="group flex min-w-0 flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-1 py-2 text-center shadow-soft transition-transform duration-200 active:scale-95"
+                    className="group flex min-w-0 flex-col items-center gap-2 rounded-[calc(var(--radius)+2px)] border border-border bg-card px-1.5 py-3 text-center transition-[border-color,transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[var(--shadow-card)] active:scale-[0.98]"
                   >
-                    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-accent/60 sm:h-12 sm:w-12">
+                    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[var(--surface)] transition-colors duration-300 group-hover:bg-accent sm:h-12 sm:w-12">
                       <CategoryIcon
                         logoUrl={c.logo_url}
                         name={cName}
-                        iconClassName="h-6 w-6 text-primary sm:h-7 sm:w-7"
+                        iconClassName="h-6 w-6 text-primary sm:h-[26px] sm:w-[26px]"
                         className="flex h-full w-full items-center justify-center"
                       />
                     </div>
-                    <span className="line-clamp-2 w-full text-[10.5px] font-semibold leading-tight sm:text-xs">{cName}</span>
+                    <span className="line-clamp-2 w-full text-[10.5px] font-semibold leading-tight text-foreground/85 sm:text-xs">{cName}</span>
                   </Link>
                 );
               })}
             </div>
             <Link
               to="/categories"
-              className="mt-2.5 flex items-center justify-center rounded-xl border border-border bg-muted/50 py-2 text-xs font-semibold text-foreground active:scale-[0.98]"
+              className="mt-3 flex items-center justify-center rounded-full border border-border bg-card py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-accent/60 active:scale-[0.98]"
             >
               Voir toutes les catégories →
             </Link>
@@ -385,19 +390,22 @@ function Home() {
 
 
         {/* Réassurance KawZone */}
-        <section className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-xl bg-card p-3 shadow-soft">
-            <Sparkles className="mx-auto mb-1 h-5 w-5 text-primary" />
-            {t("home.trust.personalization")}
-          </div>
-          <div className="rounded-xl bg-card p-3 shadow-soft">
-            <Truck className="mx-auto mb-1 h-5 w-5 text-primary" />
-            {t("home.trust.fast_delivery")}
-          </div>
-          <div className="rounded-xl bg-card p-3 shadow-soft">
-            <ShieldCheck className="mx-auto mb-1 h-5 w-5 text-primary" />
-            {t("home.trust.verified")}
-          </div>
+        <section className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { Icon: Sparkles, label: t("home.trust.personalization") },
+            { Icon: Truck, label: t("home.trust.fast_delivery") },
+            { Icon: ShieldCheck, label: t("home.trust.verified") },
+          ].map(({ Icon, label }) => (
+            <div
+              key={label}
+              className="flex items-center gap-3 rounded-[calc(var(--radius)+2px)] border border-border bg-card px-4 py-3.5 text-left text-[0.8125rem] font-medium"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
+                <Icon className="h-[18px] w-[18px] text-primary" />
+              </span>
+              <span className="min-w-0 leading-snug text-foreground/85">{label}</span>
+            </div>
+          ))}
         </section>
 
         {/* Sections configurables depuis l'admin (déjà dédupliquées) */}
