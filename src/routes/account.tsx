@@ -47,13 +47,13 @@ function DisplayCurrencyCard() {
       title="Devise d'affichage"
       description="Choisissez la devise dans laquelle les prix sont affichés. La comptabilité reste en FCFA."
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm">
-          <span className="text-muted-foreground">Devise actuelle : </span>
-          <span className="font-semibold">{current ? `${current.symbol} · ${current.code}` : displayCurrency}</span>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <div className="min-w-0 text-xs text-muted-foreground">
+          Devise actuelle
+          <span className="ms-1 font-semibold text-foreground">{current ? `${current.symbol} · ${current.code}` : displayCurrency}</span>
         </div>
         <Select value={displayCurrency} onValueChange={setDisplayCurrency} disabled={loading || active.length === 0}>
-          <SelectTrigger className="h-9 w-[160px]">
+          <SelectTrigger className="h-9 w-[150px] shrink-0">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
