@@ -106,7 +106,7 @@ export function SearchAutocomplete() {
       const first = term.charAt(0);
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, price, product_images(url)")
+        .select("id, name, name_i18n, code, designation, price, product_images(url, position)")
         .eq("status", "approved")
         .or(`name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
