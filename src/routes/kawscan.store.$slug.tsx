@@ -81,8 +81,12 @@ function productLabel(p: { name?: string | null; code?: string | null }) {
   return n || p.code || "Produit";
 }
 
-/** Appel RPC générique (fonctions KawScan non typées dans le client généré). */
-const rpc = supabase.rpc as unknown as (
+/**
+ * Appel RPC générique (fonctions KawScan non typées dans le client généré).
+ * La méthode est liée au client : sans `bind`, l'appel échouait avant même
+ * d'atteindre le serveur et la recherche ne renvoyait jamais de résultat.
+ */
+const rpc = supabase.rpc.bind(supabase) as unknown as (
   fn: string,
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
