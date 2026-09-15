@@ -48,10 +48,10 @@ export function DesktopNav() {
   const level1 = all.filter((c) => c.level === 1 && hasStock(c.id));
 
   const linkCls =
-    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+    "relative flex items-center gap-2 px-3.5 py-3 text-[0.8125rem] font-semibold tracking-[0.01em] text-muted-foreground transition-colors duration-200 hover:text-foreground after:absolute after:inset-x-3.5 after:bottom-1.5 after:h-[2px] after:origin-left after:scale-x-0 after:rounded-full after:bg-[var(--brand)] after:transition-transform after:duration-300 hover:after:scale-x-100";
 
   return (
-    <div className="hidden border-b border-border bg-background/95 md:block">
+    <div className="hidden border-b border-border/70 bg-card/80 backdrop-blur md:block">
       <nav
         aria-label="Navigation principale"
         className="mx-auto flex max-w-7xl items-center gap-1 px-3"
