@@ -8,7 +8,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { getUnreadCount } from "@/lib/support.functions";
 import { cn } from "@/lib/utils";
 
-const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/product", "/cart"];
+// La barre reste disponible sur les pages principales (panier, fiche produit inclus).
+// Elle est masquée uniquement sur les espaces de gestion, l'authentification et KawScan.
+const HIDDEN_PREFIXES = ["/admin", "/vendor", "/login", "/signup", "/kawscan"];
 
 export function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

@@ -439,7 +439,7 @@ function ProductPage() {
   const productDescription = pickI18n(data.description, (data as any).description_i18n, lang);
 
   return (
-    <div className="min-h-screen bg-background pb-28">
+    <div className="min-h-screen bg-background pb-[calc(7rem+var(--bottom-nav-total))] md:pb-28">
       <AppHeader />
       <main className="mx-auto max-w-3xl">
         <div className="px-3 pt-2">
@@ -1012,7 +1012,7 @@ function ProductPage() {
 
       {/* Bottom bar */}
       <div
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur"
+        className="kz-above-nav fixed inset-x-0 z-30 border-t border-border bg-background/95 backdrop-blur"
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         <div className="mx-auto flex max-w-3xl gap-2 px-3 py-3">
