@@ -41,7 +41,7 @@ export function HeroCarousel() {
   if (!banners || banners.length === 0) return null;
 
   return (
-    <section className="mt-3 overflow-hidden rounded-2xl bg-card shadow-soft">
+    <section className="mt-4 overflow-hidden rounded-[calc(var(--radius)+6px)] border border-border bg-card">
       <div className="relative">
         <div ref={emblaRef} className="overflow-hidden">
           <div className={cn("flex", isFade && "[&>*]:opacity-0 [&>*]:transition-opacity")}>
