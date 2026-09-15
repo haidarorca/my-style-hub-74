@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Fuse from "fuse.js";
 import { Search, X, Clock, TrendingUp, Package, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { rankBy, scoreProduct } from "@/lib/search-rank";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
