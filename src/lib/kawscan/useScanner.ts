@@ -315,6 +315,29 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
           return;
         }
       }
+
+      // Après la première autorisation, Android/iOS rendent souvent enfin les
+      // libellés des objectifs disponibles. On peut alors remplacer un éventuel
+      // ultra-grand-angle choisi par défaut par la caméra arrière principale.
+      const selectedId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+      const preferredId = await pickRearCameraId();
+      if (preferredId && preferredId !== selectedId) {
+        try {
+          const preferredStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: preferredId },
+              width: { min: portrait ? 720 : 1280, ideal: targetWidth },
+              height: { min: portrait ? 1280 : 720, ideal: targetHeight },
+              frameRate: { ideal: 30, min: 15 },
+            },
+            audio: false,
+          });
+          stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
+          stream = preferredStream;
+        } catch {
+          // La caméra déjà ouverte reste utilisable si le changement est refusé.
+        }
+      }
       if (cancelled) {
         stream.getTracks().forEach((t) => t.stop());
         return;
