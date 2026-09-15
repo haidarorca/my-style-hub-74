@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// ShareCenter — Centre de partage marketing KawZone (v2).
+// ShareCenter — Centre de partage marketing Diakounda (v2).
 // 3 onglets : Envoyer · Visuels · QR & Lien.
 // Nouveautés v2 :
-//  • 4 thèmes visuels distincts (Alibaba, Discount, Spotlight, Editorial)
+//  • 4 thèmes visuels distincts (Marketplace, Discount, Spotlight, Editorial)
 //  • Badge Import / Produit local
 //  • Aperçu message pré-plateforme
 //  • Format auto-recommandé par réseau (Story pour IG, Carré pour WA…)
@@ -18,13 +18,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Copy, Check, Share2, Download, MessageCircle, Facebook, Send, Mail,
-  Twitter, Smartphone, Instagram, Sparkles,
+  Twitter, Smartphone, Instagram, Sparkles, Linkedin,
 } from "lucide-react";
 
 import {
-  productUrl, buildTrackedUrl, shareLinkFor, type SharePlatform,
+  productUrl, buildTrackedUrl, shareLinkFor, shortUrl, type SharePlatform,
 } from "@/lib/share/links";
-import { buildShareMessage, type ShareProduct } from "@/lib/share/messages";
+import { createShareLink } from "@/lib/share/share-links.functions";
+import { buildShareMessage, buildImageCaption, MESSAGE_LIMITS, type ShareProduct } from "@/lib/share/messages";
+import { shareImageFile, canShareFiles } from "@/lib/share/native-share";
 import { PosterTemplate, POSTER_DIMS, type PosterFormat, type PosterTheme } from "./PosterTemplate";
 import { QrBlock } from "./QrBlock";
 import { nodeToBlob, downloadBlob, safeFilename } from "@/lib/share/download";
@@ -59,6 +61,7 @@ const PLATFORMS: {
   { key: "messenger", label: "Messenger", icon: Send, color: "bg-sky-500 hover:bg-sky-600", recommendedFormat: "square" },
   { key: "telegram", label: "Telegram", icon: Send, color: "bg-cyan-500 hover:bg-cyan-600", recommendedFormat: "poster" },
   { key: "twitter", label: "X", icon: Twitter, color: "bg-neutral-900 hover:bg-black", recommendedFormat: "poster" },
+  { key: "linkedin", label: "LinkedIn", icon: Linkedin, color: "bg-[#0a66c2] hover:bg-[#084e96]", recommendedFormat: "poster" },
   { key: "sms", label: "SMS", icon: Smartphone, color: "bg-violet-500 hover:bg-violet-600" },
   { key: "email", label: "Email", icon: Mail, color: "bg-rose-500 hover:bg-rose-600", recommendedFormat: "poster" },
 ];
@@ -71,10 +74,15 @@ const FORMATS: { key: PosterFormat; label: string; hint: string; icon: string }[
 ];
 
 const THEMES: { key: PosterTheme; label: string; desc: string; gradient: string }[] = [
-  { key: "alibaba", label: "Marketplace", desc: "Style Alibaba — prix jaune, CTA orange", gradient: "from-amber-400 via-orange-500 to-pink-500" },
+  { key: "alibaba", label: "Marketplace", desc: "Style marketplace — prix jaune, CTA orange", gradient: "from-amber-400 via-orange-500 to-pink-500" },
   { key: "discount", label: "Promo Choc", desc: "Fond image plein cadre, -% énorme", gradient: "from-red-600 via-orange-600 to-yellow-500" },
   { key: "spotlight", label: "Coup de cœur", desc: "Produit détouré, ambiance pastel", gradient: "from-amber-200 via-orange-300 to-pink-300" },
   { key: "editorial", label: "Éditorial", desc: "Minimal magazine noir & blanc", gradient: "from-neutral-200 via-neutral-100 to-white" },
+];
+
+// Plateformes où l'on peut publier une VRAIE image (Story / Statut / post).
+const IMAGE_PLATFORMS: SharePlatform[] = [
+  "whatsapp", "instagram", "facebook", "messenger", "telegram", "twitter", "linkedin",
 ];
 
 export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
@@ -85,11 +93,30 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   const [busy, setBusy] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState<SharePlatform>("whatsapp");
   const [forceRefresh, setForceRefresh] = useState(false);
+  // Mode d'envoi : lien (aperçu automatique) ou image (Story / Statut).
+  const [sendMode, setSendMode] = useState<"link" | "image">("image");
+  const [imageShape, setImageShape] = useState<"story" | "square">("story");
   const posterRef = useRef<HTMLDivElement | null>(null);
   const storyRef = useRef<HTMLDivElement | null>(null);
+  const squareRef = useRef<HTMLDivElement | null>(null);
 
-  const baseUrl = useMemo(() => productUrl(product.id), [product.id]);
+  const [code, setCode] = useState<string | null>(null);
+  const canonicalUrl = useMemo(() => productUrl(product.id), [product.id]);
+  // Le lien court porte l'aperçu Open Graph généré côté serveur + le suivi des clics.
+  const baseUrl = code ? shortUrl(code) : canonicalUrl;
   const nativeAvailable = typeof navigator !== "undefined" && "share" in navigator;
+  const [fileShareOk, setFileShareOk] = useState(false);
+
+  useEffect(() => { setFileShareOk(canShareFiles()); }, []);
+
+  useEffect(() => {
+    if (!open || code) return;
+    let cancelled = false;
+    createShareLink({ data: { productId: product.id } })
+      .then((r) => { if (!cancelled && r?.code) setCode(r.code); })
+      .catch(() => { /* le lien canonique reste utilisable */ });
+    return () => { cancelled = true; };
+  }, [open, code, product.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,39 +136,53 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
     shopName: product.shopName ?? null,
     originType: product.originType ?? null,
     originLabel: product.originLabel ?? null,
-    url: buildTrackedUrl(baseUrl, platform, { forceRefresh }),
+    url: buildTrackedUrl(baseUrl, platform, {
+      forceRefresh,
+      versionSource: product.imageUrl,
+    }),
   });
 
+  // ── Partage IMAGE : envoie le visuel produit directement dans l'app
+  //    (Story WhatsApp / Statut / Instagram / Facebook). C'est la seule
+  //    façon d'avoir la photo à l'écran : une Story n'affiche pas d'aperçu de lien.
+  const handleImageShare = async (platform: SharePlatform) => {
+    setBusy(true);
+    try {
+      const node = imageShape === "story" ? storyRef.current : squareRef.current;
+      if (!node) throw new Error("Visuel indisponible");
+      const blob = await nodeToBlob(node, 1);
+      const sp = shareProduct(platform);
+      const caption = buildImageCaption(sp);
+      const result = await shareImageFile({
+        blob,
+        filenameBase: `${product.name}-${imageShape}`,
+        caption,
+        fallbackUrl: fileShareOk ? undefined : shareLinkFor(platform, sp.url, caption),
+      });
+      if (result === "shared") {
+        toast.success("Image envoyée", { description: "Publiez-la en Story ou Statut." });
+      } else if (result === "downloaded") {
+        toast.success("Visuel téléchargé + légende copiée", {
+          description: "Ouvrez l'application et publiez l'image depuis votre galerie.",
+          duration: 5000,
+        });
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Partage de l'image impossible");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleShare = async (platform: SharePlatform) => {
-    if (platform === "instagram") return handleInstagramShare();
+    if (sendMode === "image" && IMAGE_PLATFORMS.includes(platform)) {
+      return handleImageShare(platform);
+    }
+    if (platform === "instagram") return handleImageShare("instagram");
     const sp = shareProduct(platform);
     const msg = buildShareMessage(sp, platform);
     const url = shareLinkFor(platform, sp.url, msg);
     window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  const handleInstagramShare = async () => {
-    setBusy(true);
-    try {
-      const sp = shareProduct("instagram");
-      const msg = buildShareMessage(sp, "instagram");
-      try { await navigator.clipboard.writeText(msg); } catch { /* ignore */ }
-      if (storyRef.current) {
-        const blob = await nodeToBlob(storyRef.current, 1);
-        downloadBlob(blob, `${safeFilename(product.name)}-instagram-story.png`);
-      }
-      toast.success("Visuel téléchargé + légende copiée", {
-        description: "Ouverture d'Instagram… collez la légende sur votre Story ou publication.",
-        duration: 4500,
-      });
-      setTimeout(() => {
-        window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
-      }, 400);
-    } catch (e: any) {
-      toast.error(e?.message || "Instagram : action impossible");
-    } finally {
-      setBusy(false);
-    }
   };
 
   const handleCopy = async () => {
@@ -158,6 +199,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
   };
 
   const handleNativeShare = async () => {
+    if (sendMode === "image") return handleImageShare("native");
     const sp = shareProduct("native");
     const msg = buildShareMessage(sp, "native");
     try {
@@ -178,6 +220,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
       setBusy(false);
     }
   };
+
 
   const dims = POSTER_DIMS[format];
   const previewScale = Math.min(320 / dims.w, 460 / dims.h);
@@ -232,12 +275,69 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
 
           {/* ─── ENVOYER ─── */}
           <TabsContent value="send" className="flex-1 overflow-y-auto p-4 space-y-4 mt-0">
-            {nativeAvailable && (
-              <Button onClick={handleNativeShare} className="w-full h-12 text-base font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600" size="lg">
+            {/* Mode d'envoi */}
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-neutral-100">
+              <button
+                onClick={() => setSendMode("image")}
+                className={`rounded-xl py-2 px-2 text-center transition-all ${sendMode === "image" ? "bg-white shadow-sm ring-2 ring-orange-400" : "opacity-70"}`}
+              >
+                <div className="text-[12px] font-bold">📸 Image produit</div>
+                <div className="text-[10px] text-muted-foreground leading-tight">Story · Statut · Post</div>
+              </button>
+              <button
+                onClick={() => setSendMode("link")}
+                className={`rounded-xl py-2 px-2 text-center transition-all ${sendMode === "link" ? "bg-white shadow-sm ring-2 ring-orange-400" : "opacity-70"}`}
+              >
+                <div className="text-[12px] font-bold">🔗 Lien</div>
+                <div className="text-[10px] text-muted-foreground leading-tight">Message + aperçu</div>
+              </button>
+            </div>
+
+            {sendMode === "image" ? (
+              <div className="rounded-xl border bg-emerald-50/70 p-3 space-y-2">
+                <p className="text-[11px] leading-snug text-emerald-900">
+                  L'<b>image du produit</b> (photo + nom + prix + logo) est envoyée directement dans l'application :
+                  elle s'affiche telle quelle sur un <b>Statut WhatsApp</b>, une <b>Story Instagram/Facebook</b> ou une publication.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { key: "story", label: "Story / Statut", hint: "1080×1920 vertical" },
+                    { key: "square", label: "Publication", hint: "1080×1080 carré" },
+                  ] as const).map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => setImageShape(s.key)}
+                      className={`rounded-xl border-2 py-2 text-center transition-colors ${imageShape === s.key ? "border-emerald-500 bg-white" : "border-transparent bg-white/60"}`}
+                    >
+                      <div className="text-[12px] font-bold">{s.label}</div>
+                      <div className="text-[10px] text-muted-foreground">{s.hint}</div>
+                    </button>
+                  ))}
+                </div>
+                {!fileShareOk && (
+                  <p className="text-[10px] text-amber-800">
+                    Sur cet appareil, l'image sera <b>téléchargée</b> et la légende copiée : publiez-la ensuite depuis votre galerie.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] leading-snug text-muted-foreground rounded-xl border bg-neutral-50 p-3">
+                Un message <b>court</b> avec le lien : WhatsApp, Facebook et Telegram affichent alors automatiquement
+                l'aperçu (photo, nom, prix) sous le message.
+              </p>
+            )}
+
+            {(nativeAvailable || sendMode === "image") && (
+              <Button onClick={handleNativeShare} disabled={busy} className="w-full h-12 text-base font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600" size="lg">
                 <Share2 className="mr-2 h-5 w-5" />
-                Partager depuis mon téléphone
+                {busy
+                  ? "Préparation de l'image…"
+                  : sendMode === "image"
+                  ? (fileShareOk ? "Partager l'image (Story / Statut)" : "Télécharger l'image (Story / Statut)")
+                  : "Partager depuis mon téléphone"}
               </Button>
             )}
+
 
             <div className="grid grid-cols-4 gap-3">
               {PLATFORMS.map((p) => (
@@ -278,9 +378,23 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
                   </button>
                 )}
               </div>
-              <p className="text-xs whitespace-pre-line leading-relaxed text-neutral-800 max-h-40 overflow-y-auto">
-                {buildShareMessage(shareProduct(previewPlatform), previewPlatform)}
-              </p>
+              {(() => {
+                const sp = shareProduct(previewPlatform);
+                const msg = sendMode === "image"
+                  ? buildImageCaption(sp)
+                  : buildShareMessage(sp, previewPlatform);
+                const limit = MESSAGE_LIMITS[previewPlatform] ?? 400;
+                return (
+                  <>
+                    <p className="text-xs whitespace-pre-line leading-relaxed text-neutral-800 max-h-40 overflow-y-auto">
+                      {msg}
+                    </p>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">
+                      {msg.length} caractères {sendMode === "link" ? `/ ${limit} max` : "(légende courte)"}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
 
             <label className="flex items-start gap-2.5 rounded-xl border bg-amber-50/60 p-2.5 cursor-pointer select-none">
@@ -394,7 +508,13 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
 
           {/* ─── QR & LIEN ─── */}
           <TabsContent value="qr" className="flex-1 overflow-y-auto p-4 mt-0">
-            <QrBlock url={buildTrackedUrl(baseUrl, "copy", { forceRefresh })} filenameBase={product.name} />
+            <QrBlock
+              url={buildTrackedUrl(baseUrl, "copy", {
+                forceRefresh,
+                versionSource: product.imageUrl,
+              })}
+              filenameBase={product.name}
+            />
           </TabsContent>
         </Tabs>
 
@@ -402,6 +522,7 @@ export function ShareCenter({ open, onOpenChange, product }: ShareCenterProps) {
         <div style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }} aria-hidden>
           <PosterTemplate ref={posterRef} format={format} theme={themeKey} data={posterData} />
           <PosterTemplate ref={storyRef} format="story" theme={themeKey} data={posterData} />
+          <PosterTemplate ref={squareRef} format="square" theme={themeKey} data={posterData} />
         </div>
       </SheetContent>
     </Sheet>
