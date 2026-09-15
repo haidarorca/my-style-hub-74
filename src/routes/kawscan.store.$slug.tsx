@@ -3,8 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Camera,
   CameraOff,
   Home,
+  Images,
+  Info,
   Loader2,
   ScanLine,
   Search,
@@ -18,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useScanner, videoPointFromClient } from "@/lib/kawscan/useScanner";
 import { ACCESS_STATE_MESSAGES, formatKawscanPrice, unitLabel } from "@/lib/kawscan/constants";
 import { ZoneAnalyzer } from "@/components/kawscan/ZoneAnalyzer";
-import type { ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
+import { detectBarcode, fileToCanvas, type ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -129,6 +132,9 @@ function StoreScanner() {
   const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   /** Numéro de requête : seule la dernière réponse est affichée (pas de résultat périmé). */
   const searchSeq = useRef(0);
 
@@ -253,6 +259,44 @@ function StoreScanner() {
     void runSearch(analysis.value);
   };
 
+  /** Analyse d'une image complète : code d'abord, sinon on propose la sélection de zone. */
+  const analyzeCanvas = async (canvas: HTMLCanvasElement) => {
+    const code = await detectBarcode(canvas);
+    if (code) {
+      canvas.width = canvas.height = 0;
+      void lookup(code);
+      return;
+    }
+    setCapturedFrame(canvas);
+  };
+
+  /** MODE B — photo pleine définition prise par le capteur, jamais enregistrée. */
+  const shootPhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      const canvas = await scanner.takePhoto();
+      if (canvas) await analyzeCanvas(canvas);
+      else setResult({ error: "code_not_found" });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  /** MODE C — image existante choisie dans la galerie. */
+  const onGalleryPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const canvas = await fileToCanvas(file);
+      if (canvas) await analyzeCanvas(canvas);
+      else setResult({ error: "code_not_found" });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.history.back();
     else void router.navigate({ to: "/" });
@@ -359,10 +403,57 @@ function StoreScanner() {
           </p>
 
           {scanner.diagnostics && (
-            <p className="text-center text-[10px] font-medium text-white/55" aria-label="Qualité caméra réelle">
+            <button
+              type="button"
+              onClick={() => setShowDiag((v) => !v)}
+              className="mx-auto flex items-center gap-1.5 text-[10px] font-medium text-white/60"
+            >
+              <Info className="h-3 w-3" />
               Caméra {scanner.diagnostics.width} × {scanner.diagnostics.height}
               {scanner.diagnostics.frameRate ? ` · ${Math.round(scanner.diagnostics.frameRate)} i/s` : ""}
-            </p>
+              {showDiag ? " — masquer le diagnostic" : " — diagnostic"}
+            </button>
+          )}
+
+          {showDiag && scanner.diagnostics && (
+            <div className="mx-auto max-h-56 w-full overflow-auto rounded-xl bg-black/80 p-3 text-[11px] leading-5 text-white/85 backdrop-blur">
+              <p className="mb-1 font-semibold text-white">Diagnostic caméra</p>
+              <DiagRow label="Objectif" value={scanner.diagnostics.deviceLabel ?? "inconnu"} />
+              <DiagRow label="Orientation" value={scanner.diagnostics.facingMode ?? "inconnue"} />
+              <DiagRow label="deviceId" value={(scanner.diagnostics.deviceId ?? "—").slice(0, 16) + "…"} />
+              <DiagRow label="Caméras détectées" value={String(scanner.diagnostics.cameraCount)} />
+              <DiagRow label="Flux réel" value={`${scanner.diagnostics.width} × ${scanner.diagnostics.height}`} />
+              <DiagRow
+                label="Maximum du capteur"
+                value={
+                  scanner.diagnostics.maxWidth
+                    ? `${scanner.diagnostics.maxWidth} × ${scanner.diagnostics.maxHeight}`
+                    : "non exposé"
+                }
+              />
+              <DiagRow
+                label="FPS déclaré"
+                value={scanner.diagnostics.frameRate ? `${Math.round(scanner.diagnostics.frameRate)} i/s` : "—"}
+              />
+              <DiagRow label="Autofocus utilisé" value={scanner.diagnostics.focusMode ?? "non exposé"} />
+              <DiagRow
+                label="Autofocus disponibles"
+                value={scanner.diagnostics.focusModes.join(", ") || "non exposé"}
+              />
+              <DiagRow label="Flash" value={scanner.diagnostics.torch ? "oui" : "non"} />
+              <DiagRow label="Zoom max" value={scanner.diagnostics.zoomMax ? `${scanner.diagnostics.zoomMax}×` : "non"} />
+              <DiagRow label="Moteur de scan" value={scanner.diagnostics.engine} />
+              {scanner.live && (
+                <>
+                  <DiagRow label="video.videoWidth/Height" value={`${scanner.live.videoWidth} × ${scanner.live.videoHeight}`} />
+                  <DiagRow label="Affichage CSS" value={`${scanner.live.displayWidth} × ${scanner.live.displayHeight}`} />
+                  <DiagRow label="Canvas d'analyse" value={`${scanner.live.scanWidth} × ${scanner.live.scanHeight}`} />
+                  <DiagRow label="Image reçue par le moteur" value={`${scanner.live.scanWidth} × ${scanner.live.scanHeight}`} />
+                  <DiagRow label="FPS mesuré" value={`${scanner.live.measuredFps} i/s`} />
+                  <DiagRow label="devicePixelRatio" value={String(scanner.live.devicePixelRatio)} />
+                </>
+              )}
+            </div>
           )}
 
           <button
@@ -386,6 +477,24 @@ function StoreScanner() {
               {ocrBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" strokeWidth={1.75} />}
               Analyser une zone
             </ToolButton>
+          </div>
+
+          <div className="flex items-center justify-center gap-2">
+            <ToolButton onClick={() => void shootPhoto()} disabled={photoBusy || scanner.state !== "running"}>
+              {photoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" strokeWidth={1.75} />}
+              Prendre une photo
+            </ToolButton>
+            <ToolButton onClick={() => galleryInputRef.current?.click()} disabled={photoBusy}>
+              <Images className="h-4 w-4" strokeWidth={1.75} />
+              Choisir une image
+            </ToolButton>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => void onGalleryPick(e)}
+            />
           </div>
 
           {scanner.zoomRange && scanner.zoomRange.max > scanner.zoomRange.min && (
@@ -623,6 +732,16 @@ function StoreScanner() {
           Propulsé par Kawzone
         </a>
       )}
+    </div>
+  );
+}
+
+/** Ligne du panneau de diagnostic caméra (valeurs réelles, pas demandées). */
+function DiagRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-white/55">{label}</span>
+      <span className="text-end font-medium">{value}</span>
     </div>
   );
 }

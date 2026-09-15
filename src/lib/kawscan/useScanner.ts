@@ -9,7 +9,27 @@ export type CameraDiagnostics = {
   aspectRatio: number | null;
   facingMode: string | null;
   deviceLabel: string | null;
+  deviceId: string | null;
   focusMode: string | null;
+  focusModes: string[];
+  maxWidth: number | null;
+  maxHeight: number | null;
+  torch: boolean;
+  zoomMax: number | null;
+  engine: string;
+  cameraCount: number;
+};
+
+/** Mesures vivantes : ce que le <video> et le canvas d'analyse contiennent réellement. */
+export type LiveDiagnostics = {
+  videoWidth: number;
+  videoHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  scanWidth: number;
+  scanHeight: number;
+  measuredFps: number;
+  devicePixelRatio: number;
 };
 
 const FORMATS = [
@@ -111,6 +131,25 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   const [diagnostics, setDiagnostics] = useState<CameraDiagnostics | null>(null);
   const [zoom, setZoomState] = useState(1);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
+  /** Mesures rafraîchies en continu dans la boucle d'analyse (sans re-render à chaque frame). */
+  const liveRef = useRef<(LiveDiagnostics & { at: number }) | null>(null);
+  const [live, setLive] = useState<LiveDiagnostics | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setLive(null);
+      liveRef.current = null;
+      return;
+    }
+    const id = window.setInterval(() => {
+      const l = liveRef.current;
+      if (l) {
+        const { at: _at, ...rest } = l;
+        setLive(rest);
+      }
+    }, 700);
+    return () => window.clearInterval(id);
+  }, [active]);
 
   /** Une lecture brute : validée seulement si la clé est bonne et si elle est confirmée 2 fois. */
   const emit = useCallback((raw: string) => {
@@ -194,6 +233,45 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     bitmap?.close();
     return canvas;
   }, []);
+
+  /**
+   * Photo pleine définition (MODE B).
+   * `ImageCapture.takePhoto()` demande au pilote Android une vraie photo du capteur
+   * (souvent bien plus définie que le flux vidéo). Repli : la frame vidéo.
+   */
+  const takePhoto = useCallback(async (): Promise<HTMLCanvasElement | null> => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (track && typeof ImageCapture !== "undefined") {
+      try {
+        const capture = new ImageCapture(track);
+        let settings: PhotoSettings | undefined;
+        try {
+          const photoCaps = await capture.getPhotoCapabilities();
+          const w = photoCaps?.imageWidth?.max;
+          const h = photoCaps?.imageHeight?.max;
+          if (w && h) settings = { imageWidth: w, imageHeight: h };
+        } catch {
+          /* réglages photo non exposés */
+        }
+        const blob = await capture.takePhoto(settings);
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          return canvas;
+        }
+        bitmap.close();
+      } catch {
+        // Certains navigateurs refusent takePhoto pendant le preview.
+      }
+    }
+    return captureFrame();
+  }, [captureFrame]);
 
   /**
    * Mise au point sur la zone touchée (comme sur les grandes applis) :
@@ -386,6 +464,13 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       }
       if (caps.focusMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+        // Certains pilotes Android ignorent la forme "advanced" : on redemande en clair.
+        const focusNow = (track.getSettings?.() as { focusMode?: string })?.focusMode;
+        if (focusNow !== "continuous") {
+          await track
+            .applyConstraints({ focusMode: "continuous" } as unknown as MediaTrackConstraints)
+            .catch(() => {});
+        }
       }
       if (caps.exposureMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ exposureMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
@@ -407,6 +492,12 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       const settings = track?.getSettings?.() ?? {};
       const actualWidth = settings.width ?? video.videoWidth;
       const actualHeight = settings.height ?? video.videoHeight;
+      let cameraCount = 0;
+      try {
+        cameraCount = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput").length;
+      } catch {
+        cameraCount = 0;
+      }
       if (actualWidth && actualHeight) {
         setResolution({ w: actualWidth, h: actualHeight });
         setDiagnostics({
@@ -416,7 +507,15 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
           aspectRatio: settings.aspectRatio ?? actualWidth / actualHeight,
           facingMode: settings.facingMode ?? null,
           deviceLabel: track.label || null,
+          deviceId: settings.deviceId ?? null,
           focusMode: (settings as MediaTrackSettings & { focusMode?: string }).focusMode ?? null,
+          focusModes: caps.focusMode ?? [],
+          maxWidth: caps.width?.max ?? null,
+          maxHeight: caps.height?.max ?? null,
+          torch: Boolean(caps.torch),
+          zoomMax: caps.zoom?.max ?? null,
+          engine: "…",
+          cameraCount,
         });
       }
       setState("running");
@@ -442,10 +541,12 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       if (!Detector || !usable.length) {
         // Repli local, principalement pour iPhone. On évite de faire tourner deux
         // moteurs en parallèle, ce qui faisait chuter la fluidité du preview.
+        setDiagnostics((d) => (d ? { ...d, engine: "ZXing (local)" } : d));
         void startZxing(video);
         return;
       }
 
+      setDiagnostics((d) => (d ? { ...d, engine: `BarcodeDetector (${usable.length} formats)` } : d));
       const detector = new Detector({ formats: usable });
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -522,6 +623,23 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
             enhance();
             source = canvas;
           }
+          // Diagnostic : taille EXACTE de l'image remise au moteur de scan.
+          const sw = source === v ? v.videoWidth : canvas.width;
+          const sh = source === v ? v.videoHeight : canvas.height;
+          const rect = v.getBoundingClientRect();
+          const prev = liveRef.current;
+          const dt = now - (prev?.at ?? now - 1000);
+          liveRef.current = {
+            at: now,
+            videoWidth: v.videoWidth,
+            videoHeight: v.videoHeight,
+            displayWidth: Math.round(rect.width),
+            displayHeight: Math.round(rect.height),
+            scanWidth: sw,
+            scanHeight: sh,
+            measuredFps: dt > 0 ? Math.round(1000 / dt) : 0,
+            devicePixelRatio: window.devicePixelRatio,
+          };
           const codes = await detector.detect(source);
           if (codes?.length) emit(codes[0].rawValue);
         } catch {
@@ -596,5 +714,7 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
     zoomRange,
     setZoom,
     captureFrame,
+    takePhoto,
+    live,
   };
 }

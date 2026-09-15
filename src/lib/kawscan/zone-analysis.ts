@@ -24,7 +24,28 @@ export function cropSelection(source: HTMLCanvasElement, selection: NormalizedSe
   return crop;
 }
 
-async function detectBarcode(canvas: HTMLCanvasElement): Promise<string | null> {
+/** Charge une photo (appareil ou galerie) dans un canvas à sa définition native. */
+export async function fileToCanvas(file: File | Blob): Promise<HTMLCanvasElement | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas;
+  } catch {
+    return null;
+  }
+}
+
+export async function detectBarcode(canvas: HTMLCanvasElement): Promise<string | null> {
   const Detector = (window as unknown as {
     BarcodeDetector?: {
       new (options: { formats: string[] }): { detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]> };
