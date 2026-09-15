@@ -404,25 +404,75 @@ function StoreScanner() {
           />
         )}
 
-        {/* Zone d'action basse : recherche + outils, compacte pour ne pas masquer la caméra */}
+        {/* Zone d'action basse : SCANNER d'abord, options secondaires ensuite */}
         <div
           className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pt-4"
           style={{ paddingBottom: "calc(1.25rem + var(--safe-bottom, 0px))" }}
         >
+          <div className="flex items-center justify-center gap-2">
+            {scanner.torchAvailable && (
+              <ToolButton onClick={() => void scanner.toggleTorch()} active={scanner.torchOn}>
+                <Zap className="h-4 w-4" strokeWidth={1.75} /> Flash
+              </ToolButton>
+            )}
+            {scanner.zoomRange && scanner.zoomRange.max > scanner.zoomRange.min && (
+              <input
+                type="range"
+                aria-label="Zoom"
+                min={scanner.zoomRange.min}
+                max={scanner.zoomRange.max}
+                step={scanner.zoomRange.step}
+                value={scanner.zoom}
+                onChange={(e) => void scanner.setZoom(Number(e.target.value))}
+                className="w-40 accent-white"
+              />
+            )}
+          </div>
+
+          {/* Action principale */}
+          <button
+            type="button"
+            onClick={() => void shootPhoto()}
+            disabled={photoBusy || scanner.state !== "running"}
+            className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl bg-white text-lg font-extrabold uppercase tracking-wide text-black shadow-xl transition-transform active:scale-[0.98] disabled:opacity-60"
+          >
+            {photoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <ScanLine className="h-6 w-6" strokeWidth={2} />}
+            Scanner
+          </button>
           <p className="text-center text-xs text-white/70">
-            Placez le code dans le cadre — touchez le code à l'écran pour la mise au point
+            Visez le code — détection automatique. Touchez l'écran pour la mise au point.
           </p>
+
+          {/* Options secondaires */}
+          <div className="grid grid-cols-3 gap-2">
+            <SecondaryButton onClick={() => void openZoneAnalyzer()} disabled={ocrBusy || scanner.state !== "running"}>
+              {ocrBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanSearch className="h-5 w-5" strokeWidth={1.75} />}
+              Encadrer
+            </SecondaryButton>
+            <SecondaryButton onClick={() => setGalleryOpen(true)} disabled={photoBusy}>
+              <Images className="h-5 w-5" strokeWidth={1.75} />
+              Galerie
+            </SecondaryButton>
+            <SecondaryButton
+              onClick={() => {
+                setSearchOpen(true);
+                setTimeout(() => searchInputRef.current?.focus(), 80);
+              }}
+            >
+              <Search className="h-5 w-5" strokeWidth={1.75} />
+              Rechercher
+            </SecondaryButton>
+          </div>
 
           {scanner.diagnostics && (
             <button
               type="button"
               onClick={() => setShowDiag((v) => !v)}
-              className="mx-auto flex items-center gap-1.5 text-[10px] font-medium text-white/60"
+              className="mx-auto flex items-center gap-1.5 text-[10px] font-medium text-white/45"
             >
               <Info className="h-3 w-3" />
-              Caméra {scanner.diagnostics.width} × {scanner.diagnostics.height}
+              Diagnostic caméra · {scanner.diagnostics.width} × {scanner.diagnostics.height}
               {scanner.diagnostics.frameRate ? ` · ${Math.round(scanner.diagnostics.frameRate)} i/s` : ""}
-              {showDiag ? " — masquer le diagnostic" : " — diagnostic"}
             </button>
           )}
 
@@ -467,59 +517,21 @@ function StoreScanner() {
             </div>
           )}
 
-          <button
-            onClick={() => {
-              setSearchOpen(true);
-              setTimeout(() => searchInputRef.current?.focus(), 80);
-            }}
-            className="flex h-12 w-full items-center gap-2.5 rounded-full bg-white px-4 text-start text-sm font-medium text-black shadow-lg"
-          >
-            <Search className="h-4.5 w-4.5 text-black/50" strokeWidth={1.75} />
-            Rechercher un nom ou un code…
-          </button>
-
-          <div className="flex items-center justify-center gap-2">
-            {scanner.torchAvailable && (
-              <ToolButton onClick={() => void scanner.toggleTorch()} active={scanner.torchOn}>
-                <Zap className="h-4 w-4" strokeWidth={1.75} /> Flash
-              </ToolButton>
-            )}
-            <ToolButton onClick={() => void openZoneAnalyzer()} disabled={ocrBusy || scanner.state !== "running"}>
-              {ocrBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" strokeWidth={1.75} />}
-              Analyser une zone
-            </ToolButton>
-          </div>
-
-          <div className="flex items-center justify-center gap-2">
-            <ToolButton onClick={() => void shootPhoto()} disabled={photoBusy || scanner.state !== "running"}>
-              {photoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" strokeWidth={1.75} />}
-              Prendre une photo
-            </ToolButton>
-            <ToolButton onClick={() => galleryInputRef.current?.click()} disabled={photoBusy}>
-              <Images className="h-4 w-4" strokeWidth={1.75} />
-              Choisir une image
-            </ToolButton>
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => void onGalleryPick(e)}
-            />
-          </div>
-
-          {scanner.zoomRange && scanner.zoomRange.max > scanner.zoomRange.min && (
-            <input
-              type="range"
-              aria-label="Zoom"
-              min={scanner.zoomRange.min}
-              max={scanner.zoomRange.max}
-              step={scanner.zoomRange.step}
-              value={scanner.zoom}
-              onChange={(e) => void scanner.setZoom(Number(e.target.value))}
-              className="mx-auto w-48 accent-white"
-            />
-          )}
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void onGalleryPick(e)}
+          />
+          <input
+            ref={nativeCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => void onGalleryPick(e)}
+          />
         </div>
       </div>
 
