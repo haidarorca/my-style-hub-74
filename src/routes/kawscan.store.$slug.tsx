@@ -132,6 +132,9 @@ function StoreScanner() {
   const [ring, setRing] = useState<{ left: number; top: number; id: number } | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   /** Numéro de requête : seule la dernière réponse est affichée (pas de résultat périmé). */
   const searchSeq = useRef(0);
 
