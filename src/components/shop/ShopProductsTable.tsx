@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Layers,
+
 } from "lucide-react";
 import {
   listShopProducts,
@@ -19,6 +21,7 @@ import {
   deleteShopProduct,
   type ShopProductRow,
 } from "@/lib/shop-management.functions";
+import { GroupManagementDialog } from "@/components/product/GroupManagementDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +66,7 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<ShopProductRow | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isGroupOpen, setIsGroupOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const pageSize = 20;
@@ -196,20 +200,38 @@ export function ShopProductsTable({ shopId, editTo, newTo }: Props) {
 
       {/* Barre d'action de groupe (S'affiche dès qu'un produit au moins est sélectionné) */}
       {selectedProducts.length > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 p-3 animate-in fade-in-50 duration-200">
-          <span className="text-sm font-medium text-destructive">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3 animate-in fade-in-50 duration-200">
+          <span className="text-sm font-medium">
             {selectedProducts.length} produit(s) sélectionné(s)
           </span>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => setIsBulkDeleteOpen(true)}
-          >
-            Supprimer les produits sélectionnés
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={selectedProducts.length < 2}
+              onClick={() => setIsGroupOpen(true)}
+            >
+              <Layers className="mr-1 h-4 w-4" /> Regrouper
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsBulkDeleteOpen(true)}
+            >
+              Supprimer les produits sélectionnés
+            </Button>
+          </div>
         </div>
       )}
+
+      <GroupManagementDialog
+        open={isGroupOpen}
+        onOpenChange={setIsGroupOpen}
+        productIds={selectedProducts}
+        onDone={() => setSelectedProducts([])}
+      />
+
 
       {/* Chargement / Liste vide */}
       {isLoading ? (
