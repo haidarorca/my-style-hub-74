@@ -464,6 +464,13 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       }
       if (caps.focusMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
+        // Certains pilotes Android ignorent la forme "advanced" : on redemande en clair.
+        const focusNow = (track.getSettings?.() as { focusMode?: string })?.focusMode;
+        if (focusNow !== "continuous") {
+          await track
+            .applyConstraints({ focusMode: "continuous" } as unknown as MediaTrackConstraints)
+            .catch(() => {});
+        }
       }
       if (caps.exposureMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ exposureMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
