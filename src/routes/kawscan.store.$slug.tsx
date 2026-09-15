@@ -87,6 +87,30 @@ const rpc = supabase.rpc as unknown as (
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
 
+/** Recherches récentes, conservées localement par magasin. */
+const recentKey = (slug: string) => `kawscan.recent.${slug}`;
+function loadRecent(slug: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(recentKey(slug)) || "[]");
+    return Array.isArray(raw) ? raw.filter((x) => typeof x === "string").slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+function saveRecent(slug: string, term: string): string[] {
+  const value = term.trim();
+  if (typeof window === "undefined" || value.length < 2) return loadRecent(slug);
+  const next = [value, ...loadRecent(slug).filter((x) => x.toLowerCase() !== value.toLowerCase())].slice(0, 8);
+  try {
+    window.localStorage.setItem(recentKey(slug), JSON.stringify(next));
+  } catch {
+    /* stockage indisponible */
+  }
+  return next;
+}
+
+
 function StoreScanner() {
   const { slug } = Route.useParams();
   const router = useRouter();
