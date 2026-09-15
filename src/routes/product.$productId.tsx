@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
+import { Store, Flag, ChevronLeft, Upload, X, ShieldCheck, AlertTriangle, Ruler, Video } from "lucide-react";
+import { QuantityInput } from "@/components/ui/quantity-input";
 import { warrantyLabel } from "@/lib/warranty";
 import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/lib/clothing-categories";
 import { fitTypeOption } from "@/lib/fit-types";
@@ -870,31 +871,17 @@ function ProductPage() {
 
           <div>
             <p className="mb-1.5 text-xs font-semibold">{t("product.quantity")}</p>
-            <div className="inline-flex items-center rounded-md border border-border">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => {
-                  if (qty <= minOrderQty) {
-                    toast.error(`Quantité minimale de commande : ${minOrderQty} unité${minOrderQty > 1 ? "s" : ""}.`);
-                    return;
-                  }
-                  setQty(qty - 1);
-                }}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <span className="w-10 text-center text-sm font-semibold">{qty}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setQty(qty + 1)}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+            <QuantityInput
+              value={qty}
+              min={minOrderQty}
+              onChange={(next) => {
+                if (next < minOrderQty) {
+                  toast.error(`Quantité minimale de commande : ${minOrderQty} unité${minOrderQty > 1 ? "s" : ""}.`);
+                  return;
+                }
+                setQty(next);
+              }}
+            />
             {minOrderQty > 1 && (
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Quantité minimale de commande : {minOrderQty} unités.

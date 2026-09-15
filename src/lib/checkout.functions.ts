@@ -46,7 +46,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const [{ data: products, error: productsError }, { data: variants, error: variantsError }] = await Promise.all([
         supabaseAdmin
           .from("products")
-          .select("id, name, code, price, vendor_id, status, is_active, weight_kg, length_cm, width_cm, height_cm, product_images(url), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop, source_country_id)")
+          .select("id, name, code, price, vendor_id, status, is_active, weight_kg, length_cm, width_cm, height_cm, product_images(url, position), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop, source_country_id)")
+          .order("position", { referencedTable: "product_images", ascending: true })
           .in("id", productIds),
         variantIds.length
           ? supabaseAdmin

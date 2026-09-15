@@ -1,3 +1,4 @@
+import { syncProductImages } from "@/lib/product-images";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -371,26 +372,14 @@ function AdminEditProductPage() {
         throw new Error("Ce code produit existe déjà dans cette boutique.");
       }
 
-      // Upload new images
-      if (newImages.length > 0) {
-        const rows: { product_id: string; url: string; position: number }[] = [];
-        const basePos = existingImages.length;
-        for (let i = 0; i < newImages.length; i++) {
-          const file = newImages[i];
-          const ext = file.name.split(".").pop() || "jpg";
-          const path = `${vendorId}/${productId}/${Date.now()}-${i}.${ext}`;
-          const { error: upErr } = await supabase.storage.from("product-images").upload(path, file);
-          if (upErr) throw upErr;
-          const url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
-          rows.push({ product_id: productId, url, position: basePos + i });
-        }
-        const { error: insErr } = await supabase.from("product_images").insert(rows);
-        if (insErr) throw insErr;
-      }
-      if (removedImageIds.length > 0) {
-        const { error } = await supabase.from("product_images").delete().in("id", removedImageIds);
-        if (error) throw error;
-      }
+      // Images : suppression + renumérotation + ajout (ordre fiable)
+      await syncProductImages({
+        productId,
+        folder: vendorId,
+        keptImages: existingImages,
+        removedImageIds,
+        newFiles: newImages,
+      });
 
       // Variants
       if (removedVariantIds.length > 0) {

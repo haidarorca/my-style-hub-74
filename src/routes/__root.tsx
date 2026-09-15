@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AutoUpdatePrompt from "@/components/AutoUpdatePrompt";
+import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 
 function NotFoundComponent() {
   return (
@@ -198,6 +199,7 @@ function RootComponent() {
                   {isKawscan ? <Outlet /> : <SwipeNavigator><Outlet /></SwipeNavigator>}
                 </ErrorBoundary>
                 {!isKawscan && <MobileBottomNav />}
+                {!isKawscan && <InstallAppBanner />}
                 <AutoUpdatePrompt />
                 <Toaster richColors position="top-center" />
                 </CurrenciesProvider>

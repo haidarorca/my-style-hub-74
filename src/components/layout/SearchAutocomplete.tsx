@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Fuse from "fuse.js";
 import { Search, X, Clock, TrendingUp, Package, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { rankBy, scoreProduct } from "@/lib/search-rank";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
@@ -106,7 +107,7 @@ export function SearchAutocomplete() {
       const first = term.charAt(0);
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, price, product_images(url)")
+        .select("id, name, name_i18n, code, designation, price, product_images(url, position)")
         .eq("status", "approved")
         .or(`name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
@@ -172,8 +173,13 @@ export function SearchAutocomplete() {
       threshold: 0.45,
       ignoreLocation: true,
     });
+    // Pertinence métier d'abord (code exact, début de nom, nom, désignation)
+    const business = rankBy(rows, (r) => scoreProduct(r as any, debounced));
+    if (business.length > 0 && scoreProduct(business[0] as any, debounced) > 5) {
+      return business.slice(0, 6);
+    }
+    // Sinon tolérance aux fautes de frappe
     const ranked = fuse.search(debounced).map((r) => r.item);
-    // fall back to original if fuse found nothing (e.g. matched via designation only)
     return (ranked.length ? ranked : rows).slice(0, 6);
   }, [productSugg, debounced, hasQuery]);
 
