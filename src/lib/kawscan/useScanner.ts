@@ -357,16 +357,32 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
       setTorchAvailable(Boolean(caps.torch));
 
       // Chaque réglage est appliqué séparément : un autofocus non supporté ne doit
-      // jamais annuler la résolution haute définition négociée.
+      // jamais annuler la résolution négociée.
+      // On ne plafonne plus la définition : on monte exactement au maximum que le
+      // capteur déclare, et on n'applique la contrainte que si elle AUGMENTE le
+      // nombre de pixels réellement livrés (jamais l'inverse).
       const settingsBefore = track?.getSettings?.() ?? {};
-      const currentRatio = settingsBefore.aspectRatio ||
-        (settingsBefore.width && settingsBefore.height ? settingsBefore.width / settingsBefore.height : 16 / 9);
-      const maxW = Math.min(caps.width?.max ?? 3840, 3840);
-      const maxHForRatio = Math.round(maxW / currentRatio);
-      const maxH = Math.min(caps.height?.max ?? maxHForRatio, maxHForRatio);
-      const targetW = Math.min(maxW, Math.round(maxH * currentRatio));
-      if (targetW >= 1280 && maxH >= 720) {
-        await track.applyConstraints({ width: { ideal: targetW }, height: { ideal: maxH } }).catch(() => {});
+      const currentPixels = (settingsBefore.width ?? 0) * (settingsBefore.height ?? 0);
+      const capW = caps.width?.max ?? 0;
+      const capH = caps.height?.max ?? 0;
+      if (capW && capH && capW * capH > currentPixels) {
+        await track
+          .applyConstraints({
+            width: { ideal: capW },
+            height: { ideal: capH },
+            resizeMode: { ideal: "none" },
+          } as unknown as MediaTrackConstraints)
+          .catch(() => {});
+        const after = track.getSettings?.() ?? {};
+        // Sécurité : si le pilote a répondu par une définition plus faible, on revient.
+        if ((after.width ?? 0) * (after.height ?? 0) < currentPixels && settingsBefore.width) {
+          await track
+            .applyConstraints({
+              width: { ideal: settingsBefore.width },
+              height: { ideal: settingsBefore.height },
+            })
+            .catch(() => {});
+        }
       }
       if (caps.focusMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
