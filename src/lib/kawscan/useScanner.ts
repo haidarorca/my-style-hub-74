@@ -235,6 +235,45 @@ export function useScanner(onResult: (code: string) => void, active: boolean) {
   }, []);
 
   /**
+   * Photo pleine définition (MODE B).
+   * `ImageCapture.takePhoto()` demande au pilote Android une vraie photo du capteur
+   * (souvent bien plus définie que le flux vidéo). Repli : la frame vidéo.
+   */
+  const takePhoto = useCallback(async (): Promise<HTMLCanvasElement | null> => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (track && typeof ImageCapture !== "undefined") {
+      try {
+        const capture = new ImageCapture(track);
+        let settings: PhotoSettings | undefined;
+        try {
+          const photoCaps = await capture.getPhotoCapabilities();
+          const w = photoCaps?.imageWidth?.max;
+          const h = photoCaps?.imageHeight?.max;
+          if (w && h) settings = { imageWidth: w, imageHeight: h };
+        } catch {
+          /* réglages photo non exposés */
+        }
+        const blob = await capture.takePhoto(settings);
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          return canvas;
+        }
+        bitmap.close();
+      } catch {
+        // Certains navigateurs refusent takePhoto pendant le preview.
+      }
+    }
+    return captureFrame();
+  }, [captureFrame]);
+
+  /**
    * Mise au point sur la zone touchée (comme sur les grandes applis) :
    * - demande à la caméra un autofocus/exposition sur ce point si le matériel le permet
    * - et surtout : l'analyse logicielle se concentre sur cette zone pendant ~6 s
