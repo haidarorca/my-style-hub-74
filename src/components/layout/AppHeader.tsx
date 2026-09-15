@@ -47,22 +47,23 @@ export function AppHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe transition-transform duration-300 ${
+      className={`sticky top-0 z-40 w-full border-b border-border/70 bg-background/85 backdrop-blur-xl pt-safe transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         hidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      <div className="mx-auto grid h-14 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-1.5 px-2 sm:gap-2 sm:px-3">
+      <div className="mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-3 sm:gap-4 sm:px-5">
         <Link
           to="/"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex items-center gap-1.5 shrink-0"
+          className="flex shrink-0 items-center gap-2"
           aria-label={t("nav.home")}
         >
           {settings.logo_url ? (
-            <img src={settings.logo_url} alt={settings.site_name} className="h-7 w-auto max-w-[56px] object-contain sm:h-8 sm:max-w-[120px]" />
+            <img src={settings.logo_url} alt={settings.site_name} className="h-8 w-auto max-w-[64px] object-contain sm:h-9 sm:max-w-[132px]" />
           ) : (
-            <span className="gradient-primary bg-clip-text text-sm font-extrabold tracking-tight text-transparent sm:text-xl">
+            <span className="flex items-baseline gap-[3px] font-display text-base font-bold tracking-[-0.03em] text-foreground sm:text-xl">
               {settings.site_name}
+              <span className="h-[5px] w-[5px] rounded-full bg-[var(--brand)] sm:h-1.5 sm:w-1.5" />
             </span>
           )}
         </Link>
@@ -74,14 +75,17 @@ export function AppHeader() {
         )}
 
         <div className="flex items-center gap-1 sm:gap-1.5">
-          
           <LanguageSwitcher />
           <Link to="/cart" className="relative">
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full sm:h-9 sm:w-9">
-              <ShoppingCart className="h-[18px] w-[18px]" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-[calc(var(--radius)-2px)] text-foreground/80 hover:bg-accent hover:text-foreground"
+            >
+              <ShoppingCart className="h-[19px] w-[19px]" />
             </Button>
             {count > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="pointer-events-none absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--highlight)] px-1 text-[10px] font-bold text-[var(--highlight-foreground)] ring-2 ring-background">
                 {count}
               </span>
             )}
@@ -90,14 +94,19 @@ export function AppHeader() {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full sm:h-9 sm:w-9">
-                  <UserRound className="h-[18px] w-[18px]" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative h-10 w-10 rounded-[calc(var(--radius)-2px)] text-foreground/80 hover:bg-accent hover:text-foreground"
+                >
+                  <UserRound className="h-[19px] w-[19px]" />
                   {unread > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--highlight)] px-1 text-[10px] font-bold text-[var(--highlight-foreground)] ring-2 ring-background">
                       {unread > 9 ? "9+" : unread}
                     </span>
                   )}
                 </Button>
+
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="truncate">
