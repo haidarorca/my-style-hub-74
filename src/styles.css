@@ -41,66 +41,88 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-display: "Poppins", "Inter", sans-serif;
+  /* KawZone typography — Sora (titres) + Manrope (texte) */
+  --font-display: "Sora", "Manrope", sans-serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Shein-inspired: pure white background, near-black text, hot pink primary */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.18 0.01 0);
+  --radius: 0.875rem;
+  /* ═══ KawZone — direction artistique propre :
+     encre profonde (confiance) + cuivre chaud (commerce) sur papier clair.
+     Palette lisible en deutéranopie/protanopie (bleu ↔ ambre). ═══ */
+  --background: oklch(0.985 0.004 100);
+  --foreground: oklch(0.22 0.025 258);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.01 0);
+  --card-foreground: oklch(0.22 0.025 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.01 0);
+  --popover-foreground: oklch(0.22 0.025 258);
 
-  /* Hot pink primary like Shein */
-  --primary: oklch(0.55 0.22 5);
-  --primary-foreground: oklch(1 0 0);
-  --primary-glow: oklch(0.65 0.24 10);
+  /* Encre KawZone */
+  --primary: oklch(0.42 0.105 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-glow: oklch(0.56 0.12 252);
 
-  --secondary: oklch(0.97 0.005 0);
-  --secondary-foreground: oklch(0.18 0.01 0);
-  --muted: oklch(0.96 0.005 0);
-  --muted-foreground: oklch(0.5 0.01 0);
-  --accent: oklch(0.95 0.04 5);
-  --accent-foreground: oklch(0.4 0.2 5);
-  --destructive: oklch(0.6 0.24 25);
-  --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.62 0.18 145);
-  --success-foreground: oklch(1 0 0);
-  --warning: oklch(0.78 0.16 75);
-  --warning-foreground: oklch(0.2 0.05 75);
+  /* Cuivre / ambre — promotions, prix, accents */
+  --brand: oklch(0.72 0.155 62);
+  --brand-foreground: oklch(0.24 0.06 62);
+  --highlight: oklch(0.6 0.19 35);
+  --highlight-foreground: oklch(0.99 0 0);
 
-  --border: oklch(0.92 0.005 0);
-  --input: oklch(0.94 0.005 0);
-  --ring: oklch(0.55 0.22 5);
+  --surface: oklch(0.97 0.006 250);
+  --surface-foreground: oklch(0.3 0.03 258);
 
-  --sidebar: oklch(0.99 0 0);
-  --sidebar-foreground: oklch(0.18 0.01 0);
-  --sidebar-primary: oklch(0.55 0.22 5);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.96 0.005 0);
-  --sidebar-accent-foreground: oklch(0.18 0.01 0);
-  --sidebar-border: oklch(0.92 0.005 0);
-  --sidebar-ring: oklch(0.55 0.22 5);
+  --secondary: oklch(0.955 0.008 255);
+  --secondary-foreground: oklch(0.26 0.03 258);
+  --muted: oklch(0.962 0.006 255);
+  --muted-foreground: oklch(0.52 0.02 258);
+  --accent: oklch(0.945 0.03 250);
+  --accent-foreground: oklch(0.34 0.08 258);
+  --destructive: oklch(0.57 0.21 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.55 0.13 165);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.76 0.15 70);
+  --warning-foreground: oklch(0.24 0.06 70);
 
-  /* Gradients & shadows */
-  --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  --gradient-flash: linear-gradient(90deg, oklch(0.55 0.22 5), oklch(0.7 0.2 30));
-  --shadow-soft: 0 2px 8px -2px oklch(0 0 0 / 0.08);
-  --shadow-card: 0 4px 16px -4px oklch(0 0 0 / 0.1);
-  --shadow-pink: 0 6px 20px -6px oklch(0.55 0.22 5 / 0.4);
+  --border: oklch(0.915 0.008 255);
+  --input: oklch(0.925 0.008 255);
+  --ring: oklch(0.42 0.105 258);
+
+  --sidebar: oklch(0.985 0.004 250);
+  --sidebar-foreground: oklch(0.24 0.025 258);
+  --sidebar-primary: oklch(0.42 0.105 258);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.945 0.012 255);
+  --sidebar-accent-foreground: oklch(0.24 0.025 258);
+  --sidebar-border: oklch(0.91 0.008 255);
+  --sidebar-ring: oklch(0.42 0.105 258);
+
+  /* Gradients & ombres — feutrés, jamais criards */
+  --gradient-primary: linear-gradient(135deg, oklch(0.34 0.09 262), oklch(0.5 0.12 252));
+  --gradient-flash: linear-gradient(100deg, oklch(0.62 0.18 40), oklch(0.76 0.15 70));
+  --gradient-surface: linear-gradient(180deg, oklch(0.99 0.004 250), oklch(0.965 0.008 252));
+  --shadow-soft: 0 1px 2px oklch(0.22 0.03 258 / 0.05), 0 1px 3px oklch(0.22 0.03 258 / 0.04);
+  --shadow-card: 0 2px 4px oklch(0.22 0.03 258 / 0.04), 0 12px 28px -12px oklch(0.22 0.03 258 / 0.18);
+  --shadow-lift: 0 4px 10px oklch(0.22 0.03 258 / 0.06), 0 24px 48px -20px oklch(0.22 0.03 258 / 0.26);
+  --shadow-pink: 0 8px 22px -10px oklch(0.42 0.105 258 / 0.45);
+  --ease-kz: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Safe-area aware spacing for mobile bottom nav (avoid Samsung gesture bar) */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 
   /* Fluid responsive tokens — adapt to all phone widths (320px → 430px+) */
-  --page-px: clamp(0.75rem, 3.5vw, 1.25rem);
-  --section-gap: clamp(1rem, 4vw, 1.5rem);
+  --page-px: clamp(1rem, 4vw, 1.75rem);
+  --section-gap: clamp(1.5rem, 5vw, 2.5rem);
   --card-radius: clamp(0.875rem, 2.5vw, 1.25rem);
-  --bottom-nav-h: 3.5rem; /* 56px — Apple/Google min tappable area */
+  --bottom-nav-h: 3.75rem;
   --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 }
 
@@ -110,25 +132,29 @@
 
 /* Dark theme optionnel — gardé pour compatibilité */
 .dark {
-  --background: oklch(0.15 0.01 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.2 0.01 0);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.2 0.01 0);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.24 10);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.25 0.01 0);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.25 0.01 0);
-  --muted-foreground: oklch(0.7 0.01 0);
-  --accent: oklch(0.3 0.05 5);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.6 0.24 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.3 0.01 0);
-  --input: oklch(0.3 0.01 0);
-  --ring: oklch(0.65 0.24 10);
+  --background: oklch(0.17 0.02 260);
+  --foreground: oklch(0.97 0.005 250);
+  --card: oklch(0.215 0.022 260);
+  --card-foreground: oklch(0.97 0.005 250);
+  --popover: oklch(0.215 0.022 260);
+  --popover-foreground: oklch(0.97 0.005 250);
+  --primary: oklch(0.72 0.11 250);
+  --primary-foreground: oklch(0.16 0.02 260);
+  --brand: oklch(0.78 0.145 65);
+  --brand-foreground: oklch(0.2 0.04 65);
+  --surface: oklch(0.24 0.022 260);
+  --surface-foreground: oklch(0.94 0.005 250);
+  --secondary: oklch(0.26 0.02 260);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.26 0.02 260);
+  --muted-foreground: oklch(0.72 0.015 255);
+  --accent: oklch(0.3 0.04 258);
+  --accent-foreground: oklch(0.96 0.005 250);
+  --destructive: oklch(0.6 0.2 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.31 0.02 260);
+  --input: oklch(0.31 0.02 260);
+  --ring: oklch(0.72 0.11 250);
 }
 
 @layer base {
@@ -138,12 +164,29 @@
   html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
     -webkit-font-smoothing: antialiased;
+  }
+  /* Hiérarchie typographique KawZone : titres Sora serrés, texte Manrope */
+  h1, h2, h3, h4, h5, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.022em;
+    font-weight: 600;
+  }
+  h1 { letter-spacing: -0.03em; }
+  /* Système d'icônes unifié : un seul trait, une seule logique de taille */
+  svg.lucide {
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   /* Make all interactive controls comfortably tappable on mobile */
   button, a, [role="button"] {
     -webkit-tap-highlight-color: transparent;
+  }
+  ::selection {
+    background: oklch(0.42 0.105 258 / 0.16);
   }
 }
 
@@ -181,11 +224,103 @@
       gap: 1rem;
     }
   }
+  /* Grille pilotée par la configuration d'affichage admin */
+  @media (min-width: 768px) {
+    .grid-products-cfg {
+      grid-template-columns: repeat(var(--pg-cols-desktop, 4), minmax(0, 1fr)) !important;
+      gap: var(--pg-gap-desktop, 1rem) !important;
+    }
+  }
 }
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ═══ Vocabulaire visuel KawZone ═══ */
+  .shadow-lift { box-shadow: var(--shadow-lift); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .gradient-surface { background-image: var(--gradient-surface); }
+
+  /* Surface fondamentale : carte « papier » à bordure fine, sans ombre lourde */
+  .kz-surface {
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-soft);
+  }
+  .kz-interactive {
+    transition: transform 0.25s var(--ease-kz), box-shadow 0.25s var(--ease-kz), border-color 0.25s var(--ease-kz);
+  }
+  .kz-interactive:hover { box-shadow: var(--shadow-card); }
+  .kz-interactive:active { transform: scale(0.995); }
+
+  /* Étiquette de section : petite majuscule cuivre */
+  .kz-eyebrow {
+    font-family: var(--font-display);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-foreground);
+  }
+  /* Filet d'accent sous les titres de section */
+  .kz-rule::after {
+    content: "";
+    display: block;
+    width: 2.25rem;
+    height: 3px;
+    margin-top: 0.5rem;
+    border-radius: 999px;
+    background-image: var(--gradient-flash);
+  }
+  /* Prix : chiffres alignés, jamais de gras criard */
+  .kz-price {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  /* Puce d'état discrète */
+  .kz-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  /* Scroll horizontal avec accroche (catégories, carrousels) */
+  .kz-rail {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--page-px);
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .kz-rail::-webkit-scrollbar { display: none; }
+  .kz-rail > * { scroll-snap-align: start; flex: 0 0 auto; }
+
+  /* Squelette de chargement : balayage doux, pas de clignotement */
+  .kz-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-muted);
+  }
+  .kz-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
+    animation: kzShimmer 1.6s infinite;
+  }
+  @keyframes kzShimmer { to { transform: translateX(100%); } }
 }
 
 /* Fluid native scrolling on mobile across all pages and overlays */

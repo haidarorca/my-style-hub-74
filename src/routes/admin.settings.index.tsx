@@ -102,14 +102,14 @@ function SettingsPage() {
           <div>
             <Label>Couleur principale</Label>
             <div className="flex items-center gap-2">
-              <input type="color" value={form.primary_color ?? "#e85d3a"} onChange={(e) => set("primary_color", e.target.value)} className="h-10 w-14 rounded border" />
+              <input type="color" value={form.primary_color ?? "#2e3a64"} onChange={(e) => set("primary_color", e.target.value)} className="h-10 w-14 rounded border" />
               <Input value={form.primary_color ?? ""} onChange={(e) => set("primary_color", e.target.value)} />
             </div>
           </div>
           <div>
             <Label>Couleur d'accent</Label>
             <div className="flex items-center gap-2">
-              <input type="color" value={form.accent_color ?? "#1a1a1a"} onChange={(e) => set("accent_color", e.target.value)} className="h-10 w-14 rounded border" />
+              <input type="color" value={form.accent_color ?? "#c8843a"} onChange={(e) => set("accent_color", e.target.value)} className="h-10 w-14 rounded border" />
               <Input value={form.accent_color ?? ""} onChange={(e) => set("accent_color", e.target.value)} />
             </div>
           </div>

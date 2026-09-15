@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Home, LayoutGrid, Search, ShoppingBag, User } from "lucide-react";
+import { ChevronDown, House, Boxes, Search, ShoppingCart, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 import { useI18n } from "@/hooks/use-i18n";
@@ -48,22 +48,22 @@ export function DesktopNav() {
   const level1 = all.filter((c) => c.level === 1 && hasStock(c.id));
 
   const linkCls =
-    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+    "relative flex items-center gap-2 px-3.5 py-3 text-[0.8125rem] font-semibold tracking-[0.01em] text-muted-foreground transition-colors duration-200 hover:text-foreground after:absolute after:inset-x-3.5 after:bottom-1.5 after:h-[2px] after:origin-left after:scale-x-0 after:rounded-full after:bg-[var(--brand)] after:transition-transform after:duration-300 hover:after:scale-x-100";
 
   return (
-    <div className="hidden border-b border-border bg-background/95 md:block">
+    <div className="hidden border-b border-border/70 bg-card/80 backdrop-blur md:block">
       <nav
         aria-label="Navigation principale"
         className="mx-auto flex max-w-7xl items-center gap-1 px-3"
         onMouseLeave={() => setOpen(false)}
       >
-        <Link to="/" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }} activeOptions={{ exact: true }}>
-          <Home className="h-4 w-4" /> {t("nav.home")}
+        <Link to="/" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }} activeOptions={{ exact: true }}>
+          <House className="h-4 w-4" /> {t("nav.home")}
         </Link>
 
         <div className="relative" onMouseEnter={() => setOpen(true)}>
-          <Link to="/categories" className={cn(linkCls, open && "bg-accent text-foreground")}>
-            <LayoutGrid className="h-4 w-4" /> {t("nav.categories")}
+          <Link to="/categories" className={cn(linkCls, open && "text-foreground after:scale-x-100")}>
+            <Boxes className="h-4 w-4" /> {t("nav.categories")}
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
           </Link>
 
@@ -125,14 +125,14 @@ export function DesktopNav() {
           )}
         </div>
 
-        <Link to="/search" search={{ q: "" }} className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
+        <Link to="/search" search={{ q: "" }} className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
           <Search className="h-4 w-4" /> {t("nav.search")}
         </Link>
-        <Link to="/account" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
-          <User className="h-4 w-4" /> {t("nav.account")}
+        <Link to="/account" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
+          <UserRound className="h-4 w-4" /> {t("nav.account")}
         </Link>
-        <Link to="/cart" className={linkCls} activeProps={{ className: "text-foreground bg-accent" }}>
-          <ShoppingBag className="h-4 w-4" /> {t("nav.cart")}
+        <Link to="/cart" className={linkCls} activeProps={{ className: "text-foreground after:scale-x-100" }}>
+          <ShoppingCart className="h-4 w-4" /> {t("nav.cart")}
         </Link>
       </nav>
     </div>
