@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Catalogue",
     items: [
       { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
+      { to: "/admin/display", label: "Vitrine & affichage", icon: LayoutDashboard, perm: "settings", badge: "NEW" },
       { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
       { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
       { to: "/admin/imports", label: "Import / Export", icon: Upload, perm: "products" },
