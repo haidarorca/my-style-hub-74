@@ -1,0 +1,12 @@
+REVOKE EXECUTE ON FUNCTION public.log_return_case_action(uuid, text, jsonb) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.next_return_case_code(return_case_kind) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.recalc_return_case_suggested(uuid) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_admin_vendor_product_stats() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_sav_counts(text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.apply_stock_delta(uuid, integer, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.product_code_exists_in_shop(uuid, text, uuid) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.current_user_can(text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.current_user_has_permission(admin_permission) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.current_user_has_role(app_role) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.user_can(uuid, text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.create_imported_product_atomic(uuid, text, text, text, text, text, text, numeric, uuid, jsonb, jsonb) FROM anon, authenticated;
