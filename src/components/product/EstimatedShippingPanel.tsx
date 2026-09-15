@@ -29,7 +29,9 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
     if (!selectedServiceId && cheapestId) onSelectService?.(cheapestId);
   }, [selectedServiceId, est.cheapest?.service.id, onSelectService]);
 
-  if (!est.isIntl) return null;
+  // Produit local : pas de grille de transport international. On informe
+  // simplement le client que les frais de livraison seront confirmés.
+  if (!est.isIntl) return <DeliveryToConfirmNotice />;
 
   // Cas A : article international SANS poids déclaré → message "après pesée".
   if (!est.canEstimate) {
