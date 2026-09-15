@@ -37,15 +37,12 @@ function DisplayCurrencyCard() {
   const active = currencies.filter((c) => c.is_active);
   const current = active.find((c) => c.code === displayCurrency);
   return (
-    <div className="mt-6 rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2">
-        <Coins className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">Devise d'affichage</h3>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Choisissez la devise dans laquelle les prix sont affichés sur tout le site. La comptabilité reste en FCFA.
-      </p>
-      <div className="mt-3 flex items-center justify-between gap-3">
+    <SettingsPanel
+      icon={<Coins />}
+      title="Devise d'affichage"
+      description="Choisissez la devise dans laquelle les prix sont affichés. La comptabilité reste en FCFA."
+    >
+      <div className="flex items-center justify-between gap-3">
         <div className="text-sm">
           <span className="text-muted-foreground">Devise actuelle : </span>
           <span className="font-semibold">{current ? `${current.symbol} · ${current.code}` : displayCurrency}</span>
