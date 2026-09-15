@@ -172,8 +172,13 @@ export function SearchAutocomplete() {
       threshold: 0.45,
       ignoreLocation: true,
     });
+    // Pertinence métier d'abord (code exact, début de nom, nom, désignation)
+    const business = rankBy(rows, (r) => scoreProduct(r as any, debounced));
+    if (business.length > 0 && scoreProduct(business[0] as any, debounced) > 5) {
+      return business.slice(0, 6);
+    }
+    // Sinon tolérance aux fautes de frappe
     const ranked = fuse.search(debounced).map((r) => r.item);
-    // fall back to original if fuse found nothing (e.g. matched via designation only)
     return (ranked.length ? ranked : rows).slice(0, 6);
   }, [productSugg, debounced, hasQuery]);
 
