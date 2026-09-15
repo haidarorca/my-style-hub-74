@@ -371,185 +371,151 @@ function AccountPage() {
           <BackButton fallbackTo="/" />
         </div>
 
-        <div className="mb-4 space-y-2">
-          <Link
-            to="/orders"
-            className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Package className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-semibold">{t("nav.orders")}</span>
-            </span>
-            <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
-          </Link>
-          {(isVendor || isAdmin) ? (
+        <SettingsSection title="Commandes">
+          <SettingsLinkRow to="/orders" icon={<Package />} title={t("nav.orders")} description="Suivi, factures et historique" />
+        </SettingsSection>
+
+        <SettingsSection title="Vendeur">
+          {isVendor || isAdmin ? (
             <>
-              <Link
-                to="/vendor"
-                className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Store className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-semibold">{t("nav.vendor")}</span>
-                </span>
-                <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
-              </Link>
-              <Link
+              <SettingsLinkRow to="/vendor" icon={<Store />} title={t("nav.vendor")} description="Boutique, produits et ventes" />
+              <SettingsLinkRow
                 to="/kawscan/app"
-                className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-accent"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <ScanLine className="h-4 w-4" />
-                  </span>
-                  <span className="flex flex-col">
-                    <span className="text-sm font-semibold">Prix en magasin (KawScan)</span>
-                    <span className="text-[11px] text-muted-foreground">Étiquettes, prix et scan pour vos clients</span>
-                  </span>
-                </span>
-                <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
-              </Link>
+                icon={<ScanLine />}
+                title="Prix en magasin (KawScan)"
+                description="Étiquettes, prix et scan pour vos clients"
+              />
             </>
           ) : (
-            <Link
+            <SettingsLinkRow
               to="/become-vendor"
-              className="flex items-center justify-between rounded-xl border border-primary/40 bg-gradient-to-br from-primary/10 to-accent/10 p-3 shadow-soft transition hover:from-primary/20 hover:to-accent/20"
-            >
-              <span className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <Store className="h-4 w-4" />
-                </span>
-                <span className="flex flex-col">
-                  <span className="text-sm font-semibold">Devenir vendeur</span>
-                  <span className="text-[11px] text-muted-foreground">Ouvrez votre boutique en quelques minutes</span>
-                </span>
-              </span>
-              <ChevronRight className={`h-4 w-4 text-muted-foreground ${dir === "rtl" ? "rotate-180" : ""}`} />
-            </Link>
+              icon={<Store />}
+              title="Devenir vendeur"
+              description="Ouvrez votre boutique en quelques minutes"
+              highlight
+            />
           )}
-        </div>
+        </SettingsSection>
 
-        <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft">
-          <div className="mb-2 flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <MapPin className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Pays de livraison</p>
-              <p className="text-xs text-muted-foreground">
-                Sélectionnez le pays où vous voulez être livré.
-              </p>
+        <SettingsSection
+          title="Livraison"
+          action={
+            <Button onClick={openNew} size="sm" variant="outline" className="h-7 rounded-full px-3 text-xs">
+              <Plus className="h-3.5 w-3.5" /> {t("common.add")}
+            </Button>
+          }
+        >
+          <SettingsPanel
+            icon={<Globe2 />}
+            title="Pays de livraison"
+            description="Sélectionnez le pays où vous voulez être livré."
+          >
+            <CountrySelect
+              value={deliveryCountryId}
+              onChange={(id) => {
+                setDeliveryCountryId(id);
+                if (id) toast.success("Pays de livraison mis à jour");
+              }}
+              onlyEnabled
+              placeholder="Choisir le pays de livraison"
+            />
+          </SettingsPanel>
+
+          <SettingsPanel icon={<MapPin />} title={t("account.addresses")} description={t("account.description")}>
+            {loadingList ? (
+              <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+            ) : addresses.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-7 text-center">
+                <p className="text-sm text-muted-foreground">{t("account.no_addresses")}</p>
+                <Button onClick={openNew} size="sm" className="mt-3 rounded-full">
+                  <Plus className="h-4 w-4" /> {t("account.add_first_address")}
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border/70 rounded-xl border border-border">
+                {addresses.map((a) => (
+                  <li key={a.id} className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{a.label}</span>
+                          {a.is_default && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--brand)]">
+                              <Star className="h-3 w-3" /> {t("common.default")}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm">{a.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
+                        <p className="mt-1 text-sm">{a.address}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {a.city}
+                          {a.destination_country_id && (() => {
+                            const c = countriesList?.find((x) => x.id === a.destination_country_id);
+                            return c ? <> · <span className="font-medium">{c.flag_emoji} {labelOfCountry(c)}</span></> : null;
+                          })()}
+                        </p>
+                        {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
+                        {a.latitude != null && a.longitude != null && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            📍 {a.latitude.toFixed(5)}, {a.longitude.toFixed(5)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(a)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(a)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {!a.is_default && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 h-8 rounded-full text-xs"
+                        onClick={() => setDefault(a)}
+                      >
+                        <Star className="h-3 w-3" /> {t("account.set_default_address")}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SettingsPanel>
+        </SettingsSection>
+
+        <SettingsSection title="Préférences">
+          <DisplayCurrencyCard />
+        </SettingsSection>
+
+        <SettingsSection title="Sécurité">
+          <div className="px-3.5 py-3">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand)]">
+                <ShieldCheck className="h-[1.05rem] w-[1.05rem]" />
+              </span>
+              <p className="text-[0.9375rem] font-semibold leading-tight">Protection du compte</p>
+            </div>
+            <div className="[&_.shadow-soft]:shadow-none [&>div]:mt-0 [&>div]:border-border/70 space-y-3">
+              <ChangePasswordCard />
+              <TwoFactorCard />
             </div>
           </div>
-          <CountrySelect
-            value={deliveryCountryId}
-            onChange={(id) => {
-              setDeliveryCountryId(id);
-              if (id) toast.success("Pays de livraison mis à jour");
-            }}
-            onlyEnabled
-            placeholder="Choisir le pays de livraison"
-          />
-        </div>
-        <div className="mb-4 flex items-end justify-between">
-          <div>
-            <h1 className="text-lg font-bold">{t("account.addresses")}</h1>
-            <p className="text-xs text-muted-foreground">
-              {t("account.description")}
-            </p>
-          </div>
-          <Button onClick={openNew} size="sm" className="rounded-full">
-            <Plus className="h-4 w-4" /> {t("common.add")}
-          </Button>
-        </div>
+        </SettingsSection>
 
-        {loadingList ? (
-          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-        ) : addresses.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-10 text-center">
-            <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t("account.no_addresses")}
-            </p>
-            <Button onClick={openNew} className="mt-4 rounded-full">
-              <Plus className="h-4 w-4" /> {t("account.add_first_address")}
-            </Button>
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {addresses.map((a) => (
-              <li key={a.id} className="rounded-xl border border-border bg-card p-3 shadow-soft">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{a.label}</span>
-                      {a.is_default && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          <Star className="h-3 w-3" /> {t("common.default")}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm">{a.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{a.phone}{a.phone_secondary ? ` · ${a.phone_secondary}` : ""}{a.phone_alt ? ` · ${a.phone_alt}` : ""}</p>
-                    <p className="mt-1 text-sm">{a.address}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.city}
-                      {a.destination_country_id && (() => {
-                        const c = countriesList?.find((x) => x.id === a.destination_country_id);
-                        return c ? <> · <span className="font-medium">{c.flag_emoji} {labelOfCountry(c)}</span></> : null;
-                      })()}
-                    </p>
-                    {a.note && <p className="mt-1 text-xs italic text-muted-foreground">« {a.note} »</p>}
-                    {a.latitude != null && a.longitude != null && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        📍 {a.latitude.toFixed(5)}, {a.longitude.toFixed(5)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(a)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(a)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                {!a.is_default && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-2 h-8 rounded-full text-xs"
-                    onClick={() => setDefault(a)}
-                  >
-                    <Star className="h-3 w-3" /> {t("account.set_default_address")}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <DisplayCurrencyCard />
-
-        <div className="mt-6">
-          <ChangePasswordCard />
-          <TwoFactorCard />
-        </div>
-
-        <div className="mt-6 rounded-xl border bg-card p-4">
-          <h3 className="text-sm font-semibold">Mise à jour de l'application</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Forcer la vérification d'une nouvelle version, vider les anciens caches et recharger l'application proprement.
-          </p>
-          <div className="mt-3">
+        <SettingsSection title="Application">
+          <SettingsPanel
+            icon={<RefreshCw />}
+            title="Mettre à jour l'application"
+            description="Vérifier une nouvelle version, vider les anciens caches et recharger proprement."
+          >
             <UpdateAppButton fullWidth />
-          </div>
-        </div>
+          </SettingsPanel>
+        </SettingsSection>
 
         {isVendor && !isAdmin && <RemoveVendorCard />}
       </main>
