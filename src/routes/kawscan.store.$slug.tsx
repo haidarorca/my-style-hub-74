@@ -539,6 +539,61 @@ function StoreScanner() {
         <ZoneAnalyzer source={capturedFrame} onCancel={releaseCapturedFrame} onResult={handleZoneResult} />
       )}
 
+      {/* Galerie : choisir une photo ou en prendre une avec l'appareil photo du téléphone */}
+      {galleryOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/70 p-4" onClick={() => setGalleryOpen(false)}>
+          <div className="space-y-2 rounded-2xl bg-background p-4 text-foreground" onClick={(e) => e.stopPropagation()}>
+            <p className="pb-1 text-center text-sm font-semibold">Analyser une image</p>
+            <Button
+              className="h-14 w-full justify-start text-base"
+              onClick={() => {
+                setGalleryOpen(false);
+                nativeCameraInputRef.current?.click();
+              }}
+            >
+              <Camera className="mr-3 h-5 w-5" /> Prendre une photo
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 w-full justify-start text-base"
+              onClick={() => {
+                setGalleryOpen(false);
+                galleryInputRef.current?.click();
+              }}
+            >
+              <Images className="mr-3 h-5 w-5" /> Choisir une photo
+            </Button>
+            <Button variant="ghost" className="h-11 w-full" onClick={() => setGalleryOpen(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Photo analysée sans code lisible : proposer le cadrage manuel */}
+      {noCodeFrame && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/75 p-4">
+          <div className="space-y-3 rounded-2xl bg-background p-5 text-foreground">
+            <h2 className="text-base font-semibold">Aucun code détecté</h2>
+            <p className="text-sm text-muted-foreground">
+              Encadrez précisément le code sur la photo : il sera analysé en pleine définition.
+            </p>
+            <Button
+              className="h-12 w-full"
+              onClick={() => {
+                setCapturedFrame(noCodeFrame);
+                setNoCodeFrame(null);
+              }}
+            >
+              <ScanSearch className="mr-2 h-5 w-5" /> Encadrer le code manuellement
+            </Button>
+            <Button variant="outline" className="h-11 w-full" onClick={releaseNoCodeFrame}>
+              Réessayer
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Recherche manuelle */}
       {searchOpen && (
         <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground">
