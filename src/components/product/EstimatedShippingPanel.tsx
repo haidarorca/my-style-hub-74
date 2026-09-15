@@ -12,6 +12,7 @@ import { Plane, Check } from "lucide-react";
 import { useEstimatedShipping, formatDelay } from "@/hooks/use-estimated-shipping";
 import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
 import { useFormatDisplay } from "@/hooks/use-currencies";
+import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
 
 interface Props {
   product: EstimatedShippingProduct;
