@@ -71,20 +71,14 @@ export function ProductCard({ product, onQuickAdd }: Props) {
         params={{ productId: product.id }}
         className="block"
       >
-        <div className="relative aspect-[3/4] overflow-hidden bg-muted">
-          {img ? (
-            <img
-              src={img}
-              alt={displayName}
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-muted to-accent/30" />
-          )}
+        <CatalogImage
+          src={img}
+          alt={displayName}
+          ratio="3/4"
+          imgClassName="transition-transform duration-500 group-hover:scale-[1.04]"
+        >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-        </div>
+        </CatalogImage>
         <div className="p-[clamp(0.5rem,2vw,0.75rem)]">
           <p className="line-clamp-2 text-[clamp(11px,3.2vw,13px)] leading-snug text-foreground/90 min-h-[2.4em]">
             {displayName}
