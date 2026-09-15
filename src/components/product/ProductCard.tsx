@@ -82,33 +82,34 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
   const total = showTotal ? Number(dp!.final_price) + est.cheapest!.price : null;
 
   return (
-    <div className="group relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:shadow-card hover:-translate-y-0.5">
+    <div className="group relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[calc(var(--radius)+4px)] border border-border bg-card transition-[box-shadow,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 hover:border-primary/25 hover:shadow-[var(--shadow-card)]">
       <Link
         to="/product/$productId"
         params={{ productId: product.id }}
         className="flex min-w-0 flex-1 flex-col"
       >
-        <CatalogImage
-          src={img}
-          alt={displayName}
-          ratio={cfg.imageRatio}
-          className="shrink-0 bg-muted/30"
-        />
+        <div className="relative overflow-hidden">
+          <CatalogImage
+            src={img}
+            alt={displayName}
+            ratio={cfg.imageRatio}
+            className="shrink-0 bg-[var(--surface)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
+          />
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        </div>
 
         <div className={`flex min-w-0 flex-1 flex-col ${CARD_PADDING[cfg.cardStyle]}`}>
           {cfg.showName && (
-            <p className={`line-clamp-2 min-h-[2.4em] text-foreground/90 ${NAME_CLASS[cfg.cardStyle]}`}>
+            <p className={`line-clamp-2 min-h-[2.4em] leading-snug text-foreground/85 ${NAME_CLASS[cfg.cardStyle]}`}>
               {displayName}
             </p>
           )}
           {cfg.showPrice &&
             (dp ? (
               showTotal ? (
-                <div className="mt-1.5">
-                  <p className="text-[10px] font-semibold uppercase leading-none tracking-wide text-emerald-700/80">
-                    Total estimé
-                  </p>
-                  <p className={`mt-0.5 font-bold tracking-tight text-primary ${PRICE_CLASS[cfg.cardStyle]}`}>
+                <div className="mt-2">
+                  <p className="kz-eyebrow text-[0.6rem] leading-none">Total estimé</p>
+                  <p className={`kz-price mt-1 font-bold text-foreground ${PRICE_CLASS[cfg.cardStyle]}`}>
                     {fmt(total!)}
                   </p>
                   <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
@@ -116,12 +117,12 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
                   </p>
                 </div>
               ) : (
-                <p className={`mt-1.5 font-bold tracking-tight text-primary ${PRICE_CLASS[cfg.cardStyle]}`}>
+                <p className={`kz-price mt-2 font-bold text-foreground ${PRICE_CLASS[cfg.cardStyle]}`}>
                   {fmt(dp.final_price)}
                 </p>
               )
             ) : (
-              <Skeleton className="mt-1.5 h-4 w-1/2" />
+              <Skeleton className="mt-2 h-4 w-1/2" />
             ))}
           {cfg.showBadges && (() => {
             const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
