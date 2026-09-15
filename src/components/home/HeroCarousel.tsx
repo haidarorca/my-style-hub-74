@@ -41,7 +41,7 @@ export function HeroCarousel() {
   if (!banners || banners.length === 0) return null;
 
   return (
-    <section className="mt-3 overflow-hidden rounded-2xl bg-card shadow-soft">
+    <section className="mt-4 overflow-hidden rounded-[calc(var(--radius)+6px)] border border-border bg-card">
       <div className="relative">
         <div ref={emblaRef} className="overflow-hidden">
           <div className={cn("flex", isFade && "[&>*]:opacity-0 [&>*]:transition-opacity")}>
@@ -59,41 +59,46 @@ export function HeroCarousel() {
           </div>
         </div>
 
-        {settings.banner_show_arrows && banners.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={scrollPrev}
-              aria-label="Précédent"
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-background/70 p-2 text-foreground shadow backdrop-blur transition hover:bg-background"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={scrollNext}
-              aria-label="Suivant"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-background/70 p-2 text-foreground shadow backdrop-blur transition hover:bg-background"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </>
-        )}
       </div>
 
-      {settings.banner_show_dots && banners.length > 1 && (
-        <div className="flex justify-center gap-1.5 py-2">
-          {banners.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => emblaApi?.scrollTo(i)}
-              aria-label={`Bannière ${i + 1}`}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                i === idx ? "w-5 bg-primary" : "w-1.5 bg-muted",
-              )}
-            />
-          ))}
+      {/* Contrôles sous la bannière : ne recouvrent jamais le visuel */}
+      {banners.length > 1 && (settings.banner_show_dots || settings.banner_show_arrows) && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+          <div className="flex flex-1 items-center gap-1.5">
+            {settings.banner_show_dots &&
+              banners.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => emblaApi?.scrollTo(i)}
+                  aria-label={`Bannière ${i + 1}`}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-300",
+                    i === idx ? "w-6 bg-[var(--brand)]" : "w-1.5 bg-border",
+                  )}
+                />
+              ))}
+          </div>
+
+          {settings.banner_show_arrows && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={scrollPrev}
+                aria-label="Précédent"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-foreground/75 transition-colors hover:border-primary/30 hover:text-foreground active:scale-95"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={scrollNext}
+                aria-label="Suivant"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-foreground/75 transition-colors hover:border-primary/30 hover:text-foreground active:scale-95"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

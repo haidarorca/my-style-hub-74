@@ -248,34 +248,42 @@ function Home() {
 
       {/* Universe tabs (horizontal swipe) */}
       <div
-        className={`sticky top-14 z-30 border-b border-border bg-background transition-transform duration-300 ${
-          hideTabs ? "-translate-y-[calc(100%+3.5rem)]" : "translate-y-0"
+        className={`sticky top-16 z-30 border-b border-border bg-background/90 backdrop-blur-xl transition-transform duration-300 ${
+          hideTabs ? "-translate-y-[calc(100%+4rem)]" : "translate-y-0"
         }`}
       >
-        <div className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-2">
-          {universeTabs.map((u) => (
-            <button
-              key={u.id}
-              onClick={() => onSelectUniverse(u.id)}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                universeId === u.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-foreground"
-              }`}
-            >
-              {pickI18n(u.name, u.name_i18n, lang)}
-            </button>
-          ))}
+        {/* Niveau 1 — onglets soulignés (style éditorial KawZone) */}
+        <div className="no-scrollbar flex gap-5 overflow-x-auto px-4 sm:gap-7">
+          {universeTabs.map((u) => {
+            const active = universeId === u.id;
+            return (
+              <button
+                key={u.id}
+                onClick={() => onSelectUniverse(u.id)}
+                aria-current={active ? "true" : undefined}
+                className={`relative shrink-0 whitespace-nowrap py-3 text-[0.8125rem] font-semibold tracking-tight transition-colors duration-200 sm:text-sm ${
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {pickI18n(u.name, u.name_i18n, lang)}
+                <span
+                  className={`absolute inset-x-0 bottom-0 h-[2.5px] rounded-full bg-[var(--brand)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    active ? "scale-x-100" : "scale-x-0"
+                  }`}
+                />
+              </button>
+            );
+          })}
         </div>
-        {/* Sub-categories (level 2) */}
+        {/* Niveau 2 — puces fines */}
         {universeId !== ALL && visibleSubs.length > 0 && (
-          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
+          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border/70 px-4 py-2.5">
             <button
               onClick={() => onSelectSubCategory(null)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 subCategoryId === null
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-foreground"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-foreground/75 hover:border-primary/30 hover:text-foreground"
               }`}
             >
               {t("common.all")}
@@ -284,10 +292,10 @@ function Home() {
               <button
                 key={c.id}
                 onClick={() => onSelectSubCategory(c.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                   subCategoryId === c.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-foreground/75 hover:border-primary/30 hover:text-foreground"
                 }`}
               >
                 {pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang)}
@@ -295,15 +303,15 @@ function Home() {
             ))}
           </div>
         )}
-        {/* Sub-sub-categories (level 3) */}
+        {/* Niveau 3 — puces discrètes */}
         {subCategoryId && visibleSubSubs.length > 0 && (
-          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border px-3 py-2">
+          <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border/70 px-4 py-2">
             <button
               onClick={() => setSubSubCategoryId(null)}
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
                 subSubCategoryId === null
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-foreground"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t("common.all")}
@@ -312,10 +320,10 @@ function Home() {
               <button
                 key={c.id}
                 onClick={() => setSubSubCategoryId(c.id)}
-                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   subSubCategoryId === c.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang)}
