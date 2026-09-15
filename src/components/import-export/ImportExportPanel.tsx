@@ -1,3 +1,4 @@
+import { ProductImagesZipCard } from "./ProductImagesZipCard";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -292,6 +293,7 @@ export function ImportExportPanel({ scope, shopId }: Props) {
           </div>
         </Card>
       )}
+      <ProductImagesZipCard scope={scope} shopId={shopId} />
     </div>
   );
 }
