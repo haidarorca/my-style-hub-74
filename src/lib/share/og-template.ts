@@ -72,7 +72,7 @@ export function buildOgTemplate(p: OgProductData): El {
             color: "#ffffff",
             letterSpacing: "2px",
           },
-          children: "DIAKOUNDA",
+          children: "KAWZONE",
         }),
         el("div", {
           style: {
@@ -80,7 +80,7 @@ export function buildOgTemplate(p: OgProductData): El {
             fontSize: "16px",
             color: "rgba(255,255,255,0.7)",
           },
-          children: "diakounda.com",
+          children: "kawzone.com",
         }),
       ],
     }),
