@@ -62,7 +62,7 @@ export const createVendor = createServerFn({ method: "POST" })
     // Profile may have been created by the new-user trigger; upsert shop info
     await supabaseAdmin.from("profiles").upsert({
       id: userId,
-      email: data.email,
+      email: loginEmail,
       full_name: data.full_name,
       shop_name: data.shop_name,
       phone: data.phone ?? null,
