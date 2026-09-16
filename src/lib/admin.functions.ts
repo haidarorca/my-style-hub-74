@@ -79,8 +79,45 @@ export const createVendor = createServerFn({ method: "POST" })
       .insert({ user_id: userId, role: "vendeur" });
     if (roleErr) throw new Error(roleErr.message);
 
-    return { ok: true, user_id: userId };
+    return { ok: true, user_id: userId, login_email: loginEmail };
   });
+
+const SetUserPasswordSchema = z.object({
+  user_id: z.string().uuid(),
+  password: z.string().min(6).max(100),
+  new_email: z.string().trim().email().optional().nullable(),
+});
+
+/** Admin : définir/réinitialiser le mot de passe (et éventuellement l'email de connexion) d'un compte. */
+export const setUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => SetUserPasswordSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles").select("role")
+      .eq("user_id", context.userId)
+      .in("role", ["admin", "super_admin"])
+      .maybeSingle();
+    if (!roleRow) throw new Error("Accès refusé : admin requis");
+
+    const payload: { password: string; email?: string; email_confirm?: boolean } = {
+      password: data.password,
+    };
+    if (data.new_email) {
+      payload.email = data.new_email;
+      payload.email_confirm = true;
+    }
+
+    const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, payload);
+    if (error) throw new Error(error.message);
+
+    if (data.new_email) {
+      await supabaseAdmin.from("profiles").update({ email: data.new_email }).eq("id", data.user_id);
+    }
+
+    return { ok: true, login_email: updated.user?.email ?? null };
+  });
+
 
 const UpdateVendorSchema = z.object({
   user_id: z.string().uuid(),
