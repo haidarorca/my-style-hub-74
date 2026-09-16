@@ -41,9 +41,15 @@ export const createVendor = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!roleRow) throw new Error("Accès refusé : admin requis");
 
+    // Email facultatif : identifiant interne généré à partir de la boutique
+    const loginEmail =
+      data.email && data.email.trim()
+        ? data.email.trim()
+        : `${slugify(data.shop_name || data.full_name)}-${Date.now().toString(36)}@kawzone-shops.internal`;
+
     // Create user (auto-confirm so vendor can log in immediately)
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
+      email: loginEmail,
       password: data.password,
       email_confirm: true,
       user_metadata: { full_name: data.full_name },
