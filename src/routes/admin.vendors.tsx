@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Store, Pencil, X, MoreHorizontal, CheckCircle2, PauseCircle,
   Ban, Clock, AlertTriangle, CalendarClock, Eye, ShoppingBag, Search,
-  ArrowUpDown, ArrowUp, ArrowDown,
+  ArrowUpDown, ArrowUp, ArrowDown, KeyRound,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { createVendor, deleteVendor, updateVendor } from "@/lib/admin.functions";
+import { createVendor, deleteVendor, updateVendor, setUserPassword } from "@/lib/admin.functions";
 import { setVendorStatus, setVendorAccessWindow } from "@/lib/admin-vendor-status.functions";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { CountrySelect } from "@/components/CountrySelect";
@@ -293,6 +293,7 @@ function VendorsPage() {
   const [editing, setEditing] = useState<VendorRow | null>(null);
   const [accessFor, setAccessFor] = useState<VendorRow | null>(null);
   const [reasonAction, setReasonAction] = useState<{ vendor: VendorRow; status: "suspended" | "blocked" } | null>(null);
+  const [pwdFor, setPwdFor] = useState<VendorRow | null>(null);
 
   async function handleCreate() {
     if (!cSourceId) { toast.error("Pays source obligatoire"); return; }
@@ -350,11 +351,11 @@ function VendorsPage() {
                 <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
               <div><Label className="text-xs">Nom de la boutique</Label>
                 <Input value={form.shop_name} onChange={(e) => setForm({ ...form, shop_name: e.target.value })} /></div>
-              <div><Label className="text-xs">Email</Label>
+              <div><Label className="text-xs">Email (facultatif)</Label>
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
               <div><Label className="text-xs">Téléphone</Label>
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-              <div><Label className="text-xs">Mot de passe (min 6)</Label>
+              <div><Label className="text-xs">Mot de passe (6 caractères minimum)</Label>
                 <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
               <VendorScopeFields
                 sourceId={cSourceId} setSourceId={setCSourceId}
@@ -598,6 +599,9 @@ function VendorsPage() {
                                   <Ban className="mr-2 h-4 w-4 text-destructive" /> Bloquer
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem onClick={() => setPwdFor(v)}>
+                                <KeyRound className="mr-2 h-4 w-4" /> Mot de passe / identifiant
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setAccessFor(v)}>
                                 <CalendarClock className="mr-2 h-4 w-4" /> Prolonger l'accès
                               </DropdownMenuItem>
