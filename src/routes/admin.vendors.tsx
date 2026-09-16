@@ -305,6 +305,8 @@ function VendorsPage() {
         source_country_id: cSourceId, vendor_mode: cMode,
         ships_internationally: cIntl, allowed_destination_country_ids: cAllowed,
       } });
+      const created = await Promise.resolve(undefined);
+      void created;
       toast.success("Vendeur créé");
       setOpen(false);
       setForm({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
@@ -662,6 +664,15 @@ function VendorsPage() {
         }}
       />
 
+      <CredentialsDialog
+        vendor={pwdFor}
+        onClose={() => setPwdFor(null)}
+        onSaved={() => {
+          setPwdFor(null);
+          qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
+        }}
+      />
+
       <AccessWindowDialog
         vendor={accessFor}
         onClose={() => setAccessFor(null)}
@@ -671,6 +682,63 @@ function VendorsPage() {
         }}
       />
     </div>
+  );
+}
+
+function CredentialsDialog({
+  vendor, onClose, onSaved,
+}: { vendor: VendorRow | null; onClose: () => void; onSaved: () => void }) {
+  const setPwd = useServerFn(setUserPassword);
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setPassword("");
+    setEmail(vendor?.profiles?.email ?? "");
+  }, [vendor]);
+
+  const currentEmail = vendor?.profiles?.email ?? "";
+
+  async function save() {
+    if (!vendor) return;
+    if (password.length < 6) { toast.error("Mot de passe : 6 caractères minimum."); return; }
+    setBusy(true);
+    try {
+      const changedEmail = email.trim() && email.trim() !== currentEmail ? email.trim() : null;
+      const res = await setPwd({ data: { user_id: vendor.user_id, password, new_email: changedEmail } });
+      toast.success(`Mot de passe mis à jour · identifiant : ${res.login_email ?? currentEmail}`);
+      onSaved();
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open={!!vendor} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Mot de passe / identifiant</DialogTitle>
+          <DialogDescription>
+            {vendor?.profiles?.shop_name || vendor?.profiles?.full_name || "Compte"} — définissez un nouveau mot de passe.
+            Le vendeur pourra le changer ensuite depuis son compte.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Identifiant de connexion (email)</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email de connexion" />
+            <p className="mt-1 text-[11px] text-muted-foreground">Identifiant actuel : {currentEmail || "—"}</p>
+          </div>
+          <div>
+            <Label className="text-xs">Nouveau mot de passe (6 caractères minimum)</Label>
+            <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
