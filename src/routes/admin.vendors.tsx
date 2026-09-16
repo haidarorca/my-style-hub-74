@@ -300,14 +300,12 @@ function VendorsPage() {
     if (cIntl && cAllowed.length === 0) { toast.error("Sélectionnez au moins un pays de livraison autorisé."); return; }
     setBusy(true);
     try {
-      await create({ data: {
+      const res = await create({ data: {
         ...form, phone: form.phone || null,
         source_country_id: cSourceId, vendor_mode: cMode,
         ships_internationally: cIntl, allowed_destination_country_ids: cAllowed,
       } });
-      const created = await Promise.resolve(undefined);
-      void created;
-      toast.success("Vendeur créé");
+      toast.success(`Vendeur créé · identifiant : ${res.login_email}`);
       setOpen(false);
       setForm({ email: "", password: "", full_name: "", shop_name: "", phone: "" });
       setCSourceId(null); setCMode("no_commission"); setCIntl(false); setCAllowed([]);
