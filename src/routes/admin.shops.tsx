@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus, FileSpreadsheet, KeyRound } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,6 +131,7 @@ function AdminShopsPage() {
   });
 
   const [deleteTarget, setDeleteTarget] = useState<AdminShopRow | null>(null);
+  const [credTarget, setCredTarget] = useState<AdminShopRow | null>(null);
 
   const rows = (data?.rows ?? []) as AdminShopRow[];
 
@@ -199,6 +200,7 @@ function AdminShopsPage() {
               row={s}
               onEdit={() => setEditingId(s.id)}
               onDelete={() => setDeleteTarget(s)}
+              onCredentials={() => setCredTarget(s)}
             />
           ))}
         </div>
@@ -339,7 +341,7 @@ function DeleteShopDialog({
   );
 }
 
-function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => void; onDelete: () => void }) {
+function ShopCard({ row, onEdit, onDelete, onCredentials }: { row: AdminShopRow; onEdit: () => void; onDelete: () => void; onCredentials: () => void }) {
   return (
     <Card>
       <div
@@ -391,6 +393,9 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
           </Button>
           <Button size="sm" variant="outline" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="outline" onClick={onCredentials} title="Identifiants de connexion">
+            <KeyRound className="h-3.5 w-3.5" />
           </Button>
           <Button size="sm" variant="ghost" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5 text-destructive" />
