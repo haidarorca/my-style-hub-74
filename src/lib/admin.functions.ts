@@ -3,8 +3,21 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+function slugify(input: string, fallback = "compte") {
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || fallback
+  );
+}
+
 const CreateVendorSchema = z.object({
-  email: z.string().email(),
+  // Email facultatif : un identifiant interne est généré si vide
+  email: z.string().trim().email().optional().or(z.literal("")).nullable(),
   password: z.string().min(6).max(100),
   full_name: z.string().min(1).max(120),
   shop_name: z.string().min(1).max(120),
