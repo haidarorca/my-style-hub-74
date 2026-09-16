@@ -16,6 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { setUserPassword } from "@/lib/admin.functions";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useCountries } from "@/hooks/use-countries";
 import { supabase } from "@/integrations/supabase/client";
@@ -216,6 +217,10 @@ function AdminShopsPage() {
         />
       )}
 
+      {credTarget && (
+        <ShopCredentialsDialog shop={credTarget} onClose={() => setCredTarget(null)} />
+      )}
+
       {deleteTarget && (
         <DeleteShopDialog
           shop={deleteTarget}
@@ -225,6 +230,50 @@ function AdminShopsPage() {
         />
       )}
     </div>
+  );
+}
+
+function ShopCredentialsDialog({ shop, onClose }: { shop: AdminShopRow; onClose: () => void }) {
+  const setPwd = useServerFn(setUserPassword);
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (password.length < 6) { toast.error("Mot de passe : 6 caractères minimum."); return; }
+    setBusy(true);
+    try {
+      const res = await setPwd({ data: { user_id: shop.id, password, new_email: email.trim() || null } });
+      toast.success(`Identifiant : ${res.login_email ?? "—"} · mot de passe mis à jour`);
+      onClose();
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Identifiants de connexion</DialogTitle>
+          <DialogDescription>
+            {shop.shop_name} — définissez un email de connexion (facultatif) et un mot de passe pour ce compte boutique.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Email de connexion (laisser vide pour conserver)</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="boutique@exemple.com" />
+          </div>
+          <div>
+            <Label className="text-xs">Mot de passe (6 caractères minimum)</Label>
+            <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
