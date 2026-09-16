@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Store, Globe2, MapPin, Image as ImageIcon, ShoppingBag, Upload, PackagePlus, FileSpreadsheet, KeyRound } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { setUserPassword } from "@/lib/admin.functions";
 import { CountrySelect } from "@/components/CountrySelect";
 import { useCountries } from "@/hooks/use-countries";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,6 +132,7 @@ function AdminShopsPage() {
   });
 
   const [deleteTarget, setDeleteTarget] = useState<AdminShopRow | null>(null);
+  const [credTarget, setCredTarget] = useState<AdminShopRow | null>(null);
 
   const rows = (data?.rows ?? []) as AdminShopRow[];
 
@@ -199,6 +201,7 @@ function AdminShopsPage() {
               row={s}
               onEdit={() => setEditingId(s.id)}
               onDelete={() => setDeleteTarget(s)}
+              onCredentials={() => setCredTarget(s)}
             />
           ))}
         </div>
@@ -214,6 +217,10 @@ function AdminShopsPage() {
         />
       )}
 
+      {credTarget && (
+        <ShopCredentialsDialog shop={credTarget} onClose={() => setCredTarget(null)} />
+      )}
+
       {deleteTarget && (
         <DeleteShopDialog
           shop={deleteTarget}
@@ -223,6 +230,50 @@ function AdminShopsPage() {
         />
       )}
     </div>
+  );
+}
+
+function ShopCredentialsDialog({ shop, onClose }: { shop: AdminShopRow; onClose: () => void }) {
+  const setPwd = useServerFn(setUserPassword);
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (password.length < 6) { toast.error("Mot de passe : 6 caractères minimum."); return; }
+    setBusy(true);
+    try {
+      const res = await setPwd({ data: { user_id: shop.id, password, new_email: email.trim() || null } });
+      toast.success(`Identifiant : ${res.login_email ?? "—"} · mot de passe mis à jour`);
+      onClose();
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Identifiants de connexion</DialogTitle>
+          <DialogDescription>
+            {shop.shop_name} — définissez un email de connexion (facultatif) et un mot de passe pour ce compte boutique.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Email de connexion (laisser vide pour conserver)</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="boutique@exemple.com" />
+          </div>
+          <div>
+            <Label className="text-xs">Mot de passe (6 caractères minimum)</Label>
+            <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -339,7 +390,7 @@ function DeleteShopDialog({
   );
 }
 
-function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => void; onDelete: () => void }) {
+function ShopCard({ row, onEdit, onDelete, onCredentials }: { row: AdminShopRow; onEdit: () => void; onDelete: () => void; onCredentials: () => void }) {
   return (
     <Card>
       <div
@@ -391,6 +442,9 @@ function ShopCard({ row, onEdit, onDelete }: { row: AdminShopRow; onEdit: () => 
           </Button>
           <Button size="sm" variant="outline" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="outline" onClick={onCredentials} title="Identifiants de connexion">
+            <KeyRound className="h-3.5 w-3.5" />
           </Button>
           <Button size="sm" variant="ghost" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5 text-destructive" />

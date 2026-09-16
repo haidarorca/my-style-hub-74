@@ -3,8 +3,21 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+function slugify(input: string, fallback = "compte") {
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || fallback
+  );
+}
+
 const CreateVendorSchema = z.object({
-  email: z.string().email(),
+  // Email facultatif : un identifiant interne est généré si vide
+  email: z.string().trim().email().optional().or(z.literal("")).nullable(),
   password: z.string().min(6).max(100),
   full_name: z.string().min(1).max(120),
   shop_name: z.string().min(1).max(120),
@@ -24,13 +37,19 @@ export const createVendor = createServerFn({ method: "POST" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId)
-      .eq("role", "admin")
+      .in("role", ["admin", "super_admin"])
       .maybeSingle();
     if (!roleRow) throw new Error("Accès refusé : admin requis");
 
+    // Email facultatif : identifiant interne généré à partir de la boutique
+    const loginEmail =
+      data.email && data.email.trim()
+        ? data.email.trim()
+        : `${slugify(data.shop_name || data.full_name)}-${Date.now().toString(36)}@kawzone-shops.internal`;
+
     // Create user (auto-confirm so vendor can log in immediately)
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
+      email: loginEmail,
       password: data.password,
       email_confirm: true,
       user_metadata: { full_name: data.full_name },
@@ -43,7 +62,7 @@ export const createVendor = createServerFn({ method: "POST" })
     // Profile may have been created by the new-user trigger; upsert shop info
     await supabaseAdmin.from("profiles").upsert({
       id: userId,
-      email: data.email,
+      email: loginEmail,
       full_name: data.full_name,
       shop_name: data.shop_name,
       phone: data.phone ?? null,
@@ -60,8 +79,45 @@ export const createVendor = createServerFn({ method: "POST" })
       .insert({ user_id: userId, role: "vendeur" });
     if (roleErr) throw new Error(roleErr.message);
 
-    return { ok: true, user_id: userId };
+    return { ok: true, user_id: userId, login_email: loginEmail };
   });
+
+const SetUserPasswordSchema = z.object({
+  user_id: z.string().uuid(),
+  password: z.string().min(6).max(100),
+  new_email: z.string().trim().email().optional().nullable(),
+});
+
+/** Admin : définir/réinitialiser le mot de passe (et éventuellement l'email de connexion) d'un compte. */
+export const setUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => SetUserPasswordSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles").select("role")
+      .eq("user_id", context.userId)
+      .in("role", ["admin", "super_admin"])
+      .maybeSingle();
+    if (!roleRow) throw new Error("Accès refusé : admin requis");
+
+    const payload: { password: string; email?: string; email_confirm?: boolean } = {
+      password: data.password,
+    };
+    if (data.new_email) {
+      payload.email = data.new_email;
+      payload.email_confirm = true;
+    }
+
+    const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, payload);
+    if (error) throw new Error(error.message);
+
+    if (data.new_email) {
+      await supabaseAdmin.from("profiles").update({ email: data.new_email }).eq("id", data.user_id);
+    }
+
+    return { ok: true, login_email: updated.user?.email ?? null };
+  });
+
 
 const UpdateVendorSchema = z.object({
   user_id: z.string().uuid(),
@@ -80,7 +136,7 @@ export const updateVendor = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: roleRow } = await context.supabase
       .from("user_roles").select("role")
-      .eq("user_id", context.userId).eq("role", "admin").maybeSingle();
+      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).maybeSingle();
     if (!roleRow) throw new Error("Accès refusé : admin requis");
 
     const allowed = data.ships_internationally ? data.allowed_destination_country_ids : [];
@@ -106,7 +162,7 @@ export const deleteVendor = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: roleRow } = await context.supabase
       .from("user_roles").select("role")
-      .eq("user_id", context.userId).eq("role", "admin").maybeSingle();
+      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).maybeSingle();
     if (!roleRow) throw new Error("Accès refusé");
 
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
