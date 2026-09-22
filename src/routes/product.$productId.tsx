@@ -559,7 +559,7 @@ function ProductPage() {
             )}
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
             <p className="text-xs text-muted-foreground">
-              {t("product.code")} : {data.code}
+              {t("product.code")} : {matchedVariant?.supplier_sku || data.code}
             </p>
             {productDesignation && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
