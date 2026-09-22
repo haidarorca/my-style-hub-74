@@ -75,7 +75,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     variantIds.length
       ? supabase
           .from("product_variants")
-          .select("id, size, color, color_hex, price_override, weight_kg, length_cm, width_cm, height_cm")
+          .select("id, size, color, color_hex, price_override, supplier_sku, weight_kg, length_cm, width_cm, height_cm")
           .in("id", variantIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -117,7 +117,7 @@ export function useCart() {
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
              products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, min_order_qty, warranty_days, is_fragile, product_images(url, position), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
-             product_variants(id, size, color, color_hex, price_override, weight_kg, length_cm, width_cm, height_cm)`,
+             product_variants(id, size, color, color_hex, price_override, supplier_sku, weight_kg, length_cm, width_cm, height_cm)`,
           )
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -360,5 +360,71 @@ export function useCart() {
     else refresh();
   };
 
-  return { items: items ?? [], count, addToCart, updateQuantity, removeItem, updateLineShipping, refresh };
+  /**
+   * Modifie une ligne existante : variante et/ou quantité.
+   * La MÊME ligne est mise à jour (jamais de seconde ligne créée) ; si une
+   * autre ligne porte déjà la variante cible, les deux sont fusionnées.
+   */
+  const updateLine = async (
+    id: string,
+    next: { variantId?: string | null; quantity?: number; customization?: Record<string, unknown> | null },
+  ) => {
+    const qty = Math.max(1, Math.round(Number(next.quantity ?? 1) || 1));
+
+    if (!user) {
+      const lines = readGuestCart();
+      const anchor = lines.find((l) => l.id === id);
+      if (!anchor) return false;
+      const variantId = next.variantId === undefined ? anchor.variant_id : next.variantId;
+      const customization =
+        next.customization === undefined ? anchor.customization : stripCartInternalMetadata(next.customization);
+      const targetSig = cartLineSignature(anchor.product_id, variantId, customization);
+      const merged = lines
+        .filter((l) => l.id === id || cartLineSignature(l.product_id, l.variant_id, l.customization) !== targetSig)
+        .map((l) => (l.id === id ? { ...l, variant_id: variantId ?? null, quantity: qty, customization } : l));
+      writeGuestCart(merged);
+      toast.success("Article mis à jour.");
+      refresh();
+      return true;
+    }
+
+    const { data: anchor } = await supabase
+      .from("cart_items")
+      .select("id, product_id, variant_id, customization")
+      .eq("id", id)
+      .maybeSingle();
+    if (!anchor) { toast.error("Ligne du panier introuvable."); return false; }
+
+    const variantId = next.variantId === undefined ? anchor.variant_id : next.variantId;
+    const customization =
+      next.customization === undefined
+        ? stripCartInternalMetadata(anchor.customization)
+        : stripCartInternalMetadata(next.customization);
+
+    // Autres lignes identiques (même produit + même variante cible) → fusion.
+    let q = supabase
+      .from("cart_items")
+      .select("id, customization")
+      .eq("user_id", user.id)
+      .eq("product_id", anchor.product_id)
+      .neq("id", id);
+    q = variantId ? q.eq("variant_id", variantId) : q.is("variant_id", null);
+    const { data: siblings } = await q;
+    const targetSig = JSON.stringify(customization);
+    const dropIds = (siblings ?? [])
+      .filter((r: any) => JSON.stringify(stripCartInternalMetadata(r.customization)) === targetSig)
+      .map((r: any) => r.id as string);
+
+    const { error } = await supabase
+      .from("cart_items")
+      .update({ variant_id: variantId ?? null, quantity: qty, customization: customization as never })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return false; }
+    if (dropIds.length > 0) await supabase.from("cart_items").delete().in("id", dropIds);
+    toast.success("Article mis à jour.");
+    refresh();
+    return true;
+  };
+
+  return { items: items ?? [], count, addToCart, updateQuantity, updateLine, removeItem, updateLineShipping, refresh };
 }

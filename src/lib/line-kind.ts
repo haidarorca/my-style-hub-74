@@ -55,15 +55,21 @@ export function getLineKind(ctx: LineKindContext): LineKind {
   return w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
 }
 
-/** Helper panier : item enrichi avec `products.profiles.source_country_id`. */
+/**
+ * Helper panier : item enrichi avec `products.profiles.source_country_id`.
+ * Le poids de la VARIANTE prime sur celui du produit parent : une variante
+ * CJ pesée ne doit jamais retomber en « poids inconnu ».
+ */
 export function getCartItemLineKind(
   item: any,
   destinationCountryId: string | null | undefined,
 ): LineKind {
+  const variantWeight = Number(item?.product_variants?.weight_kg ?? 0);
+  const productWeight = Number(item?.products?.weight_kg ?? 0);
   return getLineKind({
     destinationCountryId,
     vendorSourceCountryId: item?.products?.profiles?.source_country_id ?? null,
-    productWeightKg: item?.products?.weight_kg ?? null,
+    productWeightKg: variantWeight > 0 ? variantWeight : productWeight > 0 ? productWeight : null,
   });
 }
 

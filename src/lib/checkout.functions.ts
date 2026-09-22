@@ -109,7 +109,15 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const orderRows = await Promise.all(data.items.map(async (item) => {
         const product = productMap.get(item.productId) as any;
         if (!product) throw new Error("Un produit du panier est introuvable ou indisponible.");
-        if (!product.is_active || product.status !== "approved") throw new Error(`Produit indisponible: ${product.name}`);
+        // Message précis : on indique la donnée réellement bloquante.
+        if (product.status !== "approved") {
+          throw new Error(
+            `Produit non publié (statut « ${product.status} ») : ${product.name}. Validez-le dans Validation produits.`,
+          );
+        }
+        if (!product.is_active) {
+          throw new Error(`Produit désactivé (non mis en vente) : ${product.name}.`);
+        }
         if (!product.vendor_id) throw new Error(`Produit sans boutique associée: ${product.name}`);
 
         const variant = item.variantId ? variantMap.get(item.variantId) as any : null;

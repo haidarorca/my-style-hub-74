@@ -48,6 +48,15 @@ import { ShareButton } from "@/components/share/ShareButton";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
+  // `variant` pré-sélectionne une variante, `edit` modifie une ligne de panier
+  // existante au lieu d'en créer une nouvelle.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { variant?: string; edit?: string; qty?: number } => ({
+    variant: typeof search.variant === "string" ? search.variant : undefined,
+    edit: typeof search.edit === "string" ? search.edit : undefined,
+    qty: Number(search.qty) > 0 ? Math.round(Number(search.qty)) : undefined,
+  }),
   loader: async ({ params }) => {
     try {
       const { supabase } = await import("@/integrations/supabase/client");
@@ -125,6 +134,7 @@ interface Variant {
   color: string | null;
   color_hex: string | null;
   price_override: number | null;
+  supplier_sku?: string | null;
   image_url: string | null;
   measurements?: Record<string, number> | null;
   /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
@@ -173,8 +183,9 @@ const DEFAULT_COLORS = [
 
 function ProductPage() {
   const { productId } = Route.useParams();
+  const { variant: presetVariantId, edit: editLineId, qty: presetQty } = Route.useSearch();
   const { user } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, updateLine } = useCart();
   const { lang, t, dir } = useI18n();
   const fmt = useFormatDisplay();
   const [size, setSize] = useState<string | null>(null);
@@ -348,6 +359,18 @@ function ProductPage() {
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
 
+  // Pré-sélection depuis le panier (bouton « Modifier ») : variante + quantité.
+  useEffect(() => {
+    if (!presetVariantId || variants.length === 0) return;
+    const v = variants.find((x) => x.id === presetVariantId);
+    if (!v) return;
+    setSize(v.size ?? null);
+    setColor(v.color ?? null);
+    if (presetQty && presetQty > 0) setQty(presetQty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetVariantId, presetQty, variants.length]);
+
+
   // Estimation transport pour la fiche (mode poids connu)
   const shippingEstProduct = useMemo(() => data ? ({
     weight_kg: (data as any).weight_kg,
@@ -411,13 +434,23 @@ function ProductPage() {
         if (customFont) customization.font = customFont;
         if (customColor) customization.color = customColor;
       }
-      await addToCart({
-        productId: data.id,
-        variantId: matchedVariant?.id ?? null,
-        quantity: qty,
-        customization: Object.keys(customization).length > 0 ? customization : null,
-        shippingServiceId: selectedShippingServiceId,
-      });
+      if (editLineId) {
+        // Modification d'une ligne existante : même ligne mise à jour.
+        const ok = await updateLine(editLineId, {
+          variantId: matchedVariant?.id ?? null,
+          quantity: qty,
+          customization: Object.keys(customization).length > 0 ? customization : null,
+        });
+        if (ok) navigate({ to: "/cart" });
+      } else {
+        await addToCart({
+          productId: data.id,
+          variantId: matchedVariant?.id ?? null,
+          quantity: qty,
+          customization: Object.keys(customization).length > 0 ? customization : null,
+          shippingServiceId: selectedShippingServiceId,
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -526,7 +559,7 @@ function ProductPage() {
             )}
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
             <p className="text-xs text-muted-foreground">
-              {t("product.code")} : {data.code}
+              {t("product.code")} : {matchedVariant?.supplier_sku || data.code}
             </p>
             {productDesignation && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
@@ -1099,6 +1132,8 @@ function ProductPage() {
               t("product.add_image")
             ) : needsCustomText ? (
               t("product.enter_text")
+            ) : editLineId ? (
+              "Mettre à jour l'article"
             ) : (
               <EditableLabel
                 uiKey="product.add_to_cart"
