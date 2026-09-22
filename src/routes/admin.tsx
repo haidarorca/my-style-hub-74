@@ -4,8 +4,7 @@ import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Users, Bell, LifeBuoy, Phone, Globe,
   Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Shield, Coins,
-  BarChart3,
-} from "lucide-react";
+  BarChart3, Plug,} from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
@@ -69,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/cockpit", label: "Cockpit", icon: Zap, perm: "orders", exact: true },
       { to: "/admin/returns", label: "Retours & Annulations", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
+      { to: "/admin/cj", label: "Connexion CJ", icon: Plug, perm: "orders" },
     ],
   },
   {

@@ -510,6 +510,81 @@ export type Database = {
           },
         ]
       }
+      cj_auth_tokens: {
+        Row: {
+          access_token: string | null
+          access_token_expiry: string | null
+          created_at: string
+          id: string
+          obtained_at: string | null
+          refresh_token: string | null
+          refresh_token_expiry: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          access_token_expiry?: string | null
+          created_at?: string
+          id?: string
+          obtained_at?: string | null
+          refresh_token?: string | null
+          refresh_token_expiry?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          access_token_expiry?: string | null
+          created_at?: string
+          id?: string
+          obtained_at?: string | null
+          refresh_token?: string | null
+          refresh_token_expiry?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cj_connection_state: {
+        Row: {
+          access_token_expiry: string | null
+          api_calls_count: number
+          created_at: string
+          id: string
+          is_connected: boolean
+          last_checked_at: string | null
+          last_endpoint: string | null
+          last_error: string | null
+          last_latency_ms: number | null
+          refresh_token_expiry: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_expiry?: string | null
+          api_calls_count?: number
+          created_at?: string
+          id?: string
+          is_connected?: boolean
+          last_checked_at?: string | null
+          last_endpoint?: string | null
+          last_error?: string | null
+          last_latency_ms?: number | null
+          refresh_token_expiry?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_expiry?: string | null
+          api_calls_count?: number
+          created_at?: string
+          id?: string
+          is_connected?: boolean
+          last_checked_at?: string | null
+          last_endpoint?: string | null
+          last_error?: string | null
+          last_latency_ms?: number | null
+          refresh_token_expiry?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       commission_rule_history: {
         Row: {
           action: string
