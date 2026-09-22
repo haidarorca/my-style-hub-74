@@ -246,8 +246,31 @@ function ModeratePage() {
             {p.description && (
               <Field label="Description"><span className="whitespace-pre-wrap">{p.description}</span></Field>
             )}
-            {product.category && (
-              <Field label="Catégorie">{product.category.name}</Field>
+            <Field label="Catégorie">
+              {product.category?.name || (
+                <span className="text-amber-600">Catégorie à attribuer</span>
+              )}
+            </Field>
+            {p.cost_price != null && (
+              <Field label="Prix d'achat fournisseur">
+                {Number(p.cost_price)} {p.cost_currency_code ?? ""}
+              </Field>
+            )}
+            {product.cj && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+                <div className="font-semibold text-muted-foreground">Source CJdropshipping</div>
+                <div>Identifiant CJ : {product.cj.cj_product_id}</div>
+                <div>SKU fournisseur : {product.cj.cj_sku ?? "—"}</div>
+                <div>Catégorie CJ : {product.cj.cj_category_path ?? "—"}</div>
+                <div>
+                  Correspondance KawZone :{" "}
+                  {product.category?.name ? (
+                    product.category.name
+                  ) : (
+                    <span className="text-amber-600">Catégorie à attribuer</span>
+                  )}
+                </div>
+              </div>
             )}
 
             <div>
@@ -272,12 +295,28 @@ function ModeratePage() {
                   Variantes ({product.variants.length})
                 </div>
                 <ul className="space-y-1.5">
-                  {product.variants.map((v: { id: string; color: string | null; size: string | null; stock: number; price_override: number | null }) => (
+                  {product.variants.map((v: any) => (
                     <li key={v.id} className="rounded border p-2 text-xs">
-                      {v.color && <span><b>Couleur :</b> {v.color} </span>}
-                      {v.size && <span><b>Taille :</b> {v.size} </span>}
-                      <span className="text-muted-foreground">Stock {v.stock}</span>
-                      {v.price_override != null && <span className="text-muted-foreground"> • {v.price_override} FCFA</span>}
+                      <div className="flex flex-wrap gap-x-3">
+                        {v.color && <span><b>Couleur :</b> {v.color}</span>}
+                        {v.size && <span><b>Taille :</b> {v.size}</span>}
+                        {v.supplier_sku && <span><b>SKU :</b> {v.supplier_sku}</span>}
+                        {v.supplier_ref && <span><b>Code-barres :</b> {v.supplier_ref}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 text-muted-foreground">
+                        <span>Stock {v.stock}</span>
+                        {v.cost_price != null && (
+                          <span>Achat {Number(v.cost_price)} {v.cost_currency_code ?? ""}</span>
+                        )}
+                        {v.weight_kg != null && <span>{Number(v.weight_kg)} kg</span>}
+                        {v.length_cm != null && (
+                          <span>
+                            {Number(v.length_cm)}×{Number(v.width_cm)}×{Number(v.height_cm)} cm
+                          </span>
+                        )}
+                        {v.volume_cbm != null && <span>{Number(v.volume_cbm)} m³</span>}
+                        {v.external_variant_id && <span>CJ {v.external_variant_id}</span>}
+                      </div>
                     </li>
                   ))}
                 </ul>
