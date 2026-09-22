@@ -1007,10 +1007,18 @@ function CartPage() {
                                           <span className="inline-block h-4 w-20 animate-pulse rounded bg-muted" />
                                         )}
                                       </div>
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
+                                       <div className="flex items-center gap-2">
+                                         <Link
+                                           to="/product/$productId"
+                                           params={{ productId: it.product_id }}
+                                           search={{ variant: it.variant_id ?? undefined, edit: it.id, qty: it.quantity }}
+                                           className="text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                         >
+                                           Modifier
+                                         </Link>
+                                         <button onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive" aria-label={t("common.delete")}>
+                                           <Trash2 className="h-4 w-4" />
+                                         </button>
                                         <QuantityInput
                                           size="sm"
                                           value={it.quantity}
