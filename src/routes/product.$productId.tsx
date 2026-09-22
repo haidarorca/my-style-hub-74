@@ -367,7 +367,8 @@ function ProductPage() {
   const displayPrice = useMemo(() => {
     if (resolvedFinalPrice == null) return null;
     if (shippingEst.isIntl && shippingEst.canEstimate && selectedShippingOption) {
-      return Math.round(Number(resolvedFinalPrice) + selectedShippingOption.price);
+      // Produit × quantité + transport recalculé pour cette quantité.
+      return Math.round(Number(resolvedFinalPrice) * qty + selectedShippingOption.price);
     }
     return Number(resolvedFinalPrice);
   }, [resolvedFinalPrice, shippingEst, selectedShippingOption]);
