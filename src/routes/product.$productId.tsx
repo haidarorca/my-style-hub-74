@@ -1132,6 +1132,8 @@ function ProductPage() {
               t("product.add_image")
             ) : needsCustomText ? (
               t("product.enter_text")
+            ) : editLineId ? (
+              "Mettre à jour l'article"
             ) : (
               <EditableLabel
                 uiKey="product.add_to_cart"
