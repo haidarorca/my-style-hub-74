@@ -585,6 +585,141 @@ export type Database = {
         }
         Relationships: []
       }
+      cj_import_log: {
+        Row: {
+          action: string
+          api_calls: number
+          cj_product_id: string
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          missing_fields: Json
+          points_remaining: number | null
+          points_used: number | null
+          product_id: string | null
+          result: string
+          traces: Json
+          variants_imported: number
+          variants_total: number
+        }
+        Insert: {
+          action: string
+          api_calls?: number
+          cj_product_id: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          missing_fields?: Json
+          points_remaining?: number | null
+          points_used?: number | null
+          product_id?: string | null
+          result: string
+          traces?: Json
+          variants_imported?: number
+          variants_total?: number
+        }
+        Update: {
+          action?: string
+          api_calls?: number
+          cj_product_id?: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          missing_fields?: Json
+          points_remaining?: number | null
+          points_used?: number | null
+          product_id?: string | null
+          result?: string
+          traces?: Json
+          variants_imported?: number
+          variants_total?: number
+        }
+        Relationships: []
+      }
+      cj_products: {
+        Row: {
+          category_mapping_status: string
+          cj_category_id: string | null
+          cj_category_name: string | null
+          cj_product_id: string
+          cj_sku: string | null
+          created_at: string
+          customs_code: string | null
+          images: Json
+          kawzone_category_id: string | null
+          last_imported_at: string
+          main_image: string | null
+          material: string | null
+          name_cn: string | null
+          name_en: string | null
+          pack_weight_raw: string | null
+          product_id: string | null
+          product_weight_raw: string | null
+          raw: Json | null
+          updated_at: string
+        }
+        Insert: {
+          category_mapping_status?: string
+          cj_category_id?: string | null
+          cj_category_name?: string | null
+          cj_product_id: string
+          cj_sku?: string | null
+          created_at?: string
+          customs_code?: string | null
+          images?: Json
+          kawzone_category_id?: string | null
+          last_imported_at?: string
+          main_image?: string | null
+          material?: string | null
+          name_cn?: string | null
+          name_en?: string | null
+          pack_weight_raw?: string | null
+          product_id?: string | null
+          product_weight_raw?: string | null
+          raw?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          category_mapping_status?: string
+          cj_category_id?: string | null
+          cj_category_name?: string | null
+          cj_product_id?: string
+          cj_sku?: string | null
+          created_at?: string
+          customs_code?: string | null
+          images?: Json
+          kawzone_category_id?: string | null
+          last_imported_at?: string
+          main_image?: string | null
+          material?: string | null
+          name_cn?: string | null
+          name_en?: string | null
+          pack_weight_raw?: string | null
+          product_id?: string | null
+          product_weight_raw?: string | null
+          raw?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cj_products_kawzone_category_id_fkey"
+            columns: ["kawzone_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cj_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_rule_history: {
         Row: {
           action: string
