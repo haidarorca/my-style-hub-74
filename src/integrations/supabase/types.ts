@@ -510,6 +510,24 @@ export type Database = {
           },
         ]
       }
+      cj_api_cache: {
+        Row: {
+          cache_key: string
+          fetched_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          fetched_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          fetched_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       cj_auth_tokens: {
         Row: {
           access_token: string | null
@@ -542,6 +560,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      cj_category_map: {
+        Row: {
+          cj_category_id: string
+          cj_category_name: string | null
+          cj_category_path: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          kawzone_category_id: string | null
+          note: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cj_category_id: string
+          cj_category_name?: string | null
+          cj_category_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kawzone_category_id?: string | null
+          note?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cj_category_id?: string
+          cj_category_name?: string | null
+          cj_category_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kawzone_category_id?: string | null
+          note?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cj_category_map_kawzone_category_id_fkey"
+            columns: ["kawzone_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cj_connection_state: {
         Row: {
@@ -644,10 +709,12 @@ export type Database = {
           category_mapping_status: string
           cj_category_id: string | null
           cj_category_name: string | null
+          cj_category_path: string | null
           cj_product_id: string
           cj_sku: string | null
           created_at: string
           customs_code: string | null
+          description_images_extracted: number | null
           images: Json
           kawzone_category_id: string | null
           last_imported_at: string
@@ -667,10 +734,12 @@ export type Database = {
           category_mapping_status?: string
           cj_category_id?: string | null
           cj_category_name?: string | null
+          cj_category_path?: string | null
           cj_product_id: string
           cj_sku?: string | null
           created_at?: string
           customs_code?: string | null
+          description_images_extracted?: number | null
           images?: Json
           kawzone_category_id?: string | null
           last_imported_at?: string
@@ -690,10 +759,12 @@ export type Database = {
           category_mapping_status?: string
           cj_category_id?: string | null
           cj_category_name?: string | null
+          cj_category_path?: string | null
           cj_product_id?: string
           cj_sku?: string | null
           created_at?: string
           customs_code?: string | null
+          description_images_extracted?: number | null
           images?: Json
           kawzone_category_id?: string | null
           last_imported_at?: string
