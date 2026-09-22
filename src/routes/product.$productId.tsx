@@ -48,6 +48,13 @@ import { ShareButton } from "@/components/share/ShareButton";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
+  // `variant` pré-sélectionne une variante, `edit` modifie une ligne de panier
+  // existante au lieu d'en créer une nouvelle.
+  validateSearch: (search: Record<string, unknown>) => ({
+    variant: typeof search.variant === "string" ? search.variant : undefined,
+    edit: typeof search.edit === "string" ? search.edit : undefined,
+    qty: Number(search.qty) > 0 ? Math.round(Number(search.qty)) : undefined,
+  }),
   loader: async ({ params }) => {
     try {
       const { supabase } = await import("@/integrations/supabase/client");
@@ -125,6 +132,7 @@ interface Variant {
   color: string | null;
   color_hex: string | null;
   price_override: number | null;
+  supplier_sku?: string | null;
   image_url: string | null;
   measurements?: Record<string, number> | null;
   /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
