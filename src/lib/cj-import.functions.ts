@@ -42,13 +42,9 @@ const cbmFromMm = (l: unknown, w: unknown, h: unknown) => {
   return Math.round((a / 1000) * (b / 1000) * (c / 1000) * 1e9) / 1e9;
 };
 
-function splitVariantKey(key: unknown): { size: string | null; color: string | null } {
-  if (typeof key !== "string" || !key.trim()) return { size: null, color: null };
-  const parts = key.split("-").map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 0) return { size: null, color: null };
-  if (parts.length === 1) return { size: parts[0] ?? null, color: null };
-  return { size: parts[0] ?? null, color: parts.slice(1).join("-") };
-}
+// L'orientation taille / couleur est déduite des valeurs réelles CJ
+// (voir src/lib/cj/variant-options.ts) — jamais de l'ordre supposé.
+import { parseVariantKey as splitVariantKey } from "@/lib/cj/variant-options";
 
 export interface CjImportReport {
   ok: boolean;
