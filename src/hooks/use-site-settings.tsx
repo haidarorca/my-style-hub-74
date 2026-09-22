@@ -67,13 +67,16 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const { data } = useQuery({
     queryKey: ["site_settings"],
     queryFn: async () => {
+      // Colonnes publiques uniquement (l'expéditeur e-mail reste côté administration)
       const { data, error } = await supabase
         .from("site_settings" as never)
-        .select("*")
+        .select(
+          "id,site_name,logo_url,primary_color,accent_color,whatsapp_number,whatsapp_default_message,commission_whatsapp_number,promo_bar_enabled,promo_bar_text,promo_bar_bg_color,promo_bar_text_color,hero_title,hero_subtitle,footer_text,hero_title_i18n,hero_subtitle_i18n,footer_text_i18n,promo_bar_text_i18n,banner_autoplay,banner_interval_ms,banner_transition,banner_show_arrows,banner_show_dots,cny_to_xof_rate",
+        )
         .eq("id", "main")
         .maybeSingle();
       if (error) throw error;
-      return (data as SiteSettings | null) ?? DEFAULTS;
+      return data ? ({ ...DEFAULTS, ...(data as Partial<SiteSettings>) } as SiteSettings) : DEFAULTS;
     },
     staleTime: 60_000,
   });
