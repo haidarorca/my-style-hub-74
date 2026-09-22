@@ -1,0 +1,54 @@
+// ═══════════════════════════════════════════════════════════════
+// Orientation des options de variantes fournisseur.
+//
+// CJ renvoie une clé de variante libre (`variantKey`), par exemple
+// « All Black-43 » ou « 43-All Black ». L'ordre des dimensions n'est
+// PAS garanti : on ne suppose jamais que la première valeur est la
+// taille. On reconnaît la valeur qui EST une taille (pointure,
+// S/M/L/XL, 2XL, 38.5, EU 40…) et l'autre valeur devient la
+// couleur / le modèle.
+// ═══════════════════════════════════════════════════════════════
+
+const LETTER_SIZES = new Set([
+  "xxxs", "xxs", "xs", "s", "m", "l", "xl", "xxl", "xxxl", "xxxxl",
+  "2xl", "3xl", "4xl", "5xl", "6xl",
+  "one size", "onesize", "free size", "freesize",
+]);
+
+/** La valeur ressemble-t-elle à une taille (et non à une couleur) ? */
+export function looksLikeSize(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (!v) return false;
+  if (LETTER_SIZES.has(v)) return true;
+  // Pointures / tailles numériques : 35, 38.5, 40,5, « EU 42 », « US 9 »
+  const numeric = v.replace(/^(eu|us|uk|fr|cn|jp)\s*/i, "").replace(",", ".");
+  if (/^\d{1,3}(\.\d)?$/.test(numeric)) return true;
+  // Tailles composées : « 2XL », « XL/XXL », « 90B »
+  if (/^\d{1,2}\s?(x{1,3}l|xs|s|m|l)$/i.test(v)) return true;
+  return false;
+}
+
+/**
+ * Découpe une clé de variante fournisseur en { size, color } en
+ * détectant réellement quelle partie est la taille.
+ */
+export function parseVariantKey(key: unknown): { size: string | null; color: string | null } {
+  if (typeof key !== "string" || !key.trim()) return { size: null, color: null };
+  const parts = key.split("-").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { size: null, color: null };
+  if (parts.length === 1) {
+    const only = parts[0]!;
+    return looksLikeSize(only) ? { size: only, color: null } : { size: null, color: only };
+  }
+
+  const sizeIdx = parts.findIndex((p) => looksLikeSize(p));
+  if (sizeIdx >= 0) {
+    const size = parts[sizeIdx]!;
+    const color = parts.filter((_, i) => i !== sizeIdx).join("-");
+    return { size, color: color || null };
+  }
+
+  // Aucune partie reconnue comme taille : on conserve l'ordre fournisseur
+  // (première = taille) sans rien inventer.
+  return { size: parts[0] ?? null, color: parts.slice(1).join("-") || null };
+}
