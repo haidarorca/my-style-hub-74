@@ -325,6 +325,9 @@ export const importCjProduct = createServerFn({ method: "POST" })
         cjCategoryPath || null,
       );
       if (category.reason) missing.push(category.reason);
+      base.categoryMapping = category.status;
+      base.kawzoneCategoryChain = category.kawzoneChain;
+      base.categoryUnresolved = category.unresolved;
 
       const productPayload: Record<string, unknown> = {
         vendor_id: vendorId,
@@ -493,7 +496,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
       base.productId = productId;
       base.productName = nameEn ?? nameCn;
       base.cjSku = p?.productSku ?? null;
-      base.cjCategory = p?.categoryName ?? null;
+      base.cjCategory = cjCategoryPath ?? p?.categoryName ?? null;
       base.apiCalls = traces.length;
       const lastPts = [...traces].reverse().find((t) => t.pointsRemaining !== null);
       base.pointsUsed = lastPts?.pointsUsedToday ?? null;
