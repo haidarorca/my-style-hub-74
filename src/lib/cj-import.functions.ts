@@ -11,6 +11,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CjCallTrace } from "@/lib/cj/client.server";
+import type { MediaStats } from "@/lib/cj/media.server";
 
 async function assertAdmin(context: any) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", {
@@ -62,6 +63,10 @@ export interface CjImportReport {
   variantsTotal: number;
   variantsImported: number;
   images: number;
+  media: { detected: number; uploaded: number; reused: number; failed: number; errors: string[] };
+  variantImages: number;
+  storageUrlPrefix: string | null;
+  publicCleanCheck: { clean: boolean; offenders: string[] };
   apiCalls: number;
   pointsUsed: number | null;
   pointsRemaining: number | null;
@@ -120,6 +125,10 @@ export const importCjProduct = createServerFn({ method: "POST" })
       variantsTotal: 0,
       variantsImported: 0,
       images: 0,
+      media: { detected: 0, uploaded: 0, reused: 0, failed: 0, errors: [] },
+      variantImages: 0,
+      storageUrlPrefix: null,
+      publicCleanCheck: { clean: false, offenders: [] },
       apiCalls: 0,
       pointsUsed: null,
       pointsRemaining: null,
@@ -224,6 +233,21 @@ export const importCjProduct = createServerFn({ method: "POST" })
 
       const vendorId = "60c9521c-1694-4e29-974b-d6a6f479bc1f"; // boutique administrateur
 
+      // ── Médias : rapatriement dans le stockage KawZone ───────────
+      const { mirrorImage, sanitizeSupplierHtml, newMediaStats, containsSupplierRef } =
+        await import("@/lib/cj/media.server");
+      const media: MediaStats = newMediaStats();
+      const mediaCache = new Map<string, string>();
+
+      const hostedMain = mainImage ? await mirrorImage(mainImage, media, mediaCache) : null;
+      const hostedGallery: string[] = [];
+      for (const src of images.slice(0, 20)) {
+        const hosted = await mirrorImage(src, media, mediaCache);
+        if (hosted && !hostedGallery.includes(hosted)) hostedGallery.push(hosted);
+      }
+      if (hostedMain && !hostedGallery.includes(hostedMain)) hostedGallery.unshift(hostedMain);
+      const publicDescription = await sanitizeSupplierHtml(p?.description, media, mediaCache);
+
       const productPayload: Record<string, unknown> = {
         vendor_id: vendorId,
         category_id: null, // aucune catégorie devinée
@@ -231,7 +255,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
         sku: p?.productSku ?? null,
         name: nameEn ?? nameCn ?? data.pid,
         designation: nameCn ?? null,
-        description: p?.description ?? null,
+        description: publicDescription, // description nettoyée, sans URL fournisseur
         price: 0, // notre prix de vente reste à définir
         status: "pending",
         is_active: false, // brouillon : non publié
@@ -255,9 +279,9 @@ export const importCjProduct = createServerFn({ method: "POST" })
         productId = created.id as string;
       }
 
-      // ── 4. Images (URLs CJ, aucun téléchargement) ────────────────
+      // ── 4. Images hébergées par KawZone (jamais d'URL fournisseur) ──
       await admin.from("product_images").delete().eq("product_id", productId);
-      const gallery = (mainImage ? [mainImage, ...images.filter((u) => u !== mainImage)] : images).slice(0, 20);
+      const gallery = hostedGallery;
       if (gallery.length) {
         await admin.from("product_images").insert(
           gallery.map((url, i) => ({ product_id: productId, url, position: i })),
@@ -268,6 +292,10 @@ export const importCjProduct = createServerFn({ method: "POST" })
       // ── 5. Variantes ─────────────────────────────────────────────
       for (const v of cjVariants) {
         const { size, color } = splitVariantKey(v.variantKey);
+        const hostedVariantImage = v.variantImage
+          ? await mirrorImage(v.variantImage, media, mediaCache)
+          : null;
+        if (hostedVariantImage) base.variantImages += 1;
         const weightKg = gToKg(v.variantWeight);
         const lengthCm = mmToCm(v.variantLength);
         const widthCm = mmToCm(v.variantWidth);
@@ -282,7 +310,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
           size,
           color,
           stock: 0, // le stock CJ n'alimente pas notre stock local
-          image_url: v.variantImage ?? null,
+          image_url: hostedVariantImage,
           variant_ref: v.variantKey ?? null,
           weight_kg: weightKg,
           length_cm: lengthCm,
@@ -324,7 +352,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
           widthCm,
           heightCm,
           cbm,
-          image: v.variantImage ?? null,
+          image: hostedVariantImage,
         });
       }
 
@@ -343,14 +371,41 @@ export const importCjProduct = createServerFn({ method: "POST" })
         material,
         pack_weight_raw: p?.packingWeight ?? null,
         product_weight_raw: p?.productWeight ?? null,
-        main_image: mainImage,
+        main_image: hostedMain,
         images: gallery,
+        source_description: p?.description ?? null,
+        source_images: mainImage ? [mainImage, ...images] : images,
         raw: {
           product: p,
           stock: Object.fromEntries(stockByVid),
         },
         last_imported_at: new Date().toISOString(),
       });
+
+      base.media = media;
+      base.storageUrlPrefix = hostedGallery[0]?.split("/supplier/")[0] ?? null;
+
+      // ── Contrôle final : aucune référence fournisseur côté public ──
+      const offenders: string[] = [];
+      const { data: pubProd } = await admin
+        .from("products")
+        .select("name, designation, description")
+        .eq("id", productId)
+        .single();
+      for (const [field, value] of Object.entries(pubProd ?? {})) {
+        if (containsSupplierRef(value)) offenders.push(`produit.${field}`);
+      }
+      const { data: pubImgs } = await admin
+        .from("product_images").select("url").eq("product_id", productId);
+      for (const row of pubImgs ?? []) {
+        if (containsSupplierRef(row.url)) offenders.push(`image ${row.url}`);
+      }
+      const { data: pubVars } = await admin
+        .from("product_variants").select("supplier_sku, image_url").eq("product_id", productId);
+      for (const row of pubVars ?? []) {
+        if (containsSupplierRef(row.image_url)) offenders.push(`variante ${row.supplier_sku}`);
+      }
+      base.publicCleanCheck = { clean: offenders.length === 0, offenders };
 
       base.ok = true;
       base.action = existing ? "updated" : "created";
