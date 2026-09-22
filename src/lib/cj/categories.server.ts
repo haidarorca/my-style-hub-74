@@ -109,11 +109,12 @@ async function chainNames(admin: any, categoryId: string): Promise<string[]> {
   const names: string[] = [];
   let current: string | null = categoryId;
   for (let i = 0; i < 5 && current; i++) {
-    const { data } = await admin
+    const res: { data: { name: string; parent_id: string | null } | null } = await admin
       .from("categories")
       .select("name, parent_id")
       .eq("id", current)
       .maybeSingle();
+    const data = res.data;
     if (!data) break;
     names.unshift(data.name);
     current = data.parent_id;
