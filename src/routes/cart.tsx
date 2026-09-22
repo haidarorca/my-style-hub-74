@@ -295,7 +295,8 @@ function CartPage() {
   /** Article international SANS poids déclaré → calcul après pesée (pas d'estimation). */
   const itemNeedsWeighing = useCallback((it: any): boolean => {
     if (!isItemInternational(it)) return false;
-    const w = Number(it?.products?.weight_kg ?? 0);
+    // Le poids de la variante prime sur celui du produit parent.
+    const w = Number(it?.product_variants?.weight_kg ?? 0) || Number(it?.products?.weight_kg ?? 0);
     return !w || w <= 0;
   }, [isItemInternational]);
 
