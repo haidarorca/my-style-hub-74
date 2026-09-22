@@ -130,6 +130,11 @@ interface Variant {
   /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
   supplier_available?: boolean | null;
   supplier_stock?: number | null;
+  /** Données logistiques de la variante (prioritaires sur le produit). */
+  weight_kg?: number | null;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
 }
 
 /** Une variante est commandable tant que le fournisseur ne l'a pas déclarée épuisée. */
@@ -351,7 +356,9 @@ function ProductPage() {
     height_cm: (data as any).height_cm,
     vendor_source_country_id: ((data as any).profiles?.source_country_id ?? null) as string | null,
   }) : null, [data]);
-  const shippingEst = useEstimatedShipping(shippingEstProduct);
+  // La variante sélectionnée et la quantité entrent dans le calcul :
+  // poids/volume total = données de la variante × quantité.
+  const shippingEst = useEstimatedShipping(shippingEstProduct, matchedVariant ?? null, qty);
   const selectedShippingOption = useMemo(
     () => shippingEst.options.find((o: any) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
     [shippingEst, selectedShippingServiceId],
@@ -360,7 +367,8 @@ function ProductPage() {
   const displayPrice = useMemo(() => {
     if (resolvedFinalPrice == null) return null;
     if (shippingEst.isIntl && shippingEst.canEstimate && selectedShippingOption) {
-      return Math.round(Number(resolvedFinalPrice) + selectedShippingOption.price);
+      // Produit × quantité + transport recalculé pour cette quantité.
+      return Math.round(Number(resolvedFinalPrice) * qty + selectedShippingOption.price);
     }
     return Number(resolvedFinalPrice);
   }, [resolvedFinalPrice, shippingEst, selectedShippingOption]);
@@ -776,6 +784,7 @@ function ProductPage() {
                   }
                 : null
             }
+            quantity={qty}
             productPrice={resolvedFinalPrice}
             selectedServiceId={selectedShippingServiceId}
             onSelectService={setSelectedShippingServiceId}

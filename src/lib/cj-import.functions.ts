@@ -337,7 +337,11 @@ export const importCjProduct = createServerFn({ method: "POST" })
         name: nameEn ?? nameCn ?? data.pid,
         designation: nameCn ?? null,
         description: publicDescription, // description nettoyée, sans URL fournisseur
-        price: 0, // notre prix de vente reste à définir
+        // Prix de référence : prix de la variante CJ la moins chère
+        // (`variantSellPrice`), converti en FCFA par le mécanisme devises
+        // existant (origin_price + origin_currency_code).
+        origin_price: minCost,
+        origin_currency_code: minCost !== null ? "USD" : null,
         status: "pending",
         is_active: false, // brouillon : non publié
         cost_price: minCost,
