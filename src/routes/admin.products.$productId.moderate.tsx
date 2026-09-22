@@ -58,16 +58,27 @@ function ModeratePage() {
         supabase.from("countries").select("id, name, flag_emoji").order("position"),
       ]);
       if (prod.error) throw prod.error;
-      const [vendor, category] = await Promise.all([
+      const [vendor, allCats, cj] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, full_name, shop_name, email, phone, shop_whatsapp, ships_internationally, source_country_id, allowed_destination_country_ids")
           .eq("id", prod.data.vendor_id)
           .maybeSingle(),
-        prod.data.category_id
-          ? supabase.from("categories").select("id, name").eq("id", prod.data.category_id).maybeSingle()
-          : Promise.resolve({ data: null }),
+        supabase.from("categories").select("id, name, parent_id"),
+        supabase
+          .from("cj_products")
+          .select("cj_product_id, cj_sku, cj_category_path, category_mapping_status")
+          .eq("product_id", productId)
+          .maybeSingle(),
       ]);
+      // Chaîne complète : catégorie › sous-catégorie › sous-sous-catégorie
+      const byId = new Map((allCats.data ?? []).map((c: any) => [c.id, c]));
+      const chain: string[] = [];
+      let cur: any = prod.data.category_id ? byId.get(prod.data.category_id) : null;
+      while (cur && chain.length < 5) {
+        chain.unshift(cur.name);
+        cur = cur.parent_id ? byId.get(cur.parent_id) : null;
+      }
       return {
         product: prod.data,
         images: imgs.data ?? [],
@@ -75,7 +86,12 @@ function ModeratePage() {
         customizations: cust.data ?? [],
         countries: countries.data ?? [],
         vendor: vendor.data,
-        category: category.data as { id: string; name: string } | null,
+        category: prod.data.category_id
+          ? ({ id: prod.data.category_id, name: chain.join(" › ") } as { id: string; name: string })
+          : null,
+        cj: cj.data as
+          | { cj_product_id: string; cj_sku: string | null; cj_category_path: string | null; category_mapping_status: string | null }
+          | null,
       };
     },
   });
