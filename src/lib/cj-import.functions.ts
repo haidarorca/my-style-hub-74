@@ -98,9 +98,11 @@ export interface CjImportReport {
  */
 export const importCjProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { pid: string; update?: boolean }) => ({
+  .inputValidator((input: { pid: string; update?: boolean; withStock?: boolean }) => ({
     pid: String(input?.pid ?? "").trim(),
     update: !!input?.update,
+    // Le stock CJ coûte 10 points par variante : il n'est lu que sur demande.
+    withStock: !!input?.withStock,
   }))
   .handler(async ({ context, data }): Promise<CjImportReport> => {
     await assertAdmin(context);
@@ -161,8 +163,16 @@ export const importCjProduct = createServerFn({ method: "POST" })
         };
       }
 
-      // ── 2. Lecture CJ (1 appel produit + 1 appel stock par variante) ──
-      const p = await cjGet<any>(`/product/query?pid=${encodeURIComponent(data.pid)}`, traces);
+      // ── 2. Lecture CJ ────────────────────────────────────────────
+      // Documentation CJ « Products Synchronization Processing » :
+      // product/query renvoie déjà le produit, ses variantes ET leurs
+      // stocks (variants[].inventories). Un seul appel (10 points) suffit
+      // donc ; on n'appelle product/stock/queryByVid qu'en secours.
+      // countryCode=CN : CJ renvoie alors les stocks entrepôt Chine dans variants[].inventories.
+      const p = await cjGet<any>(
+        `/product/query?pid=${encodeURIComponent(data.pid)}&countryCode=CN`,
+        traces,
+      );
       const cjVariants: any[] = Array.isArray(p?.variants) ? p.variants : [];
       base.variantsTotal = cjVariants.length;
 
@@ -177,13 +187,21 @@ export const importCjProduct = createServerFn({ method: "POST" })
       })();
       const images: string[] = Array.isArray(p?.productImageSet) ? p.productImageSet : [];
       const mainImage: string | null = p?.productImage ?? images[0] ?? null;
+      // Doc CJ : materialNameEnSet / materialNameSet (tableaux).
       const material: string | null = (() => {
-        try {
-          const arr = JSON.parse(p?.materialNameEn ?? "null");
-          return Array.isArray(arr) ? arr.join(", ") : (p?.materialNameEn ?? null);
-        } catch {
-          return p?.materialNameEn ?? null;
-        }
+        const raw = p?.materialNameEnSet ?? p?.materialNameSet ?? p?.materialNameEn ?? null;
+        const arr = Array.isArray(raw)
+          ? raw
+          : (() => {
+              try {
+                const parsed = JSON.parse(String(raw ?? "null"));
+                return Array.isArray(parsed) ? parsed : raw ? [raw] : [];
+              } catch {
+                return raw ? [raw] : [];
+              }
+            })();
+        const joined = arr.filter(Boolean).join(", ").trim();
+        return joined || null;
       })();
 
       if (!nameEn && !nameCn) missing.push("nom du produit");
@@ -192,12 +210,57 @@ export const importCjProduct = createServerFn({ method: "POST" })
       if (!p?.entryCode) missing.push("code douanier");
       if (!material) missing.push("matière");
 
-      // Stock CJ par variante
+      // ── Stock CJ : lu dans la réponse produit (0 appel supplémentaire) ──
       const stockByVid = new Map<string, { qty: number | null; warehouse: string | null }>();
       const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const missingStock: any[] = [];
       for (const v of cjVariants) {
-        // CJ limite l'endpoint stock à ~1 appel par seconde.
-        await wait(1200);
+        const inv: any[] = Array.isArray(v?.inventories) ? v.inventories : [];
+        if (!inv.length) {
+          missingStock.push(v);
+          continue;
+        }
+        const total = inv.reduce((s, r) => s + (num(r?.totalInventory) ?? 0), 0);
+        const cn = inv.find((r) => r?.countryCode === "CN") ?? inv[0];
+        stockByVid.set(v.vid, { qty: total, warehouse: cn?.countryCode ?? null });
+      }
+      // Secours 1 : getInventoryByPid — TOUTES les variantes en un seul appel
+      // (10 points) au lieu d'un appel par variante (10 points × n).
+      let groupedStockRaw: unknown = null;
+      if (missingStock.length && data.withStock) {
+        try {
+          const all = await cjGet<any>(
+            `/product/stock/getInventoryByPid?pid=${encodeURIComponent(data.pid)}`,
+            traces,
+          );
+          groupedStockRaw = all;
+          const rows: any[] = Array.isArray(all)
+            ? all
+            : Array.isArray(all?.list)
+              ? all.list
+              : Array.isArray(all?.variantInventories)
+                ? all.variantInventories
+                : [];
+          for (const row of rows) {
+            const vid = String(row?.vid ?? row?.variantId ?? "");
+            if (!vid) continue;
+            const qty =
+              num(row?.totalInventoryNum) ??
+              num(row?.totalInventory) ??
+              num(row?.storageNum) ??
+              null;
+            if (qty !== null) {
+              stockByVid.set(vid, { qty, warehouse: row?.areaEn ?? row?.countryCode ?? null });
+            }
+          }
+        } catch {
+          // On passe au secours suivant.
+        }
+      }
+
+      // Secours 2 : appel par variante, uniquement pour celles encore sans stock.
+      for (const v of (data.withStock ? missingStock : []).filter((v) => !stockByVid.has(v.vid))) {
+        await wait(1200); // CJ limite cet endpoint à ~1 appel/seconde
         try {
           const s = await cjGet<any>(
             `/product/stock/queryByVid?vid=${encodeURIComponent(v.vid)}`,
@@ -209,22 +272,14 @@ export const importCjProduct = createServerFn({ method: "POST" })
             warehouse: row?.areaEn ?? null,
           });
         } catch {
-          try {
-            await wait(2500);
-            const s2 = await cjGet<any>(
-              `/product/stock/queryByVid?vid=${encodeURIComponent(v.vid)}`,
-              traces,
-            );
-            const row2 = Array.isArray(s2) ? s2[0] : null;
-            stockByVid.set(v.vid, {
-              qty: num(row2?.totalInventoryNum),
-              warehouse: row2?.areaEn ?? null,
-            });
-          } catch {
-            stockByVid.set(v.vid, { qty: null, warehouse: null });
-            missing.push(`stock CJ variante ${v.variantSku ?? v.vid}`);
-          }
+          stockByVid.set(v.vid, { qty: null, warehouse: null });
+          missing.push(`stock CJ variante ${v.variantSku ?? v.vid}`);
         }
+      }
+      if (!data.withStock && missingStock.length) {
+        missing.push(
+          "stocks CJ non lus (option « Lire aussi les stocks CJ » désactivée : 10 points par variante)",
+        );
       }
 
       // ── 3. Produit KawZone (brouillon) ───────────────────────────
@@ -234,23 +289,40 @@ export const importCjProduct = createServerFn({ method: "POST" })
       const vendorId = "60c9521c-1694-4e29-974b-d6a6f479bc1f"; // boutique administrateur
 
       // ── Médias : rapatriement dans le stockage KawZone ───────────
-      const { mirrorImage, sanitizeSupplierHtml, newMediaStats, containsSupplierRef } =
+      const { mirrorImage, newMediaStats, containsSupplierRef } =
         await import("@/lib/cj/media.server");
+      const { parseSupplierDescription } = await import("@/lib/cj/description");
+      const { resolveCjCategory } = await import("@/lib/cj/categories.server");
       const media: MediaStats = newMediaStats();
       const mediaCache = new Map<string, string>();
 
+      // La description fournisseur est découpée : texte d'un côté, images
+      // de l'autre. Aucune balise <img> ne reste dans la description.
+      const parsed = parseSupplierDescription(p?.description);
+      const publicDescription = parsed.html;
+
       const hostedMain = mainImage ? await mirrorImage(mainImage, media, mediaCache) : null;
       const hostedGallery: string[] = [];
-      for (const src of images.slice(0, 20)) {
+      // Galerie = image principale + images produit + images extraites de la description.
+      for (const src of [...images, ...parsed.imageUrls].slice(0, 40)) {
         const hosted = await mirrorImage(src, media, mediaCache);
         if (hosted && !hostedGallery.includes(hosted)) hostedGallery.push(hosted);
       }
       if (hostedMain && !hostedGallery.includes(hostedMain)) hostedGallery.unshift(hostedMain);
-      const publicDescription = await sanitizeSupplierHtml(p?.description, media, mediaCache);
+
+      // ── Catégorie : mapping mémorisé, jamais deviné ──────────────
+      const cjCategoryPath: string | null =
+        p?.categoryName ?? [p?.categoryFirstName, p?.categorySecondName].filter(Boolean).join(" > ") ?? null;
+      const category = await resolveCjCategory(
+        p?.categoryId ? String(p.categoryId) : null,
+        p?.categoryName ?? null,
+        cjCategoryPath || null,
+      );
+      if (category.reason) missing.push(category.reason);
 
       const productPayload: Record<string, unknown> = {
         vendor_id: vendorId,
-        category_id: null, // aucune catégorie devinée
+        category_id: category.kawzoneCategoryId,
         code: p?.productSku ?? data.pid,
         sku: p?.productSku ?? null,
         name: nameEn ?? nameCn ?? data.pid,
@@ -363,10 +435,12 @@ export const importCjProduct = createServerFn({ method: "POST" })
         cj_sku: p?.productSku ?? null,
         name_cn: nameCn,
         name_en: nameEn,
-        cj_category_id: p?.categoryId ?? null,
-        cj_category_name: p?.categoryName ?? null,
-        kawzone_category_id: null,
-        category_mapping_status: "pending",
+        cj_category_id: category.cjCategoryId,
+        cj_category_name: category.cjCategoryName,
+        cj_category_path: category.cjCategoryPath,
+        kawzone_category_id: category.kawzoneCategoryId,
+        category_mapping_status: category.status,
+        description_images_extracted: parsed.imageUrls.length,
         customs_code: p?.entryCode ?? null,
         material,
         pack_weight_raw: p?.packingWeight ?? null,
@@ -378,6 +452,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
         raw: {
           product: p,
           stock: Object.fromEntries(stockByVid),
+          stockByPid: groupedStockRaw,
         },
         last_imported_at: new Date().toISOString(),
       });

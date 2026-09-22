@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FolderTree, Store, PackageCheck, Flag, ArrowLeft, MessageSquare, ShoppingBag,
   Settings, Inbox, ShieldCheck, Percent, Users, Bell, LifeBuoy, Phone, Globe,
   Upload, Menu, ChevronRight, Home, FileText, Zap, AlertTriangle, Shield, Coins,
-  BarChart3, Plug,} from "lucide-react";
+  BarChart3, Plug, Download,} from "lucide-react";
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
@@ -49,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
       { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
       { to: "/admin/imports", label: "Import / Export", icon: Upload, perm: "products" },
+      { to: "/admin/cj-import", label: "Importer depuis CJ", icon: Download, perm: "products", badge: "NEW" },
     ],
   },
   {
