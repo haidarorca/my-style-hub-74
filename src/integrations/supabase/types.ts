@@ -659,6 +659,8 @@ export type Database = {
           product_id: string | null
           product_weight_raw: string | null
           raw: Json | null
+          source_description: string | null
+          source_images: Json
           updated_at: string
         }
         Insert: {
@@ -680,6 +682,8 @@ export type Database = {
           product_id?: string | null
           product_weight_raw?: string | null
           raw?: Json | null
+          source_description?: string | null
+          source_images?: Json
           updated_at?: string
         }
         Update: {
@@ -701,6 +705,8 @@ export type Database = {
           product_id?: string | null
           product_weight_raw?: string | null
           raw?: Json | null
+          source_description?: string | null
+          source_images?: Json
           updated_at?: string
         }
         Relationships: [
