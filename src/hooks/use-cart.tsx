@@ -75,7 +75,7 @@ async function hydrateGuestLines(lines: GuestCartLine[]) {
     variantIds.length
       ? supabase
           .from("product_variants")
-          .select("id, size, color, color_hex, price_override")
+          .select("id, size, color, color_hex, price_override, weight_kg, length_cm, width_cm, height_cm")
           .in("id", variantIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -117,7 +117,7 @@ export function useCart() {
           .select(
             `id, quantity, variant_id, product_id, customization, created_at,
              products!inner(id, name, name_i18n, code, price, vendor_id, weight_kg, length_cm, width_cm, height_cm, min_order_qty, warranty_days, is_fragile, product_images(url, position), profiles:vendor_id(full_name, shop_name, vendor_mode, is_admin_shop, source_country_id)),
-             product_variants(id, size, color, color_hex, price_override)`,
+             product_variants(id, size, color, color_hex, price_override, weight_kg, length_cm, width_cm, height_cm)`,
           )
           .order("created_at", { ascending: false });
         if (error) throw error;

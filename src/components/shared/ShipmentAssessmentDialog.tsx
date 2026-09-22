@@ -151,12 +151,26 @@ export function ShipmentAssessmentDialog({
     const wdt = Number(form.width_cm || 0);
     const h = Number(form.height_cm || 0);
     if (!Number.isFinite(realW) || realW <= 0) return;
+    // Règles propres au service : unité, diviseur volumétrique, minimum.
+    const unit = (selectedService as any).pricing_unit === "m3" ? "m3" : "kg";
+    const divisor = Number((selectedService as any).volumetric_divisor ?? 5000) || 5000;
+    const useVol = (selectedService as any).use_volumetric !== false;
+    const minQty = Number((selectedService as any).min_billable_qty ?? 0) || 0;
+    const fixedFee = Number((selectedService as any).fixed_fee ?? 0) || 0;
     let volW = 0;
     if (l > 0 && wdt > 0 && h > 0) {
-      volW = (l * wdt * h) / 5000;
+      volW = (l * wdt * h) / divisor;
     }
-    const chargeableWeight = Math.max(realW, volW);
-    const fee = Math.round(chargeableWeight * Number(selectedService.price_per_kg));
+    let fee = 0;
+    if (unit === "m3") {
+      // Maritime : facturé au volume. Le prix au kg n'est JAMAIS utilisé.
+      const cbm = l > 0 && wdt > 0 && h > 0 ? (l * wdt * h) / 1_000_000 : 0;
+      const rate = Number((selectedService as any).price_per_cbm ?? 0);
+      fee = rate > 0 ? Math.round(Math.max(cbm, minQty) * rate + fixedFee) : 0;
+    } else {
+      const chargeableWeight = Math.max(useVol ? Math.max(realW, volW) : realW, minQty);
+      fee = Math.round(chargeableWeight * Number(selectedService.price_per_kg ?? 0) + fixedFee);
+    }
     setForm((f) => ({
       ...f,
       air_freight_fee: fee,
@@ -379,7 +393,9 @@ export function ShipmentAssessmentDialog({
               </div>
               {autoCalc && selectedService && (
                 <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  Volumétrique = (L × W × H) / 5000 · Poids chargeable = MAX(réel, volumétrique) · Frais = poids × {Number(selectedService.price_per_kg).toLocaleString("fr-FR")} FCFA/kg
+                  {(selectedService as any).pricing_unit === "m3"
+                    ? `Facturation au volume · Frais = CBM × ${Number((selectedService as any).price_per_cbm ?? 0).toLocaleString("fr-FR")} FCFA/m³`
+                    : `Volumétrique = (L × W × H) / ${Number((selectedService as any).volumetric_divisor ?? 5000)} · Poids chargeable = MAX(réel, volumétrique) · Frais = poids × ${Number(selectedService.price_per_kg ?? 0).toLocaleString("fr-FR")} FCFA/kg`}
                 </p>
               )}
               {(() => {

@@ -10,19 +10,23 @@
 import { useEffect } from "react";
 import { Plane, Check } from "lucide-react";
 import { useEstimatedShipping, formatDelay } from "@/hooks/use-estimated-shipping";
-import type { EstimatedShippingProduct } from "@/hooks/use-estimated-shipping";
+import type { EstimatedShippingProduct, EstimatedShippingVariant } from "@/hooks/use-estimated-shipping";
+import { MODE_LABELS } from "@/lib/logistics/freight";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
 
 interface Props {
   product: EstimatedShippingProduct;
+  /** Variante sélectionnée : ses données logistiques priment sur le produit. */
+  variant?: EstimatedShippingVariant | null;
+  quantity?: number;
   productPrice: number | null;
   selectedServiceId?: string | null;
   onSelectService?: (serviceId: string) => void;
 }
 
-export function EstimatedShippingPanel({ product, productPrice, selectedServiceId, onSelectService }: Props) {
-  const est = useEstimatedShipping(product);
+export function EstimatedShippingPanel({ product, variant, quantity = 1, productPrice, selectedServiceId, onSelectService }: Props) {
+  const est = useEstimatedShipping(product, variant, quantity);
   const fmt = useFormatDisplay();
 
   useEffect(() => {
@@ -47,7 +51,7 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
   const cheapest = est.cheapest!;
   const selected = est.options.find((opt) => opt.service.id === selectedServiceId) ?? cheapest;
   const total =
-    productPrice != null ? Math.round(Number(productPrice) + selected.price) : null;
+    productPrice != null ? Math.round(Number(productPrice) * quantity + selected.price) : null;
 
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 overflow-hidden">
@@ -96,7 +100,7 @@ export function EstimatedShippingPanel({ product, productPrice, selectedServiceI
                     )}
                   </div>
                   <div className="text-[11px] text-emerald-700/80">
-                    {formatDelay(opt.delayMin, opt.delayMax)}
+                    {MODE_LABELS[opt.quote.mode]} · {formatDelay(opt.delayMin, opt.delayMax)}
                   </div>
                 </div>
                 <div className="text-right shrink-0">

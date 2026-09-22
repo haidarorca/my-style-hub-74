@@ -1,3 +1,4 @@
+import { Switch } from "@/components/ui/switch";
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -165,6 +166,12 @@ function ServiceEditDialog({
     destination_country_id: service?.destination_country_id ?? null,
     price_per_kg: service?.price_per_kg ?? 0,
     pricing_unit: (service?.pricing_unit ?? "kg") as "kg" | "m3",
+    mode: (service?.mode ?? "air") as "air" | "sea" | "road" | "express" | "other",
+    price_per_cbm: service?.price_per_cbm ?? 0,
+    min_billable_qty: service?.min_billable_qty ?? 0,
+    volumetric_divisor: service?.volumetric_divisor ?? 5000,
+    use_volumetric: service?.use_volumetric ?? true,
+    fixed_fee: service?.fixed_fee ?? 0,
     delay_min_days: service?.delay_min_days ?? null,
     delay_max_days: service?.delay_max_days ?? null,
     description: service?.description ?? "",
@@ -185,6 +192,10 @@ function ServiceEditDialog({
           ...form,
           name: form.name.trim(),
           price_per_kg: Number(form.price_per_kg),
+          price_per_cbm: Number(form.price_per_cbm) || null,
+          min_billable_qty: Number(form.min_billable_qty) || 0,
+          volumetric_divisor: Number(form.volumetric_divisor) || 5000,
+          fixed_fee: Number(form.fixed_fee) || 0,
           delay_min_days:
             form.delay_min_days == null || form.delay_min_days === ("" as any)
               ? null
@@ -264,6 +275,30 @@ function ServiceEditDialog({
               </Select>
             </div>
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Mode de transport</label>
+            <Select
+              value={form.mode}
+              onValueChange={(v) =>
+                setForm({
+                  ...form,
+                  mode: v as typeof form.mode,
+                  // Maritime = facturation au m³ par défaut, avion = au kg.
+                  pricing_unit: v === "sea" ? "m3" : form.pricing_unit,
+                  use_volumetric: v === "sea" ? false : form.use_volumetric,
+                })
+              }
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="air">✈️ Avion</SelectItem>
+                <SelectItem value="sea">🚢 Maritime</SelectItem>
+                <SelectItem value="road">🚚 Routier</SelectItem>
+                <SelectItem value="express">⚡ Express</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-muted-foreground">Prix (FCFA)</label>
@@ -290,6 +325,63 @@ function ServiceEditDialog({
               </Select>
             </div>
           </div>
+          {form.pricing_unit === "m3" && (
+            <div>
+              <label className="text-xs text-muted-foreground">Prix par m³ (FCFA)</label>
+              <Input
+                type="number"
+                min="0"
+                value={form.price_per_cbm as number}
+                onChange={(e) => setForm({ ...form, price_per_cbm: Number(e.target.value) })}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Ce service est facturé au volume : le prix au kg n'est jamais utilisé.
+              </p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Minimum facturable ({form.pricing_unit === "m3" ? "m³" : "kg"})
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.001"
+                value={form.min_billable_qty as number}
+                onChange={(e) => setForm({ ...form, min_billable_qty: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Frais fixes (FCFA)</label>
+              <Input
+                type="number"
+                min="0"
+                value={form.fixed_fee as number}
+                onChange={(e) => setForm({ ...form, fixed_fee: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          {form.pricing_unit === "kg" && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">Diviseur volumétrique</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={form.volumetric_divisor as number}
+                  onChange={(e) => setForm({ ...form, volumetric_divisor: Number(e.target.value) })}
+                />
+              </div>
+              <div className="flex items-end gap-2 pb-1">
+                <Switch
+                  checked={form.use_volumetric}
+                  onCheckedChange={(v) => setForm({ ...form, use_volumetric: v })}
+                />
+                <span className="text-xs text-muted-foreground">Appliquer le poids volumétrique</span>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-muted-foreground">Délai min (jours)</label>

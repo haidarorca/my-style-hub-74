@@ -18,6 +18,14 @@ export interface ShippingService {
   position: number;
   created_at: string;
   updated_at: string;
+  // ── Règles tarifaires par mode ──
+  mode: "air" | "sea" | "road" | "express" | "other";
+  company_id: string | null;
+  price_per_cbm: number | null;
+  min_billable_qty: number;
+  volumetric_divisor: number;
+  use_volumetric: boolean;
+  fixed_fee: number;
 }
 
 
@@ -64,6 +72,14 @@ const UpsertSchema = z.object({
   description: z.string().max(500).nullable(),
   is_enabled: z.boolean().default(true),
   position: z.number().int().min(0).max(9999).default(0),
+  // ── Règles propres au mode de transport ──
+  mode: z.enum(["air", "sea", "road", "express", "other"]).default("air"),
+  company_id: z.string().uuid().nullable().default(null),
+  price_per_cbm: z.number().min(0).max(100_000_000).nullable().default(null),
+  min_billable_qty: z.number().min(0).max(100_000).default(0),
+  volumetric_divisor: z.number().int().min(1).max(100_000).default(5000),
+  use_volumetric: z.boolean().default(true),
+  fixed_fee: z.number().min(0).max(100_000_000).default(0),
 });
 
 export const upsertShippingService = createServerFn({ method: "POST" })
@@ -117,7 +133,7 @@ export const listEnabledShippingServices = createServerFn({ method: "GET" })
     const { data, error } = await (supabaseAdmin as any)
       .from("shipping_services")
       .select(
-        "id, name, price_per_kg, pricing_unit, description, position, delay_min_days, delay_max_days, source_country_id",
+        "id, name, price_per_kg, pricing_unit, description, position, delay_min_days, delay_max_days, source_country_id, mode, price_per_cbm, min_billable_qty, volumetric_divisor, use_volumetric, fixed_fee, company_id",
       )
       .eq("is_enabled", true)
       .order("position", { ascending: true })
@@ -149,6 +165,13 @@ export const listEnabledShippingServices = createServerFn({ method: "GET" })
         delay_min_days: (s.delay_min_days ?? null) as number | null,
         delay_max_days: (s.delay_max_days ?? null) as number | null,
         source_country_id: (s.source_country_id ?? null) as string | null,
+        mode: (s.mode ?? "air") as "air" | "sea" | "road" | "express" | "other",
+        price_per_cbm: s.price_per_cbm != null ? Number(s.price_per_cbm) : null,
+        min_billable_qty: Number(s.min_billable_qty ?? 0),
+        volumetric_divisor: Number(s.volumetric_divisor ?? 5000),
+        use_volumetric: s.use_volumetric !== false,
+        fixed_fee: Number(s.fixed_fee ?? 0),
+        company_id: (s.company_id ?? null) as string | null,
         source_country_name: c?.name ?? null,
         source_country_flag: c?.flag ?? null,
       };

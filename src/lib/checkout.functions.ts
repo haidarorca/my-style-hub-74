@@ -4,6 +4,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyVendorNewOrder } from "@/lib/notifications.functions";
 import { getLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
+import {
+  resolveItemLogistics,
+  quoteFreight,
+  buildLineSnapshot,
+  type FreightRule,
+  type FreightQuote,
+} from "@/lib/logistics/freight";
 
 
 const CheckoutSchema = z.object({
@@ -46,13 +53,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const [{ data: products, error: productsError }, { data: variants, error: variantsError }] = await Promise.all([
         supabaseAdmin
           .from("products")
-          .select("id, name, code, price, vendor_id, status, is_active, weight_kg, length_cm, width_cm, height_cm, product_images(url, position), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop, source_country_id)")
+          .select("id, name, code, sku, price, vendor_id, status, is_active, weight_kg, length_cm, width_cm, height_cm, cost_price, cost_currency_code, product_images(url, position), profiles:vendor_id(vendor_mode, vendor_status, access_ends_at, is_admin_shop, source_country_id)")
           .order("position", { referencedTable: "product_images", ascending: true })
           .in("id", productIds),
         variantIds.length
           ? supabaseAdmin
               .from("product_variants")
-              .select("id, product_id, size, color, price_override")
+              .select("id, product_id, size, color, price_override, variant_ref, supplier_sku, weight_kg, length_cm, width_cm, height_cm, cost_price, cost_currency_code")
               .in("id", variantIds)
           : Promise.resolve({ data: [] as any[], error: null }),
       ]);
@@ -63,15 +70,33 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const productMap = new Map((products ?? []).map((product: any) => [product.id, product]));
       const variantMap = new Map((variants ?? []).map((variant: any) => [variant.id, variant]));
       let total = 0;
+      let productsTotal = 0;
+      let purchaseCostTotal = 0;
 
-      // Cache services par id (résolus à la volée)
-      const serviceCache = new Map<string, { id: string; price_per_kg: number | null } | null>();
-      const resolveService = async (id: string | null | undefined) => {
+      // Cache services par id — on charge TOUTES les règles tarifaires du mode.
+      const serviceCache = new Map<string, FreightRule | null>();
+      const resolveService = async (id: string | null | undefined): Promise<FreightRule | null> => {
         if (!id) return null;
         if (serviceCache.has(id)) return serviceCache.get(id) ?? null;
         const { data: svc } = await (supabaseAdmin as any)
-          .from("shipping_services").select("id, price_per_kg").eq("id", id).maybeSingle();
-        const v = svc ? { id: svc.id, price_per_kg: svc.price_per_kg != null ? Number(svc.price_per_kg) : null } : null;
+          .from("shipping_services")
+          .select("id, name, mode, pricing_unit, price_per_kg, price_per_cbm, min_billable_qty, volumetric_divisor, use_volumetric, fixed_fee")
+          .eq("id", id)
+          .maybeSingle();
+        const v: FreightRule | null = svc
+          ? {
+              id: svc.id,
+              name: svc.name,
+              mode: svc.mode ?? "air",
+              pricing_unit: svc.pricing_unit ?? "kg",
+              price_per_kg: svc.price_per_kg != null ? Number(svc.price_per_kg) : null,
+              price_per_cbm: svc.price_per_cbm != null ? Number(svc.price_per_cbm) : null,
+              min_billable_qty: Number(svc.min_billable_qty ?? 0),
+              volumetric_divisor: Number(svc.volumetric_divisor ?? 5000),
+              use_volumetric: svc.use_volumetric !== false,
+              fixed_fee: Number(svc.fixed_fee ?? 0),
+            }
+          : null;
         serviceCache.set(id, v);
         return v;
       };
@@ -102,13 +127,17 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const price = Array.isArray(priceRows) ? priceRows[0] : null;
         const unitPrice = Number(price?.final_price ?? variant?.price_override ?? product.price ?? 0);
         total += unitPrice * item.quantity;
+        productsTotal += unitPrice * item.quantity;
+
+        // ── Logistique de la ligne : VARIANTE prioritaire et exclusive ──
+        const logistics = resolveItemLogistics(product, variant);
 
         // ── Catégorie figée par ligne ──
         const sourceId = product.profiles?.source_country_id ?? null;
         const kind = getLineKind({
           destinationCountryId: data.destinationCountryId,
           vendorSourceCountryId: sourceId,
-          productWeightKg: product.weight_kg,
+          productWeightKg: logistics.weightKg,
         });
         const subKey = subOrderKey(product.vendor_id, kind);
 
@@ -119,19 +148,17 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         //   service global est néanmoins stampé sur la ligne pour l'agent.
         let lineFreight = 0;
         let lineServiceId: string | null = null;
+        let lineQuote: FreightQuote | null = null;
         if (kind === "IMPORT_KNOWN_WEIGHT") {
           const svcId = item.shippingServiceId ?? data.shippingServiceId ?? null;
           const svc = await resolveService(svcId);
-          const rate = svc?.price_per_kg ?? null;
-          if (svc && rate != null && rate > 0) {
-            const l = Number(product.length_cm ?? 0);
-            const w = Number(product.width_cm ?? 0);
-            const h = Number(product.height_cm ?? 0);
-            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
-            const kg = Math.max(Number(product.weight_kg ?? 0), vol) * item.quantity;
-            lineFreight = Math.round(kg * rate);
+          if (svc) {
+            // Le moteur applique UNIQUEMENT les règles du mode choisi
+            // (kg ou m³, minimum facturable, diviseur volumétrique du service).
+            lineQuote = quoteFreight({ logistics, quantity: item.quantity, rule: svc });
             lineServiceId = svc.id;
             firstShippingServiceId = firstShippingServiceId ?? svc.id;
+            if (lineQuote.ok) lineFreight = lineQuote.cost;
           }
         } else if (kind === "IMPORT_UNKNOWN_WEIGHT") {
           // Stamp préférence client (sélecteur global) pour traçabilité de l'opérateur.
@@ -169,6 +196,25 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         if (lineServiceId) baseCust.__shipping_service_id = lineServiceId;
         const finalCust = baseCust;
 
+        // ── Copie IMMUABLE des données de calcul (poids, dimensions, CBM,
+        //    mode, tarif, coût d'achat) : une modification ultérieure de la
+        //    fiche produit ne changera JAMAIS cette commande.
+        const costPrice = variant?.cost_price ?? product.cost_price ?? null;
+        const costCurrency = variant?.cost_currency_code ?? product.cost_currency_code ?? null;
+        const snapshot = buildLineSnapshot({
+          logistics,
+          quantity: item.quantity,
+          quote: lineQuote,
+          serviceId: lineServiceId,
+          unitPrice,
+          costPrice,
+          costCurrency,
+          costRate: costCurrency && costCurrency !== "XOF" ? null : 1,
+          sku: variant?.supplier_sku ?? variant?.variant_ref ?? product.sku ?? product.code ?? null,
+          variantLabel: [variant?.size, variant?.color].filter(Boolean).join(" / ") || null,
+        });
+        purchaseCostTotal += Number(snapshot.purchase_cost_total ?? 0);
+
         return {
           product_id: item.productId,
           variant_id: item.variantId ?? null,
@@ -182,6 +228,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           unit_price: unitPrice,
           quantity: item.quantity,
           customization: finalCust,
+          ...snapshot,
         };
       }));
 
@@ -194,6 +241,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         id: orderId,
         buyer_id: context.userId,
         total,
+        // Totaux séparés : produits / transport / coûts réels / marge.
+        products_total: productsTotal,
+        shipping_total: freightTotal,
+        purchase_cost_total: purchaseCostTotal,
+        logistics_cost_total: null,
+        margin_total: purchaseCostTotal > 0 ? total - purchaseCostTotal : null,
         status: "new",
         customer_name: data.address.full_name,
         customer_phone: data.address.phone,

@@ -43,6 +43,8 @@ type ExistingVariant = {
   image_url: string | null;
   variant_ref: string | null;
   measurements: Record<string, number> | null;
+  weight_kg?: number | null; length_cm?: number | null;
+  width_cm?: number | null; height_cm?: number | null;
 };
 
 type VariantDraft = {
@@ -57,6 +59,8 @@ type VariantDraft = {
   remove_image: boolean;
   variant_ref: string;
   measurements: Record<string, string>;
+  // Logistique propre à la variante (prioritaire sur le produit).
+  weight_kg: string; length_cm: string; width_cm: string; height_cm: string;
 };
 
 function fromExisting(v: ExistingVariant): VariantDraft {
@@ -78,11 +82,15 @@ function fromExisting(v: ExistingVariant): VariantDraft {
     remove_image: false,
     variant_ref: v.variant_ref ?? "",
     measurements: m,
+    weight_kg: v.weight_kg != null ? String(v.weight_kg) : "",
+    length_cm: v.length_cm != null ? String(v.length_cm) : "",
+    width_cm: v.width_cm != null ? String(v.width_cm) : "",
+    height_cm: v.height_cm != null ? String(v.height_cm) : "",
   };
 }
 
 function emptyVariant(): VariantDraft {
-  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false, variant_ref: "", measurements: {} };
+  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false, variant_ref: "", measurements: {}, weight_kg: "", length_cm: "", width_cm: "", height_cm: "" };
 }
 
 function EditProductPage() {
@@ -299,6 +307,10 @@ function EditProductPage() {
           image_url,
           variant_ref: v.variant_ref.trim() || null,
           measurements: cleanMeasurements,
+          weight_kg: v.weight_kg ? Number(v.weight_kg) : null,
+          length_cm: v.length_cm ? Number(v.length_cm) : null,
+          width_cm: v.width_cm ? Number(v.width_cm) : null,
+          height_cm: v.height_cm ? Number(v.height_cm) : null,
         };
         if (v.id) {
           const { error } = await supabase.from("product_variants").update(payload).eq("id", v.id);
@@ -589,6 +601,24 @@ function EditProductPage() {
                     <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-[10px]">Poids (kg)</Label>
+                    <Input className="h-8" type="number" min={0} step="0.001" value={v.weight_kg} onChange={(e) => updateVariant(i, { weight_kg: e.target.value })} placeholder="—" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Long. (cm)</Label>
+                    <Input className="h-8" type="number" min={0} step="0.1" value={v.length_cm} onChange={(e) => updateVariant(i, { length_cm: e.target.value })} placeholder="—" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Larg. (cm)</Label>
+                    <Input className="h-8" type="number" min={0} step="0.1" value={v.width_cm} onChange={(e) => updateVariant(i, { width_cm: e.target.value })} placeholder="—" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Haut. (cm)</Label>
+                    <Input className="h-8" type="number" min={0} step="0.1" value={v.height_cm} onChange={(e) => updateVariant(i, { height_cm: e.target.value })} placeholder="—" />
                   </div>
                 </div>
                 <div>

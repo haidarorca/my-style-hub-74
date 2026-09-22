@@ -115,13 +115,17 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
       .eq("id", data.order_id)
       .maybeSingle();
     let svcPrice: number | null = null;
+    let divisor = 5000;
+    let useVolumetric = true;
     if (order?.shipping_service_id) {
       const { data: svc } = await (supabaseAdmin as any)
         .from("shipping_services")
-        .select("price_per_kg")
+        .select("price_per_kg, volumetric_divisor, use_volumetric")
         .eq("id", order.shipping_service_id)
         .maybeSingle();
       if (svc?.price_per_kg != null) svcPrice = Number(svc.price_per_kg);
+      divisor = Number(svc?.volumetric_divisor ?? 5000) || 5000;
+      useVolumetric = svc?.use_volumetric !== false;
     }
 
     // Pré-remplissage à partir des poids/dimensions déclarés par les vendeurs.
@@ -129,13 +133,28 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
     let declaredVolKg = 0;
     let allHaveDeclaredWeight = false;
     let maxL = 0, maxW = 0, maxH = 0;
+    let snapshotFreight: number | null = null;
     try {
       const { data: items } = await (supabaseAdmin as any)
         .from("order_items")
-        .select("product_id, quantity")
+        .select("product_id, quantity, total_weight_kg, volumetric_weight_kg, length_cm_snapshot, width_cm_snapshot, height_cm_snapshot, freight_cost")
         .eq("order_id", data.order_id);
-      const itemList = (items ?? []) as Array<{ product_id: string; quantity: number }>;
-      if (itemList.length > 0) {
+      const itemList = (items ?? []) as Array<any>;
+      // Priorité ABSOLUE aux données figées à la commande : elles ne changent
+      // jamais, même si la fiche produit est modifiée par la suite.
+      const snapItems = itemList.filter((i) => Number(i.total_weight_kg ?? 0) > 0);
+      if (itemList.length > 0 && snapItems.length === itemList.length) {
+        allHaveDeclaredWeight = true;
+        for (const it of itemList) {
+          declaredRealKg += Number(it.total_weight_kg ?? 0);
+          declaredVolKg += Number(it.volumetric_weight_kg ?? 0);
+          maxL = Math.max(maxL, Number(it.length_cm_snapshot ?? 0));
+          maxW = Math.max(maxW, Number(it.width_cm_snapshot ?? 0));
+          maxH = Math.max(maxH, Number(it.height_cm_snapshot ?? 0));
+        }
+        const freightSum = itemList.reduce((t, i) => t + Number(i.freight_cost ?? 0), 0);
+        snapshotFreight = freightSum > 0 ? freightSum : null;
+      } else if (itemList.length > 0) {
         const productIds = Array.from(new Set(itemList.map((i) => i.product_id).filter(Boolean)));
         const { data: products } = await (supabaseAdmin as any)
           .from("products")
@@ -154,7 +173,7 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
             const l = Number(p.length_cm ?? 0);
             const w = Number(p.width_cm ?? 0);
             const h = Number(p.height_cm ?? 0);
-            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
+            const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / divisor : 0;
             declaredRealKg += real * qty;
             declaredVolKg += vol * qty;
             if (l > maxL) maxL = l;
@@ -166,10 +185,14 @@ export const getOrCreateShipmentAssessment = createServerFn({ method: "POST" })
     } catch { /* on retombe sur le mode "pesée" classique */ }
 
     const useDeclared = allHaveDeclaredWeight && declaredRealKg > 0;
-    const chargeable = useDeclared ? Math.max(declaredRealKg, declaredVolKg) : 0;
-    const airFreightFee = useDeclared && svcPrice != null
-      ? Math.round(chargeable * svcPrice)
-      : null;
+    const chargeable = useDeclared
+      ? (useVolumetric ? Math.max(declaredRealKg, declaredVolKg) : declaredRealKg)
+      : 0;
+    const airFreightFee = snapshotFreight != null
+      ? snapshotFreight
+      : useDeclared && svcPrice != null
+        ? Math.round(chargeable * svcPrice)
+        : null;
 
     const insertPayload: Record<string, unknown> = {
       order_id: data.order_id,
