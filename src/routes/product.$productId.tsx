@@ -504,7 +504,7 @@ function ProductPage() {
                 <p className="text-xl font-extrabold text-primary">
                   {Number(displayPrice) > 0 ? (
                     <>
-                      {Number(data.price ?? 0) <= 0 && (
+                      {!matchedVariant && variants.length > 1 && (
                         <span className="mr-1 text-xs font-normal text-muted-foreground">À partir de</span>
                       )}
                       {fmt(Number(displayPrice))}
