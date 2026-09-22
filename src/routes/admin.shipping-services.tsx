@@ -1,3 +1,4 @@
+import { Switch } from "@/components/ui/switch";
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
