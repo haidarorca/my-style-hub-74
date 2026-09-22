@@ -60,6 +60,10 @@ export interface CjImportReport {
   cjSku: string | null;
   cjCategory: string | null;
   categoryMapping: string;
+  /** Chaîne KawZone attribuée : catégorie › sous-catégorie › sous-sous-catégorie. */
+  kawzoneCategoryChain: string[];
+  /** Niveaux CJ sans équivalent KawZone. */
+  categoryUnresolved: string[];
   variantsTotal: number;
   variantsImported: number;
   images: number;
@@ -124,6 +128,8 @@ export const importCjProduct = createServerFn({ method: "POST" })
       cjSku: null,
       cjCategory: null,
       categoryMapping: "pending",
+      kawzoneCategoryChain: [],
+      categoryUnresolved: [],
       variantsTotal: 0,
       variantsImported: 0,
       images: 0,
