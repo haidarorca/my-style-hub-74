@@ -3329,8 +3329,10 @@ export type Database = {
           product_id: string
           size: string | null
           stock: number
+          supplier_available: boolean
           supplier_ref: string | null
           supplier_sku: string | null
+          supplier_stock: number | null
           variant_ref: string | null
           volume_cbm: number | null
           weight_kg: number | null
@@ -3352,8 +3354,10 @@ export type Database = {
           product_id: string
           size?: string | null
           stock?: number
+          supplier_available?: boolean
           supplier_ref?: string | null
           supplier_sku?: string | null
+          supplier_stock?: number | null
           variant_ref?: string | null
           volume_cbm?: number | null
           weight_kg?: number | null
@@ -3375,8 +3379,10 @@ export type Database = {
           product_id?: string
           size?: string | null
           stock?: number
+          supplier_available?: boolean
           supplier_ref?: string | null
           supplier_sku?: string | null
+          supplier_stock?: number | null
           variant_ref?: string | null
           volume_cbm?: number | null
           weight_kg?: number | null

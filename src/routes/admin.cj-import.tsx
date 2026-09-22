@@ -336,7 +336,11 @@ function CjImportPage() {
                     {m.cj_category_path ?? m.cj_category_name ?? m.cj_category_id}
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    {m.status === "mapped" ? "Correspondance définie" : "Catégorie à attribuer"}
+                    {m.status === "mapped"
+                      ? "Correspondance définie"
+                      : m.kawzone_category_id
+                        ? "Correspondance automatique — à confirmer"
+                        : "Catégorie à attribuer"}
                   </p>
                 </div>
                 <Select
@@ -380,9 +384,28 @@ function CjImportPage() {
                     {r.cj_sku ?? "—"} · {r.cj_category_path ?? r.cj_category_name ?? "catégorie CJ —"}
                   </p>
                 </div>
-                <Badge variant={r.category_mapping_status === "mapped" ? "secondary" : "outline"}>
-                  {r.category_mapping_status === "mapped" ? "Catégorie définie" : "Catégorie à attribuer"}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant={r.category_mapping_status === "pending" ? "outline" : "secondary"}>
+                    {r.category_mapping_status === "mapped"
+                      ? "Catégorie définie"
+                      : r.category_mapping_status === "auto"
+                        ? "Catégorie automatique"
+                        : "Catégorie à attribuer"}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => runImport(r.cj_product_id, true)}
+                    disabled={busyPid === r.cj_product_id}
+                  >
+                    {busyPid === r.cj_product_id ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                    )}
+                    Synchroniser
+                  </Button>
+                </div>
               </div>
             ))
           )}

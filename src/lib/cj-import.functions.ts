@@ -391,6 +391,9 @@ export const importCjProduct = createServerFn({ method: "POST" })
           size,
           color,
           stock: 0, // le stock CJ n'alimente pas notre stock local
+          // Disponibilité fournisseur : uniquement ce que CJ renvoie réellement.
+          supplier_stock: st.qty,
+          supplier_available: st.qty === null ? true : st.qty > 0,
           image_url: hostedVariantImage,
           variant_ref: v.variantKey ?? null,
           weight_kg: weightKg,
@@ -435,6 +438,14 @@ export const importCjProduct = createServerFn({ method: "POST" })
           cbm,
           image: hostedVariantImage,
         });
+      }
+
+      // ── 5 bis. Disponibilité globale : CJ n'a plus aucun stock ────
+      const knownStocks = base.variants.map((v) => v.cjStock).filter((q): q is number => q !== null);
+      if (knownStocks.length === base.variants.length && knownStocks.length > 0 &&
+          knownStocks.every((q) => q <= 0)) {
+        await admin.from("products").update({ is_active: false }).eq("id", productId);
+        missing.push("produit épuisé chez CJ : retiré de la vente (aucune variante en stock)");
       }
 
       // ── 6. Trace CJ (catégorie d'origine, données brutes) ────────
