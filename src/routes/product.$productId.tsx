@@ -183,6 +183,8 @@ const DEFAULT_COLORS = [
 
 function ProductPage() {
   const { productId } = Route.useParams();
+  const { variant: presetVariantId, edit: editLineId, qty: presetQty } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { lang, t, dir } = useI18n();
@@ -421,13 +423,23 @@ function ProductPage() {
         if (customFont) customization.font = customFont;
         if (customColor) customization.color = customColor;
       }
-      await addToCart({
-        productId: data.id,
-        variantId: matchedVariant?.id ?? null,
-        quantity: qty,
-        customization: Object.keys(customization).length > 0 ? customization : null,
-        shippingServiceId: selectedShippingServiceId,
-      });
+      if (editLineId) {
+        // Modification d'une ligne existante : même ligne mise à jour.
+        const ok = await updateLine(editLineId, {
+          variantId: matchedVariant?.id ?? null,
+          quantity: qty,
+          customization: Object.keys(customization).length > 0 ? customization : null,
+        });
+        if (ok) navigate({ to: "/cart" });
+      } else {
+        await addToCart({
+          productId: data.id,
+          variantId: matchedVariant?.id ?? null,
+          quantity: qty,
+          customization: Object.keys(customization).length > 0 ? customization : null,
+          shippingServiceId: selectedShippingServiceId,
+        });
+      }
     } finally {
       setSubmitting(false);
     }
