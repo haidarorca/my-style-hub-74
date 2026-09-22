@@ -184,9 +184,8 @@ const DEFAULT_COLORS = [
 function ProductPage() {
   const { productId } = Route.useParams();
   const { variant: presetVariantId, edit: editLineId, qty: presetQty } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { user } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, updateLine } = useCart();
   const { lang, t, dir } = useI18n();
   const fmt = useFormatDisplay();
   const [size, setSize] = useState<string | null>(null);
