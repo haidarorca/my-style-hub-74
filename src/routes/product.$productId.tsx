@@ -130,6 +130,11 @@ interface Variant {
   /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
   supplier_available?: boolean | null;
   supplier_stock?: number | null;
+  /** Données logistiques de la variante (prioritaires sur le produit). */
+  weight_kg?: number | null;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
 }
 
 /** Une variante est commandable tant que le fournisseur ne l'a pas déclarée épuisée. */
