@@ -205,3 +205,33 @@ describe("Snapshot de coût et marge", () => {
     expect(snap.logistics_data_missing).toBe(false);
   });
 });
+
+// ── TESTS 3 / 4 / 5 : les données figées ne suivent pas la fiche produit ──
+describe("immuabilité des données de commande", () => {
+  const rule = {
+    id: "air", name: "Avion", mode: "air" as const, pricing_unit: "kg" as const,
+    price_per_kg: 6000, price_per_cbm: null, min_billable_qty: 0,
+    volumetric_divisor: 5000, use_volumetric: true, fixed_fee: 0,
+  };
+
+  it("TEST 3+4+5 — poids, prix et tarif restent ceux de la commande", () => {
+    const product: any = { weight_kg: 2, length_cm: 10, width_cm: 10, height_cm: 10, price: 10000 };
+    const logistics = resolveItemLogistics(product, null);
+    const quote = quoteFreight({ logistics, quantity: 1, rule });
+    const snap = buildLineSnapshot({
+      logistics, quantity: 1, quote, serviceId: rule.id, unitPrice: 10000,
+    });
+
+    // Le vendeur modifie ensuite la fiche produit et l'admin change le tarif.
+    product.weight_kg = 3;
+    product.price = 20000;
+    const newRule = { ...rule, price_per_kg: 9000 };
+    const newQuote = quoteFreight({ logistics: resolveItemLogistics(product, null), quantity: 1, rule: newRule });
+
+    expect(snap.unit_weight_kg).toBe(2);          // TEST 3
+    expect(snap.shipping_rate_snapshot).toBe(6000); // TEST 5
+    expect(snap.freight_cost).toBe(12000);
+    expect(newQuote.ok && newQuote.cost).toBe(27000); // le nouveau calcul diffère
+    expect(snap.freight_cost).toBe(12000);            // la copie figée n'a pas bougé
+  });
+});
