@@ -359,6 +359,18 @@ function ProductPage() {
   const priceKey = data ? `${data.id}:${matchedVariant?.id ?? ""}` : "";
   const resolvedFinalPrice = displayPriceLines.get(priceKey)?.final_price ?? null;
 
+  // Pré-sélection depuis le panier (bouton « Modifier ») : variante + quantité.
+  useEffect(() => {
+    if (!presetVariantId || variants.length === 0) return;
+    const v = variants.find((x) => x.id === presetVariantId);
+    if (!v) return;
+    setSize(v.size ?? null);
+    setColor(v.color ?? null);
+    if (presetQty && presetQty > 0) setQty(presetQty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetVariantId, presetQty, variants.length]);
+
+
   // Estimation transport pour la fiche (mode poids connu)
   const shippingEstProduct = useMemo(() => data ? ({
     weight_kg: (data as any).weight_kg,
