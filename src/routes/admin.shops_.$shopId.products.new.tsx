@@ -39,6 +39,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -1048,7 +1049,7 @@ function NewAdminShopProductPage() {
           </div>
           <div>
             <Label>{t("vendor.new.price_label")}</Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <DecimalInput min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
             <CommissionPricePreview
               vendorId={shopId}
               basePrice={price}
