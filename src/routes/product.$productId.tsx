@@ -783,6 +783,7 @@ function ProductPage() {
                   }
                 : null
             }
+            quantity={qty}
             productPrice={resolvedFinalPrice}
             selectedServiceId={selectedShippingServiceId}
             onSelectService={setSelectedShippingServiceId}
