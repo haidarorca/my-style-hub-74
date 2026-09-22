@@ -268,8 +268,18 @@ function CjImportPage() {
                   {report.variantImages} image(s) de variante.
                 </p>
                 <p>
-                  Catégorie CJ : {report.cjCategory ?? "—"} — correspondance KawZone :{" "}
-                  {report.categoryMapping === "mapped" ? "définie" : "à attribuer"}.
+                  Catégorie CJ : <strong>{report.cjCategory ?? "—"}</strong> → KawZone :{" "}
+                  {report.kawzoneCategoryChain.length ? (
+                    <strong>{report.kawzoneCategoryChain.join(" › ")}</strong>
+                  ) : (
+                    <strong className="text-amber-600">Catégorie à attribuer</strong>
+                  )}
+                  {report.categoryUnresolved.length > 0 && (
+                    <span className="text-amber-600">
+                      {" "}
+                      — niveau(x) à attribuer : {report.categoryUnresolved.join(" › ")}
+                    </span>
+                  )}
                 </p>
                 <p>
                   {report.apiCalls} appel(s) API

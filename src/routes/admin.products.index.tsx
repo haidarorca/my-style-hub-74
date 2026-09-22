@@ -83,9 +83,14 @@ function ProductsAdminPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">Produits</h1>
-        <p className="text-xs text-muted-foreground">Modération et signalements</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold">Produits</h1>
+          <p className="text-xs text-muted-foreground">Modération et signalements</p>
+        </div>
+        <Button asChild size="sm" className="gap-1">
+          <Link to="/admin/cj-import">+ Importer depuis CJ</Link>
+        </Button>
       </div>
 
       <Tabs

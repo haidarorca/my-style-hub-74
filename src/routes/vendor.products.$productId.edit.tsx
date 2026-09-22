@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -485,7 +486,7 @@ function EditProductPage() {
           <div><Label>Description</Label><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div>
             <Label>Prix (FCFA) *</Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <DecimalInput min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
             <p className="mt-1 text-xs text-muted-foreground">Prix affiché tel quel au client.</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
@@ -595,7 +596,7 @@ function EditProductPage() {
                   </div>
                   <div className="col-span-3">
                     <Label className="text-[10px]">Prix (opt.)</Label>
-                    <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
+                    <DecimalInput className="h-8" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
                   </div>
                   <div className="col-span-1">
                     <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>

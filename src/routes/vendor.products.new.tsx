@@ -25,6 +25,7 @@ import { useImageCompression } from "@/hooks/use-image-compression";
 import { pickI18n } from "@/lib/i18n/localized";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CurrenciesProvider, useCurrencies } from "@/hooks/use-currencies";
@@ -950,7 +951,7 @@ function NewProductPage() {
                 </div>
                 <div className="col-span-3">
                   <Label className="text-[10px]">{t("vendor.new.v_price")}</Label>
-                  <Input className="h-8" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
+                  <DecimalInput className="h-8" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} placeholder="—" />
                 </div>
                 <div className="col-span-1">
                   <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVariant(i)}>

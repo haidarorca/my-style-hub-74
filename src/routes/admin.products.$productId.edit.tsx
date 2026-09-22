@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -562,7 +563,7 @@ function AdminEditProductPage() {
           <div><Label>Description</Label><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div>
             <Label>Prix (FCFA) * <span className="text-xs text-amber-600">(sensible)</span></Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <DecimalInput min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
             <div>
@@ -702,7 +703,7 @@ function AdminEditProductPage() {
                   </div>
                   <div>
                     <Label className="text-[10px]">Prix (opt.)</Label>
-                    <Input className="h-9" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
+                    <DecimalInput className="h-9" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
@@ -724,7 +725,7 @@ function AdminEditProductPage() {
                   </div>
                   <div>
                     <Label className="text-[10px]">Prix d'achat</Label>
-                    <Input className="h-9" type="number" min={0} value={v.cost_price} onChange={(e) => updateVariant(i, { cost_price: e.target.value })} />
+                    <DecimalInput className="h-9" min={0} value={v.cost_price} onChange={(e) => updateVariant(i, { cost_price: e.target.value })} />
                   </div>
                   <div>
                     <Label className="text-[10px]">SKU fournisseur</Label>

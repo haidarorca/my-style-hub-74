@@ -60,6 +60,10 @@ export interface CjImportReport {
   cjSku: string | null;
   cjCategory: string | null;
   categoryMapping: string;
+  /** Chaîne KawZone attribuée : catégorie › sous-catégorie › sous-sous-catégorie. */
+  kawzoneCategoryChain: string[];
+  /** Niveaux CJ sans équivalent KawZone. */
+  categoryUnresolved: string[];
   variantsTotal: number;
   variantsImported: number;
   images: number;
@@ -124,6 +128,8 @@ export const importCjProduct = createServerFn({ method: "POST" })
       cjSku: null,
       cjCategory: null,
       categoryMapping: "pending",
+      kawzoneCategoryChain: [],
+      categoryUnresolved: [],
       variantsTotal: 0,
       variantsImported: 0,
       images: 0,
@@ -319,6 +325,9 @@ export const importCjProduct = createServerFn({ method: "POST" })
         cjCategoryPath || null,
       );
       if (category.reason) missing.push(category.reason);
+      base.categoryMapping = category.status;
+      base.kawzoneCategoryChain = category.kawzoneChain;
+      base.categoryUnresolved = category.unresolved;
 
       const productPayload: Record<string, unknown> = {
         vendor_id: vendorId,
@@ -487,7 +496,7 @@ export const importCjProduct = createServerFn({ method: "POST" })
       base.productId = productId;
       base.productName = nameEn ?? nameCn;
       base.cjSku = p?.productSku ?? null;
-      base.cjCategory = p?.categoryName ?? null;
+      base.cjCategory = cjCategoryPath ?? p?.categoryName ?? null;
       base.apiCalls = traces.length;
       const lastPts = [...traces].reverse().find((t) => t.pointsRemaining !== null);
       base.pointsUsed = lastPts?.pointsUsedToday ?? null;

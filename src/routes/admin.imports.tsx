@@ -13,6 +13,7 @@ import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -266,7 +267,7 @@ function VariantRow({ variant, index, onUpdate, onRemove }: { variant: SimpleVar
         </div>
         <div className="col-span-3">
           <Label className="text-[10px]">Prix FCFA</Label>
-          <Input className="h-8" type="number" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} placeholder="---" />
+          <DecimalInput className="h-8" min={0} value={variant.price || ""} onChange={e => onUpdate({ price: e.target.value ? Number(e.target.value) : 0 })} placeholder="---" />
         </div>
         <div className="col-span-1">
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onRemove}>
@@ -381,7 +382,7 @@ function DraftEditor({ draft, onClose, onUpdate, onPublish }: { draft: VisualDra
           <div className="space-y-2">
             <div><Label className="text-[10px] uppercase">Nom <span className="text-destructive">*</span></Label><Input value={name} onChange={e => setName(e.target.value)} className="mt-0.5 h-9" /></div>
             <div><Label className="text-[10px] uppercase">Designation</Label><Input value={designation} onChange={e => setDesignation(e.target.value)} className="mt-0.5 h-9" /></div>
-            <div><Label className="text-[10px] uppercase">Prix FCFA <span className="text-destructive">*</span></Label><Input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} className="mt-0.5 h-9" placeholder={draft.price ? String(draft.price) : "Prix en FCFA"} /></div>
+            <div><Label className="text-[10px] uppercase">Prix FCFA <span className="text-destructive">*</span></Label><DecimalInput min={0} value={price} onChange={e => setPrice(e.target.value)} className="mt-0.5 h-9" placeholder={draft.price ? String(draft.price) : "Prix en FCFA"} /></div>
             <div><Label className="text-[10px] uppercase">Description</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="mt-0.5 text-sm" /></div>
           </div>
 
