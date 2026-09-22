@@ -39,11 +39,17 @@ type ExistingVariant = {
   id: string; size: string | null; color: string | null;
   color_hex: string | null; stock: number;
   price_override: number | null; image_url: string | null;
+  weight_kg?: number | null; length_cm?: number | null;
+  width_cm?: number | null; height_cm?: number | null;
+  cost_price?: number | null; supplier_sku?: string | null;
 };
 type VariantDraft = {
   id: string | null;
   size: string; color: string; color_hex: string;
   stock: number; price_override: string;
+  // Données logistiques propres à la variante (prioritaires sur le produit).
+  weight_kg: string; length_cm: string; width_cm: string; height_cm: string;
+  cost_price: string; supplier_sku: string;
   image_url: string | null; image_file: File | null; remove_image: boolean;
 };
 type CatRow = { id: string; name: string; level: number; parent_id: string | null };
@@ -55,17 +61,23 @@ const reqValue = (id: string) => `req:${id}`;
 const isReq = (value: CatPick) => value.startsWith("req:");
 const idOf = (value: CatPick) => value.slice(4);
 
+const numStr = (n: number | null | undefined) => (n != null ? String(n) : "");
 function fromExisting(v: ExistingVariant): VariantDraft {
   return {
     id: v.id,
     size: v.size ?? "", color: v.color ?? "", color_hex: v.color_hex ?? "",
     stock: v.stock ?? 0,
     price_override: v.price_override != null ? String(v.price_override) : "",
+    weight_kg: numStr(v.weight_kg), length_cm: numStr(v.length_cm),
+    width_cm: numStr(v.width_cm), height_cm: numStr(v.height_cm),
+    cost_price: numStr(v.cost_price), supplier_sku: v.supplier_sku ?? "",
     image_url: v.image_url, image_file: null, remove_image: false,
   };
 }
 function emptyVariant(): VariantDraft {
-  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "", image_url: null, image_file: null, remove_image: false };
+  return { id: null, size: "", color: "", color_hex: "", stock: 0, price_override: "",
+    weight_kg: "", length_cm: "", width_cm: "", height_cm: "", cost_price: "", supplier_sku: "",
+    image_url: null, image_file: null, remove_image: false };
 }
 
 function AdminEditProductPage() {
@@ -403,6 +415,12 @@ function AdminEditProductPage() {
           color_hex: v.color_hex || null,
           stock: Number(v.stock) || 0,
           price_override: v.price_override ? Number(v.price_override) : null,
+          weight_kg: v.weight_kg ? Number(v.weight_kg) : null,
+          length_cm: v.length_cm ? Number(v.length_cm) : null,
+          width_cm: v.width_cm ? Number(v.width_cm) : null,
+          height_cm: v.height_cm ? Number(v.height_cm) : null,
+          cost_price: v.cost_price ? Number(v.cost_price) : null,
+          supplier_sku: v.supplier_sku.trim() || null,
           image_url,
         };
         if (v.id) {
@@ -685,6 +703,32 @@ function AdminEditProductPage() {
                   <div>
                     <Label className="text-[10px]">Prix (opt.)</Label>
                     <Input className="h-9" type="number" min={0} value={v.price_override} onChange={(e) => updateVariant(i, { price_override: e.target.value })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  <div>
+                    <Label className="text-[10px]">Poids (kg)</Label>
+                    <Input className="h-9" type="number" min={0} step="0.001" value={v.weight_kg} onChange={(e) => updateVariant(i, { weight_kg: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Long. (cm)</Label>
+                    <Input className="h-9" type="number" min={0} step="0.1" value={v.length_cm} onChange={(e) => updateVariant(i, { length_cm: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Larg. (cm)</Label>
+                    <Input className="h-9" type="number" min={0} step="0.1" value={v.width_cm} onChange={(e) => updateVariant(i, { width_cm: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Haut. (cm)</Label>
+                    <Input className="h-9" type="number" min={0} step="0.1" value={v.height_cm} onChange={(e) => updateVariant(i, { height_cm: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Prix d'achat</Label>
+                    <Input className="h-9" type="number" min={0} value={v.cost_price} onChange={(e) => updateVariant(i, { cost_price: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">SKU fournisseur</Label>
+                    <Input className="h-9" value={v.supplier_sku} onChange={(e) => updateVariant(i, { supplier_sku: e.target.value })} />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
