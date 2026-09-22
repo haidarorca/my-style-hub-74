@@ -50,7 +50,9 @@ export const Route = createFileRoute("/product/$productId")({
   component: ProductPage,
   // `variant` pré-sélectionne une variante, `edit` modifie une ligne de panier
   // existante au lieu d'en créer une nouvelle.
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { variant?: string; edit?: string; qty?: number } => ({
     variant: typeof search.variant === "string" ? search.variant : undefined,
     edit: typeof search.edit === "string" ? search.edit : undefined,
     qty: Number(search.qty) > 0 ? Math.round(Number(search.qty)) : undefined,
