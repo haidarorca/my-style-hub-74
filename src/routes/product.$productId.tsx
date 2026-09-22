@@ -351,7 +351,9 @@ function ProductPage() {
     height_cm: (data as any).height_cm,
     vendor_source_country_id: ((data as any).profiles?.source_country_id ?? null) as string | null,
   }) : null, [data]);
-  const shippingEst = useEstimatedShipping(shippingEstProduct);
+  // La variante sélectionnée et la quantité entrent dans le calcul :
+  // poids/volume total = données de la variante × quantité.
+  const shippingEst = useEstimatedShipping(shippingEstProduct, matchedVariant ?? null, qty);
   const selectedShippingOption = useMemo(
     () => shippingEst.options.find((o: any) => o.service.id === selectedShippingServiceId) ?? shippingEst.cheapest,
     [shippingEst, selectedShippingServiceId],
