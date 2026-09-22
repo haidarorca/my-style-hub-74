@@ -138,11 +138,21 @@ export const submitModerationDecision = createServerFn({ method: "POST" })
         ? null
         : (data.items.map((i) => `• ${i.reason_text}`).join("\n") + (data.global_message ? `\n\n${data.global_message}` : "")).slice(0, 500) || "Modification demandée";
 
-    const updatePayload: { status: "approved" | "rejected" | "pending"; rejection_reason: string | null; is_edit?: boolean } = {
+    const updatePayload: {
+      status: "approved" | "rejected" | "pending";
+      rejection_reason: string | null;
+      is_edit?: boolean;
+      is_active?: boolean;
+    } = {
       status: nextStatus,
       rejection_reason: shortReason,
     };
-    if (data.decision === "approved") updatePayload.is_edit = false;
+    if (data.decision === "approved") {
+      updatePayload.is_edit = false;
+      // Un produit approuvé doit être réellement commandable (les imports
+      // arrivent en brouillon inactif).
+      updatePayload.is_active = true;
+    }
 
     const { error: updErr } = await supabaseAdmin.from("products").update(updatePayload).eq("id", data.product_id);
     if (updErr) throw new Error(updErr.message);
