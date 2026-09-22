@@ -49,7 +49,7 @@ function ModeratePage() {
       const [prod, imgs, variants, cust, countries] = await Promise.all([
         supabase
           .from("products")
-          .select("id, name, code, designation, description, price, status, is_edit, vendor_id, category_id, rejection_reason")
+          .select("id, name, code, designation, description, price, status, is_edit, vendor_id, category_id, rejection_reason, cost_price, cost_currency_code, sku, external_product_id, material")
           .eq("id", productId)
           .single(),
         supabase.from("product_images").select("url, position").eq("product_id", productId).order("position"),
