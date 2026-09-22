@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { resolveItemLogistics, quoteFreight, MODE_LABELS } from "@/lib/logistics/freight";
 import { useI18n } from "@/hooks/use-i18n";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
@@ -338,8 +339,11 @@ function CartPage() {
         });
         if (cancelled) return;
         setShippingServices(services);
+        // Suggestion uniquement : le client reste libre de son mode.
         const cheapest = [...services].sort(
-          (a, b) => Number(a.price_per_kg ?? Infinity) - Number(b.price_per_kg ?? Infinity),
+          (a, b) =>
+            Number((a.pricing_unit === "m3" ? a.price_per_cbm : a.price_per_kg) ?? Infinity) -
+            Number((b.pricing_unit === "m3" ? b.price_per_cbm : b.price_per_kg) ?? Infinity),
         )[0] ?? null;
         // KNOWN : auto-sélection du moins cher (le client peut changer ensuite).
         setKnownShippingServiceId((prev) => {
@@ -383,16 +387,11 @@ function CartPage() {
   const lineFreight = useCallback((it: any): number => {
     if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") return 0;
     const svc = selectedKnownService;
-    const rate = Number(svc?.price_per_kg ?? 0);
-    if (rate <= 0) return 0;
-    const p = it.products ?? {};
-    const w = Number(p.weight_kg ?? 0);
-    const l = Number(p.length_cm ?? 0);
-    const wd = Number(p.width_cm ?? 0);
-    const h = Number(p.height_cm ?? 0);
-    const vol = l > 0 && wd > 0 && h > 0 ? (l * wd * h) / 5000 : 0;
-    const kg = Math.max(w, vol) * (it.quantity ?? 1);
-    return Math.round(kg * rate);
+    if (!svc) return 0;
+    // Variante prioritaire, puis règles propres au mode (kg ou m³).
+    const logistics = resolveItemLogistics(it.products ?? null, it.product_variants ?? null);
+    const q = quoteFreight({ logistics, quantity: it.quantity ?? 1, rule: svc });
+    return q.ok ? q.cost : 0;
   }, [selectedKnownService, destinationCountryId]);
 
   // Coût transport cumulé du panier (KNOWN uniquement — UNKNOWN n'est JAMAIS facturé ici).
@@ -413,21 +412,17 @@ function CartPage() {
   const knownServiceEstimates = useMemo(() => {
     const m = new Map<string, number>();
     if (!selectedHasKnown) return m;
-    let kg = 0;
-    for (const it of selectedItems) {
-      if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") continue;
-      const p = it.products ?? {};
-      const real = Number(p.weight_kg ?? 0);
-      const l = Number(p.length_cm ?? 0);
-      const w = Number(p.width_cm ?? 0);
-      const h = Number(p.height_cm ?? 0);
-      const vol = l > 0 && w > 0 && h > 0 ? (l * w * h) / 5000 : 0;
-      kg += Math.max(real, vol) * (it.quantity ?? 1);
-    }
-    if (kg <= 0) return m;
-    for (const s of shippingServices) {
-      const rate = Number(s.price_per_kg ?? 0);
-      if (rate > 0) m.set(s.id, Math.round(kg * rate));
+    // Un total par service : chaque mode applique SA règle (kg ou m³).
+    for (const svc of shippingServices) {
+      let sum = 0;
+      let ok = false;
+      for (const it of selectedItems) {
+        if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") continue;
+        const logistics = resolveItemLogistics(it.products ?? null, it.product_variants ?? null);
+        const q = quoteFreight({ logistics, quantity: it.quantity ?? 1, rule: svc });
+        if (q.ok) { sum += q.cost; ok = true; }
+      }
+      if (ok && sum > 0) m.set(svc.id, sum);
     }
     return m;
   }, [selectedHasKnown, selectedItems, shippingServices, destinationCountryId]);
@@ -467,7 +462,9 @@ function CartPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold truncate">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {MODE_LABELS[(s.mode ?? "air") as keyof typeof MODE_LABELS]} · {fmtDelay(s)}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
                     {est != null ? (
@@ -525,7 +522,9 @@ function CartPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold truncate">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{fmtDelay(s)}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {MODE_LABELS[(s.mode ?? "air") as keyof typeof MODE_LABELS]} · {fmtDelay(s)}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
                     {rate > 0 ? (

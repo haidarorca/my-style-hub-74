@@ -734,6 +734,16 @@ function ProductPage() {
                     ? (data as any).profiles[0]?.source_country_id
                     : null)) ?? null,
             }}
+            variant={
+              matchedVariant
+                ? {
+                    weight_kg: (matchedVariant as any).weight_kg,
+                    length_cm: (matchedVariant as any).length_cm,
+                    width_cm: (matchedVariant as any).width_cm,
+                    height_cm: (matchedVariant as any).height_cm,
+                  }
+                : null
+            }
             productPrice={resolvedFinalPrice}
             selectedServiceId={selectedShippingServiceId}
             onSelectService={setSelectedShippingServiceId}

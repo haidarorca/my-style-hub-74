@@ -1677,6 +1677,50 @@ export type Database = {
           },
         ]
       }
+      logistics_companies: {
+        Row: {
+          contact: string | null
+          country_id: string | null
+          created_at: string
+          id: string
+          is_enabled: boolean
+          name: string
+          note: string | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          contact?: string | null
+          country_id?: string | null
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          name: string
+          note?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          contact?: string | null
+          country_id?: string | null
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          note?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_companies_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_reason_templates: {
         Row: {
           created_at: string
@@ -1936,97 +1980,172 @@ export type Database = {
       }
       order_items: {
         Row: {
+          billable_qty: number | null
+          billing_unit: string | null
           buyer_id: string | null
           color: string | null
           commission_amount: number | null
           commission_rate: number | null
           commission_rule_id: string | null
+          cost_currency_snapshot: string | null
+          cost_price_snapshot: number | null
+          cost_rate_snapshot: number | null
           created_at: string
           customization: Json | null
           exchange_source_case_id: string | null
+          freight_cost: number | null
+          height_cm_snapshot: number | null
           id: string
           is_admin_shop_snapshot: boolean | null
           is_exchange_replacement: boolean
+          length_cm_snapshot: number | null
+          line_total: number | null
+          logistics_data_missing: boolean
+          min_billable_qty_snapshot: number | null
           order_id: string
           origin_currency_code: string | null
           origin_rate_snapshot: number | null
           origin_unit_price: number | null
+          other_costs: number
           product_code: string
           product_id: string
           product_image_url: string | null
           product_name: string
           product_origin_country_id_snapshot: string | null
+          purchase_cost_total: number | null
           quantity: number
+          shipping_mode: string | null
+          shipping_rate_snapshot: number | null
+          shipping_service_id: string | null
           shop_country_id_snapshot: string | null
           shop_name_snapshot: string | null
           shop_type_snapshot: string | null
           size: string | null
+          sku_snapshot: string | null
           source_exchange_id: string | null
+          total_cbm: number | null
+          total_weight_kg: number | null
+          unit_cbm: number | null
           unit_price: number
+          unit_weight_kg: number | null
           variant_id: string | null
+          variant_label_snapshot: string | null
           vendor_id: string
+          volumetric_divisor_snapshot: number | null
+          volumetric_weight_kg: number | null
+          width_cm_snapshot: number | null
         }
         Insert: {
+          billable_qty?: number | null
+          billing_unit?: string | null
           buyer_id?: string | null
           color?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
           commission_rule_id?: string | null
+          cost_currency_snapshot?: string | null
+          cost_price_snapshot?: number | null
+          cost_rate_snapshot?: number | null
           created_at?: string
           customization?: Json | null
           exchange_source_case_id?: string | null
+          freight_cost?: number | null
+          height_cm_snapshot?: number | null
           id?: string
           is_admin_shop_snapshot?: boolean | null
           is_exchange_replacement?: boolean
+          length_cm_snapshot?: number | null
+          line_total?: number | null
+          logistics_data_missing?: boolean
+          min_billable_qty_snapshot?: number | null
           order_id: string
           origin_currency_code?: string | null
           origin_rate_snapshot?: number | null
           origin_unit_price?: number | null
+          other_costs?: number
           product_code: string
           product_id: string
           product_image_url?: string | null
           product_name: string
           product_origin_country_id_snapshot?: string | null
+          purchase_cost_total?: number | null
           quantity?: number
+          shipping_mode?: string | null
+          shipping_rate_snapshot?: number | null
+          shipping_service_id?: string | null
           shop_country_id_snapshot?: string | null
           shop_name_snapshot?: string | null
           shop_type_snapshot?: string | null
           size?: string | null
+          sku_snapshot?: string | null
           source_exchange_id?: string | null
+          total_cbm?: number | null
+          total_weight_kg?: number | null
+          unit_cbm?: number | null
           unit_price?: number
+          unit_weight_kg?: number | null
           variant_id?: string | null
+          variant_label_snapshot?: string | null
           vendor_id: string
+          volumetric_divisor_snapshot?: number | null
+          volumetric_weight_kg?: number | null
+          width_cm_snapshot?: number | null
         }
         Update: {
+          billable_qty?: number | null
+          billing_unit?: string | null
           buyer_id?: string | null
           color?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
           commission_rule_id?: string | null
+          cost_currency_snapshot?: string | null
+          cost_price_snapshot?: number | null
+          cost_rate_snapshot?: number | null
           created_at?: string
           customization?: Json | null
           exchange_source_case_id?: string | null
+          freight_cost?: number | null
+          height_cm_snapshot?: number | null
           id?: string
           is_admin_shop_snapshot?: boolean | null
           is_exchange_replacement?: boolean
+          length_cm_snapshot?: number | null
+          line_total?: number | null
+          logistics_data_missing?: boolean
+          min_billable_qty_snapshot?: number | null
           order_id?: string
           origin_currency_code?: string | null
           origin_rate_snapshot?: number | null
           origin_unit_price?: number | null
+          other_costs?: number
           product_code?: string
           product_id?: string
           product_image_url?: string | null
           product_name?: string
           product_origin_country_id_snapshot?: string | null
+          purchase_cost_total?: number | null
           quantity?: number
+          shipping_mode?: string | null
+          shipping_rate_snapshot?: number | null
+          shipping_service_id?: string | null
           shop_country_id_snapshot?: string | null
           shop_name_snapshot?: string | null
           shop_type_snapshot?: string | null
           size?: string | null
+          sku_snapshot?: string | null
           source_exchange_id?: string | null
+          total_cbm?: number | null
+          total_weight_kg?: number | null
+          unit_cbm?: number | null
           unit_price?: number
+          unit_weight_kg?: number | null
           variant_id?: string | null
+          variant_label_snapshot?: string | null
           vendor_id?: string
+          volumetric_divisor_snapshot?: number | null
+          volumetric_weight_kg?: number | null
+          width_cm_snapshot?: number | null
         }
         Relationships: [
           {
@@ -2042,6 +2161,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "currencies"
             referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "order_items_shipping_service_id_fkey"
+            columns: ["shipping_service_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_services"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2247,9 +2373,16 @@ export type Database = {
           forwarded_to_vendor_at: string | null
           id: string
           is_commission: boolean
+          logistics_cost_total: number | null
+          margin_total: number | null
           note: string | null
+          other_costs_total: number
+          other_fees_total: number
+          products_total: number | null
+          purchase_cost_total: number | null
           shipping_estimate_note: string | null
           shipping_service_id: string | null
+          shipping_total: number | null
           status: string
           total: number
         }
@@ -2267,9 +2400,16 @@ export type Database = {
           forwarded_to_vendor_at?: string | null
           id?: string
           is_commission?: boolean
+          logistics_cost_total?: number | null
+          margin_total?: number | null
           note?: string | null
+          other_costs_total?: number
+          other_fees_total?: number
+          products_total?: number | null
+          purchase_cost_total?: number | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
+          shipping_total?: number | null
           status?: string
           total?: number
         }
@@ -2287,9 +2427,16 @@ export type Database = {
           forwarded_to_vendor_at?: string | null
           id?: string
           is_commission?: boolean
+          logistics_cost_total?: number | null
+          margin_total?: number | null
           note?: string | null
+          other_costs_total?: number
+          other_fees_total?: number
+          products_total?: number | null
+          purchase_cost_total?: number | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
+          shipping_total?: number | null
           status?: string
           total?: number
         }
@@ -2882,41 +3029,71 @@ export type Database = {
         Row: {
           color: string | null
           color_hex: string | null
+          cost_currency_code: string | null
+          cost_price: number | null
           created_at: string
+          external_variant_id: string | null
+          height_cm: number | null
           id: string
           image_url: string | null
+          length_cm: number | null
           measurements: Json
           price_override: number | null
           product_id: string
           size: string | null
           stock: number
+          supplier_ref: string | null
+          supplier_sku: string | null
           variant_ref: string | null
+          volume_cbm: number | null
+          weight_kg: number | null
+          width_cm: number | null
         }
         Insert: {
           color?: string | null
           color_hex?: string | null
+          cost_currency_code?: string | null
+          cost_price?: number | null
           created_at?: string
+          external_variant_id?: string | null
+          height_cm?: number | null
           id?: string
           image_url?: string | null
+          length_cm?: number | null
           measurements?: Json
           price_override?: number | null
           product_id: string
           size?: string | null
           stock?: number
+          supplier_ref?: string | null
+          supplier_sku?: string | null
           variant_ref?: string | null
+          volume_cbm?: number | null
+          weight_kg?: number | null
+          width_cm?: number | null
         }
         Update: {
           color?: string | null
           color_hex?: string | null
+          cost_currency_code?: string | null
+          cost_price?: number | null
           created_at?: string
+          external_variant_id?: string | null
+          height_cm?: number | null
           id?: string
           image_url?: string | null
+          length_cm?: number | null
           measurements?: Json
           price_override?: number | null
           product_id?: string
           size?: string | null
           stock?: number
+          supplier_ref?: string | null
+          supplier_sku?: string | null
           variant_ref?: string | null
+          volume_cbm?: number | null
+          weight_kg?: number | null
+          width_cm?: number | null
         }
         Relationships: [
           {
@@ -2940,6 +3117,8 @@ export type Database = {
           code: string
           contact_override: Database["public"]["Enums"]["product_contact_override"]
           content_hash: string | null
+          cost_currency_code: string | null
+          cost_price: number | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
@@ -2947,6 +3126,7 @@ export type Database = {
           description_i18n: Json | null
           designation: string | null
           designation_i18n: Json | null
+          external_product_id: string | null
           fit_type: string | null
           gender: string | null
           group_id: string | null
@@ -2981,11 +3161,13 @@ export type Database = {
           sku: string | null
           source_country_id: string | null
           status: Database["public"]["Enums"]["product_status"]
+          supplier_ref: string | null
           translated_hash: string | null
           updated_at: string
           vendor_id: string
           video_url: string | null
           views_count: number
+          volume_cbm: number | null
           warranty_days: number | null
           weight_kg: number | null
           weight_source: string | null
@@ -3002,6 +3184,8 @@ export type Database = {
           code: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
+          cost_currency_code?: string | null
+          cost_price?: number | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3009,6 +3193,7 @@ export type Database = {
           description_i18n?: Json | null
           designation?: string | null
           designation_i18n?: Json | null
+          external_product_id?: string | null
           fit_type?: string | null
           gender?: string | null
           group_id?: string | null
@@ -3043,11 +3228,13 @@ export type Database = {
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
           vendor_id: string
           video_url?: string | null
           views_count?: number
+          volume_cbm?: number | null
           warranty_days?: number | null
           weight_kg?: number | null
           weight_source?: string | null
@@ -3064,6 +3251,8 @@ export type Database = {
           code?: string
           contact_override?: Database["public"]["Enums"]["product_contact_override"]
           content_hash?: string | null
+          cost_currency_code?: string | null
+          cost_price?: number | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3071,6 +3260,7 @@ export type Database = {
           description_i18n?: Json | null
           designation?: string | null
           designation_i18n?: Json | null
+          external_product_id?: string | null
           fit_type?: string | null
           gender?: string | null
           group_id?: string | null
@@ -3105,11 +3295,13 @@ export type Database = {
           sku?: string | null
           source_country_id?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
           vendor_id?: string
           video_url?: string | null
           views_count?: number
+          volume_cbm?: number | null
           warranty_days?: number | null
           weight_kg?: number | null
           weight_source?: string | null
@@ -3667,51 +3859,80 @@ export type Database = {
       }
       shipping_services: {
         Row: {
+          company_id: string | null
           created_at: string
           delay_max_days: number | null
           delay_min_days: number | null
           description: string | null
           destination_country_id: string | null
+          fixed_fee: number
           id: string
           is_enabled: boolean
+          min_billable_qty: number
+          mode: string
           name: string
           position: number
+          price_per_cbm: number | null
           price_per_kg: number
           pricing_unit: string
           source_country_id: string | null
           updated_at: string
+          use_volumetric: boolean
+          volumetric_divisor: number
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           delay_max_days?: number | null
           delay_min_days?: number | null
           description?: string | null
           destination_country_id?: string | null
+          fixed_fee?: number
           id?: string
           is_enabled?: boolean
+          min_billable_qty?: number
+          mode?: string
           name: string
           position?: number
+          price_per_cbm?: number | null
           price_per_kg?: number
           pricing_unit?: string
           source_country_id?: string | null
           updated_at?: string
+          use_volumetric?: boolean
+          volumetric_divisor?: number
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           delay_max_days?: number | null
           delay_min_days?: number | null
           description?: string | null
           destination_country_id?: string | null
+          fixed_fee?: number
           id?: string
           is_enabled?: boolean
+          min_billable_qty?: number
+          mode?: string
           name?: string
           position?: number
+          price_per_cbm?: number | null
           price_per_kg?: number
           pricing_unit?: string
           source_country_id?: string | null
           updated_at?: string
+          use_volumetric?: boolean
+          volumetric_divisor?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipping_services_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_settings: {
         Row: {
