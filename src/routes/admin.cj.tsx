@@ -21,6 +21,7 @@ import {
   testCjConnection,
   readCjTestProduct,
 } from "@/lib/cj.functions";
+import { importCjProduct } from "@/lib/cj-import.functions";
 
 export const Route = createFileRoute("/admin/cj")({
   component: () => (
@@ -53,9 +54,11 @@ function CjConnectionPage() {
   const stateFn = useServerFn(getCjConnectionState);
   const testFn = useServerFn(testCjConnection);
   const productFn = useServerFn(readCjTestProduct);
+  const importFn = useServerFn(importCjProduct);
 
   const [testing, setTesting] = useState(false);
   const [reading, setReading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [pid, setPid] = useState("");
   const [result, setResult] = useState<any>(null);
 
@@ -90,6 +93,25 @@ function CjConnectionPage() {
       toast.error(e instanceof Error ? e.message : "Erreur");
     } finally {
       setReading(false);
+    }
+  }
+
+  async function runImport(update: boolean) {
+    const id = pid.trim();
+    if (!id) {
+      toast.error("Indiquez l'identifiant du produit CJ à importer.");
+      return;
+    }
+    setImporting(true);
+    setResult(null);
+    try {
+      const r = await importFn({ data: { pid: id, update } });
+      setResult({ kind: update ? "mise à jour" : "import", ...r });
+      r.ok ? toast.success("Produit importé en brouillon") : toast.error(r.error ?? "Échec");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -171,6 +193,13 @@ function CjConnectionPage() {
               <PackageSearch className="mr-2 h-4 w-4" />
             )}
             Lire un produit de test
+          </Button>
+          <Button variant="outline" onClick={() => runImport(false)} disabled={importing}>
+            {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Importer en brouillon
+          </Button>
+          <Button variant="ghost" onClick={() => runImport(true)} disabled={importing}>
+            Mettre à jour
           </Button>
         </div>
       </div>

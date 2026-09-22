@@ -23,6 +23,9 @@ export interface CjCallTrace {
   cjMessage: string | null;
   /** En-têtes de quota renvoyés par CJ, s'ils existent. */
   quotaHeaders: Record<string, string>;
+  /** Points CJ consommés aujourd'hui / restants, si CJ les renvoie. */
+  pointsUsedToday: number | null;
+  pointsRemaining: number | null;
 }
 
 export interface CjResult<T> {
@@ -77,6 +80,8 @@ async function cjFetch(
     cjCode: typeof body?.code === "number" ? body.code : null,
     cjMessage: typeof body?.message === "string" ? body.message : null,
     quotaHeaders: pickQuotaHeaders(res.headers),
+    pointsUsedToday: typeof body?.pointsInfo?.usedToday === "number" ? body.pointsInfo.usedToday : null,
+    pointsRemaining: typeof body?.pointsInfo?.remaining === "number" ? body.pointsInfo.remaining : null,
   });
   return { status: res.status, body, headers: res.headers };
 }
@@ -155,7 +160,8 @@ export async function getCjAccessToken(
     const { email, apiKey } = credentials();
     const r = await cjFetch(
       "/authentication/getAccessToken",
-      { method: "POST", body: JSON.stringify({ email, apiKey, password: apiKey }) },
+      // CJ attend la clé API dans le champ « password » (mode apiKey).
+      { method: "POST", body: JSON.stringify({ email, password: apiKey }) },
       traces,
     );
     if (r.body?.result !== true || !r.body?.data?.accessToken) {
