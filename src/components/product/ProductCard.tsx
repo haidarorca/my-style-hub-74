@@ -106,7 +106,10 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
           )}
           {cfg.showPrice &&
             (dp ? (
-              showTotal ? (
+              Number(dp.final_price) <= 0 ? (
+                // Aucun prix valide (ni produit, ni variante) : on n'affiche jamais « 0 FCFA ».
+                <p className="mt-2 text-xs font-medium text-muted-foreground">Prix à définir</p>
+              ) : showTotal ? (
                 <div className="mt-2">
                   <p className="kz-eyebrow text-[0.6rem] leading-none">Total estimé</p>
                   <p className={`kz-price mt-1 font-bold text-foreground ${PRICE_CLASS[cfg.cardStyle]}`}>
@@ -118,6 +121,10 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
                 </div>
               ) : (
                 <p className={`kz-price mt-2 font-bold text-foreground ${PRICE_CLASS[cfg.cardStyle]}`}>
+                  {/* Prix issu de la variante la moins chère → « À partir de ». */}
+                  {Number(product.price ?? 0) <= 0 && (
+                    <span className="mr-1 text-[11px] font-normal text-muted-foreground">À partir de</span>
+                  )}
                   {fmt(dp.final_price)}
                 </p>
               )

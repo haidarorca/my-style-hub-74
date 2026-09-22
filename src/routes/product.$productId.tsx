@@ -127,7 +127,13 @@ interface Variant {
   price_override: number | null;
   image_url: string | null;
   measurements?: Record<string, number> | null;
+  /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
+  supplier_available?: boolean | null;
+  supplier_stock?: number | null;
 }
+
+/** Une variante est commandable tant que le fournisseur ne l'a pas déclarée épuisée. */
+const isVariantAvailable = (v: Variant) => v.supplier_available !== false;
 
 interface Customization {
   id: string;
@@ -256,6 +262,22 @@ function ProductPage() {
     return Array.from(map.entries());
   }, [variants]);
 
+  // Tailles / couleurs épuisées chez le fournisseur : affichées mais non sélectionnables.
+  const soldOutSizes = useMemo(
+    () => new Set(sizes.filter((s) => !variants.some((v) => v.size === s && isVariantAvailable(v)))),
+    [sizes, variants],
+  );
+  const soldOutColors = useMemo(
+    () =>
+      new Set(
+        colors
+          .map(([c]) => c)
+          .filter((c) => !variants.some((v) => v.color === c && isVariantAvailable(v))),
+      ),
+    [colors, variants],
+  );
+  const allSoldOut = variants.length > 0 && variants.every((v) => !isVariantAvailable(v));
+
   const matchedVariant = useMemo(() => {
     if (variants.length === 0) return null;
     return variants.find(
@@ -352,7 +374,8 @@ function ProductPage() {
     !needsColor &&
     !needsCustomImage &&
     !needsCustomText &&
-    (variants.length === 0 || !!matchedVariant);
+    (variants.length === 0 || (!!matchedVariant && isVariantAvailable(matchedVariant))) &&
+    !allSoldOut;
 
   const onAdd = async () => {
     if (!data) return;
@@ -471,7 +494,16 @@ function ProductPage() {
             {displayPrice !== null ? (
               <>
                 <p className="text-xl font-extrabold text-primary">
-                  {fmt(Number(displayPrice))}
+                  {Number(displayPrice) > 0 ? (
+                    <>
+                      {Number(data.price ?? 0) <= 0 && (
+                        <span className="mr-1 text-xs font-normal text-muted-foreground">À partir de</span>
+                      )}
+                      {fmt(Number(displayPrice))}
+                    </>
+                  ) : (
+                    <span className="text-sm font-medium text-muted-foreground">Prix à définir</span>
+                  )}
                 </p>
                 {transportIncluded ? (
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
@@ -754,19 +786,26 @@ function ProductPage() {
             <div>
               <p className="mb-1.5 text-xs font-semibold">{t("product.size")}</p>
               <div className="flex flex-wrap gap-2">
-                {sizes.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSize(s)}
-                    className={`min-w-12 rounded-md border px-3 py-1.5 text-sm ${
-                      size === s
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {sizes.map((s) => {
+                  const out = soldOutSizes.has(s);
+                  return (
+                    <button
+                      key={s}
+                      disabled={out}
+                      onClick={() => setSize(s)}
+                      title={out ? "Indisponible" : undefined}
+                      className={`min-w-12 rounded-md border px-3 py-1.5 text-sm ${
+                        out
+                          ? "cursor-not-allowed border-border/60 text-muted-foreground line-through opacity-60"
+                          : size === s
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -777,12 +816,19 @@ function ProductPage() {
               <div className="flex flex-wrap gap-2">
                 {colors.map(([c, hex]) => {
                   const vImg = variants.find((v) => v.color === c && v.image_url)?.image_url;
+                  const out = soldOutColors.has(c);
                   return (
                     <button
                       key={c}
+                      disabled={out}
+                      title={out ? "Indisponible" : undefined}
                       onClick={() => setColor(c)}
                       className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
-                        color === c ? "border-primary ring-2 ring-primary/30" : "border-border"
+                        out
+                          ? "cursor-not-allowed border-border/60 text-muted-foreground line-through opacity-60"
+                          : color === c
+                            ? "border-primary ring-2 ring-primary/30"
+                            : "border-border"
                       }`}
                     >
                       {vImg ? (

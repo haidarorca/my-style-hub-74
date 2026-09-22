@@ -66,7 +66,9 @@ function fmtDate(s: string | null | undefined) {
   try { return format(new Date(s), "dd/MM/yyyy"); } catch { return "—"; }
 }
 function fmtMoney(n: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " FCFA";
+  // Un prix de vente absent n'est jamais présenté comme « 0 FCFA ».
+  if (!Number.isFinite(Number(n)) || Number(n) <= 0) return "Prix à définir";
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(n) + " FCFA";
 }
 
 function ProductsAdminPage() {
