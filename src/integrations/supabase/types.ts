@@ -5624,6 +5624,7 @@ export type Database = {
         }
         Returns: Json
       }
+      kawscan_session_start_guard: { Args: { _slug: string }; Returns: boolean }
       kawscan_store_protection: { Args: { _slug: string }; Returns: Json }
       kawscan_zone_distance: {
         Args: { _lat: number; _lng: number; _poly: Json }

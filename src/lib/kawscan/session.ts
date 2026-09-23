@@ -87,7 +87,9 @@ export function useKawscanSession(slug: string) {
 
   useEffect(() => {
     void rpc("kawscan_store_protection", { _slug: slug }).then(({ data }) => {
-      const m = ((data as { mode?: string } | null)?.mode ?? "none") as ProtectionMode;
+      const d = data as { mode?: string; is_manager?: boolean } | null;
+      // Propriétaire/employé connecté : accès direct, aucune session client créée.
+      const m = (d?.is_manager ? "none" : (d?.mode ?? "none")) as ProtectionMode;
       setMode(m);
       if (m !== "none") {
         try {
