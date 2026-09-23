@@ -650,6 +650,178 @@ export type Database = {
         }
         Relationships: []
       }
+      cj_import_job_items: {
+        Row: {
+          attempts: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          image: string | null
+          job_id: string
+          lease_until: string | null
+          missing: Json | null
+          name: string | null
+          pid: string
+          product_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          image?: string | null
+          job_id: string
+          lease_until?: string | null
+          missing?: Json | null
+          name?: string | null
+          pid: string
+          product_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          image?: string | null
+          job_id?: string
+          lease_until?: string | null
+          missing?: Json | null
+          name?: string | null
+          pid?: string
+          product_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cj_import_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "cj_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cj_import_jobs: {
+        Row: {
+          api_calls: number
+          created_at: string
+          created_by: string | null
+          criteria: Json | null
+          discover_done: boolean
+          discover_page: number
+          finished_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          n_exists: number
+          n_failed: number
+          n_pending: number
+          n_processing: number
+          n_skipped: number
+          n_success: number
+          n_synced: number
+          name: string
+          options: Json
+          schedule_id: string | null
+          started_at: string | null
+          status: string
+          sync_parts: string[]
+          target_count: number | null
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          api_calls?: number
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json | null
+          discover_done?: boolean
+          discover_page?: number
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          n_exists?: number
+          n_failed?: number
+          n_pending?: number
+          n_processing?: number
+          n_skipped?: number
+          n_success?: number
+          n_synced?: number
+          name: string
+          options?: Json
+          schedule_id?: string | null
+          started_at?: string | null
+          status?: string
+          sync_parts?: string[]
+          target_count?: number | null
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          api_calls?: number
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json | null
+          discover_done?: boolean
+          discover_page?: number
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          n_exists?: number
+          n_failed?: number
+          n_pending?: number
+          n_processing?: number
+          n_skipped?: number
+          n_success?: number
+          n_synced?: number
+          name?: string
+          options?: Json
+          schedule_id?: string | null
+          started_at?: string | null
+          status?: string
+          sync_parts?: string[]
+          target_count?: number | null
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cj_import_jobs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "cj_import_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cj_import_locks: {
+        Row: {
+          locked_until: string
+          pid: string
+        }
+        Insert: {
+          locked_until: string
+          pid: string
+        }
+        Update: {
+          locked_until?: string
+          pid?: string
+        }
+        Relationships: []
+      }
       cj_import_log: {
         Row: {
           action: string
@@ -701,6 +873,48 @@ export type Database = {
           traces?: Json
           variants_imported?: number
           variants_total?: number
+        }
+        Relationships: []
+      }
+      cj_import_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          criteria: Json
+          enabled: boolean
+          hour_utc: number
+          id: string
+          last_job_id: string | null
+          last_run_at: string | null
+          max_new: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          enabled?: boolean
+          hour_utc?: number
+          id?: string
+          last_job_id?: string | null
+          last_run_at?: string | null
+          max_new?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          enabled?: boolean
+          hour_utc?: number
+          id?: string
+          last_job_id?: string | null
+          last_run_at?: string | null
+          max_new?: number
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3622,6 +3836,7 @@ export type Database = {
       }
       product_variants: {
         Row: {
+          cj_options: Json | null
           color: string | null
           color_hex: string | null
           cost_currency_code: string | null
@@ -3647,6 +3862,7 @@ export type Database = {
           width_cm: number | null
         }
         Insert: {
+          cj_options?: Json | null
           color?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
@@ -3672,6 +3888,7 @@ export type Database = {
           width_cm?: number | null
         }
         Update: {
+          cj_options?: Json | null
           color?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
@@ -5379,6 +5596,36 @@ export type Database = {
       }
       can_insert_order_item: {
         Args: { _buyer_id: string; _order_id: string }
+        Returns: boolean
+      }
+      cj_claim_job_items: {
+        Args: { _job: string; _n: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          image: string | null
+          job_id: string
+          lease_until: string | null
+          missing: Json | null
+          name: string | null
+          pid: string
+          product_id: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "cj_import_job_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      cj_refresh_job_counts: { Args: { _job: string }; Returns: undefined }
+      cj_try_lock_pid: {
+        Args: { _pid: string; _seconds: number }
         Returns: boolean
       }
       compute_product_content_hash: {

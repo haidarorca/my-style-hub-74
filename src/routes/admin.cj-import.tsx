@@ -31,6 +31,11 @@ import {
   type CjSearchHit,
 } from "@/lib/cj-catalog.functions";
 import { importCjProduct, type CjImportReport } from "@/lib/cj-import.functions";
+import { getCjCategoryTree } from "@/lib/cj-center.functions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CjExplorer } from "@/components/admin/cj/CjExplorer";
+import { CjJobsPanel } from "@/components/admin/cj/CjJobsPanel";
+import { CjSchedulesPanel } from "@/components/admin/cj/CjSchedulesPanel";
 
 export const Route = createFileRoute("/admin/cj-import")({
   component: () => (
@@ -40,7 +45,7 @@ export const Route = createFileRoute("/admin/cj-import")({
   ),
   head: () => ({
     meta: [
-      { title: "Importer depuis CJ — KawZone Admin" },
+      { title: "Centre de sourcing CJ — KawZone Admin" },
       {
         name: "description",
         content: "Rechercher un produit CJdropshipping et l'importer en brouillon dans le catalogue KawZone.",
@@ -48,6 +53,33 @@ export const Route = createFileRoute("/admin/cj-import")({
     ],
   }),
 });
+
+function CjCenter() {
+  const treeFn = useServerFn(getCjCategoryTree);
+  const [tab, setTab] = useState("explore");
+  const { data: tree } = useQuery({ queryKey: ["cj-cat-tree"], queryFn: () => treeFn(), staleTime: 3600_000 });
+  const categories = tree?.categories ?? [];
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center gap-2">
+        <Download className="h-5 w-5" />
+        <h1 className="text-lg font-bold">Centre de sourcing CJ</h1>
+      </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="explore">Explorer</TabsTrigger>
+          <TabsTrigger value="jobs">Imports & synchro</TabsTrigger>
+          <TabsTrigger value="schedules">Programmés</TabsTrigger>
+          <TabsTrigger value="single">Produit unique & catégories</TabsTrigger>
+        </TabsList>
+        <TabsContent value="explore"><CjExplorer categories={categories} onJobCreated={() => setTab("jobs")} /></TabsContent>
+        <TabsContent value="jobs"><CjJobsPanel /></TabsContent>
+        <TabsContent value="schedules"><CjSchedulesPanel categories={categories} /></TabsContent>
+        <TabsContent value="single"><CjImportPage /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
 function CjImportPage() {
   const qc = useQueryClient();

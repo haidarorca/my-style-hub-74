@@ -11,7 +11,8 @@ export type InngestEvent =
   | { name: "translation/sync.requested"; data: Record<string, never> }
   | { name: "stats/refresh.requested"; data: Record<string, never> }
   | { name: "cleanup/expired-codes.requested"; data: Record<string, never> }
-  | { name: "product/changed"; data: { product_id: string } };
+  | { name: "product/changed"; data: { product_id: string } }
+  | { name: "cj/import.run"; data: { jobId: string } };
 
 /**
  * Send an event to Inngest through the Lovable gateway.
