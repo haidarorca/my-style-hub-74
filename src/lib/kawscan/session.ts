@@ -91,16 +91,12 @@ export function useKawscanSession(slug: string) {
       // Propriétaire/employé connecté : accès direct, aucune session client créée.
       const m = (d?.is_manager ? "none" : (d?.mode ?? "none")) as ProtectionMode;
       setMode(m);
-      if (m !== "none") {
-        try {
-          const saved = JSON.parse(sessionStorage.getItem(tokenKey(slug)) || "null") as { t: string; e: number } | null;
-          if (saved && saved.e > Date.now()) {
-            setToken(saved.t);
-            setExpiresAt(saved.e);
-          }
-        } catch {
-          /* ignore */
-        }
+      // Chaque ouverture exige une nouvelle vérification : aucune ancienne session réutilisée.
+      try {
+        sessionStorage.removeItem(tokenKey(slug));
+        localStorage.removeItem(tokenKey(slug));
+      } catch {
+        /* ignore */
       }
     });
   }, [slug]);
