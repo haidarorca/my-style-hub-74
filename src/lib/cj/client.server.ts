@@ -189,17 +189,39 @@ export async function getCjAccessToken(
   return { token: accessToken, expiry: accessExpiry, refreshExpiry, source };
 }
 
-/** Appel authentifié à l'API CJ (GET). */
+/** Erreur de limite de débit CJ (code 1600200 / HTTP 429) : réessayable. */
+export class CjRateLimitError extends Error {
+  retryable = true;
+}
+
+// CJ autorise ~2 requêtes/seconde par défaut : on espace les appels.
+let lastCallAt = 0;
+const MIN_INTERVAL_MS = 600;
+async function throttle() {
+  const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
+  lastCallAt = Math.max(Date.now(), lastCallAt + MIN_INTERVAL_MS);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+}
+
+/** Appel authentifié à l'API CJ (GET), espacé et réessayé en cas de limite de débit. */
 export async function cjGet<T = any>(
   path: string,
   traces: CjCallTrace[],
 ): Promise<T> {
   const { token } = await getCjAccessToken(traces);
-  const r = await cjFetch(path, { method: "GET", headers: { "CJ-Access-Token": token } }, traces);
-  if (r.body?.result !== true) {
-    throw new Error(`CJ ${path} : ${r.body?.message ?? `HTTP ${r.status}`}`);
+  for (let attempt = 0; ; attempt += 1) {
+    await throttle();
+    const r = await cjFetch(path, { method: "GET", headers: { "CJ-Access-Token": token } }, traces);
+    if (r.body?.result === true) return r.body.data as T;
+    const limited = r.status === 429 || r.body?.code === 1600200;
+    if (limited && attempt < 3) {
+      await new Promise((res) => setTimeout(res, 1500 * (attempt + 1) + Math.random() * 500));
+      continue;
+    }
+    const msg = `CJ ${path} : ${r.body?.message ?? `HTTP ${r.status}`}`;
+    if (limited) throw new CjRateLimitError(msg);
+    throw new Error(msg);
   }
-  return r.body.data as T;
 }
 
 /** Appel authentifié à l'API CJ (POST). Renvoie l'enveloppe complète CJ. */
