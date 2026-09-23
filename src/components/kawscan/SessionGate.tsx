@@ -30,7 +30,7 @@ export function SessionGate({
     setMsg(null);
     try {
       const f = await readPosition();
-      if (f.acc > 100) {
+      if (f.acc > 50) {
         setMsg(SESSION_MESSAGES.gps_imprecise!);
         return;
       }
@@ -56,7 +56,7 @@ export function SessionGate({
         // Position rafraîchie au moment de valider le code.
         try {
           const nf = await readPosition(6000);
-          if (nf.acc <= 100) f = nf;
+          if (nf.acc <= 50) f = nf;
         } catch {
           /* garder la position précédente */
         }

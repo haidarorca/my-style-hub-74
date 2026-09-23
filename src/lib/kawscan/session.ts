@@ -57,7 +57,7 @@ export function readPosition(timeoutMs = 12000): Promise<Fix> {
       navigator.geolocation.clearWatch(id);
       clearTimeout(t);
       if (best) resolve(best);
-      else reject(new Error("location_required"));
+      else reject(new Error("gps_timeout"));
     };
     const id = navigator.geolocation.watchPosition(
       (p) => {
