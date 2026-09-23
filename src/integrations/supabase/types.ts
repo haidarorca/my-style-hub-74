@@ -2781,6 +2781,7 @@ export type Database = {
           cj_last_error: string | null
           cj_logistic_name: string | null
           cj_order_amount: number | null
+          cj_order_code: string | null
           cj_order_id: string | null
           cj_order_number: string | null
           cj_order_status: string | null
@@ -2825,6 +2826,7 @@ export type Database = {
           cj_last_error?: string | null
           cj_logistic_name?: string | null
           cj_order_amount?: number | null
+          cj_order_code?: string | null
           cj_order_id?: string | null
           cj_order_number?: string | null
           cj_order_status?: string | null
@@ -2869,6 +2871,7 @@ export type Database = {
           cj_last_error?: string | null
           cj_logistic_name?: string | null
           cj_order_amount?: number | null
+          cj_order_code?: string | null
           cj_order_id?: string | null
           cj_order_number?: string | null
           cj_order_status?: string | null
