@@ -40,7 +40,7 @@ import { CjSchedulesPanel } from "@/components/admin/cj/CjSchedulesPanel";
 export const Route = createFileRoute("/admin/cj-import")({
   component: () => (
     <PermissionGate perm="products">
-      <CjImportPage />
+      <CjCenter />
     </PermissionGate>
   ),
   head: () => ({
@@ -50,6 +50,10 @@ export const Route = createFileRoute("/admin/cj-import")({
         name: "description",
         content: "Rechercher un produit CJdropshipping et l'importer en brouillon dans le catalogue KawZone.",
       },
+      { property: "og:title", content: "Centre de sourcing CJ — KawZone Admin" },
+      { property: "og:description", content: "Rechercher, sélectionner et importer des produits CJ dans KawZone." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
 });
@@ -60,17 +64,22 @@ function CjCenter() {
   const { data: tree } = useQuery({ queryKey: ["cj-cat-tree"], queryFn: () => treeFn(), staleTime: 3600_000 });
   const categories = tree?.categories ?? [];
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center gap-2">
-        <Download className="h-5 w-5" />
-        <h1 className="text-lg font-bold">Centre de sourcing CJ</h1>
+    <div className="mx-auto w-full max-w-[1440px] space-y-5 p-3 sm:p-5 lg:p-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
+          <Download className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold sm:text-2xl">Centre de sourcing CJ</h1>
+          <p className="text-sm text-muted-foreground">Recherchez, sélectionnez et importez sans bloquer votre écran.</p>
+        </div>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex h-auto flex-wrap">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
           <TabsTrigger value="explore">Explorer</TabsTrigger>
-          <TabsTrigger value="jobs">Imports & synchro</TabsTrigger>
+          <TabsTrigger value="jobs">Imports</TabsTrigger>
           <TabsTrigger value="schedules">Programmés</TabsTrigger>
-          <TabsTrigger value="single">Produit unique & catégories</TabsTrigger>
+          <TabsTrigger value="single">Produit unique</TabsTrigger>
         </TabsList>
         <TabsContent value="explore"><CjExplorer categories={categories} onJobCreated={() => setTab("jobs")} /></TabsContent>
         <TabsContent value="jobs"><CjJobsPanel /></TabsContent>

@@ -142,6 +142,7 @@ export function summarizeCjProduct(p: any) {
     sku: p?.productSku ?? null,
     image: p?.productImage ?? images[0] ?? null,
     gallery: images,
+    description: p?.description ? String(p.description).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : null,
     category: p?.categoryName ?? null,
     optionNames: p?.productKeyEn ?? null,
     minPrice: prices.length ? Math.min(...prices) : null,
