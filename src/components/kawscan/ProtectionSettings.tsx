@@ -208,7 +208,7 @@ export function ProtectionSettings({ storeId }: { storeId: string }) {
         <SubHeader title="Zone de la boutique" onBack={() => setView("main")} />
         <ol className="space-y-1 rounded-xl bg-muted p-3 text-sm">
           <li>1. Placez-vous dans la boutique et appuyez sur <b>Ma position</b>.</li>
-          <li>2. Déplacez les points <b>1, 2, 3, 4</b> avec le doigt aux coins du magasin.</li>
+          <li>2. Basculez en <b>Satellite</b> (bouton en haut à droite) pour repérer votre magasin, puis déplacez les points <b>1, 2, 3, 4</b> avec le doigt aux coins. Le marqueur 📍 central déplace toute la zone.</li>
           <li>3. Appuyez sur <b>Enregistrer la zone</b>.</li>
         </ol>
         <div className="grid grid-cols-2 gap-2">
