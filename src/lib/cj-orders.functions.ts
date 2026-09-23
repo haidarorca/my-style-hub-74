@@ -167,7 +167,9 @@ export const listCjOrders = createServerFn({ method: "GET" })
       .select("order_id")
       .not("cj_variant_id", "is", null)
       .limit(2000);
-    const orderIds = Array.from(new Set((items ?? []).map((i: any) => i.order_id)));
+    const orderIds = Array.from(
+      new Set((items ?? []).map((i: any) => String(i.order_id))),
+    ) as string[];
     if (orderIds.length === 0) return [];
     const out: CjOrderOverview[] = [];
     for (const id of orderIds.slice(0, 100)) {
