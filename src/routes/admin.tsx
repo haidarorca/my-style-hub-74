@@ -70,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/returns", label: "Retours & Annulations", icon: AlertTriangle, perm: "orders" },
       { to: "/admin/shipping-services", label: "Services transport", icon: Globe, perm: "orders" },
       { to: "/admin/cj", label: "Connexion CJ", icon: Plug, perm: "orders" },
+      { to: "/admin/cj-orders", label: "Commandes CJ", icon: Plug, perm: "orders", badge: "NEW" },
     ],
   },
   {

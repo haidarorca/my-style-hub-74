@@ -704,6 +704,62 @@ export type Database = {
         }
         Relationships: []
       }
+      cj_order_log: {
+        Row: {
+          action: string
+          cj_code: number | null
+          cj_message: string | null
+          created_at: string
+          created_by: string | null
+          endpoint: string | null
+          http_status: number | null
+          id: string
+          latency_ms: number | null
+          order_id: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          success: boolean
+        }
+        Insert: {
+          action: string
+          cj_code?: number | null
+          cj_message?: string | null
+          created_at?: string
+          created_by?: string | null
+          endpoint?: string | null
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          order_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          success?: boolean
+        }
+        Update: {
+          action?: string
+          cj_code?: number | null
+          cj_message?: string | null
+          created_at?: string
+          created_by?: string | null
+          endpoint?: string | null
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          order_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cj_order_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cj_products: {
         Row: {
           category_mapping_status: string
@@ -796,6 +852,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cj_warehouse_address: {
+        Row: {
+          address: string | null
+          address2: string | null
+          city: string | null
+          contact_name: string | null
+          country_code: string
+          country_name: string
+          county: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          label: string
+          notes: string | null
+          phone: string | null
+          province: string | null
+          updated_at: string
+          zip: string | null
+        }
+        Insert: {
+          address?: string | null
+          address2?: string | null
+          city?: string | null
+          contact_name?: string | null
+          country_code?: string
+          country_name?: string
+          county?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          notes?: string | null
+          phone?: string | null
+          province?: string | null
+          updated_at?: string
+          zip?: string | null
+        }
+        Update: {
+          address?: string | null
+          address2?: string | null
+          city?: string | null
+          contact_name?: string | null
+          country_code?: string
+          country_name?: string
+          county?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          notes?: string | null
+          phone?: string | null
+          province?: string | null
+          updated_at?: string
+          zip?: string | null
+        }
+        Relationships: []
       }
       commission_rule_history: {
         Row: {
@@ -2270,6 +2386,9 @@ export type Database = {
           billable_qty: number | null
           billing_unit: string | null
           buyer_id: string | null
+          cj_product_id: string | null
+          cj_variant_id: string | null
+          cj_variant_sku: string | null
           color: string | null
           commission_amount: number | null
           commission_rate: number | null
@@ -2326,6 +2445,9 @@ export type Database = {
           billable_qty?: number | null
           billing_unit?: string | null
           buyer_id?: string | null
+          cj_product_id?: string | null
+          cj_variant_id?: string | null
+          cj_variant_sku?: string | null
           color?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
@@ -2382,6 +2504,9 @@ export type Database = {
           billable_qty?: number | null
           billing_unit?: string | null
           buyer_id?: string | null
+          cj_product_id?: string | null
+          cj_variant_id?: string | null
+          cj_variant_sku?: string | null
           color?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
@@ -2651,6 +2776,23 @@ export type Database = {
           archived_at: string | null
           buyer_id: string | null
           city: string | null
+          cj_created_at: string | null
+          cj_is_sandbox: boolean
+          cj_last_error: string | null
+          cj_logistic_name: string | null
+          cj_order_amount: number | null
+          cj_order_code: string | null
+          cj_order_id: string | null
+          cj_order_number: string | null
+          cj_order_status: string | null
+          cj_paid_at: string | null
+          cj_payment_status: string | null
+          cj_shipment_order_id: string | null
+          cj_shipped_at: string | null
+          cj_synced_at: string | null
+          cj_tracking_number: string | null
+          cj_tracking_provider: string | null
+          cj_tracking_url: string | null
           closed_at: string | null
           created_at: string
           customer_name: string | null
@@ -2667,6 +2809,7 @@ export type Database = {
           other_fees_total: number
           products_total: number | null
           purchase_cost_total: number | null
+          reference: string | null
           shipping_estimate_note: string | null
           shipping_service_id: string | null
           shipping_total: number | null
@@ -2678,6 +2821,23 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
+          cj_created_at?: string | null
+          cj_is_sandbox?: boolean
+          cj_last_error?: string | null
+          cj_logistic_name?: string | null
+          cj_order_amount?: number | null
+          cj_order_code?: string | null
+          cj_order_id?: string | null
+          cj_order_number?: string | null
+          cj_order_status?: string | null
+          cj_paid_at?: string | null
+          cj_payment_status?: string | null
+          cj_shipment_order_id?: string | null
+          cj_shipped_at?: string | null
+          cj_synced_at?: string | null
+          cj_tracking_number?: string | null
+          cj_tracking_provider?: string | null
+          cj_tracking_url?: string | null
           closed_at?: string | null
           created_at?: string
           customer_name?: string | null
@@ -2694,6 +2854,7 @@ export type Database = {
           other_fees_total?: number
           products_total?: number | null
           purchase_cost_total?: number | null
+          reference?: string | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
           shipping_total?: number | null
@@ -2705,6 +2866,23 @@ export type Database = {
           archived_at?: string | null
           buyer_id?: string | null
           city?: string | null
+          cj_created_at?: string | null
+          cj_is_sandbox?: boolean
+          cj_last_error?: string | null
+          cj_logistic_name?: string | null
+          cj_order_amount?: number | null
+          cj_order_code?: string | null
+          cj_order_id?: string | null
+          cj_order_number?: string | null
+          cj_order_status?: string | null
+          cj_paid_at?: string | null
+          cj_payment_status?: string | null
+          cj_shipment_order_id?: string | null
+          cj_shipped_at?: string | null
+          cj_synced_at?: string | null
+          cj_tracking_number?: string | null
+          cj_tracking_provider?: string | null
+          cj_tracking_url?: string | null
           closed_at?: string | null
           created_at?: string
           customer_name?: string | null
@@ -2721,6 +2899,7 @@ export type Database = {
           other_fees_total?: number
           products_total?: number | null
           purchase_cost_total?: number | null
+          reference?: string | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
           shipping_total?: number | null
@@ -5278,6 +5457,7 @@ export type Database = {
         Returns: undefined
       }
       migrate_customer_addresses: { Args: never; Returns: number }
+      next_order_reference: { Args: never; Returns: string }
       next_return_case_code: {
         Args: { _kind: Database["public"]["Enums"]["return_case_kind"] }
         Returns: string

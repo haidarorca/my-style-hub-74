@@ -202,6 +202,34 @@ export async function cjGet<T = any>(
   return r.body.data as T;
 }
 
+/** Appel authentifié à l'API CJ (POST). Renvoie l'enveloppe complète CJ. */
+export async function cjPostRaw(
+  path: string,
+  body: unknown,
+  traces: CjCallTrace[],
+): Promise<{ status: number; body: any }> {
+  const { token } = await getCjAccessToken(traces);
+  const r = await cjFetch(
+    path,
+    { method: "POST", headers: { "CJ-Access-Token": token }, body: JSON.stringify(body) },
+    traces,
+  );
+  return { status: r.status, body: r.body };
+}
+
+/** Appel authentifié POST qui lève une erreur si CJ ne renvoie pas result=true. */
+export async function cjPost<T = any>(
+  path: string,
+  body: unknown,
+  traces: CjCallTrace[],
+): Promise<T> {
+  const r = await cjPostRaw(path, body, traces);
+  if (r.body?.result !== true) {
+    throw new Error(`CJ ${path} : ${r.body?.message ?? `HTTP ${r.status}`}`);
+  }
+  return r.body.data as T;
+}
+
 /** Enregistre l'état de connexion pour l'écran d'administration. */
 export async function saveCjState(patch: Record<string, unknown>, traces: CjCallTrace[]) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
