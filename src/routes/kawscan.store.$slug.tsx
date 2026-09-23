@@ -164,7 +164,7 @@ function StoreScanner() {
     async (code: string) => {
       setBusy(true);
       try {
-        const { data, error } = await supabase.rpc("kawscan_lookup", { _slug: slug, _code: code, _session: sessionToken });
+        const { data, error } = await supabase.rpc("kawscan_lookup", { _slug: slug, _code: code, _session: sessionToken ?? undefined });
         if (error) throw error;
         const r = data as unknown as LookupResult;
         if (r.error && SESSION_ERRORS.has(r.error)) {
