@@ -100,7 +100,7 @@ export async function readPosition(timeoutMs = 12000): Promise<Fix> {
         navigator.geolocation.clearWatch(id);
         clearTimeout(t);
         if (best) return resolve(best);
-        void permissionState().then((after) => {
+        void beforeP.then(() => permissionState()).then((after) => {
           diag(`erreur code=${e.code} (${e.message}) permission avant=${before} après=${after} iframe=${inFrame}`);
           if (e.code === 2) return reject(new Error("gps_unavailable"));
           if (e.code === 3) return reject(new Error("gps_timeout"));
