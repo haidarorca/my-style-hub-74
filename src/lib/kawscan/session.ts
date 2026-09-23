@@ -67,7 +67,10 @@ export async function readPosition(timeoutMs = 12000): Promise<Fix> {
     diag("navigator.geolocation absent");
     throw new Error("location_required");
   }
-  const before = await permissionState();
+  // Safari iPhone : la demande native doit partir directement du geste (clic),
+  // sans aucune attente avant. L'état de permission est lu en parallèle.
+  let before: PermissionState | "unknown" = "unknown";
+  const beforeP = permissionState().then((s) => (before = s));
   let inFrame = false;
   try {
     inFrame = window.top !== window.self;
@@ -97,7 +100,7 @@ export async function readPosition(timeoutMs = 12000): Promise<Fix> {
         navigator.geolocation.clearWatch(id);
         clearTimeout(t);
         if (best) return resolve(best);
-        void permissionState().then((after) => {
+        void beforeP.then(() => permissionState()).then((after) => {
           diag(`erreur code=${e.code} (${e.message}) permission avant=${before} après=${after} iframe=${inFrame}`);
           if (e.code === 2) return reject(new Error("gps_unavailable"));
           if (e.code === 3) return reject(new Error("gps_timeout"));
