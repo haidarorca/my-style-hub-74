@@ -431,6 +431,7 @@ export const createCjOrder = createServerFn({ method: "POST" })
       .from("orders")
       .update({
         cj_order_id: d?.orderId ?? null,
+        cj_order_code: d?.cjOrderCode ?? d?.orderId ?? null,
         cj_order_number: d?.orderNumber ?? orderNumber,
         cj_shipment_order_id: d?.shipmentOrderId ?? null,
         cj_order_status: d?.orderStatus ?? "CREATED",
@@ -503,6 +504,7 @@ export const syncCjOrder = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {
       cj_order_status: status,
       cj_order_number: detail?.orderNum ?? order.cj_order_number,
+      cj_order_code: detail?.cjOrderCode ?? order.cj_order_code,
       cj_logistic_name: detail?.logisticName ?? order.cj_logistic_name,
       cj_tracking_number: detail?.trackNumber ?? null,
       cj_tracking_provider: detail?.trackingProvider ?? null,

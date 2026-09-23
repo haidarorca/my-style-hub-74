@@ -266,6 +266,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
             }
           />
           <Row label="CJ Order ID" value={o.cj_order_id} />
+          <Row label="CJ Order Code" value={o.cj_order_code} />
           <Row label="CJ Order Number" value={o.cj_order_number} />
           <Row label="CJ Status" value={o.cj_order_status} />
           <Row label="CJ Paiement" value={o.cj_payment_status ?? "—"} />
