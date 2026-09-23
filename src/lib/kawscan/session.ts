@@ -17,12 +17,16 @@ export const SESSION_ERRORS = new Set([
 ]);
 
 export const SESSION_MESSAGES: Record<string, string> = {
-  out_of_zone: "Vous devez être dans la boutique pour consulter ses prix.",
+  out_of_zone: "Vous êtes hors de la zone de la boutique.",
   gps_imprecise:
-    "Votre position est trop imprécise. Activez la localisation (GPS) de votre téléphone, placez-vous près d'une entrée ou d'une fenêtre, puis réessayez.",
-  location_required: "Autorisez la localisation pour consulter les prix de cette boutique.",
+    "Votre position est trop imprécise. Placez-vous près d'une entrée ou d'une fenêtre, puis réessayez.",
+  location_required: "Impossible d'obtenir votre position. Réessayez.",
+  location_dismissed:
+    "La localisation n'a pas été autorisée. Appuyez sur « Vérifier ma position » puis choisissez « Autoriser ».",
+  gps_unavailable: "Position indisponible. Activez la localisation (GPS) de votre téléphone, puis réessayez.",
+  gps_timeout: "La recherche de position a pris trop de temps. Réessayez, si possible près d'une fenêtre.",
   location_denied:
-    "La localisation est refusée. Autorisez-la dans les réglages de votre navigateur, puis réessayez.",
+    "La localisation est bloquée pour ce site. Autorisez-la dans les réglages du navigateur, puis réessayez.",
   bad_code: "Code incorrect ou expiré. Demandez le code actuel au personnel du magasin.",
   code_required: "Entrez le code fourni par le personnel du magasin.",
   too_many_attempts: "Trop d'essais. Patientez quelques minutes puis réessayez.",
