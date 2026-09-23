@@ -41,16 +41,18 @@ export function CriteriaForm({
   value,
   onChange,
   categories,
+  hideMain = false,
 }: {
   value: Criteria;
   onChange: (c: Criteria) => void;
   categories: Array<{ id: string; path: string }>;
+  hideMain?: boolean;
 }) {
   const set = (patch: Partial<Criteria>) => onChange({ ...value, ...patch });
   const catLabel = categories.find((c) => c.id === value.categoryId)?.path ?? "";
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2">
+      {!hideMain && <div className="grid gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground">Mot-clé, SKU</Label>
           <Input value={value.keyword ?? ""} onChange={(e) => set({ keyword: e.target.value })} placeholder="ex. irrigation, drip, sprinkler" className="h-9" />
@@ -72,7 +74,7 @@ export function CriteriaForm({
             {categories.map((c) => <option key={c.id} value={c.path} />)}
           </datalist>
         </div>
-      </div>
+      </div>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <NumField label="Prix min (USD)" value={value.minPrice} onChange={(v) => set({ minPrice: v })} />
         <NumField label="Prix max (USD)" value={value.maxPrice} onChange={(v) => set({ maxPrice: v })} />

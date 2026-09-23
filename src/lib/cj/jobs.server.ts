@@ -41,6 +41,8 @@ export function mapListItem(item: any) {
     categoryId: item?.categoryId ?? null,
     categoryPath: [item?.oneCategoryName, item?.twoCategoryName, item?.threeCategoryName].filter(Boolean).join(" > ") || null,
     listedNum: n(item?.listedNum),
+    variantCount: n(item?.variantNum) ?? n(item?.variantsCount),
+    weightKg: n(item?.productWeight) !== null ? Number((Number(item.productWeight) / 1000).toFixed(4)) : null,
     createdAt: n(item?.createAt),
   };
 }

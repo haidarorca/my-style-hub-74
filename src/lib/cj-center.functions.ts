@@ -55,6 +55,8 @@ export interface ExploreHit {
   categoryPath: string | null;
   existingProductId: string | null;
   exists: boolean;
+  variantCount: number | null;
+  weightKg: number | null;
 }
 
 /** Parcours du catalogue CJ (listV2, 50 points par page de 100 max). Résultats mis en cache 1 h. */
@@ -92,6 +94,7 @@ export const exploreCj = createServerFn({ method: "POST" })
     let hits: ExploreHit[] = items.map((i) => ({
       pid: i.pid, name: i.name, sku: i.sku, image: i.image, price: i.price, stock: i.stock,
       categoryPath: i.categoryPath, exists: ex.has(i.pid), existingProductId: ex.get(i.pid) ?? null,
+      variantCount: i.variantCount ?? null, weightKg: i.weightKg ?? null,
     }));
     if (data.criteria.newOnly) hits = hits.filter((h) => !h.exists);
     return {
