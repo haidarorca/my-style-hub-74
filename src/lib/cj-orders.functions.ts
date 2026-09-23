@@ -92,7 +92,7 @@ async function loadOrderForCj(orderId: string) {
     .from("orders")
     .select(
       "id, reference, status, total, customer_name, customer_phone, address, city, created_at, " +
-        "cj_order_id, cj_order_number, cj_shipment_order_id, cj_order_status, cj_payment_status, " +
+        "cj_order_id, cj_order_code, cj_order_number, cj_shipment_order_id, cj_order_status, cj_payment_status, " +
         "cj_logistic_name, cj_tracking_number, cj_tracking_provider, cj_tracking_url, " +
         "cj_created_at, cj_paid_at, cj_shipped_at, cj_synced_at, cj_last_error, cj_is_sandbox",
     )
@@ -131,6 +131,7 @@ export interface CjOrderOverview {
   cj_eligible_lines: number;
   total_lines: number;
   cj_order_id: string | null;
+  cj_order_code: string | null;
   cj_order_number: string | null;
   cj_order_status: string | null;
   cj_payment_status: string | null;
