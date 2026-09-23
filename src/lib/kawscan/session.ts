@@ -27,6 +27,8 @@ export const SESSION_MESSAGES: Record<string, string> = {
   gps_timeout: "La recherche de position a pris trop de temps. Réessayez, si possible près d'une fenêtre.",
   location_denied:
     "La localisation est bloquée pour ce site. Autorisez-la dans les réglages du navigateur, puis réessayez.",
+  location_frame:
+    "La localisation n'est pas disponible dans cet aperçu. Ouvrez le QR code directement dans le navigateur du téléphone.",
   bad_code: "Code incorrect ou expiré. Demandez le code actuel au personnel du magasin.",
   code_required: "Entrez le code fourni par le personnel du magasin.",
   too_many_attempts: "Trop d'essais. Patientez quelques minutes puis réessayez.",
@@ -48,16 +50,42 @@ async function permissionState(): Promise<PermissionState | "unknown"> {
   }
 }
 
-/** Lit la position la plus précise possible sur quelques secondes. */
-export function readPosition(timeoutMs = 12000): Promise<Fix> {
+/** Diagnostic temporaire de la dernière tentative de localisation. */
+export let lastGeoDiag = "";
+function diag(s: string) {
+  lastGeoDiag = s;
+  console.info("[KawScan GPS]", s);
+}
+
+/**
+ * Lit la position la plus précise possible sur quelques secondes.
+ * L'état de permission est lu AVANT la demande : seul un état déjà « denied »
+ * avant de demander signifie un vrai blocage du navigateur.
+ */
+export async function readPosition(timeoutMs = 12000): Promise<Fix> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    diag("navigator.geolocation absent");
+    throw new Error("location_required");
+  }
+  const before = await permissionState();
+  let inFrame = false;
+  try {
+    inFrame = window.top !== window.self;
+  } catch {
+    inFrame = true;
+  }
   return new Promise((resolve, reject) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return reject(new Error("location_required"));
     let best: Fix | null = null;
     const done = () => {
       navigator.geolocation.clearWatch(id);
       clearTimeout(t);
-      if (best) resolve(best);
-      else reject(new Error("gps_timeout"));
+      if (best) {
+        diag(`ok acc=${Math.round(best.acc)}m permission=${before}`);
+        resolve(best);
+      } else {
+        diag(`timeout sans position permission=${before}`);
+        reject(new Error("gps_timeout"));
+      }
     };
     const id = navigator.geolocation.watchPosition(
       (p) => {
@@ -69,12 +97,19 @@ export function readPosition(timeoutMs = 12000): Promise<Fix> {
         navigator.geolocation.clearWatch(id);
         clearTimeout(t);
         if (best) return resolve(best);
-        if (e.code === 2) return reject(new Error("gps_unavailable"));
-        if (e.code === 3) return reject(new Error("gps_timeout"));
-        // PERMISSION_DENIED : distinguer un refus ponctuel d'un blocage définitif.
-        void permissionState().then((st) =>
-          reject(new Error(st === "denied" ? "location_denied" : "location_dismissed")),
-        );
+        void permissionState().then((after) => {
+          diag(`erreur code=${e.code} (${e.message}) permission avant=${before} après=${after} iframe=${inFrame}`);
+          if (e.code === 2) return reject(new Error("gps_unavailable"));
+          if (e.code === 3) return reject(new Error("gps_timeout"));
+          // PERMISSION_DENIED
+          if (inFrame) return reject(new Error("location_frame"));
+          // Déjà bloqué avant même de demander = vrai blocage navigateur.
+          if (before === "denied") return reject(new Error("location_denied"));
+          // Permission accordée au site mais refus = localisation du téléphone désactivée.
+          if (before === "granted") return reject(new Error("gps_unavailable"));
+          // Demande affichée puis refusée/fermée : on peut simplement réessayer.
+          reject(new Error("location_dismissed"));
+        });
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: timeoutMs },
     );

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { KeyRound, Loader2, MapPin, ShieldCheck } from "lucide-react";
-import { readPosition, SESSION_MESSAGES, type Fix, type ProtectionMode } from "@/lib/kawscan/session";
+import { lastGeoDiag, readPosition, SESSION_MESSAGES, type Fix, type ProtectionMode } from "@/lib/kawscan/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -114,6 +114,9 @@ export function SessionGate({
       )}
 
       {msg && <p role="alert" className="max-w-xs text-sm font-medium text-destructive">{msg}</p>}
+      {msg && lastGeoDiag && (
+        <p className="max-w-xs break-words text-[10px] text-muted-foreground">Diagnostic : {lastGeoDiag}</p>
+      )}
     </div>
   );
 }
