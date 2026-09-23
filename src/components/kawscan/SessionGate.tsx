@@ -99,14 +99,14 @@ export function SessionGate({
           <Input
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={8}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            placeholder="000000"
-            className="h-14 text-center text-2xl tracking-[0.4em]"
+            placeholder="Code"
+            className="h-14 text-center text-2xl tracking-widest"
             aria-label="Code du magasin"
           />
-          <Button type="submit" className="h-12 w-full" disabled={busy || code.length < 6}>
+          <Button type="submit" className="h-12 w-full" disabled={busy || code.length < 1}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
             Activer
           </Button>

@@ -2092,7 +2092,12 @@ export type Database = {
       }
       kawscan_stores: {
         Row: {
+          code_n1: number
+          code_n2: number | null
+          code_op1: string
+          code_op2: string | null
           code_period_minutes: number
+          code_timezone: string
           created_at: string
           currency_code: string
           display_name: string | null
@@ -2112,7 +2117,12 @@ export type Database = {
           zone_polygon: Json | null
         }
         Insert: {
+          code_n1?: number
+          code_n2?: number | null
+          code_op1?: string
+          code_op2?: string | null
           code_period_minutes?: number
+          code_timezone?: string
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -2132,7 +2142,12 @@ export type Database = {
           zone_polygon?: Json | null
         }
         Update: {
+          code_n1?: number
+          code_n2?: number | null
+          code_op1?: string
+          code_op2?: string | null
           code_period_minutes?: number
+          code_timezone?: string
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -5523,6 +5538,16 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      kawscan_apply_formula: {
+        Args: {
+          _h: number
+          _n1: number
+          _n2: number
+          _op1: string
+          _op2: string
+        }
+        Returns: number
+      }
       kawscan_can_manage: {
         Args: { _store_id: string; _uid: string }
         Returns: boolean
