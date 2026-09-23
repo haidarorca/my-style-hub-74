@@ -1844,6 +1844,35 @@ export type Database = {
           },
         ]
       }
+      kawscan_code_attempts: {
+        Row: {
+          at: string
+          attempt_key: string
+          id: number
+          store_id: string
+        }
+        Insert: {
+          at?: string
+          attempt_key: string
+          id?: number
+          store_id: string
+        }
+        Update: {
+          at?: string
+          attempt_key?: string
+          id?: number
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_code_attempts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kawscan_price_tiers: {
         Row: {
           created_at: string
@@ -1953,6 +1982,79 @@ export type Database = {
           },
         ]
       }
+      kawscan_sessions: {
+        Row: {
+          expires_at: string
+          id: string
+          last_ping_at: string | null
+          out_of_zone_since: string | null
+          scans: number
+          searches: number
+          short_id: string
+          started_at: string
+          store_id: string
+          token_hash: string
+        }
+        Insert: {
+          expires_at: string
+          id?: string
+          last_ping_at?: string | null
+          out_of_zone_since?: string | null
+          scans?: number
+          searches?: number
+          short_id: string
+          started_at?: string
+          store_id: string
+          token_hash: string
+        }
+        Update: {
+          expires_at?: string
+          id?: string
+          last_ping_at?: string | null
+          out_of_zone_since?: string | null
+          scans?: number
+          searches?: number
+          short_id?: string
+          started_at?: string
+          store_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_sessions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kawscan_store_secrets: {
+        Row: {
+          created_at: string
+          secret: string
+          store_id: string
+        }
+        Insert: {
+          created_at?: string
+          secret?: string
+          store_id: string
+        }
+        Update: {
+          created_at?: string
+          secret?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kawscan_store_secrets_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "kawscan_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kawscan_store_users: {
         Row: {
           created_at: string
@@ -1990,6 +2092,7 @@ export type Database = {
       }
       kawscan_stores: {
         Row: {
+          code_period_minutes: number
           created_at: string
           currency_code: string
           display_name: string | null
@@ -1998,14 +2101,18 @@ export type Database = {
           logo_url: string | null
           name: string
           owner_id: string
+          protection_mode: string
+          session_max_minutes: number
           show_back_button: boolean
           show_home_button: boolean
           show_kawzone_link: boolean
           show_kawzone_logo: boolean
           slug: string
           updated_at: string
+          zone_polygon: Json | null
         }
         Insert: {
+          code_period_minutes?: number
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -2014,14 +2121,18 @@ export type Database = {
           logo_url?: string | null
           name: string
           owner_id: string
+          protection_mode?: string
+          session_max_minutes?: number
           show_back_button?: boolean
           show_home_button?: boolean
           show_kawzone_link?: boolean
           show_kawzone_logo?: boolean
           slug: string
           updated_at?: string
+          zone_polygon?: Json | null
         }
         Update: {
+          code_period_minutes?: number
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -2030,12 +2141,15 @@ export type Database = {
           logo_url?: string | null
           name?: string
           owner_id?: string
+          protection_mode?: string
+          session_max_minutes?: number
           show_back_button?: boolean
           show_home_button?: boolean
           show_kawzone_link?: boolean
           show_kawzone_logo?: boolean
           slug?: string
           updated_at?: string
+          zone_polygon?: Json | null
         }
         Relationships: []
       }
@@ -5413,12 +5527,25 @@ export type Database = {
         Args: { _store_id: string; _uid: string }
         Returns: boolean
       }
+      kawscan_close_session: { Args: { _id: string }; Returns: undefined }
+      kawscan_code_for: {
+        Args: { _counter: number; _period: number; _store_id: string }
+        Returns: string
+      }
+      kawscan_current_code: { Args: { _store_id: string }; Returns: Json }
       kawscan_is_admin: { Args: { _uid: string }; Returns: boolean }
       kawscan_is_owner: {
         Args: { _store_id: string; _uid: string }
         Returns: boolean
       }
-      kawscan_lookup: { Args: { _code: string; _slug: string }; Returns: Json }
+      kawscan_lookup: {
+        Args: { _code: string; _session?: string; _slug: string }
+        Returns: Json
+      }
+      kawscan_lookup_core: {
+        Args: { _code: string; _slug: string }
+        Returns: Json
+      }
       kawscan_next_internal_code: {
         Args: { _store_id: string }
         Returns: string
@@ -5440,8 +5567,42 @@ export type Database = {
         }[]
       }
       kawscan_search: {
+        Args: { _limit?: number; _q: string; _session?: string; _slug: string }
+        Returns: Json
+      }
+      kawscan_search_core: {
         Args: { _limit?: number; _q: string; _slug: string }
         Returns: Json
+      }
+      kawscan_session_check: {
+        Args: { _kind: string; _store_id: string; _token: string }
+        Returns: string
+      }
+      kawscan_session_ping: {
+        Args: {
+          _acc?: number
+          _lat?: number
+          _lng?: number
+          _session: string
+          _slug: string
+        }
+        Returns: Json
+      }
+      kawscan_session_start: {
+        Args: {
+          _acc?: number
+          _attempt_key?: string
+          _code?: string
+          _lat?: number
+          _lng?: number
+          _slug: string
+        }
+        Returns: Json
+      }
+      kawscan_store_protection: { Args: { _slug: string }; Returns: Json }
+      kawscan_zone_distance: {
+        Args: { _lat: number; _lng: number; _poly: Json }
+        Returns: number
       }
       log_admin_action: {
         Args: {

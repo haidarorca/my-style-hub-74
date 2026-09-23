@@ -24,6 +24,8 @@ import { ZoneAnalyzer } from "@/components/kawscan/ZoneAnalyzer";
 import { detectBarcode, fileToCanvas, type ZoneAnalysis } from "@/lib/kawscan/zone-analysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SessionGate } from "@/components/kawscan/SessionGate";
+import { SESSION_ERRORS, useKawscanSession } from "@/lib/kawscan/session";
 
 export const Route = createFileRoute("/kawscan/store/$slug")({
   head: () => ({
@@ -153,15 +155,23 @@ function StoreScanner() {
   });
 
   const store = storeQuery.data;
-  const canScan = store?.access_state === "ok";
+  const session = useKawscanSession(slug);
+  const sessionToken = session.token;
+  const endSession = session.end;
+  const canScan = store?.access_state === "ok" && session.ready;
 
   const lookup = useCallback(
     async (code: string) => {
       setBusy(true);
       try {
-        const { data, error } = await supabase.rpc("kawscan_lookup", { _slug: slug, _code: code });
+        const { data, error } = await supabase.rpc("kawscan_lookup", { _slug: slug, _code: code, _session: sessionToken ?? undefined });
         if (error) throw error;
-        setResult(data as unknown as LookupResult);
+        const r = data as unknown as LookupResult;
+        if (r.error && SESSION_ERRORS.has(r.error)) {
+          endSession(r.error);
+          return;
+        }
+        setResult(r);
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(40);
       } catch {
         setResult({ error: "lookup_failed" });
@@ -169,7 +179,7 @@ function StoreScanner() {
         setBusy(false);
       }
     },
-    [slug],
+    [slug, sessionToken, endSession],
   );
 
   // Le scanner est en pause pendant l'affichage d'un résultat ou d'une recherche.
@@ -190,10 +200,15 @@ function StoreScanner() {
       }
       setSearching(true);
       try {
-        const { data, error } = await rpc("kawscan_search", { _slug: slug, _q: text, _limit: 30 });
+        const { data, error } = await rpc("kawscan_search", { _slug: slug, _q: text, _limit: 30, _session: sessionToken });
         if (error) throw new Error(error.message);
         if (seq !== searchSeq.current) return;
-        const payload = data as { results?: SearchHit[] } | null;
+        const payload = data as { results?: SearchHit[]; error?: string } | null;
+        if (payload?.error && SESSION_ERRORS.has(payload.error)) {
+          endSession(payload.error);
+          setSearchOpen(false);
+          return;
+        }
         setHits(payload?.results ?? []);
       } catch {
         if (seq === searchSeq.current) setHits([]);
@@ -201,7 +216,7 @@ function StoreScanner() {
         if (seq === searchSeq.current) setSearching(false);
       }
     },
-    [slug],
+    [slug, sessionToken, endSession],
   );
 
   // Recherche différée pendant la frappe (économie réseau et batterie).
@@ -323,7 +338,7 @@ function StoreScanner() {
     };
   }, []);
 
-  if (storeQuery.isLoading) {
+  if (storeQuery.isLoading || (store?.access_state === "ok" && !session.mode)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -333,6 +348,18 @@ function StoreScanner() {
 
   if (!store) {
     return <BlockedScreen title="Magasin introuvable" message={ACCESS_STATE_MESSAGES.store_not_found} />;
+  }
+
+  if (store.access_state === "ok" && !session.ready && session.mode) {
+    return (
+      <SessionGate
+        key={session.ended ?? "start"}
+        storeName={store.display_name || store.name}
+        mode={session.mode}
+        reason={session.ended}
+        start={session.start}
+      />
+    );
   }
 
   if (!canScan) {

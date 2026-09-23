@@ -12,6 +12,7 @@ import { qrDataUrl } from "@/lib/kawscan/render";
 import { ProductForm } from "@/components/kawscan/ProductForm";
 import { ScanDialog } from "@/components/kawscan/ScanDialog";
 import { PrintLabels } from "@/components/kawscan/PrintLabels";
+import { ProtectionSettings } from "@/components/kawscan/ProtectionSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -122,10 +123,11 @@ function StoreManage() {
       </div>
 
       <Tabs defaultValue="produits">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="produits">Produits</TabsTrigger>
           <TabsTrigger value="impression">Étiquettes</TabsTrigger>
           <TabsTrigger value="affiche">Affiche magasin</TabsTrigger>
+          <TabsTrigger value="protection">Protection</TabsTrigger>
         </TabsList>
 
         <TabsContent value="produits" className="space-y-4 pt-4">
@@ -215,6 +217,9 @@ function StoreManage() {
               <Download className="mr-2 h-4 w-4" /> Télécharger le QR
             </Button>
           </div>
+        </TabsContent>
+        <TabsContent value="protection" className="pt-4">
+          <ProtectionSettings storeId={storeId} />
         </TabsContent>
       </Tabs>
 
