@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Pause, Play, X, RotateCcw, Zap, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Pause, Play, X, RotateCcw, Zap, ChevronDown, ChevronUp, RefreshCw, PackageOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,9 +51,9 @@ export function CjJobsPanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Synchroniser les produits CJ déjà importés</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
+      <details className="rounded-md border bg-card">
+        <summary className="cursor-pointer list-none p-4 text-sm font-semibold">Synchroniser le catalogue existant</summary>
+        <div className="space-y-3 border-t p-4">
           <div className="flex flex-wrap gap-3 text-xs">
             {PARTS.map(([k, l]) => (
               <label key={k} className="flex items-center gap-2">
@@ -70,11 +70,11 @@ export function CjJobsPanel() {
           }}>
             <RefreshCw className="mr-2 h-3 w-3" /> Synchroniser tout
           </Button>
-          <p className="text-[11px] text-muted-foreground">La synchronisation met à jour sans jamais recréer le produit, ni changer sa publication, son prix de vente ou ses marges.</p>
-        </CardContent>
-      </Card>
+          <p className="text-xs text-muted-foreground">Met à jour les données choisies sans recréer les produits ni changer leur publication.</p>
+        </div>
+      </details>
 
-      {jobs.length === 0 && <p className="text-xs text-muted-foreground">Aucun import pour l'instant.</p>}
+      {jobs.length === 0 && <div className="grid min-h-56 place-items-center text-center"><div><PackageOpen className="mx-auto mb-3 h-9 w-9 text-muted-foreground" /><p className="font-medium">Aucun import pour l'instant</p><p className="text-sm text-muted-foreground">Les imports lancés depuis Explorer apparaîtront ici.</p></div></div>}
       {jobs.map((j) => {
         const done = j.n_success + j.n_exists + j.n_synced + j.n_failed + j.n_skipped;
         const pct = j.total ? Math.round((done / j.total) * 100) : 0;
@@ -82,26 +82,21 @@ export function CjJobsPanel() {
         return (
           <Card key={j.id}>
             <CardContent className="space-y-2 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold">{j.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Date(j.created_at).toLocaleString("fr-FR")} · {j.kind === "sync" ? `Synchronisation : ${(j.sync_parts ?? []).join(", ")}` : "Import"}
-                    {j.target_count ? ` · objectif ${j.target_count}` : ""} · {j.api_calls} appel(s) CJ
-                  </p>
+                  <p className="text-xs text-muted-foreground">{new Date(j.created_at).toLocaleString("fr-FR")} · {j.kind === "sync" ? "Synchronisation" : "Import"}{j.target_count ? ` · ${j.target_count} produits` : ""}</p>
                 </div>
                 <Badge variant={j.status === "completed" ? "secondary" : j.status === "paused" || j.status === "cancelled" ? "outline" : "default"}>
                   {STATUS_FR[j.status] ?? j.status}
                 </Badge>
               </div>
               <Progress value={pct} className="h-2" />
-              <div className="grid grid-cols-3 gap-1 text-[11px] sm:grid-cols-7">
-                <Stat l="Demandés" v={j.total} />
+              <p className="text-sm font-semibold">{done.toLocaleString("fr-FR")} / {j.total.toLocaleString("fr-FR")} <span className="font-normal text-muted-foreground">({pct} %)</span></p>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <Stat l="Importés" v={j.n_success} />
                 <Stat l="Déjà existants" v={j.n_exists} />
-                <Stat l="Synchronisés" v={j.n_synced} />
                 <Stat l="Erreurs" v={j.n_failed} bad />
-                <Stat l="Ignorés" v={j.n_skipped} />
                 <Stat l="En cours / attente" v={j.n_processing + j.n_pending} />
               </div>
               {j.last_error && <p className="text-[11px] text-destructive">Dernière erreur : {j.last_error}</p>}
@@ -110,9 +105,8 @@ export function CjJobsPanel() {
                 {j.status === "paused" && <Button size="sm" variant="outline" onClick={() => act(j.id, "resume")}><Play className="mr-1 h-3 w-3" />Reprendre</Button>}
                 {(active || j.status === "paused") && <Button size="sm" variant="outline" onClick={() => act(j.id, "cancel")}><X className="mr-1 h-3 w-3" />Annuler</Button>}
                 {j.n_failed > 0 && j.status !== "cancelled" && <Button size="sm" variant="outline" onClick={() => act(j.id, "retry_failed")}><RotateCcw className="mr-1 h-3 w-3" />Réessayer les erreurs</Button>}
-                {active && <Button size="sm" variant="ghost" disabled={busy === j.id + "pump"} onClick={() => act(j.id, "pump")}><Zap className="mr-1 h-3 w-3" />Traiter un lot maintenant</Button>}
                 <Button size="sm" variant="ghost" onClick={() => setOpen(open === j.id ? null : j.id)}>
-                  {open === j.id ? <ChevronUp className="mr-1 h-3 w-3" /> : <ChevronDown className="mr-1 h-3 w-3" />} Détail
+                  {open === j.id ? <ChevronUp className="mr-1 h-3 w-3" /> : <ChevronDown className="mr-1 h-3 w-3" />} Voir les détails
                 </Button>
               </div>
               {open === j.id && <JobItems jobId={j.id} />}
@@ -126,7 +120,7 @@ export function CjJobsPanel() {
 
 function Stat({ l, v, bad }: { l: string; v: number; bad?: boolean }) {
   return (
-    <div className="rounded border p-1.5">
+    <div className="rounded-md bg-muted/40 p-2">
       <p className="text-muted-foreground">{l}</p>
       <p className={`font-semibold ${bad && v > 0 ? "text-destructive" : ""}`}>{v}</p>
     </div>
@@ -144,7 +138,7 @@ function JobItems({ jobId }: { jobId: string }) {
   });
   return (
     <div className="space-y-2 border-t pt-2">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex gap-1 overflow-x-auto pb-1">
         {[null, ...Object.keys(ITEM_FR)].map((s) => (
           <Button key={s ?? "all"} size="sm" variant={status === s ? "default" : "outline"} className="h-7 text-[11px]" onClick={() => { setStatus(s); setPage(0); }}>
             {s ? ITEM_FR[s] : "Tous"}
@@ -156,8 +150,10 @@ function JobItems({ jobId }: { jobId: string }) {
           {it.image ? <img src={it.image} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded object-cover" /> : <div className="h-9 w-9 shrink-0 rounded bg-muted" />}
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">{it.name ?? it.pid}</p>
-            <p className="text-muted-foreground">{it.pid} · {ITEM_FR[it.status] ?? it.status}{it.attempts > 1 ? ` · ${it.attempts} essais` : ""}</p>
+            <p className="text-muted-foreground">{ITEM_FR[it.status] ?? it.status}{it.attempts > 1 ? ` · ${it.attempts} essais` : ""}</p>
             {it.error && <p className="text-destructive">{it.error}</p>}
+            {Array.isArray(it.missing) && it.missing.length > 0 && <p className="text-warning">Manque : {it.missing.join(" · ")}</p>}
+            <details className="mt-1 text-muted-foreground"><summary className="cursor-pointer">Informations techniques</summary><p className="break-all pt-1">PID {it.pid}</p></details>
           </div>
         </div>
       ))}
