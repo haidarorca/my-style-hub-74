@@ -17,12 +17,16 @@ export const SESSION_ERRORS = new Set([
 ]);
 
 export const SESSION_MESSAGES: Record<string, string> = {
-  out_of_zone: "Vous devez être dans la boutique pour consulter ses prix.",
+  out_of_zone: "Vous êtes hors de la zone de la boutique.",
   gps_imprecise:
-    "Votre position est trop imprécise. Activez la localisation (GPS) de votre téléphone, placez-vous près d'une entrée ou d'une fenêtre, puis réessayez.",
-  location_required: "Autorisez la localisation pour consulter les prix de cette boutique.",
+    "Votre position est trop imprécise. Placez-vous près d'une entrée ou d'une fenêtre, puis réessayez.",
+  location_required: "Impossible d'obtenir votre position. Réessayez.",
+  location_dismissed:
+    "La localisation n'a pas été autorisée. Appuyez sur « Vérifier ma position » puis choisissez « Autoriser ».",
+  gps_unavailable: "Position indisponible. Activez la localisation (GPS) de votre téléphone, puis réessayez.",
+  gps_timeout: "La recherche de position a pris trop de temps. Réessayez, si possible près d'une fenêtre.",
   location_denied:
-    "La localisation est refusée. Autorisez-la dans les réglages de votre navigateur, puis réessayez.",
+    "La localisation est bloquée pour ce site. Autorisez-la dans les réglages du navigateur, puis réessayez.",
   bad_code: "Code incorrect ou expiré. Demandez le code actuel au personnel du magasin.",
   code_required: "Entrez le code fourni par le personnel du magasin.",
   too_many_attempts: "Trop d'essais. Patientez quelques minutes puis réessayez.",
@@ -34,6 +38,16 @@ export const SESSION_MESSAGES: Record<string, string> = {
 
 export type Fix = { lat: number; lng: number; acc: number };
 
+/** État réel de la permission (si le navigateur l'expose). */
+async function permissionState(): Promise<PermissionState | "unknown"> {
+  try {
+    const p = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
+    return p?.state ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /** Lit la position la plus précise possible sur quelques secondes. */
 export function readPosition(timeoutMs = 12000): Promise<Fix> {
   return new Promise((resolve, reject) => {
@@ -43,7 +57,7 @@ export function readPosition(timeoutMs = 12000): Promise<Fix> {
       navigator.geolocation.clearWatch(id);
       clearTimeout(t);
       if (best) resolve(best);
-      else reject(new Error("location_required"));
+      else reject(new Error("gps_timeout"));
     };
     const id = navigator.geolocation.watchPosition(
       (p) => {
@@ -54,8 +68,13 @@ export function readPosition(timeoutMs = 12000): Promise<Fix> {
       (e) => {
         navigator.geolocation.clearWatch(id);
         clearTimeout(t);
-        if (best) resolve(best);
-        else reject(new Error(e.code === 1 ? "location_denied" : "location_required"));
+        if (best) return resolve(best);
+        if (e.code === 2) return reject(new Error("gps_unavailable"));
+        if (e.code === 3) return reject(new Error("gps_timeout"));
+        // PERMISSION_DENIED : distinguer un refus ponctuel d'un blocage définitif.
+        void permissionState().then((st) =>
+          reject(new Error(st === "denied" ? "location_denied" : "location_dismissed")),
+        );
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: timeoutMs },
     );
