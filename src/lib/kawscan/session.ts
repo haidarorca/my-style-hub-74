@@ -34,6 +34,16 @@ export const SESSION_MESSAGES: Record<string, string> = {
 
 export type Fix = { lat: number; lng: number; acc: number };
 
+/** État réel de la permission (si le navigateur l'expose). */
+async function permissionState(): Promise<PermissionState | "unknown"> {
+  try {
+    const p = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
+    return p?.state ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /** Lit la position la plus précise possible sur quelques secondes. */
 export function readPosition(timeoutMs = 12000): Promise<Fix> {
   return new Promise((resolve, reject) => {
@@ -54,8 +64,13 @@ export function readPosition(timeoutMs = 12000): Promise<Fix> {
       (e) => {
         navigator.geolocation.clearWatch(id);
         clearTimeout(t);
-        if (best) resolve(best);
-        else reject(new Error(e.code === 1 ? "location_denied" : "location_required"));
+        if (best) return resolve(best);
+        if (e.code === 2) return reject(new Error("gps_unavailable"));
+        if (e.code === 3) return reject(new Error("gps_timeout"));
+        // PERMISSION_DENIED : distinguer un refus ponctuel d'un blocage définitif.
+        void permissionState().then((st) =>
+          reject(new Error(st === "denied" ? "location_denied" : "location_dismissed")),
+        );
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: timeoutMs },
     );
