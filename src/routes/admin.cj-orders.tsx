@@ -182,9 +182,10 @@ function OrderDetail({ orderId }: { orderId: string }) {
   });
 
   const refresh = async () => {
-    await qc.invalidateQueries({ queryKey: ["cj-order", orderId] });
-    await qc.invalidateQueries({ queryKey: ["cj-order-log", orderId] });
-    await qc.invalidateQueries({ queryKey: ["cj-orders"] });
+    // Rafraîchissement non bloquant : l'écran reste utilisable pendant la mise à jour.
+    void qc.invalidateQueries({ queryKey: ["cj-order", orderId] });
+    void qc.invalidateQueries({ queryKey: ["cj-order-log", orderId] });
+    void qc.invalidateQueries({ queryKey: ["cj-orders"] });
   };
 
   const onQuote = async () => {
