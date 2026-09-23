@@ -52,3 +52,46 @@ export function parseVariantKey(key: unknown): { size: string | null; color: str
   // (première = taille) sans rien inventer.
   return { size: parts[0] ?? null, color: parts.slice(1).join("-") || null };
 }
+
+/**
+ * Options réelles d'une variante CJ, à partir des NOMS de dimensions
+ * fournis par CJ (`productKeyEn`, ex. « Color-Size ») et des VALEURS de
+ * la variante (`variantKey`, ex. « Red-43 »), dans le même ordre.
+ * Aucune valeur n'est réécrite. `size` = dimension nommée « …size… » ;
+ * `color` = valeurs des autres dimensions (Color, Style, Quantity…),
+ * telles quelles. Si l'appariement est ambigu, la clé brute est conservée.
+ */
+export function parseCjVariantOptions(
+  productKeyEn: unknown,
+  variantKey: unknown,
+): { size: string | null; color: string | null; options: Record<string, string> | null } {
+  const key = typeof variantKey === "string" ? variantKey.trim() : "";
+  if (!key) return { size: null, color: null, options: null };
+  const names = typeof productKeyEn === "string" && productKeyEn.trim()
+    ? productKeyEn.split("-").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const isSize = (n: string) => /size|尺码|尺寸|码/i.test(n);
+  let values = key.split("-").map((s) => s.trim()).filter(Boolean);
+
+  if (names.length === 1) values = [key];
+  if (names.length && names.length < values.length && names.length > 1) {
+    // Une valeur contient un tiret (« All-Black-44 ») : on regroupe dans la
+    // dimension non-taille, la taille restant la valeur isolée à sa position.
+    const sizeIdx = names.findIndex(isSize);
+    if (names.length === 2 && sizeIdx >= 0) {
+      values = sizeIdx === 0
+        ? [values[0]!, values.slice(1).join("-")]
+        : [values.slice(0, -1).join("-"), values[values.length - 1]!];
+    }
+  }
+  if (names.length && names.length === values.length) {
+    const options: Record<string, string> = {};
+    names.forEach((n, i) => { options[n] = values[i]!; });
+    const sIdx = names.findIndex(isSize);
+    const size = sIdx >= 0 ? values[sIdx]! : null;
+    const rest = values.filter((_, i) => i !== sIdx).join(" / ");
+    return { size, color: rest || null, options };
+  }
+  // Ambigu ou noms absents : rien n'est deviné, la clé est gardée entière.
+  return { size: null, color: key, options: { Option: key } };
+}
