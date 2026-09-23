@@ -196,6 +196,7 @@ async function buildOverview(orderId: string): Promise<CjOrderOverview> {
     cj_eligible_lines: cjItems.length,
     total_lines: items.length,
     cj_order_id: order.cj_order_id ?? null,
+    cj_order_code: order.cj_order_code ?? null,
     cj_order_number: order.cj_order_number ?? null,
     cj_order_status: order.cj_order_status ?? null,
     cj_payment_status: order.cj_payment_status ?? null,
