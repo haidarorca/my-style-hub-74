@@ -1,3 +1,3 @@
-- [ ] Refaire l’interface du Centre CJ autour de recherche, sélection, import et suivi
-- [ ] Préserver et brancher toutes les actions réelles (import, synchronisation, pause, reprise, annulation, retry, programmation)
-- [ ] Vérifier l’affichage ordinateur et téléphone et les actions principales
+- [x] Refaire l’interface du Centre CJ autour de recherche, sélection, import et suivi
+- [x] Préserver et brancher toutes les actions réelles (import, synchronisation, pause, reprise, annulation, retry, programmation)
+- [x] Vérifier l’affichage ordinateur et téléphone et les actions principales

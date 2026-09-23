@@ -42,7 +42,9 @@ export function mapListItem(item: any) {
     categoryPath: [item?.oneCategoryName, item?.twoCategoryName, item?.threeCategoryName].filter(Boolean).join(" > ") || null,
     listedNum: n(item?.listedNum),
     variantCount: n(item?.variantNum) ?? n(item?.variantsCount),
-    weightKg: n(item?.productWeight) !== null ? Number((Number(item.productWeight) / 1000).toFixed(4)) : null,
+    // listV2 ne garantit pas ici une unité exploitable : la fiche détaillée
+    // reste la seule source utilisée pour afficher/importer le poids réel.
+    weightKg: null,
     createdAt: n(item?.createAt),
   };
 }

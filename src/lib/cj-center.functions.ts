@@ -57,6 +57,8 @@ export interface ExploreHit {
   exists: boolean;
   variantCount: number | null;
   weightKg: number | null;
+  missing: string[];
+  needsSync: boolean;
 }
 
 /** Parcours du catalogue CJ (listV2, 50 points par page de 100 max). Résultats mis en cache 1 h. */
@@ -91,12 +93,25 @@ export const exploreCj = createServerFn({ method: "POST" })
     const list: any[] = (Array.isArray(r?.content) ? r.content : []).flatMap((x: any) => x?.productList ?? []);
     const items = list.map(mapListItem).filter((i) => i.pid);
     const ex = await existingPidMap(items.map((i) => i.pid));
+    const { data: logs } = await a.from("cj_import_log")
+      .select("cj_product_id, missing_fields, created_at")
+      .in("cj_product_id", items.map((i) => i.pid))
+      .order("created_at", { ascending: false });
+    const latestMissing = new Map<string, string[]>();
+    for (const log of logs ?? []) {
+      const pid = String(log.cj_product_id);
+      if (!latestMissing.has(pid)) latestMissing.set(pid, Array.isArray(log.missing_fields) ? log.missing_fields.map(String) : []);
+    }
     let hits: ExploreHit[] = items.map((i) => ({
       pid: i.pid, name: i.name, sku: i.sku, image: i.image, price: i.price, stock: i.stock,
       categoryPath: i.categoryPath, exists: ex.has(i.pid), existingProductId: ex.get(i.pid) ?? null,
       variantCount: i.variantCount ?? null, weightKg: i.weightKg ?? null,
+      missing: latestMissing.get(i.pid) ?? [
+        ...(!i.image ? ["images"] : []), ...(!i.sku ? ["SKU"] : []),
+        ...(i.price == null ? ["prix"] : []), ...(i.stock == null ? ["stock"] : []),
+      ],
+      needsSync: ex.has(i.pid) && (latestMissing.get(i.pid)?.length ?? 0) > 0,
     }));
-    if (data.criteria.newOnly) hits = hits.filter((h) => !h.exists);
     return {
       ok: true, error: null as string | null, hits,
       total: Number(r?.totalRecords ?? 0) || 0, totalPages: Number(r?.totalPages ?? 0) || 0,

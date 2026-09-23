@@ -89,7 +89,7 @@ export function CriteriaForm({
           ["requireSku", "Avec SKU"],
           ["requireWeight", "Avec poids"],
           ["requireDimensions", "Avec dimensions"],
-          ["newOnly", "Nouveaux uniquement"],
+          ...(!hideMain ? [["newOnly", "Nouveaux uniquement"]] : []),
         ] as const).map(([k, label]) => (
           <label key={k} className="flex items-center gap-2">
             <input type="checkbox" className="h-4 w-4 accent-primary" checked={!!value[k]} onChange={(e) => set({ [k]: e.target.checked } as any)} />

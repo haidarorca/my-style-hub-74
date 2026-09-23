@@ -13,7 +13,7 @@ import { exploreCj, createCjJob, type Criteria, type ExploreHit } from "@/lib/cj
 import { CriteriaForm, EMPTY_CRITERIA } from "./CriteriaForm";
 import { CjProductDetail } from "./CjProductDetail";
 
-type ResultFilter = "all" | "new" | "existing";
+type ResultFilter = "all" | "new" | "existing" | "sync" | "incomplete";
 
 export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ id: string; path: string }>; onJobCreated: () => void }) {
   const qc = useQueryClient();
@@ -26,10 +26,16 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
   const [selected, setSelected] = useState<Map<string, ExploreHit>>(new Map());
   const [detail, setDetail] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
+  const [resultFilter, setResultFilter] = useState<ResultFilter>("new");
   const [busy, setBusy] = useState(false);
 
-  const visible = useMemo(() => (res?.hits ?? []).filter((h) => resultFilter === "all" || (resultFilter === "new" ? !h.exists : h.exists)), [res, resultFilter]);
+  const visible = useMemo(() => (res?.hits ?? []).filter((h) => {
+    if (resultFilter === "new") return !h.exists;
+    if (resultFilter === "existing") return h.exists;
+    if (resultFilter === "sync") return h.needsSync;
+    if (resultFilter === "incomplete") return h.missing.length > 0;
+    return true;
+  }), [res, resultFilter]);
   const selectedRows = [...selected.values()];
   const selectedNew = selectedRows.filter((h) => !h.exists);
   const selectedExisting = selectedRows.filter((h) => h.exists);
@@ -44,7 +50,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
       if (!r.ok) { toast.error(r.error ?? "Recherche impossible"); return; }
       setPage(p);
       setRes({ hits: r.hits, total: r.total, totalPages: r.totalPages });
-      setResultFilter("all");
+      setResultFilter(criteria.newOnly === false ? "all" : "new");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
     finally { setLoading(false); }
   }
@@ -130,7 +136,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
             <Filter className="h-4 w-4" />Filtres<ChevronDown className={`h-3 w-3 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
           </Button>
           <label className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs">
-            <Checkbox checked={criteria.newOnly !== false} onCheckedChange={(checked) => setCriteria({ ...criteria, newOnly: checked === true })} />
+            <Checkbox checked={resultFilter === "new"} onCheckedChange={(checked) => setResultFilter(checked === true ? "new" : "all")} />
             Nouveaux uniquement
           </label>
           {(criteria.minPrice != null || criteria.maxPrice != null || criteria.minStock != null || criteria.maxWeightKg != null || criteria.requireImages || criteria.requireSku || criteria.requireDimensions) && <Badge variant="secondary">Filtres actifs</Badge>}
@@ -151,7 +157,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
             <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
-            {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label}</Button>)}
+            {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés'], ['sync', 'À synchroniser'], ['incomplete', 'Incomplets']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label}</Button>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
             <label className="flex items-center gap-2 text-sm font-medium"><Checkbox checked={pageSelected} onCheckedChange={togglePage} />Sélectionner la page</label>
@@ -165,7 +171,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
               <Button variant="ghost" className="absolute inset-0 z-0 h-full w-full rounded-none p-0" onClick={() => setDetail(h.pid)} aria-label={`Voir ${h.name ?? "le produit"}`} />
               {h.image ? <img src={h.image} alt={h.name ?? "Produit CJ"} loading="lazy" className="h-full w-full object-contain" /> : <div className="grid h-full place-items-center"><PackageSearch className="h-8 w-8 text-muted-foreground" /></div>}
               <label className="absolute left-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-md border bg-background/95 shadow-sm"><Checkbox checked={selected.has(h.pid)} onCheckedChange={() => toggle(h)} aria-label="Sélectionner ce produit" /></label>
-              <Badge className="absolute right-2 top-2" variant={h.exists ? "secondary" : "default"}>{h.exists ? <><CheckCircle2 className="h-3 w-3" />Déjà importé</> : "Nouveau"}</Badge>
+              <Badge className="absolute right-2 top-2" variant={h.exists ? "secondary" : "default"}>{h.needsSync ? "À synchroniser" : h.exists ? <><CheckCircle2 className="h-3 w-3" />Déjà importé</> : "Nouveau"}</Badge>
             </div>
             <div className="space-y-3 p-3">
               <button type="button" className="block w-full text-left" onClick={() => setDetail(h.pid)}><h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5">{h.name ?? "Produit sans nom"}</h3><p className="mt-1 truncate text-xs text-muted-foreground">{h.categoryPath ?? "Catégorie non renseignée"}</p></button>
@@ -175,7 +181,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
                 <Metric label="Variantes" value={h.variantCount != null ? String(h.variantCount) : "Voir la fiche"} />
                 <Metric label="Poids" value={h.weightKg != null ? `${h.weightKg} kg` : "Voir la fiche"} />
               </div>
-              <div className="flex items-center justify-between border-t pt-2"><span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><SlidersHorizontal className="h-3.5 w-3.5" />Qualité à vérifier</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
+              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-success"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.missing.length ? "Données manquantes" : "Complet"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
             </div>
           </article>)}
         </div>
@@ -191,7 +197,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
         </div>
       </div>}
 
-      <CjProductDetail pid={detail} onClose={() => setDetail(null)} onImport={(pid, name, image) => { const hit = (res?.hits ?? []).find((h) => h.pid === pid); if (hit) setSelected(new Map(selected).set(pid, hit)); else setSelected(new Map(selected).set(pid, { pid, name, image, sku: null, price: null, stock: null, categoryPath: null, existingProductId: null, exists: false, variantCount: null, weightKg: null })); setDetail(null); }} onSync={syncOne} />
+      <CjProductDetail pid={detail} onClose={() => setDetail(null)} onImport={(pid, name, image) => { const hit = (res?.hits ?? []).find((h) => h.pid === pid); if (hit) setSelected(new Map(selected).set(pid, hit)); else setSelected(new Map(selected).set(pid, { pid, name, image, sku: null, price: null, stock: null, categoryPath: null, existingProductId: null, exists: false, variantCount: null, weightKg: null, missing: [], needsSync: false })); setDetail(null); }} onSync={syncOne} />
     </div>
   );
 }
