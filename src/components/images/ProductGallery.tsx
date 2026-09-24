@@ -28,6 +28,7 @@ import { ChevronLeft } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { ImageLightbox } from "./ImageLightbox";
+import { MaskedImage, useSensitiveImage } from "@/lib/sensitive-images";
 
 interface ProductGalleryProps {
   urls: string[];
@@ -35,6 +36,7 @@ interface ProductGalleryProps {
   activeIndex: number;
   onIndexChange: (i: number) => void;
   dir: "ltr" | "rtl";
+  categoryId?: string | null;
 }
 
 export const ProductGallery = React.memo(function ProductGallery({
@@ -43,7 +45,9 @@ export const ProductGallery = React.memo(function ProductGallery({
   activeIndex,
   onIndexChange,
   dir,
+  categoryId,
 }: ProductGalleryProps) {
+  const sens = useSensitiveImage(categoryId);
   const [api, setApi] = useState<CarouselApi | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
@@ -70,6 +74,20 @@ export const ProductGallery = React.memo(function ProductGallery({
       setLightboxOpen(true);
     }
   };
+
+  if (urls.length > 0 && sens.hidden) {
+    return (
+      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        {!sens.pending && <MaskedImage withConfirm={sens.canConfirm} />}
+        <Link
+          to="/"
+          className={`absolute top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur ${dir === "rtl" ? "right-3" : "left-3"}`}
+        >
+          <ChevronLeft className={`h-5 w-5 ${dir === "rtl" ? "rotate-180" : ""}`} />
+        </Link>
+      </div>
+    );
+  }
 
   if (urls.length === 0) {
     return (

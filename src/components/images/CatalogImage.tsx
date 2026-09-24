@@ -13,6 +13,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { imageSrcSet, optimizedImage } from "@/lib/images/cdn";
+import { MaskedImage, useSensitiveImage } from "@/lib/sensitive-images";
 
 interface CatalogImageProps {
   src?: string | null;
@@ -25,6 +26,8 @@ interface CatalogImageProps {
   /** Largeur d'affichage visée en CSS px (sert au redimensionnement serveur). */
   width?: number;
   onClick?: () => void;
+  /** Catégorie du produit (module Images sensibles). */
+  categoryId?: string | null;
   children?: React.ReactNode;
 }
 
@@ -38,14 +41,18 @@ export function CatalogImage({
   width = 360,
   onClick,
   children,
+  categoryId,
 }: CatalogImageProps) {
+  const sens = useSensitiveImage(categoryId);
   return (
     <div
       className={cn("relative w-full overflow-hidden bg-muted/40", className)}
       style={{ aspectRatio: ratio }}
       onClick={onClick}
     >
-      {src ? (
+      {src && sens.hidden ? (
+        sens.pending ? <div className="h-full w-full bg-muted" /> : <div className="absolute inset-0"><MaskedImage /></div>
+      ) : src ? (
         <img
           src={optimizedImage(src, width)}
           srcSet={imageSrcSet(src, width)}
