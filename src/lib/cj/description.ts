@@ -44,7 +44,7 @@ const SECTION_HEADING =
 
 /** Lignes à ne jamais publier (logistique fournisseur, notes internes). */
 const DROP_LINE =
-  /(fastest\s*shipping|shipping\s*time|please\s*consult|customer\s*service|warehouse|dropship|wholesale|moq\b|sku\s*[:：]|note\s*[:：].*(manual|measure|difference|monitor)|due to (the )?(manual|light|monitor))/i;
+  /(fastest\s*shipping|shipping\s*time|please\s*consult|customer\s*service|warehouse|dropship|wholesale|moq\b|sku\s*[:：]|note\s*[:：].*(manual|measure|difference|monitor)|due to (the )?(manual|light|monitor)|error is acceptable|not calibrated|slightly different|manual measurement)/i;
 
 /** Transforme un HTML (ou texte) quelconque en lignes de texte propres. */
 export function htmlToLines(input: string): string[] {
@@ -130,7 +130,7 @@ export function parseSupplierDescription(input: string | null | undefined): Pars
     if (group?.rows) {
       const cells = line.split(/\s+/).filter(Boolean);
       // Tableau de tailles : lignes courtes, majoritairement chiffrées ou en-têtes.
-      if (cells.length >= 2 && cells.every((c) => c.length <= 12)) { group.rows.push(cells); continue; }
+      if (cells.length >= 1 && line.length <= 80 && cells.every((c) => c.length <= 12)) { group.rows.push(cells); continue; }
     }
     const spec = parseSpec(line);
     if (spec) { group = null; addSpec(spec); continue; }
