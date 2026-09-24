@@ -280,9 +280,10 @@ export const controlCjJob = createServerFn({ method: "POST" })
         await kick(data.jobId);
         break;
       case "cancel":
-        await a.from("cj_import_jobs").update({ status: "cancelled", lease_until: null, finished_at: new Date().toISOString() }).eq("id", data.jobId);
+        { const { cancelJob } = await import("@/lib/cj/jobs.server"); await cancelJob(data.jobId); }
         break;
       case "retry_failed":
+        if (job.status === "cancelled") throw new Error("Import annulé : lancez un nouvel import pour ces produits.");
         await a.from("cj_import_job_items").update({ status: "PENDING", error: null, lease_until: null }).eq("job_id", data.jobId).eq("status", "FAILED");
         await a.rpc("cj_refresh_job_counts", { _job: data.jobId });
         await a.from("cj_import_jobs").update({ status: "running", lease_until: null, finished_at: null }).eq("id", data.jobId);
@@ -290,6 +291,7 @@ export const controlCjJob = createServerFn({ method: "POST" })
         break;
       case "retry_item":
         if (!data.itemId) throw new Error("Élément manquant.");
+        if (job.status === "cancelled") throw new Error("Import annulé : lancez un nouvel import pour ce produit.");
         await a.from("cj_import_job_items").update({ status: "PENDING", error: null, lease_until: null, step: null }).eq("job_id", data.jobId).eq("id", data.itemId).in("status", ["FAILED", "SKIPPED"]);
         await a.rpc("cj_refresh_job_counts", { _job: data.jobId });
         if (job.status !== "cancelled") await a.from("cj_import_jobs").update({ status: "running", lease_until: null, finished_at: null }).eq("id", data.jobId);
@@ -339,14 +341,25 @@ export const saveCjSchedule = createServerFn({ method: "POST" })
       ? await t.update(row).eq("id", data.id)
       : await t.insert({ ...row, created_by: context.userId });
     if (error) throw new Error(error.message);
+    // Règle désactivée → ses imports en cours sont annulés immédiatement.
+    if (data.id && !data.enabled) await cancelScheduleJobs(data.id);
     return { ok: true };
   });
+
+async function cancelScheduleJobs(scheduleId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { cancelJob } = await import("@/lib/cj/jobs.server");
+  const { data: jobs } = await (supabaseAdmin as any).from("cj_import_jobs").select("id")
+    .eq("schedule_id", scheduleId).in("status", ["pending", "running", "discovering", "paused"]);
+  for (const j of jobs ?? []) await cancelJob(j.id, "Règle programmée désactivée");
+}
 
 export const deleteCjSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { id: string }) => ({ id: String(i?.id ?? "") }))
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
+    await cancelScheduleJobs(data.id);
     await context.supabase.from("cj_import_schedules" as any).delete().eq("id", data.id);
     return { ok: true };
   });

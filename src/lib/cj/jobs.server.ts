@@ -76,8 +76,10 @@ async function discoverPage(job: any, traces: CjCallTrace[]) {
   const fresh = items.filter((i) => (c.newOnly !== false ? !existing.has(i.pid) : true));
 
   // Combien d'éléments « utiles » (hors ignorés/erreurs) avons-nous déjà ?
+  const { data: still } = await a.from("cj_import_jobs").select("status").eq("id", job.id).single();
+  if (!ACTIVE.includes(still?.status)) return;
   const { count: useful } = await a.from("cj_import_job_items").select("id", { count: "exact", head: true })
-    .eq("job_id", job.id).not("status", "in", "(SKIPPED,FAILED)");
+    .eq("job_id", job.id).not("status", "in", "(SKIPPED,FAILED,CANCELLED)");
   const room = Math.max(0, (job.target_count ?? 100) - (useful ?? 0));
   const toAdd = fresh.slice(0, room);
   if (toAdd.length) {
@@ -91,8 +93,40 @@ async function discoverPage(job: any, traces: CjCallTrace[]) {
   await a.from("cj_import_jobs").update({ discover_page: page + 1, discover_done: exhausted || full }).eq("id", job.id);
 }
 
+const ACTIVE = ["pending", "running", "discovering"];
+
+/** Annulation définitive : le job et ses produits non traités passent en CANCELLED. */
+export async function cancelJob(jobId: string, reason?: string) {
+  const a = await admin();
+  await a.from("cj_import_jobs").update({ status: "cancelled", lease_until: null, finished_at: new Date().toISOString(), ...(reason ? { last_error: reason } : {}) })
+    .eq("id", jobId).in("status", [...ACTIVE, "paused"]);
+  await a.from("cj_import_job_items").update({ status: "CANCELLED", lease_until: null, step: null })
+    .eq("job_id", jobId).in("status", ["PENDING", "PROCESSING"]);
+  await a.rpc("cj_refresh_job_counts", { _job: jobId });
+}
+
+/**
+ * Tic du travailleur d'arrière-plan (appelé chaque minute par le serveur,
+ * page fermée ou non) : règles programmées dues + avancement des jobs actifs.
+ */
+export async function runWorkerTick(budgetMs = 50_000) {
+  const a = await admin();
+  const started = Date.now();
+  const created = await runDueSchedules().catch(() => [] as string[]);
+  const { data } = await a.from("cj_import_jobs").select("id").in("status", ACTIVE).order("created_at").limit(10);
+  const out: Array<{ jobId: string; state: string; processed: number }> = [];
+  for (const j of data ?? []) {
+    const left = budgetMs - (Date.now() - started);
+    if (left < 8_000) break;
+    const r = await processJobBatch(j.id, left - 5_000);
+    out.push({ jobId: j.id, ...r });
+    if (r.state === "rate_limited") break;
+  }
+  return { created: created.length, jobs: out };
+}
+
 export interface BatchResult {
-  state: "continue" | "done" | "stopped" | "rate_limited";
+  state: "continue" | "done" | "stopped" | "rate_limited" | "busy";
   processed: number;
 }
 
@@ -107,12 +141,16 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
   let processed = 0;
 
   const { data: job } = await a.from("cj_import_jobs").select("*").eq("id", jobId).maybeSingle();
-  if (!job || ["paused", "cancelled", "completed", "failed"].includes(job.status)) return { state: "stopped", processed };
-  await a.from("cj_import_jobs").update({
-    status: job.discover_done ? "running" : "discovering",
-    started_at: job.started_at ?? new Date().toISOString(),
-    lease_until: new Date(Date.now() + 3 * 60_000).toISOString(),
-  }).eq("id", jobId);
+  if (!job || !ACTIVE.includes(job.status)) return { state: "stopped", processed };
+  // Règle programmée désactivée entre-temps → son job est annulé, jamais poursuivi.
+  if (job.schedule_id) {
+    const { data: rule } = await a.from("cj_import_schedules").select("enabled").eq("id", job.schedule_id).maybeSingle();
+    if (rule && rule.enabled === false) { await cancelJob(jobId, "Règle programmée désactivée"); return { state: "stopped", processed }; }
+  }
+  // Bail exclusif ATOMIQUE : un seul traitement par job (navigateur, cron,
+  // relance…). Refusé si le job n'est plus actif (annulé/pause/terminé).
+  const { data: leased } = await a.rpc("cj_try_lease_job", { _job: jobId, _seconds: Math.ceil(budgetMs / 1000) + 90 });
+  if (!leased) return { state: "busy", processed };
 
   const { runCjProductImport } = await import("./import-core.server");
   let rateLimited = false;
@@ -154,7 +192,7 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
         r = { status: "FAILED", productId: null, error: e instanceof Error ? e.message : String(e), missing: [], report: {}, retryable: (e as any)?.retryable === true };
       }
       if (r.status === "LOCKED" || r.retryable) {
-        await a.from("cj_import_job_items").update({ status: "PENDING", lease_until: null, error: r.error, step: null }).eq("id", item.id);
+        await a.from("cj_import_job_items").update({ status: "PENDING", lease_until: null, error: r.error, step: null }).eq("id", item.id).eq("status", "PROCESSING");
         if (r.retryable) { rateLimited = true; break; }
         continue;
       }
@@ -170,6 +208,7 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
         step: null,
         timings: r.report?.timings ?? null,
       }).eq("id", item.id);
+      await a.from("cj_import_jobs").update({ last_item_name: (r.report?.productName ?? item.name ?? item.pid)?.slice?.(0, 200) ?? null }).eq("id", jobId);
       processed += 1;
     }
   };
@@ -185,18 +224,20 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
 
   await a.rpc("cj_refresh_job_counts", { _job: jobId });
   const { data: after } = await a.from("cj_import_jobs").select("status, n_pending, n_processing, discover_done, api_calls").eq("id", jobId).single();
-  const patch: Record<string, unknown> = { api_calls: (after.api_calls ?? 0) + traces.length };
+  const patch: Record<string, unknown> = { api_calls: (after.api_calls ?? 0) + traces.length, lease_until: null };
   let state: BatchResult["state"] = rateLimited ? "rate_limited" : "continue";
-  if (["paused", "cancelled"].includes(after.status)) {
+  if (!ACTIVE.includes(after.status)) {
     state = "stopped";
-    patch.lease_until = null;
-  } else if (after.n_pending === 0 && after.n_processing === 0 && after.discover_done) {
+    await a.from("cj_import_jobs").update(patch).eq("id", jobId);
+    return { state, processed };
+  }
+  if (after.n_pending === 0 && after.n_processing === 0 && after.discover_done) {
     patch.status = "completed";
     patch.finished_at = new Date().toISOString();
-    patch.lease_until = null;
     state = "done";
   }
-  await a.from("cj_import_jobs").update(patch).eq("id", jobId);
+  // Écriture CONDITIONNELLE : ne ré-active jamais un job annulé/en pause entre-temps.
+  await a.from("cj_import_jobs").update(patch).eq("id", jobId).in("status", ACTIVE);
   return { state, processed };
 }
 

@@ -287,3 +287,68 @@ export const MODE_LABELS: Record<ShippingMode, string> = {
   express: "Express",
   other: "Autre",
 };
+
+// ───────────────────────── Envoi groupé (panier / commande) ─────────────────────────
+
+export interface ShipmentLineInput {
+  key: string;
+  logistics: ItemLogistics;
+  quantity: number;
+}
+
+export interface ShipmentQuote {
+  ok: boolean;
+  /** Coût total de l'envoi pour ce mode (minimum et frais fixes appliqués UNE fois). */
+  total: number;
+  /** Part du coût attribuée à chaque ligne ; la somme vaut exactement `total`. */
+  perLine: Map<string, number>;
+  /** Devis de chaque ligne (sans minimum ni frais fixes, pour le détail/snapshot). */
+  lineQuotes: Map<string, FreightQuote>;
+  billableQty: number;
+  unit: BillingUnit;
+}
+
+/**
+ * Calcul CENTRAL du transport de plusieurs lignes partageant le même mode.
+ * Chaque ligne garde SES données (variante prioritaire) et son poids
+ * facturable propre (max réel / volumétrique, ou CBM en mode m³). Le
+ * minimum facturable et les frais fixes du mode s'appliquent UNE SEULE FOIS
+ * à l'envoi — jamais par ligne. Le total est arrondi une fois, puis réparti
+ * au prorata (plus grand reste) : somme des lignes = total, au franc près.
+ * Utilisé à l'identique par la fiche produit, le panier et le checkout.
+ */
+export function quoteShipment(lines: ShipmentLineInput[], rule: FreightRule): ShipmentQuote {
+  const unit = billingUnitOf(rule);
+  const bare: FreightRule = { ...rule, min_billable_qty: 0, fixed_fee: 0 };
+  const lineQuotes = new Map<string, FreightQuote>();
+  let sumQty = 0;
+  let rate = 0;
+  for (const l of lines) {
+    const q = quoteFreight({ logistics: l.logistics, quantity: l.quantity, rule: bare });
+    lineQuotes.set(l.key, q);
+    if (q.ok) { sumQty += q.billableQty; rate = q.rate ?? rate; }
+  }
+  const perLine = new Map<string, number>();
+  if (sumQty <= 0 || rate <= 0) return { ok: false, total: 0, perLine, lineQuotes, billableQty: 0, unit };
+  const minQty = Number(rule.min_billable_qty ?? 0) || 0;
+  const fixedFee = Number(rule.fixed_fee ?? 0) || 0;
+  const billableQty = Math.max(sumQty, minQty);
+  const total = Math.round(billableQty * rate + fixedFee);
+  // Répartition au prorata du poids/volume facturable de chaque ligne.
+  const okKeys = lines.filter((l) => lineQuotes.get(l.key)?.ok);
+  let allocated = 0;
+  const rema: Array<{ key: string; frac: number }> = [];
+  for (const l of okKeys) {
+    const share = (total * lineQuotes.get(l.key)!.billableQty) / sumQty;
+    const fl = Math.floor(share);
+    perLine.set(l.key, fl);
+    allocated += fl;
+    rema.push({ key: l.key, frac: share - fl });
+  }
+  rema.sort((a, b) => b.frac - a.frac);
+  for (let i = 0; i < total - allocated; i += 1) {
+    const k = rema[i % rema.length]!.key;
+    perLine.set(k, (perLine.get(k) ?? 0) + 1);
+  }
+  return { ok: true, total, perLine, lineQuotes, billableQty: Math.round(billableQty * 1000) / 1000, unit };
+}
