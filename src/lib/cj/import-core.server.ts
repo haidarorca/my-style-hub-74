@@ -586,6 +586,8 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       ...syncStamps,
       cj_product_id: pid, product_id: productId, cj_sku: p.productSku ?? null, name_cn: nameCn, name_en: nameEn,
       cj_category_id: category.cjCategoryId, cj_category_name: category.cjCategoryName, cj_category_path: category.cjCategoryPath,
+      quality_score: sum.quality.score, quality_missing: sum.quality.missing,
+      material_source: materialInfo.source, material_cj_class: materialInfo.cjClass,
       customs_code: p.entryCode ?? null, material, pack_weight_raw: p.packingWeight ?? null, product_weight_raw: p.productWeight ?? null,
       source_description: p.description ?? null, source_images: orderSupplierImages(p.productImage, images),
       description_images_extracted: parsed.imageUrls.length,
