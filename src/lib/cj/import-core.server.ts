@@ -263,13 +263,6 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     })();
     const images: string[] = asImageList(p.productImageSet);
     const mainImage: string | null = asImageList(p.productImage)[0] ?? images[0] ?? null;
-    const material: string | null = (() => {
-      const raw = p.materialNameEnSet ?? p.materialNameSet ?? p.materialNameEn ?? null;
-      let arr: any[] = [];
-      if (Array.isArray(raw)) arr = raw;
-      else if (raw) { try { const x = JSON.parse(String(raw)); arr = Array.isArray(x) ? x : [raw]; } catch { arr = [raw]; } }
-      return arr.filter(Boolean).join(", ").trim() || null;
-    })();
     if (!nameEn && !nameCn) missing.push("nom du produit");
     if (!p.description) missing.push("description");
     if (!images.length) missing.push("galerie d'images");
@@ -305,6 +298,16 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const media: MediaStats = newMediaStats();
     const mediaCache = new Map<string, string>();
     const parsed = parseSupplierDescription(p.description);
+    const { resolveMaterial } = await import("./material");
+    const materialInfo = resolveMaterial(parsed.specs, p);
+    const material: string | null = materialInfo.value;
+    report.material = materialInfo;
+    // Vidéo : champ officiel productVideo (URL ou liste), jamais inventée.
+    const video: string | null = (() => {
+      const raw = p.productVideo;
+      const list = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim() ? (() => { try { const x = JSON.parse(raw); return Array.isArray(x) ? x : [raw]; } catch { return [raw]; } })() : [];
+      return list.map(String).find((u: string) => /^https?:\/\//i.test(u)) ?? null;
+    })();
 
     // ── Catégorie ──
     const cjCategoryPath: string | null =
@@ -342,6 +345,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         supplier_ref: p.productSku ?? null,
         external_product_id: pid,
         material,
+        video_url: video,
       };
       const { data: created, error } = await admin.from("products").insert(payload).select("id").single();
       if (error) {
@@ -359,7 +363,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       const upd: Record<string, unknown> = {};
       // Jamais de changement de statut/publication lors d'une synchronisation.
       if (parts.has("data")) {
-        Object.assign(upd, { name: nameEn ?? nameCn ?? pid, designation: nameCn ?? null, description: parsed.html, specifications: parsed.specs.length ? parsed.specs : null, material });
+        Object.assign(upd, { name: nameEn ?? nameCn ?? pid, designation: nameCn ?? null, description: parsed.html, specifications: parsed.specs.length ? parsed.specs : null, material, ...(video ? { video_url: video } : {}) });
       }
       if (parts.has("price") && minCost !== null) {
         Object.assign(upd, { origin_price: minCost, origin_currency_code: "USD", cost_price: minCost, cost_currency_code: "USD" });
