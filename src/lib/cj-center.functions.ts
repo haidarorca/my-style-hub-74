@@ -229,8 +229,16 @@ export const listCjJobs = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await (supabaseAdmin as any).from("cj_import_jobs").select("*").order("created_at", { ascending: false }).limit(50);
-    return { jobs: data ?? [] };
+    const a = supabaseAdmin as any;
+    const { data } = await a.from("cj_import_jobs").select("*").order("created_at", { ascending: false }).limit(50);
+    const jobs = (data ?? []) as any[];
+    const activeIds = jobs.filter((j) => ["pending", "running", "discovering"].includes(j.status)).map((j) => j.id);
+    if (activeIds.length) {
+      const { data: cur } = await a.from("cj_import_job_items").select("job_id, name, pid, step, started_at")
+        .in("job_id", activeIds).eq("status", "PROCESSING").order("started_at", { ascending: true }).limit(30);
+      for (const j of jobs) j.current = (cur ?? []).filter((c: any) => c.job_id === j.id).map((c: any) => ({ name: c.name ?? c.pid, step: c.step }));
+    }
+    return { jobs };
   });
 
 export const getCjJobItems = createServerFn({ method: "POST" })
@@ -252,8 +260,8 @@ export const getCjJobItems = createServerFn({ method: "POST" })
 /** Pause / reprise / annulation / réessai des erreurs / relance. */
 export const controlCjJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { jobId: string; action: "pause" | "resume" | "cancel" | "retry_failed" | "kick" }) => ({
-    jobId: String(i?.jobId ?? ""), action: i?.action,
+  .inputValidator((i: { jobId: string; action: "pause" | "resume" | "cancel" | "retry_failed" | "retry_item" | "kick"; itemId?: string }) => ({
+    jobId: String(i?.jobId ?? ""), action: i?.action, itemId: i?.itemId ? String(i.itemId) : null,
   }))
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
@@ -280,6 +288,13 @@ export const controlCjJob = createServerFn({ method: "POST" })
         await a.from("cj_import_jobs").update({ status: "running", lease_until: null, finished_at: null }).eq("id", data.jobId);
         await kick(data.jobId);
         break;
+      case "retry_item":
+        if (!data.itemId) throw new Error("Élément manquant.");
+        await a.from("cj_import_job_items").update({ status: "PENDING", error: null, lease_until: null, step: null }).eq("job_id", data.jobId).eq("id", data.itemId).in("status", ["FAILED", "SKIPPED"]);
+        await a.rpc("cj_refresh_job_counts", { _job: data.jobId });
+        if (job.status !== "cancelled") await a.from("cj_import_jobs").update({ status: "running", lease_until: null, finished_at: null }).eq("id", data.jobId);
+        await kick(data.jobId);
+        break;
       case "kick":
         await kick(data.jobId);
         break;
@@ -294,7 +309,7 @@ export const pumpCjJob = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
     const { processJobBatch } = await import("@/lib/cj/jobs.server");
-    return processJobBatch(data.jobId, 15_000);
+    return processJobBatch(data.jobId, 25_000);
   });
 
 // ── Imports programmés ─────────────────────────────────────────

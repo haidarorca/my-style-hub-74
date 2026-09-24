@@ -126,6 +126,13 @@ export function CjJobsPanel() {
                 <Stat l="Erreurs" v={j.n_failed} bad />
                 <Stat l="En cours / attente" v={j.n_processing + j.n_pending} />
               </div>
+              {active && Array.isArray(j.current) && j.current.length > 0 && (
+                <div className="space-y-1 rounded-md border border-dashed p-2 text-xs">
+                  {j.current.slice(0, 4).map((c: any, i: number) => (
+                    <p key={i} className="truncate"><span className="font-medium">{c.name}</span> <span className="text-muted-foreground">· {c.step ?? "En file"}</span></p>
+                  ))}
+                </div>
+              )}
               {j.last_error && <p className="text-[11px] text-destructive">Dernière erreur : {j.last_error}</p>}
               <div className="flex flex-wrap gap-2">
                 {active && <Button size="sm" variant="outline" onClick={() => act(j.id, "pause")}><Pause className="mr-1 h-3 w-3" />Pause</Button>}
@@ -156,6 +163,7 @@ function Stat({ l, v, bad }: { l: string; v: number; bad?: boolean }) {
 
 function JobItems({ jobId }: { jobId: string }) {
   const itemsFn = useServerFn(getCjJobItems);
+  const controlFn = useServerFn(controlCjJob);
   const [status, setStatus] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const { data } = useQuery({
@@ -179,6 +187,12 @@ function JobItems({ jobId }: { jobId: string }) {
             <p className="truncate font-medium">{it.name ?? it.pid}</p>
             <p className="text-muted-foreground">{ITEM_FR[it.status] ?? it.status}{it.attempts > 1 ? ` · ${it.attempts} essais` : ""}</p>
             {it.error && <p className="text-destructive">{it.error}</p>}
+            {(it.status === "FAILED" || it.status === "SKIPPED") && (
+              <Button size="sm" variant="outline" className="mt-1 h-6 px-2 text-[11px]" onClick={async () => {
+                try { await controlFn({ data: { jobId, action: "retry_item", itemId: it.id } }); toast.success("Produit remis dans la file"); }
+                catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
+              }}><RotateCcw className="mr-1 h-3 w-3" />Réessayer</Button>
+            )}
             {Array.isArray(it.missing) && it.missing.length > 0 && <p className="text-warning">Manque : {it.missing.join(" · ")}</p>}
             <details className="mt-1 text-muted-foreground"><summary className="cursor-pointer">Informations techniques</summary><p className="break-all pt-1">PID {it.pid}</p></details>
           </div>
