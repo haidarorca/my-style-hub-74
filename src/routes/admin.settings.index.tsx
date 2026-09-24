@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { PwaDiagnostic } from "@/components/admin/PwaDiagnostic";
 import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -219,6 +220,8 @@ function SettingsPage() {
       </Card>
 
       <BannersManager />
+
+      <PwaDiagnostic />
 
       <div className="flex justify-end">
         <Button onClick={save} disabled={busy} size="lg">{busy ? "Enregistrement…" : "Enregistrer tous les paramètres"}</Button>

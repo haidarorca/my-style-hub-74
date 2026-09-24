@@ -1,99 +1,85 @@
-// Lightweight build-version checker.
+// ═══════════════════════════════════════════════════════════════
+// Gestion des versions de KawZone (site + application installée).
 //
-// Strategy: fetch the current HTML and extract the hashed asset URLs Vite
-// emits (e.g. /assets/index-AbCd1234.js). If the set differs from what is
-// currently loaded in the page, a new build is live → show a refresh toast.
+// Chaque publication porte une version unique (__KAWZONE_VERSION__,
+// ex. 2026.09.24.165512), compilée à la fois dans le code du navigateur et
+// dans le serveur. /api/public/version renvoie la version publiée, sans
+// cache. Si elle diffère de celle du code chargé → la page recharge sur la
+// nouvelle version (HTML + JS + CSS cohérents, serveur à jour).
 //
-// No service worker, no /version.json endpoint. Works because the Lovable
-// proxy serves HTML with Cache-Control: no-cache, so this fetch always hits
-// the latest build.
+// Quand :
+//  • au lancement de l'application installée (immédiatement),
+//  • au retour au premier plan (l'appli installée reste souvent en mémoire
+//    des heures avec l'ancien code : c'était la cause des bugs),
+//  • au retour du réseau, et toutes les 5 minutes.
+// Rechargement automatique si c'est sans risque (appli installée, retour au
+// premier plan, ou onglet caché) ; sinon message « Mettre à jour ».
+//
+// Le rechargement ne touche jamais au localStorage / sessionStorage /
+// IndexedDB (connexion, panier, langue, préférences conservés).
+// ═══════════════════════════════════════════════════════════════
 
 import { toast } from "sonner";
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const STORAGE_KEY = "kawzone:build-fingerprint";
+export const APP_VERSION: string = typeof __KAWZONE_VERSION__ === "string" ? __KAWZONE_VERSION__ : "dev";
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const RELOAD_GUARD_KEY = "kawzone:update-reload-at";
+const DIAG_KEY = "kawzone:pwa-diag";
 
-let started = false;
-let notified = false;
-let initialFingerprint: string | null = null;
-
-function isHashedAsset(url: string): boolean {
-  return url.includes("/assets/") || url.includes("/_build/");
+export interface PwaDiag {
+  installedVersion: string;
+  availableVersion: string | null;
+  lastCheckAt: string | null;
+  lastUpdateAt: string | null;
+  lastUpdateFrom: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
 }
 
-function currentFingerprint(): string {
-  if (typeof document === "undefined") return "";
-  const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]"))
-    .map((s) => s.getAttribute("src") || "")
-    .filter(isHashedAsset);
-  const styles = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]'))
-    .map((l) => l.getAttribute("href") || "")
-    .filter(isHashedAsset);
-  return [...scripts, ...styles].sort().join("|");
+export function readPwaDiag(): PwaDiag {
+  let d: Partial<PwaDiag> = {};
+  try { d = JSON.parse(localStorage.getItem(DIAG_KEY) || "{}"); } catch { /* ignore */ }
+  return {
+    installedVersion: APP_VERSION,
+    availableVersion: d.availableVersion ?? null,
+    lastCheckAt: d.lastCheckAt ?? null,
+    lastUpdateAt: d.lastUpdateAt ?? null,
+    lastUpdateFrom: d.lastUpdateFrom ?? null,
+    lastError: d.lastError ?? null,
+    lastErrorAt: d.lastErrorAt ?? null,
+  };
+}
+function writeDiag(patch: Partial<PwaDiag>) {
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify({ ...readPwaDiag(), ...patch })); } catch { /* ignore */ }
 }
 
-async function remoteFingerprint(): Promise<string | null> {
+export function isStandalonePwa(): boolean {
   try {
-    const res = await fetch(`/?_v=${Date.now()}`, {
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "text/html" },
-    });
+    if (window.matchMedia?.("(display-mode: standalone)").matches) return true;
+    if ((window.navigator as unknown as { standalone?: boolean }).standalone) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+export async function fetchAvailableVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/public/version?t=${Date.now()}`, { cache: "no-store", credentials: "omit" });
     if (!res.ok) return null;
-    const html = await res.text();
-    const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi))
-      .map((m) => m[1])
-      .filter(isHashedAsset);
-    const styles = Array.from(html.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/gi))
-      .map((m) => m[1])
-      .filter(isHashedAsset);
-    const styles2 = Array.from(html.matchAll(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']stylesheet["']/gi))
-      .map((m) => m[1])
-      .filter(isHashedAsset);
-    return [...scripts, ...styles, ...styles2].sort().join("|");
+    const j = (await res.json()) as { version?: string };
+    return typeof j.version === "string" ? j.version : null;
   } catch {
     return null;
   }
 }
 
-function isStandalonePwa(): boolean {
+/** Recharge sur la nouvelle version (une fois par 30 s max, sans toucher aux données locales). */
+export function reloadToLatest(reason: string): boolean {
   try {
-    if (typeof window === "undefined") return false;
-    if (window.matchMedia?.("(display-mode: standalone)").matches) return true;
-    // iOS Safari
-    if ((window.navigator as unknown as { standalone?: boolean }).standalone) return true;
-  } catch {
-    // ignore
-  }
-  return false;
-}
-
-const HARD_RELOAD_KEY = "kawzone:hard-reload-at";
-
-async function hardReloadFresh() {
-  try {
-    const last = Number(sessionStorage.getItem(HARD_RELOAD_KEY) || "0");
-    if (Date.now() - last < 30_000) return;
-    sessionStorage.setItem(HARD_RELOAD_KEY, String(Date.now()));
-  } catch {
-    // ignore
-  }
-  try {
-    if ("caches" in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map((n) => caches.delete(n)));
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister().catch(() => undefined)));
-    }
-  } catch {
-    // ignore
-  }
+    const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || "0");
+    if (Date.now() - last < 30_000) return false;
+    sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+  } catch { /* ignore */ }
+  writeDiag({ lastUpdateAt: new Date().toISOString(), lastUpdateFrom: `${APP_VERSION} (${reason})` });
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("_v", Date.now().toString());
@@ -101,75 +87,69 @@ async function hardReloadFresh() {
   } catch {
     window.location.reload();
   }
+  return true;
 }
 
-function showUpdateToast() {
-  if (notified) return;
-  notified = true;
-  toast("Une nouvelle version est disponible", {
-    description: "Rechargez la page pour profiter des dernières mises à jour.",
-    duration: Infinity,
-    action: {
-      label: "Recharger",
-      onClick: () => {
-        try {
-          sessionStorage.removeItem(STORAGE_KEY);
-        } catch {
-          // ignore
-        }
-        void hardReloadFresh();
-      },
-    },
-  });
+let started = false;
+let pending: string | null = null;
+let toastShown = false;
+
+function isStaleCodeError(msg: string): boolean {
+  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading CSS chunk|Unable to preload CSS|Server function info not found|Invalid server function ID/i.test(msg);
 }
 
-async function checkOnce() {
-  if (notified) return;
-  if (!initialFingerprint) return;
-  const remote = await remoteFingerprint();
-  if (!remote) return;
-  if (remote !== initialFingerprint) {
-    // In an installed PWA the user has no easy way to refresh manually.
-    // Silently hard-reload onto the new build instead of showing a toast.
-    if (isStandalonePwa()) {
-      void hardReloadFresh();
-      return;
-    }
-    showUpdateToast();
+async function check(trigger: "launch" | "resume" | "online" | "interval") {
+  if (!navigator.onLine) return;
+  const available = await fetchAvailableVersion();
+  writeDiag({ lastCheckAt: new Date().toISOString(), ...(available ? { availableVersion: available } : {}) });
+  if (!available || available === APP_VERSION) return;
+  pending = available;
+  // Sans risque : lancement / retour au premier plan / appli installée / onglet caché.
+  if (trigger === "launch" || trigger === "resume" || isStandalonePwa() || document.visibilityState === "hidden") {
+    reloadToLatest(`${trigger} → ${available}`);
+    return;
+  }
+  if (!toastShown) {
+    toastShown = true;
+    toast("Une nouvelle version de Kawzone est disponible.", {
+      duration: Infinity,
+      action: { label: "Mettre à jour", onClick: () => reloadToLatest(`bouton → ${available}`) },
+    });
   }
 }
 
 export function startBuildVersionWatcher(): void {
-  if (started) return;
-  if (typeof window === "undefined") return;
-  // Skip in Lovable preview / iframe contexts to avoid noisy toasts in the editor.
-  try {
-    if (window.self !== window.top) return;
-  } catch {
-    return;
-  }
+  if (started || typeof window === "undefined") return;
+  try { if (window.self !== window.top) return; } catch { return; }
   const host = window.location.hostname;
-  if (host.includes("lovableproject.com") || host.includes("id-preview--")) return;
-
+  if (host.includes("lovableproject.com") || host.includes("id-preview--") || APP_VERSION === "dev") return;
   started = true;
-  initialFingerprint = currentFingerprint();
-  if (!initialFingerprint) return;
 
-  // Installed PWAs need to detect a new deploy immediately on launch — the
-  // user has no address bar to refresh manually. Kick a check right away on
-  // standalone, otherwise wait 15s so it doesn't compete with first paint.
-  const kick = () => {
-    void checkOnce();
-  };
-  if (isStandalonePwa()) {
-    setTimeout(kick, 500);
-  } else {
-    setTimeout(kick, 15_000);
-  }
-  setInterval(kick, CHECK_INTERVAL_MS);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") kick();
+  // Ancien morceau de code introuvable après une publication → recharger.
+  window.addEventListener("vite:preloadError", (e) => {
+    e.preventDefault();
+    writeDiag({ lastError: "Fichier de l'ancienne version introuvable", lastErrorAt: new Date().toISOString() });
+    reloadToLatest("fichier obsolète");
   });
-  window.addEventListener("focus", kick);
-  window.addEventListener("online", kick);
+  const onErr = (msg: string) => {
+    if (!isStaleCodeError(msg)) return;
+    writeDiag({ lastError: msg.slice(0, 300), lastErrorAt: new Date().toISOString() });
+    reloadToLatest("code obsolète");
+  };
+  window.addEventListener("unhandledrejection", (e) => onErr(String((e.reason as Error)?.message ?? e.reason ?? "")));
+  window.addEventListener("error", (e) => onErr(String(e.message ?? "")));
+
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      hiddenAt = Date.now();
+      // Une mise à jour en attente s'applique pendant que l'appli est cachée.
+      if (pending) reloadToLatest(`arrière-plan → ${pending}`);
+    } else if (hiddenAt) {
+      void check("resume");
+    }
+  });
+  window.addEventListener("online", () => void check("online"));
+  setInterval(() => void check("interval"), CHECK_INTERVAL_MS);
+  void check("launch");
 }
