@@ -40,7 +40,7 @@ const DICT: Record<string, string[]> = {
   formal: ["ville"], oxford: ["ville"], loafer: ["mocassin", "chaussure"], moccasin: ["mocassin"],
   flat: ["ballerine"], ballet: ["ballerine"], cleat: ["crampon"],
   // Vêtements
-  clothing: ["mode"], apparel: ["mode"],
+  clothing: ["mode", "vetement"], apparel: ["mode", "vetement"], part: ["piece"], replacement: ["piece"],
   jacket: ["veste", "manteau"], coat: ["manteau", "veste"], outerwear: ["veste", "manteau"],
   down: ["manteau"], parka: ["manteau"], blazer: ["blazer", "costume", "veste"], suit: ["costume", "ensemble"],
   tshirt: ["tshirt"], tee: ["tshirt"], shirt: ["chemise"], blouse: ["blouse"], top: ["top"],
@@ -128,8 +128,12 @@ function singular(w: string): string {
   return w;
 }
 
+const STOP = new Set(["de", "et", "la", "le", "du", "des", "a", "and", "the", "for", "of", "en"]);
+/** Concepts trop généraux pour justifier seuls une catégorie précise. */
+const GENERIC = new Set(["mode", "femme", "homme", "enfant", "bebe", "fille", "garcon", "accessoire"]);
+
 function tokens(s: string): string[] {
-  return normalizeLabel(s).split(" ").filter(Boolean).map(singular);
+  return normalizeLabel(s).split(" ").filter((t) => t && !STOP.has(t)).map(singular);
 }
 
 function conceptsFor(segment: string): Set<string> {
@@ -166,8 +170,18 @@ export function matchCjCategoryPath(
   const empty: CategoryMatch = { categoryId: null, chainIds: [], chainNames: [], unresolved: segments };
   if (!segments.length || !categories.length) return empty;
 
-  const segConcepts = segments.map(conceptsFor);
-  const cjGender = genderOf(segments.flatMap(tokens));
+  // « Toys, Kids & Baby » en rayon ne signifie pas « bébé » : seul un
+  // segment plus précis peut l'indiquer.
+  const segConcepts = segments.map((s, i) => {
+    const c = conceptsFor(s);
+    if (i === 0 && segments.length > 1) c.delete("bebe");
+    return c;
+  });
+  const cjTokens = segments.flatMap(tokens);
+  // Le rayon (« Women's Clothing ») décide du public s'il en indique un.
+  const g0 = genderOf(tokens(segments[0]!));
+  const cjGender = g0 === "F" || g0 === "H" ? g0 : genderOf(cjTokens);
+  const cjKidSex = new Set(cjTokens.flatMap((t) => (t === "boy" ? ["garcon"] : t === "girl" ? ["fille"] : [])));
   const byId = new Map(categories.map((c) => [c.id, c]));
 
   const chainOf = (c: FlatCategory): FlatCategory[] => {
@@ -180,7 +194,9 @@ export function matchCjCategoryPath(
     return chain;
   };
 
-  let best: { cat: FlatCategory; chain: FlatCategory[]; score: number; lastSeg: number } | null = null;
+  type Cand = { cat: FlatCategory; chain: FlatCategory[]; score: number; lastSeg: number };
+  let best: Cand | null = null; // nom précis reconnu
+  let bestGeneric: Cand | null = null; // seulement public / rayon
 
   for (const cat of categories) {
     const chain = chainOf(cat);
@@ -191,37 +207,49 @@ export function matchCjCategoryPath(
     // Public visé : exclure les catégories d'un autre public.
     const catGender = genderOf(all.concat(all.some((t) => t === "fille" || t === "garcon") ? ["kid"] : []));
     if (cjGender && catGender && cjGender !== catGender) continue;
+    // Fille / garçon : seulement si CJ le précise.
+    if (all.some((t) => (t === "fille" || t === "garcon") && !cjKidSex.has(t))) continue;
 
     let score = 0;
     let ownHit = false;
+    let strictHit = false;
     let lastSeg = -1;
     segConcepts.forEach((cs, i) => {
       const w = i + 1; // le segment le plus précis pèse le plus
       let hitOwn = false, hitAnc = false;
       for (const k of cs) {
-        if (own.has(k)) hitOwn = true;
+        if (own.has(k)) { hitOwn = true; if (!GENERIC.has(k)) strictHit = true; }
         else if (anc.has(k)) hitAnc = true;
       }
-      if (hitOwn) { score += 10 * w; ownHit = true; lastSeg = Math.max(lastSeg, i); }
-      else if (hitAnc) score += 8 * w;
+      if (hitOwn) { score += 10 * w; ownHit = true; if (strictHit) lastSeg = Math.max(lastSeg, i); }
+      else if (hitAnc) score += 10 * w;
     });
     if (!ownHit) continue;
     if (cjGender && catGender === cjGender) score += 8;
+    if (!cjGender && catGender === "K") score -= 10;
     // Un nom KawZone plein de mots non reconnus est moins sûr.
     const ownUnmatched = [...own].filter((t) => !segConcepts.some((cs) => cs.has(t))).length;
-    score -= ownUnmatched * 2;
-    score += chain.length * 2; // précision
+    score -= ownUnmatched * 4;
 
-    if (!best || score > best.score || (score === best.score && chain.length > best.chain.length)) {
-      best = { cat, chain, score, lastSeg };
+    if (strictHit) {
+      score += chain.length * 2; // précision
+      if (!best || score > best.score || (score === best.score && chain.length > best.chain.length)) {
+        best = { cat, chain, score, lastSeg };
+      }
+    } else {
+      // Repli : on préfère le niveau le plus général (« Mode Femme »).
+      if (!bestGeneric || score > bestGeneric.score || (score === bestGeneric.score && chain.length < bestGeneric.chain.length)) {
+        bestGeneric = { cat, chain, score, lastSeg: 0 };
+      }
     }
   }
 
-  if (!best || best.score < 12) return empty;
+  const pick: Cand | null = best && best.score >= 12 ? best : bestGeneric && bestGeneric.score >= 10 ? bestGeneric : null;
+  if (!pick) return empty;
   return {
-    categoryId: best.cat.id,
-    chainIds: best.chain.map((c) => c.id),
-    chainNames: best.chain.map((c) => c.name),
-    unresolved: best.lastSeg >= segments.length - 1 ? [] : segments.slice(best.lastSeg + 1),
+    categoryId: pick.cat.id,
+    chainIds: pick.chain.map((c) => c.id),
+    chainNames: pick.chain.map((c) => c.name),
+    unresolved: pick === best && pick.lastSeg >= segments.length - 1 ? [] : segments.slice(pick === best ? pick.lastSeg + 1 : 1),
   };
 }
