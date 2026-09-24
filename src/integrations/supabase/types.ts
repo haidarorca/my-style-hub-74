@@ -3604,6 +3604,56 @@ export type Database = {
           },
         ]
       }
+      product_image_sensitivity: {
+        Row: {
+          analyzed_at: string
+          audience: Database["public"]["Enums"]["user_sex"] | null
+          concepts: string[]
+          confidence: string | null
+          decision: string
+          input_hash: string
+          matched_term: string | null
+          product_id: string
+          reason: string | null
+          rule_id: string | null
+          source: string
+        }
+        Insert: {
+          analyzed_at?: string
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          concepts?: string[]
+          confidence?: string | null
+          decision: string
+          input_hash: string
+          matched_term?: string | null
+          product_id: string
+          reason?: string | null
+          rule_id?: string | null
+          source: string
+        }
+        Update: {
+          analyzed_at?: string
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          concepts?: string[]
+          confidence?: string | null
+          decision?: string
+          input_hash?: string
+          matched_term?: string | null
+          product_id?: string
+          reason?: string | null
+          rule_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_image_sensitivity_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_images: {
         Row: {
           created_at: string
@@ -4667,6 +4717,50 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensitive_image_rules: {
+        Row: {
+          active: boolean
+          audience: Database["public"]["Enums"]["user_sex"] | null
+          category_id: string
+          created_at: string
+          decision: string
+          hits: number
+          id: string
+          origin: string
+          term: string
+        }
+        Insert: {
+          active?: boolean
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          category_id: string
+          created_at?: string
+          decision: string
+          hits?: number
+          id?: string
+          origin: string
+          term: string
+        }
+        Update: {
+          active?: boolean
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          category_id?: string
+          created_at?: string
+          decision?: string
+          hits?: number
+          id?: string
+          origin?: string
+          term?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensitive_image_rules_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
         ]
@@ -6077,6 +6171,22 @@ export type Database = {
           show_email: boolean
           show_phone: boolean
           show_whatsapp: boolean
+        }[]
+      }
+      sensitive_input_hash: {
+        Args: { p: Database["public"]["Tables"]["products"]["Row"] }
+        Returns: string
+      }
+      sensitive_pending_count: { Args: never; Returns: number }
+      sensitive_pending_products: {
+        Args: { _limit: number }
+        Returns: {
+          category_id: string
+          description: string
+          id: string
+          input_hash: string
+          material: string
+          name: string
         }[]
       }
       set_currency_rate: {
