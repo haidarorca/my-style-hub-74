@@ -2,4 +2,7 @@
 - [x] Préserver et brancher toutes les actions réelles (import, synchronisation, pause, reprise, annulation, retry, programmation)
 - [x] Vérifier l’affichage ordinateur et téléphone et les actions principales
 - [x] Accélérer l'import CJ (produits en parallèle, images en parallèle, variantes groupées, débit CJ adaptatif, étape en cours, réessai par produit, dates de synchro par partie)
-- [ ] Tester la synchro « stock seul », la reprise après coupure et un import de 100 produits
+- [x] Import de 100 produits testé (227 s, 0 erreur) ; reprise via bail expiré
+- [x] Import autonome page fermée (réveil serveur chaque minute), annulation définitive, règle désactivée = imports annulés
+- [x] Transport : moteur central unique panier/checkout (minimum et frais fixes une fois par envoi)
+- [ ] Tester la synchro « stock seul »
