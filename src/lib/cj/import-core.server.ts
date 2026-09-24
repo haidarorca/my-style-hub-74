@@ -14,6 +14,8 @@ import { asImageList, orderSupplierImages } from "./image-order";
 import { cjGet, type CjCallTrace } from "./client.server";
 import type { MediaStats } from "./media.server";
 import { parseCjVariantOptions } from "./variant-options";
+import { resolveMaterial } from "./material";
+import { parseSupplierDescription as parseDesc } from "./description";
 
 export type SyncPart = "stock" | "price" | "images" | "variants" | "data";
 export const ALL_SYNC_PARTS: SyncPart[] = ["stock", "price", "images", "variants", "data"];
@@ -159,8 +161,6 @@ export function summarizeCjProduct(p: any) {
   const prices = vs.map((v) => v.price).filter((n): n is number => n !== null);
   const stocks = vs.map((v) => v.stock).filter((n): n is number => n !== null);
   const weights = vs.map((v) => v.weightKg).filter((n): n is number => n !== null);
-  const { resolveMaterial } = require_material();
-  const { parseSupplierDescription: parseDesc } = require_desc();
   const mat = resolveMaterial(parseDesc(p?.description).specs, p);
   const sides = vs.flatMap((v) => [v.lengthCm, v.widthCm, v.heightCm]).filter((n): n is number => n !== null);
   const cbms = vs.map((v) => v.cbm).filter((n): n is number => n !== null);
@@ -365,7 +365,6 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const media: MediaStats = newMediaStats();
     const mediaCache = new Map<string, string>();
     const parsed = parseSupplierDescription(p.description);
-    const { resolveMaterial } = await import("./material");
     const materialInfo = resolveMaterial(parsed.specs, p);
     const material: string | null = materialInfo.value;
     report.material = materialInfo;

@@ -24,6 +24,23 @@ export interface Criteria {
   requireWeight?: boolean;
   requireDimensions?: boolean;
   newOnly?: boolean;
+  maxStock?: number | null;
+  minWeightKg?: number | null;
+  minImages?: number | null;
+  maxSideCm?: number | null;
+  maxCbm?: number | null;
+  material?: string | null;
+  countryCode?: string | null;
+  freeShipping?: boolean;
+  newArrivals?: boolean;
+  hasVideo?: boolean;
+  verifiedOnly?: boolean;
+  listedAfter?: string | null;
+  supplierId?: string | null;
+  orderBy?: number | null;
+  sort?: "asc" | "desc" | null;
+  /** Affichage : tous / jamais importés / déjà importés. */
+  importState?: "all" | "new" | "imported";
 }
 
 const optNum = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -42,6 +59,22 @@ function cleanCriteria(c: any): Criteria {
     requireWeight: !!c?.requireWeight,
     requireDimensions: !!c?.requireDimensions,
     newOnly: c?.newOnly !== false,
+    maxStock: optNum(c?.maxStock),
+    minWeightKg: optNum(c?.minWeightKg),
+    minImages: optNum(c?.minImages),
+    maxSideCm: optNum(c?.maxSideCm),
+    maxCbm: optNum(c?.maxCbm),
+    material: c?.material ? String(c.material).slice(0, 60).trim() || null : null,
+    countryCode: c?.countryCode && /^[A-Z]{2}$/.test(String(c.countryCode)) ? String(c.countryCode) : null,
+    freeShipping: !!c?.freeShipping,
+    newArrivals: !!c?.newArrivals,
+    hasVideo: !!c?.hasVideo,
+    verifiedOnly: !!c?.verifiedOnly,
+    listedAfter: c?.listedAfter && /^\d{4}-\d{2}-\d{2}$/.test(String(c.listedAfter)) ? String(c.listedAfter) : null,
+    supplierId: c?.supplierId ? String(c.supplierId).slice(0, 200) : null,
+    orderBy: [0, 1, 2, 3, 4].includes(Number(c?.orderBy)) ? Number(c.orderBy) : null,
+    sort: c?.sort === "asc" || c?.sort === "desc" ? c.sort : null,
+    importState: c?.importState === "new" || c?.importState === "imported" ? c.importState : "all",
   };
 }
 
