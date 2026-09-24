@@ -63,35 +63,61 @@ export async function mirrorImage(
   const path = `supplier/${hash.slice(0, 2)}/${hash}.${ext}`;
   const publicUrl: string = storage.getPublicUrl(path).data.publicUrl;
 
-  // Déjà présent dans le stockage ? On réutilise sans retélécharger.
-  const { data: head } = await storage.list(`supplier/${hash.slice(0, 2)}`, {
-    search: `${hash}.${ext}`,
-    limit: 1,
-  });
-  if (Array.isArray(head) && head.length > 0) {
-    cache.set(url, publicUrl);
-    stats.reused += 1;
-    return publicUrl;
-  }
-
+  // Déjà présent dans le stockage ? Vérification légère (HEAD sur l'URL
+  // publique) au lieu d'un listing de dossier : aucune re-téléchargement.
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength < 100) throw new Error("fichier vide");
-    const { error } = await storage.upload(path, buf, {
-      contentType: contentTypeFor(ext),
-      upsert: true,
-    });
-    if (error) throw new Error(error.message);
-    cache.set(url, publicUrl);
-    stats.uploaded += 1;
-    return publicUrl;
-  } catch (e) {
-    stats.failed += 1;
-    stats.errors.push(`${url} : ${e instanceof Error ? e.message : "erreur"}`);
-    return null;
+    const h = await fetch(publicUrl, { method: "HEAD", signal: AbortSignal.timeout(5_000) });
+    if (h.ok) {
+      cache.set(url, publicUrl);
+      stats.reused += 1;
+      return publicUrl;
+    }
+  } catch { /* on tente le téléchargement */ }
+
+  // Deux essais : un échec ponctuel du fournisseur ne fait pas perdre l'image.
+  let lastErr = "erreur";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.byteLength < 100) throw new Error("fichier vide");
+      const { error } = await storage.upload(path, buf, { contentType: contentTypeFor(ext), upsert: true });
+      if (error) throw new Error(error.message);
+      cache.set(url, publicUrl);
+      stats.uploaded += 1;
+      return publicUrl;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : "erreur";
+      if (/HTTP 4\d\d/.test(lastErr)) break;
+    }
   }
+  stats.failed += 1;
+  stats.errors.push(`${url} : ${lastErr}`);
+  return null;
+}
+
+/**
+ * Rapatrie plusieurs images en parallèle (concurrence limitée).
+ * Les doublons d'URL ne sont traités qu'une fois. Renvoie URL source → URL KawZone (ou null).
+ */
+export async function mirrorMany(
+  urls: string[],
+  stats: MediaStats,
+  cache: Map<string, string>,
+  concurrency = 6,
+): Promise<Map<string, string | null>> {
+  const uniq = [...new Set(urls.map((u) => (u ?? "").trim()).filter(Boolean))];
+  const out = new Map<string, string | null>();
+  let i = 0;
+  const worker = async () => {
+    while (i < uniq.length) {
+      const u = uniq[i++]!;
+      out.set(u, await mirrorImage(u, stats, cache));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, uniq.length) }, worker));
+  return out;
 }
 
 /**
