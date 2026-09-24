@@ -334,8 +334,6 @@ export const setSensitiveManual = createServerFn({ method: "POST" })
     const sb = await admin();
     const { data: p } = await sb.from("products").select("id, name, description, category_id").eq("id", data.productId).single();
     if (!p) throw new Error("Produit introuvable");
-    const { data: hash } = await (sb as any).rpc("sensitive_pending_products", { _limit: 0 }); // no-op, garde la signature
-    void hash;
     const { data: h } = await sb.from("product_image_sensitivity").select("matched_term").eq("product_id", p.id).maybeSingle();
     const term = (h as any)?.matched_term ?? findTerms(norm(p.name)).terms[0] ?? null;
     // Empreinte identique à la fonction SQL (md5 nom|description|catégorie)
