@@ -28,7 +28,7 @@ import { ChevronLeft } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { ImageLightbox } from "./ImageLightbox";
-import { MaskedImage, useSensitiveImage } from "@/lib/sensitive-images";
+import { MaskedImage, useSensitiveResolver } from "@/lib/sensitive-images";
 
 interface ProductGalleryProps {
   urls: string[];
@@ -49,7 +49,9 @@ export const ProductGallery = React.memo(function ProductGallery({
   categoryId,
   productId,
 }: ProductGalleryProps) {
-  const sens = useSensitiveImage(categoryId, productId);
+  const resolve = useSensitiveResolver();
+  const states = urls.map((u) => resolve(categoryId, productId, u));
+  const visibleUrls = urls.filter((_, i) => !states[i]!.hidden);
   const [api, setApi] = useState<CarouselApi | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
@@ -72,12 +74,13 @@ export const ProductGallery = React.memo(function ProductGallery({
 
   // Ouvrir le lightbox quand on clique sur l'image
   const openLightbox = () => {
-    if (urls.length > 0) {
+    if (visibleUrls.length > 0 && !states[activeIndex]?.hidden) {
       setLightboxOpen(true);
     }
   };
 
-  if (urls.length > 0 && sens.hidden) {
+  if (urls.length > 0 && states.every((st) => st.hidden)) {
+    const sens = states[0]!;
     return (
       <div className="relative aspect-square w-full overflow-hidden bg-muted">
         {!sens.pending && <MaskedImage withConfirm={sens.canConfirm} />}
@@ -115,12 +118,16 @@ export const ProductGallery = React.memo(function ProductGallery({
                   className="relative aspect-square w-full cursor-zoom-in overflow-hidden bg-muted"
                   onClick={openLightbox}
                 >
-                  <img
-                    src={url}
-                    alt={`${alt} ${i + 1}`}
-                    className="h-full w-full object-cover select-none"
-                    draggable={false}
-                  />
+                  {states[i]!.hidden ? (
+                    states[i]!.pending ? null : <MaskedImage withConfirm={states[i]!.canConfirm} />
+                  ) : (
+                    <img
+                      src={url}
+                      alt={`${alt} ${i + 1}`}
+                      className="h-full w-full object-cover select-none"
+                      draggable={false}
+                    />
+                  )}
                 </div>
               </CarouselItem>
             ))}
@@ -166,12 +173,12 @@ export const ProductGallery = React.memo(function ProductGallery({
 
       {/* Lightbox plein ecran */}
       <ImageLightbox
-        images={urls}
+        images={visibleUrls}
         alt={alt}
         open={lightboxOpen}
-        initialIndex={activeIndex}
+        initialIndex={Math.max(0, visibleUrls.indexOf(urls[activeIndex] ?? ""))}
         onClose={() => setLightboxOpen(false)}
-        onIndexChange={onIndexChange}
+        onIndexChange={(vi) => onIndexChange(Math.max(0, urls.indexOf(visibleUrls[vi] ?? "")))}
       />
     </>
   );

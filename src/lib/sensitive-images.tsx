@@ -4,7 +4,7 @@
  * Le visiteur voit l'image seulement si son genre (compte, ou confirmé sur
  * l'appareil) correspond. Sinon, l'image n'est JAMAIS chargée : placeholder.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,17 +103,59 @@ function useProductMap() {
   });
 }
 
-export function useSensitiveImage(categoryId: string | null | undefined, productId?: string | null): SensitiveState {
+/** Décisions image par image (Vision / manuel / sensible) : URL → genre autorisé, ou null = non sensible. */
+function useImageMap() {
+  return useQuery({
+    queryKey: ["sensitive-images", "images"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const out = new Map<string, SensitiveGender | null>();
+      for (let from = 0; from < 50000; from += 1000) {
+        const { data, error } = await (supabase as any)
+          .from("sensitive_image_status")
+          .select("image_url, final_decision, final_audience, final_source")
+          .or("final_decision.eq.sensitive,final_source.in.(MANUAL,VISION)")
+          .range(from, from + 999);
+        if (error) throw error;
+        for (const r of data ?? []) {
+          if (r.final_decision === "sensitive") out.set(r.image_url, r.final_audience ?? "femme");
+          else if (r.final_decision === "normal") out.set(r.image_url, null);
+        }
+        if (!data || data.length < 1000) break;
+      }
+      return out;
+    },
+  });
+}
+
+/** Résolveur réutilisable : (catégorie, produit, url) → état d'affichage. */
+export function useSensitiveResolver() {
   const { data, isLoading } = useSensitiveMap();
   const { data: pmap, isLoading: pLoading } = useProductMap();
+  const { data: imap, isLoading: iLoading } = useImageMap();
   const { gender, fromAccount } = useViewerGender();
-  return useMemo(() => {
-    if (!categoryId && !productId) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
-    if (isLoading || !data || (productId && (pLoading || !pmap))) return { hidden: true, pending: true, sensitive: false, canConfirm: false };
-    const target = productId && pmap!.has(productId) ? pmap!.get(productId) : categoryId ? data.get(categoryId) : undefined;
-    if (!target) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
-    return { hidden: gender !== target, pending: false, sensitive: true, canConfirm: !fromAccount };
-  }, [categoryId, productId, data, pmap, isLoading, pLoading, gender, fromAccount]);
+  const { isAdmin, loading: authLoading } = useAuth();
+  return useCallback(
+    (categoryId: string | null | undefined, productId?: string | null, src?: string | null): SensitiveState => {
+      if (!categoryId && !productId && !src) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
+      if (authLoading || isLoading || !data || iLoading || !imap || (productId && (pLoading || !pmap)))
+        return { hidden: true, pending: true, sensitive: false, canConfirm: false };
+      let target: SensitiveGender | null | undefined;
+      if (src && imap.has(src)) target = imap.get(src);
+      else if (productId && pmap!.has(productId)) target = pmap!.get(productId);
+      else if (categoryId) target = data.get(categoryId);
+      if (!target) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
+      // Administrateurs : accès complet pour contrôler le catalogue.
+      if (isAdmin) return { hidden: false, pending: false, sensitive: true, canConfirm: false };
+      return { hidden: gender !== target, pending: false, sensitive: true, canConfirm: !fromAccount };
+    },
+    [data, pmap, imap, isLoading, pLoading, iLoading, gender, fromAccount, isAdmin, authLoading],
+  );
+}
+
+export function useSensitiveImage(categoryId: string | null | undefined, productId?: string | null, src?: string | null): SensitiveState {
+  const resolve = useSensitiveResolver();
+  return useMemo(() => resolve(categoryId, productId, src), [resolve, categoryId, productId, src]);
 }
 
 /** Placeholder « Image masquée » (+ confirmation du genre si autorisée). */
@@ -162,7 +204,7 @@ export function MaskedImage({ withConfirm, compact }: { withConfirm?: boolean; c
 
 /** Miniature simple protégée (recherche, suggestions…). */
 export function SensitiveThumb({ categoryId, productId, src, alt, className }: { categoryId?: string | null; productId?: string | null; src?: string | null; alt: string; className?: string }) {
-  const s = useSensitiveImage(categoryId, productId);
+  const s = useSensitiveImage(categoryId, productId, src);
   if (!src) return null;
   if (s.hidden) return s.pending ? null : <MaskedImage compact />;
   return <img src={src} alt={alt} loading="lazy" decoding="async" className={className} />;
