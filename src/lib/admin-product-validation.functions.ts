@@ -240,7 +240,7 @@ export const bulkValidationAction = createServerFn({ method: "POST" })
       }
       if (okIds.length) {
         const payload = data.action === "approve"
-          ? { status: "approved" as const, rejection_reason: null, is_edit: false, validation_mode: "manual", validated_at: now, review_reasons: [] as string[] }
+          ? { status: "approved" as const, is_active: true, rejection_reason: null, is_edit: false, validation_mode: "manual", validated_at: now, review_reasons: [] as string[] }
           : { status: "rejected" as const, rejection_reason: data.reason || "Non conforme", validation_mode: null, validated_at: null };
         const { error: upErr } = await supabaseAdmin.from("products").update(payload).in("id", okIds);
         if (upErr) {

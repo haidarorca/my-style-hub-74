@@ -567,7 +567,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       const nowV = new Date().toISOString();
       await admin.from("products").update(
         reasons.length === 0
-          ? { status: "approved", validation_mode: "auto", validated_at: nowV, review_reasons: [], is_edit: false }
+          ? { status: "approved", is_active: true, validation_mode: "auto", validated_at: nowV, review_reasons: [], is_edit: false }
           : { status: "pending", validation_mode: null, review_reasons: reasons },
       ).eq("id", productId);
       resultLabel = reasons.length === 0 ? "Importé — validé automatiquement" : `Importé — à vérifier : ${reasons.join(" ; ")}`;
