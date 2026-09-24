@@ -115,7 +115,7 @@ export function classifyLocal(input: ClassifyInput, rules: LearnedRule[] = []): 
 
   const underwearCat = anyIn(cat, CAT_UNDERWEAR);
   const apparelCat = underwearCat || anyIn(cat, CAT_APPAREL);
-  const unrelatedCat = !apparelCat && anyIn(cat, CAT_UNRELATED);
+  const unrelatedCat = !underwearCat && anyIn(cat, CAT_UNRELATED);
 
   // 1. Catégorie sans rapport : un mot comme « boxer » ne déclenche rien.
   if (unrelatedCat) {
