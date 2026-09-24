@@ -19,6 +19,7 @@ export const Route = createFileRoute("/admin/categories")({
 type Cat = {
   id: string; name: string; slug: string; level: number;
   parent_id: string | null; logo_url: string | null; position: number | null;
+  sensitive_images?: boolean; sensitive_gender?: "femme" | "homme" | null;
 };
 
 function slugify(s: string) {
@@ -93,6 +94,14 @@ function CategoriesPage() {
     if (error) return toast.error(error.message);
     toast.success("Supprimée");
     qc.invalidateQueries({ queryKey: ["admin", "categories"] });
+  }
+
+  async function updateSensitive(id: string, patch: { sensitive_images?: boolean; sensitive_gender?: "femme" | "homme" }) {
+    const { error } = await (supabase as any).from("categories").update(patch).eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Règle enregistrée");
+    qc.invalidateQueries({ queryKey: ["admin", "categories"] });
+    qc.invalidateQueries({ queryKey: ["sensitive-images"] });
   }
 
   const grouped = [1, 2, 3].map((lv) => ({
@@ -194,6 +203,26 @@ function CategoriesPage() {
                         <div className="truncate text-sm font-medium">{c.name}</div>
                         {parent && <div className="text-xs text-muted-foreground">↳ {parent.name}</div>}
                       </div>
+                      <label className="flex items-center gap-1.5 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!c.sensitive_images}
+                          onChange={(e) => updateSensitive(c.id, e.target.checked
+                            ? { sensitive_images: true, sensitive_gender: c.sensitive_gender ?? "femme" }
+                            : { sensitive_images: false })}
+                        />
+                        Images sensibles
+                      </label>
+                      {c.sensitive_images && (
+                        <select
+                          className="rounded-md border border-border bg-background px-1.5 py-1 text-xs"
+                          value={c.sensitive_gender ?? "femme"}
+                          onChange={(e) => updateSensitive(c.id, { sensitive_gender: e.target.value as "femme" | "homme" })}
+                        >
+                          <option value="femme">Femme</option>
+                          <option value="homme">Homme</option>
+                        </select>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(c.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
