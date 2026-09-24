@@ -19,6 +19,7 @@ import { useHomeSections } from "@/hooks/use-home-sections";
 import { HomeSectionBlock } from "@/components/home/HomeSectionBlock";
 import { HomeHero } from "@/components/home/HomeHero";
 import { ProductGrid } from "@/components/product/ProductGrid";
+import { AdminSensitiveBar } from "@/components/admin/sensitive/ProductSensitivity";
 import { useResolveDisplay } from "@/hooks/use-display-presets";
 import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 import { RecommendationBlock } from "@/components/product/RecommendationBlock";
@@ -334,6 +335,7 @@ function Home() {
       </div>
 
       <main className="page-container pb-28 md:pb-10">
+        <AdminSensitiveBar />
         {/* Hero: carousel if banners exist, else vitrine marketing */}
         {showKind("hero") && (
           banners && banners.length > 0 ? (

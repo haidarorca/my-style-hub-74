@@ -9,6 +9,7 @@ import { useFormatDisplay } from "@/hooks/use-currencies";
 import { ProductBadges } from "./ProductBadges";
 import { ShareButton } from "@/components/share/ShareButton";
 import { CatalogImage } from "@/components/images/CatalogImage";
+import { useAdminSensitiveView, useSensitiveImage } from "@/lib/sensitive-images";
 import {
   CARD_PADDING,
   DEFAULT_DISPLAY,
@@ -80,6 +81,10 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
   });
 
   // Total estimé = prix affiché + transport le moins cher (si calculable).
+  const adminView = useAdminSensitiveView();
+  const sens = useSensitiveImage(product.category_id ?? null, product.id, img ?? null);
+  if (adminView.on && adminView.filter !== "all" && !sens.pending && sens.status !== adminView.filter) return null;
+
   const showTotal = !!dp && est.isIntl && est.canEstimate && !!est.cheapest;
   const total = showTotal ? Number(dp!.final_price) + est.cheapest!.price : null;
 
