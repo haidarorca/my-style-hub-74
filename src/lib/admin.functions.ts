@@ -136,7 +136,7 @@ export const updateVendor = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: roleRow } = await context.supabase
       .from("user_roles").select("role")
-      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).maybeSingle();
+      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).limit(1).maybeSingle();
     if (!roleRow) throw new Error("Accès refusé : admin requis");
 
     const allowed = data.ships_internationally ? data.allowed_destination_country_ids : [];
@@ -162,7 +162,7 @@ export const deleteVendor = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: roleRow } = await context.supabase
       .from("user_roles").select("role")
-      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).maybeSingle();
+      .eq("user_id", context.userId).in("role", ["admin", "super_admin"]).limit(1).maybeSingle();
     if (!roleRow) throw new Error("Accès refusé");
 
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
