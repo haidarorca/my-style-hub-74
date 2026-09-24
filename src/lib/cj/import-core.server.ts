@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// Cœur d'import / synchronisation CJ — SERVEUR UNIQUEMENT.
+// Cœur d'import { asImageList, orderSupplierImages } from "./image-order";
+import / synchronisation CJ — SERVEUR UNIQUEMENT.
 // Utilisé par l'import unitaire (écran admin) ET par le worker
 // d'arrière-plan (imports massifs, imports programmés).
 //
@@ -100,7 +101,7 @@ export async function fetchCjProduct(
 /** Résumé exploitable d'une fiche CJ (aperçu, complétude, filtres). */
 export function summarizeCjProduct(p: any) {
   const variants: any[] = Array.isArray(p?.variants) ? p.variants : [];
-  const images: string[] = Array.isArray(p?.productImageSet) ? p.productImageSet : [];
+  const images: string[] = asImageList(p?.productImageSet);
   const vs = variants.map((v) => {
     const inv: any[] = Array.isArray(v?.inventories) ? v.inventories : [];
     const stock = inv.length ? inv.reduce((s, r) => s + (num(r?.totalInventory) ?? 0), 0) : null;
@@ -140,7 +141,7 @@ export function summarizeCjProduct(p: any) {
     pid: String(p?.pid ?? ""),
     name: p?.productNameEn ?? null,
     sku: p?.productSku ?? null,
-    image: p?.productImage ?? images[0] ?? null,
+    image: asImageList(p?.productImage)[0] ?? images[0] ?? null,
     gallery: images,
     description: p?.description ? String(p.description).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : null,
     category: p?.categoryName ?? null,
@@ -228,8 +229,8 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         return Array.isArray(arr) ? (arr[0] ?? null) : (p.productName ?? null);
       } catch { return p.productName ?? null; }
     })();
-    const images: string[] = Array.isArray(p.productImageSet) ? p.productImageSet : [];
-    const mainImage: string | null = p.productImage ?? images[0] ?? null;
+    const images: string[] = asImageList(p.productImageSet);
+    const mainImage: string | null = asImageList(p.productImage)[0] ?? images[0] ?? null;
     const material: string | null = (() => {
       const raw = p.materialNameEnSet ?? p.materialNameSet ?? p.materialNameEn ?? null;
       let arr: any[] = [];
@@ -337,8 +338,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       // Ordre : image principale CJ (productImage) → galerie CJ dans l'ordre
       // fourni (productImageSet) → images de détail de la description.
       // Les images de variantes restent liées à leurs variantes (pas en galerie).
-      const { orderSupplierImages } = await import("./image-order");
-      const ordered = orderSupplierImages(mainImage, images, parsed.imageUrls).slice(0, 40);
+      const ordered = orderSupplierImages(p.productImage, images, parsed.imageUrls).slice(0, 40);
       gallery = [];
       for (const src of ordered) {
         const hosted = await mirrorImage(src, media, mediaCache);
@@ -434,7 +434,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       cj_product_id: pid, product_id: productId, cj_sku: p.productSku ?? null, name_cn: nameCn, name_en: nameEn,
       cj_category_id: category.cjCategoryId, cj_category_name: category.cjCategoryName, cj_category_path: category.cjCategoryPath,
       customs_code: p.entryCode ?? null, material, pack_weight_raw: p.packingWeight ?? null, product_weight_raw: p.productWeight ?? null,
-      source_description: p.description ?? null, source_images: mainImage ? [mainImage, ...images] : images,
+      source_description: p.description ?? null, source_images: orderSupplierImages(p.productImage, images),
       description_images_extracted: parsed.imageUrls.length,
       raw: { product: p, stock: Object.fromEntries(stockByVid) },
       last_imported_at: new Date().toISOString(),
