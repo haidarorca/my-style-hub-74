@@ -1,3 +1,4 @@
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,7 +69,8 @@ function LoginPage() {
         <h1 className="mt-4 text-2xl font-bold">{t("auth.login_title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("auth.login_subtitle")}</p>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <div className="mt-6"><GoogleSignInButton /></div>
+        <form onSubmit={onSubmit} className="mt-2 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

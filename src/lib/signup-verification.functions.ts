@@ -39,7 +39,7 @@ function translateAuthError(msg?: string): string {
   const m = (msg ?? "").toLowerCase();
   if (m.includes("weak") || m.includes("easy to guess") || m.includes("pwned")) return WEAK_PASSWORD_MSG;
   if (m.includes("already") && m.includes("registered")) return "Un compte existe déjà avec cet email.";
-  if (m.includes("password")) return "Mot de passe refusé. Choisissez-en un plus solide (au moins 8 caractères).";
+  if (m.includes("password")) return "Mot de passe refusé. Il doit contenir au moins 6 caractères.";
   return msg || "Création du compte échouée.";
 }
 
@@ -119,7 +119,7 @@ export const sendSignupVerificationCode = createServerFn({ method: "POST" })
 
     const email = data.email.trim().toLowerCase();
 
-    if (data.password && (await isPwnedPassword(data.password))) {
+    if (process.env.KZ_BLOCK_PWNED === "1" && data.password && (await isPwnedPassword(data.password))) {
       throw new Error(WEAK_PASSWORD_MSG);
     }
 
