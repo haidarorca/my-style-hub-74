@@ -93,7 +93,24 @@ export async function fetchCjProduct(
   if (cached?.payload && Date.now() - new Date(cached.fetched_at).getTime() < maxAgeMs) {
     return cached.payload;
   }
-  const p = await cjGet<any>(`/product/query?pid=${encodeURIComponent(pid)}&countryCode=CN`, traces);
+  let p = await cjGet<any>(`/product/query?pid=${encodeURIComponent(pid)}&countryCode=CN`, traces);
+  // Produits expédiés par un fournisseur tiers ou hors entrepôt Chine : le
+  // filtre countryCode=CN renvoie une liste de variantes vide. On relit
+  // alors la fiche sans filtre, puis la liste officielle des variantes.
+  const noVariants = (x: any) => !Array.isArray(x?.variants) || x.variants.length === 0;
+  if (p && noVariants(p)) {
+    try {
+      const full = await cjGet<any>(`/product/query?pid=${encodeURIComponent(pid)}`, traces);
+      if (full && !noVariants(full)) p = full;
+    } catch { /* on garde la première fiche */ }
+  }
+  if (p && noVariants(p)) {
+    try {
+      const vs = await cjGet<any>(`/product/variant/query?pid=${encodeURIComponent(pid)}`, traces);
+      const list = Array.isArray(vs) ? vs : Array.isArray(vs?.list) ? vs.list : [];
+      if (list.length) p = { ...p, variants: list };
+    } catch { /* variantes indisponibles */ }
+  }
   if (p) {
     await admin.from("cj_api_cache").upsert({ cache_key: key, payload: p, fetched_at: new Date().toISOString() });
   }
