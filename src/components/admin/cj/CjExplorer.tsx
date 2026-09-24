@@ -22,7 +22,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
   const [criteria, setCriteria] = useState<Criteria>({ ...EMPTY_CRITERIA });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [res, setRes] = useState<{ hits: ExploreHit[]; total: number; totalPages: number } | null>(null);
+  const [res, setRes] = useState<{ hits: ExploreHit[]; total: number; totalPages: number; excluded: number; deepChecked: boolean } | null>(null);
   const [selected, setSelected] = useState<Map<string, ExploreHit>>(new Map());
   const [detail, setDetail] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -49,7 +49,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
       const r = await exploreFn({ data: { criteria, page: p, size: 50 } });
       if (!r.ok) { toast.error(r.error ?? "Recherche impossible"); return; }
       setPage(p);
-      setRes({ hits: r.hits, total: r.total, totalPages: r.totalPages });
+      setRes({ hits: r.hits, total: r.total, totalPages: r.totalPages, excluded: r.excluded ?? 0, deepChecked: !!r.deepChecked });
       setResultFilter(criteria.newOnly === false ? "all" : "new");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
     finally { setLoading(false); }
@@ -153,7 +153,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
       {res && <>
         <section className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p></div>
+            <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>
             <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
@@ -180,8 +180,10 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
                 <Metric label="Stock" value={h.stock != null ? h.stock.toLocaleString("fr-FR") : "À vérifier"} />
                 <Metric label="Variantes" value={h.variantCount != null ? String(h.variantCount) : "Voir la fiche"} />
                 <Metric label="Poids" value={h.weightKg != null ? `${h.weightKg} kg` : "Voir la fiche"} />
+                {h.material != null && <Metric label="Matière" value={h.material} />}
+                {h.imageCount != null && <Metric label="Images" value={String(h.imageCount)} />}
               </div>
-              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-success"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.missing.length ? "Données manquantes" : "Complet"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
+              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-success"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.score != null ? `Données complètes : ${h.score} %` : h.missing.length ? "Données manquantes" : "Complet"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
             </div>
           </article>)}
         </div>
@@ -197,7 +199,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
         </div>
       </div>}
 
-      <CjProductDetail pid={detail} onClose={() => setDetail(null)} onImport={(pid, name, image) => { const hit = (res?.hits ?? []).find((h) => h.pid === pid); if (hit) setSelected(new Map(selected).set(pid, hit)); else setSelected(new Map(selected).set(pid, { pid, name, image, sku: null, price: null, stock: null, categoryPath: null, existingProductId: null, exists: false, variantCount: null, weightKg: null, missing: [], needsSync: false })); setDetail(null); }} onSync={syncOne} />
+      <CjProductDetail pid={detail} onClose={() => setDetail(null)} onImport={(pid, name, image) => { const hit = (res?.hits ?? []).find((h) => h.pid === pid); if (hit) setSelected(new Map(selected).set(pid, hit)); else setSelected(new Map(selected).set(pid, { pid, name, image, sku: null, price: null, stock: null, categoryPath: null, existingProductId: null, exists: false, variantCount: null, weightKg: null, missing: [], needsSync: false } as ExploreHit)); setDetail(null); }} onSync={syncOne} />
     </div>
   );
 }
