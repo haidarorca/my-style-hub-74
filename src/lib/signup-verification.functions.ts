@@ -119,7 +119,7 @@ export const sendSignupVerificationCode = createServerFn({ method: "POST" })
 
     const email = data.email.trim().toLowerCase();
 
-    if (false && data.password && (await isPwnedPassword(data.password))) {
+    if (process.env.KZ_BLOCK_PWNED === "1" && data.password && (await isPwnedPassword(data.password))) {
       throw new Error(WEAK_PASSWORD_MSG);
     }
 

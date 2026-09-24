@@ -1,3 +1,4 @@
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -229,7 +230,8 @@ function SignupPage() {
               Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.
             </p>
 
-            <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <div className="mt-6"><GoogleSignInButton /></div>
+            <form onSubmit={onSubmit} className="mt-2 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="fullName">Nom complet</Label>
                 <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
