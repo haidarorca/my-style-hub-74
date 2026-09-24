@@ -51,6 +51,13 @@ describe("images sensibles — moteur local", () => {
   it("mot 'bra' dans 'brand' ne compte pas", () => {
     expect(fin(c("Sac brand new", ["Mode", "Sacs"]))).toBe("normal:-");
   });
+  it("t-shirt mal rangé en sous-vêtements homme → IA, pas masqué d'office", () => {
+    expect(fin(c("Men's Jacquard Casual Short Sleeve Shirt", ["Mode Homme", "Sous-vêtements"]))).toBe("ai");
+  });
+  it("chaussures non-slip / slip-on → 'slip' ignoré", () => {
+    expect(fin(c("Pointed Men's Slip On Leather Shoes", ["Chaussures", "Homme"]))).toBe("normal:-");
+    expect(fin(c("Non-slip baby shoes", ["Chaussures", "Enfant"]))).toBe("normal:-");
+  });
   it("règle apprise appliquée sans IA", () => {
     const r = classifyLocal(
       { name: "Short boxer homme", categoryPath: ["Vêtements", "Homme", "Shorts"], categoryId: "X" },

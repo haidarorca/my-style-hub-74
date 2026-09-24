@@ -67,7 +67,11 @@ const CAT_UNRELATED = ["animal", "animaux", "animalerie", "pet", "pets", "chien"
 const G_MEN = ["homme", "hommes", "men", "man", "mens", "male", "masculin", "garcon", "garcons", "boy", "boys", "monsieur"];
 const G_WOMEN = ["femme", "femmes", "women", "woman", "womens", "lady", "ladies", "female", "feminin", "feminine", "dame", "dames", "fille", "filles", "girl", "girls"];
 
+/** Expressions qui contiennent un terme mais n'ont rien à voir (non-slip, string lights…). */
+const NEUTRALIZE = [/ (non|anti) slip /g, / slip (on|ons|resistant|proof) /g, / string (light|lights|lamp|bag|bags) /g, / (fairy|led) lights? string /g, / underwear (hanger|hangers|rack|organizer|storage|box) /g];
+
 export function findTerms(text: string): { concepts: string[]; terms: string[] } {
+  for (const re of NEUTRALIZE) text = text.replace(re, "  ");
   const concepts: string[] = [];
   const terms: string[] = [];
   for (const [concept, list] of Object.entries(UNDERWEAR_TERMS)) {
@@ -135,6 +139,9 @@ export function classifyLocal(input: ClassifyInput, rules: LearnedRule[] = []): 
   // 2. Catégorie sous-vêtements / lingerie / maillots
   if (underwearCat) {
     const g = gCat === "homme" || gCat === "femme" ? gCat : null;
+    if (g && !inName.terms.length && !inDesc.terms.length) {
+      return { kind: "ai", why: "Produit rangé en sous-vêtements sans aucun indice dans le texte", term: null, concepts };
+    }
     if (g) {
       const nameContra = gName && gName !== g;
       const descContra = gDesc && gDesc !== g && gDesc !== "both" && !gName;
