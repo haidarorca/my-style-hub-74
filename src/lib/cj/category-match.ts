@@ -222,7 +222,7 @@ export function matchCjCategoryPath(
         else if (anc.has(k)) hitAnc = true;
       }
       if (hitOwn) { score += 10 * w; ownHit = true; if (strictHit) lastSeg = Math.max(lastSeg, i); }
-      else if (hitAnc) score += 10 * w;
+      else if (hitAnc) score += 9 * w;
     });
     if (!ownHit) continue;
     if (cjGender && catGender === cjGender) score += 8;
