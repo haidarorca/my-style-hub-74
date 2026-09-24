@@ -95,7 +95,7 @@ let pending: string | null = null;
 let toastShown = false;
 
 function isStaleCodeError(msg: string): boolean {
-  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading CSS chunk|Unable to preload CSS|Server function info not found/i.test(msg);
+  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading CSS chunk|Unable to preload CSS|Server function info not found|Invalid server function ID/i.test(msg);
 }
 
 async function check(trigger: "launch" | "resume" | "online" | "interval") {
