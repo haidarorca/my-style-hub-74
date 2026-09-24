@@ -45,7 +45,7 @@ export function CatalogImage({
   categoryId,
   productId,
 }: CatalogImageProps) {
-  const sens = useSensitiveImage(categoryId, productId);
+  const sens = useSensitiveImage(categoryId, productId, src);
   return (
     <div
       className={cn("relative w-full overflow-hidden bg-muted/40", className)}

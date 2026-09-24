@@ -4721,6 +4721,87 @@ export type Database = {
           },
         ]
       }
+      sensitive_ai_calls: {
+        Row: {
+          created_at: string
+          error: string | null
+          http_status: number | null
+          id: string
+          image_status_id: string | null
+          kind: string
+          model: string | null
+          outcome: string
+          product_id: string | null
+          prompt_version: number | null
+          tokens_in: number | null
+          tokens_out: number | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          image_status_id?: string | null
+          kind: string
+          model?: string | null
+          outcome: string
+          product_id?: string | null
+          prompt_version?: number | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          image_status_id?: string | null
+          kind?: string
+          model?: string | null
+          outcome?: string
+          product_id?: string | null
+          prompt_version?: number | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Relationships: []
+      }
+      sensitive_ai_settings: {
+        Row: {
+          id: number
+          lock_until: string | null
+          paused_reason: string | null
+          paused_until: string | null
+          text_model: string
+          updated_at: string
+          vision_enabled: boolean
+          vision_hourly_limit: number
+          vision_model: string
+        }
+        Insert: {
+          id?: number
+          lock_until?: string | null
+          paused_reason?: string | null
+          paused_until?: string | null
+          text_model?: string
+          updated_at?: string
+          vision_enabled?: boolean
+          vision_hourly_limit?: number
+          vision_model?: string
+        }
+        Update: {
+          id?: number
+          lock_until?: string | null
+          paused_reason?: string | null
+          paused_until?: string | null
+          text_model?: string
+          updated_at?: string
+          vision_enabled?: boolean
+          vision_hourly_limit?: number
+          vision_model?: string
+        }
+        Relationships: []
+      }
       sensitive_image_rules: {
         Row: {
           active: boolean
@@ -4764,6 +4845,164 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sensitive_image_status: {
+        Row: {
+          attempts: number
+          content_hash: string | null
+          created_at: string
+          final_audience: Database["public"]["Enums"]["user_sex"] | null
+          final_decision: string
+          final_source: string
+          id: string
+          image_id: string | null
+          image_url: string
+          last_error: string | null
+          manual_at: string | null
+          manual_audience: Database["public"]["Enums"]["user_sex"] | null
+          manual_by: string | null
+          manual_decision: string | null
+          next_attempt_at: string | null
+          position: number
+          product_id: string
+          updated_at: string
+          vision_at: string | null
+          vision_audience: Database["public"]["Enums"]["user_sex"] | null
+          vision_cached: boolean
+          vision_concepts: string[]
+          vision_confidence: string | null
+          vision_decision: string | null
+          vision_model: string | null
+          vision_prompt_version: number | null
+          vision_reason: string | null
+          vision_status: string
+        }
+        Insert: {
+          attempts?: number
+          content_hash?: string | null
+          created_at?: string
+          final_audience?: Database["public"]["Enums"]["user_sex"] | null
+          final_decision?: string
+          final_source?: string
+          id?: string
+          image_id?: string | null
+          image_url: string
+          last_error?: string | null
+          manual_at?: string | null
+          manual_audience?: Database["public"]["Enums"]["user_sex"] | null
+          manual_by?: string | null
+          manual_decision?: string | null
+          next_attempt_at?: string | null
+          position?: number
+          product_id: string
+          updated_at?: string
+          vision_at?: string | null
+          vision_audience?: Database["public"]["Enums"]["user_sex"] | null
+          vision_cached?: boolean
+          vision_concepts?: string[]
+          vision_confidence?: string | null
+          vision_decision?: string | null
+          vision_model?: string | null
+          vision_prompt_version?: number | null
+          vision_reason?: string | null
+          vision_status?: string
+        }
+        Update: {
+          attempts?: number
+          content_hash?: string | null
+          created_at?: string
+          final_audience?: Database["public"]["Enums"]["user_sex"] | null
+          final_decision?: string
+          final_source?: string
+          id?: string
+          image_id?: string | null
+          image_url?: string
+          last_error?: string | null
+          manual_at?: string | null
+          manual_audience?: Database["public"]["Enums"]["user_sex"] | null
+          manual_by?: string | null
+          manual_decision?: string | null
+          next_attempt_at?: string | null
+          position?: number
+          product_id?: string
+          updated_at?: string
+          vision_at?: string | null
+          vision_audience?: Database["public"]["Enums"]["user_sex"] | null
+          vision_cached?: boolean
+          vision_concepts?: string[]
+          vision_confidence?: string | null
+          vision_decision?: string | null
+          vision_model?: string | null
+          vision_prompt_version?: number | null
+          vision_reason?: string | null
+          vision_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensitive_image_status_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensitive_prompts: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          note: string | null
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          note?: string | null
+          version: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          note?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
+      sensitive_vision_cache: {
+        Row: {
+          content_hash: string
+          created_at: string
+          model: string
+          prompt_version: number
+          result: Json
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          model: string
+          prompt_version: number
+          result: Json
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          model?: string
+          prompt_version?: number
+          result?: Json
+        }
+        Relationships: []
       }
       share_events: {
         Row: {

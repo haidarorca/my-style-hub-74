@@ -37,87 +37,31 @@ async function categoryPaths(sb: any) {
 
 type AiItem = { id: string; sensitive: boolean; hidden_for: "male" | "female" | "none"; confidence: "high" | "medium" | "low"; reason: string; detected_concepts: string[] };
 
-export async function askAi(items: Array<{ id: string; category: string; name: string; description: string; material: string }>): Promise<AiItem[]> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("Assistant IA non configuré");
-  const prompt = `Tu aides une marketplace à respecter des règles religieuses d'affichage d'images.
-Pour chaque produit, décide si ses photos risquent de montrer un corps en sous-vêtement, lingerie ou maillot de bain (image « sensible »).
-Règles :
-- Base-toi sur le CONTEXTE complet (catégorie + nom + description), jamais sur un mot isolé. « boxer » pour chien, « string lights », short de boxe = NON sensible.
-- Un vêtement féminin ou masculin ordinaire (robe, t-shirt, pantalon) n'est PAS sensible.
-- Si sensible : hidden_for = genre à qui l'image doit être CACHÉE, c'est-à-dire le genre OPPOSÉ à celui qui porte le produit (sous-vêtement homme → hidden_for "female" ; lingerie femme → hidden_for "male").
-- Si le genre du porteur ne peut pas être déterminé, ou si les indices se contredisent : confidence "low". N'invente jamais.
-- reason : courte justification en français.
-Produits (JSON) :
-${JSON.stringify(items)}`;
-
-  const schema = {
-    type: "object", additionalProperties: false, required: ["results"],
-    properties: {
-      results: {
-        type: "array",
-        items: {
-          type: "object", additionalProperties: false,
-          required: ["id", "sensitive", "hidden_for", "confidence", "reason", "detected_concepts"],
-          properties: {
-            id: { type: "string" },
-            sensitive: { type: "boolean" },
-            hidden_for: { type: "string", enum: ["male", "female", "none"] },
-            confidence: { type: "string", enum: ["high", "medium", "low"] },
-            reason: { type: "string" },
-            detected_concepts: { type: "array", items: { type: "string" } },
-          },
-        },
-      },
-    },
-  };
-
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "fetch" },
-    body: JSON.stringify({
-      model: MODEL,
-      input: prompt,
-      stream: true,
-      store: false,
-      reasoning: { effort: "low" },
-      text: { format: { type: "json_schema", name: "sensitivity", strict: true, schema } },
-    }),
-  });
-  if (!res.ok || !res.body) {
-    if (res.status === 402) throw new Error("Crédits IA épuisés. Ajoutez des crédits pour continuer.");
-    if (res.status === 429) throw new Error("Limite IA atteinte, réessayez dans un instant.");
-    const t = await res.text().catch(() => "");
-    throw new Error(`Erreur IA (${res.status}) ${t.slice(0, 200)}`);
-  }
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  let out = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i: number;
-    while ((i = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, i).trim();
-      buf = buf.slice(i + 1);
-      if (!line.startsWith("data:")) continue;
-      const p = line.slice(5).trim();
-      if (!p || p === "[DONE]") continue;
-      try {
-        const ev = JSON.parse(p);
-        if (ev.type === "response.output_text.delta") out += ev.delta ?? "";
-        if (ev.type === "error" || ev.type === "response.failed") throw new Error("Erreur IA");
-      } catch (e) {
-        if (e instanceof Error && e.message === "Erreur IA") throw e;
-      }
-    }
-  }
+/** Analyse texte — OpenAI DIRECT (clé OPENAI_API_KEY), jamais le service IA Lovable. */
+export async function askAi(
+  sb: any,
+  items: Array<{ id: string; category: string; name: string; description: string; material: string }>,
+  override?: { content: string; version: number | null; kind?: "text" | "test_text" },
+): Promise<AiItem[]> {
+  const { openAiJson, TEXT_SCHEMA, OpenAiError } = await import("./sensitive/openai.server");
+  const { getSettings, activePrompt, logCall } = await import("./sensitive/vision.server");
+  const s = await getSettings(sb);
+  const p = override ?? (await activePrompt(sb, "text"));
+  const kind = override?.kind ?? "text";
   try {
-    return (JSON.parse(out).results ?? []) as AiItem[];
-  } catch {
-    return [];
+    const r = await openAiJson({
+      model: s.text_model,
+      system: p.content,
+      user: `Produits (JSON) :\n${JSON.stringify(items)}`,
+      schemaName: "sensitivity",
+      schema: TEXT_SCHEMA,
+    });
+    await logCall(sb, { kind, outcome: "ok", http_status: 200, model: s.text_model, prompt_version: p.version, tokens_in: r.tokensIn, tokens_out: r.tokensOut });
+    return (r.json?.results ?? []) as AiItem[];
+  } catch (e) {
+    const err = e instanceof OpenAiError ? e : null;
+    await logCall(sb, { kind, outcome: err?.kind === "rate_limit" ? "rate_limited" : "error", http_status: err?.status ?? null, model: s.text_model, prompt_version: p.version, error: (e instanceof Error ? e.message : "Erreur").slice(0, 200) });
+    throw e;
   }
 }
 
@@ -218,9 +162,22 @@ export async function runBatchCore(sb: any) {
       }
     }
 
+    let vision = 0;
     if (rows.length) {
-      const { error: upErr } = await sb.from("product_image_sensitivity").upsert(rows, { onConflict: "product_id" });
-      if (upErr) throw new Error(upErr.message);
+      // Une décision MANUELLE n'est jamais écrasée : on met seulement à jour l'empreinte.
+      const { data: manualRows } = await sb.from("product_image_sensitivity").select("product_id")
+        .eq("source", "MANUAL").in("product_id", rows.map((r) => r.product_id));
+      const manualIds = new Set((manualRows ?? []).map((r: any) => r.product_id));
+      for (const r of rows.filter((x) => manualIds.has(x.product_id)))
+        await sb.from("product_image_sensitivity").update({ input_hash: r.input_hash }).eq("product_id", r.product_id);
+      const autoRows = rows.filter((x) => !manualIds.has(x.product_id));
+      if (autoRows.length) {
+        const { error: upErr } = await sb.from("product_image_sensitivity").upsert(autoRows, { onConflict: "product_id" });
+        if (upErr) throw new Error(upErr.message);
+      }
+      // Vision uniquement si nécessaire : sensible ou à vérifier (jamais les produits normaux)
+      const { enqueueProduct } = await import("./sensitive/vision.server");
+      for (const r of autoRows) if (r.decision !== "normal") vision += await enqueueProduct(sb, r.product_id);
     }
     for (const [id, n] of ruleHits) {
       const r = await sb.from("sensitive_image_rules").select("hits").eq("id", id).single();
@@ -238,6 +195,7 @@ export async function runBatchCore(sb: any) {
       learned,
       remaining: Number(remaining ?? 0),
       aiError,
+      queuedForVision: vision,
     };
 }
 
@@ -330,11 +288,17 @@ export const getSensitiveOverview = createServerFn({ method: "POST" })
 export const setSensitiveManual = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
-    z.object({ productId: z.string().uuid(), choice: z.enum(["femme", "homme", "normal"]) }).parse(i),
+    z.object({ productId: z.string().uuid(), choice: z.enum(["femme", "homme", "normal", "review", "auto"]) }).parse(i),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const sb = await admin();
+    if (data.choice === "auto") {
+      // Retire la décision manuelle : le produit repasse en analyse automatique.
+      await sb.from("product_image_sensitivity").delete().eq("product_id", data.productId).eq("source", "MANUAL");
+      await sb.from("sensitive_image_status").update({ updated_at: new Date().toISOString() }).eq("product_id", data.productId);
+      return { ok: true };
+    }
     const { data: p } = await sb.from("products").select("id, name, description, category_id").eq("id", data.productId).single();
     if (!p) throw new Error("Produit introuvable");
     const { data: h } = await sb.from("product_image_sensitivity").select("matched_term").eq("product_id", p.id).maybeSingle();
@@ -346,8 +310,8 @@ export const setSensitiveManual = createServerFn({ method: "POST" })
       .digest("hex");
     const row = {
       product_id: p.id,
-      decision: data.choice === "normal" ? "normal" : "sensitive",
-      audience: data.choice === "normal" ? null : data.choice,
+      decision: data.choice === "normal" ? "normal" : data.choice === "review" ? "review" : "sensitive",
+      audience: data.choice === "homme" || data.choice === "femme" ? data.choice : null,
       source: "MANUAL",
       confidence: "high",
       reason: "Correction administrateur",
