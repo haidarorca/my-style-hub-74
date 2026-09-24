@@ -311,7 +311,7 @@ function ManualImagesDialogBody({ productId }: { productId: string }) {
                   <Button key={c} type="button" size="sm" variant={st === c && im.manual_decision ? "default" : "outline"}
                     className="h-8 px-1 text-[11px]" disabled={busy === im.id}
                     onClick={() => choose(im.id, i, c)}>
-                    {busy === im.id && st !== c ? null : null}{STATUS_LABEL[c]}
+                    {STATUS_LABEL[c]}
                   </Button>
                 ))}
               </div>
