@@ -1010,12 +1010,16 @@ export type Database = {
           last_imported_at: string
           main_image: string | null
           material: string | null
+          material_cj_class: string[] | null
+          material_source: string | null
           name_cn: string | null
           name_en: string | null
           pack_weight_raw: string | null
           price_synced_at: string | null
           product_id: string | null
           product_weight_raw: string | null
+          quality_missing: Json | null
+          quality_score: number | null
           raw: Json | null
           source_description: string | null
           source_images: Json
@@ -1040,12 +1044,16 @@ export type Database = {
           last_imported_at?: string
           main_image?: string | null
           material?: string | null
+          material_cj_class?: string[] | null
+          material_source?: string | null
           name_cn?: string | null
           name_en?: string | null
           pack_weight_raw?: string | null
           price_synced_at?: string | null
           product_id?: string | null
           product_weight_raw?: string | null
+          quality_missing?: Json | null
+          quality_score?: number | null
           raw?: Json | null
           source_description?: string | null
           source_images?: Json
@@ -1070,12 +1078,16 @@ export type Database = {
           last_imported_at?: string
           main_image?: string | null
           material?: string | null
+          material_cj_class?: string[] | null
+          material_source?: string | null
           name_cn?: string | null
           name_en?: string | null
           pack_weight_raw?: string | null
           price_synced_at?: string | null
           product_id?: string | null
           product_weight_raw?: string | null
+          quality_missing?: Json | null
+          quality_score?: number | null
           raw?: Json | null
           source_description?: string | null
           source_images?: Json
