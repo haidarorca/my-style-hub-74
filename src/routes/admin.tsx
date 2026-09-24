@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/products", label: "Validation produits", icon: PackageCheck, perm: "product_validation" },
       { to: "/admin/display", label: "Vitrine & affichage", icon: LayoutDashboard, perm: "settings", badge: "NEW" },
       { to: "/admin/categories", label: "Catégories", icon: FolderTree, perm: "categories" },
+      { to: "/admin/sensitive-images", label: "Images sensibles", icon: FolderTree, perm: "categories", badge: "NEW" },
       { to: "/admin/category-requests", label: "Demandes catégories", icon: Inbox, perm: "categories" },
       { to: "/admin/imports", label: "Import / Export", icon: Upload, perm: "products" },
       { to: "/admin/cj-import", label: "Importer depuis CJ", icon: Download, perm: "products", badge: "NEW" },
