@@ -232,7 +232,7 @@ export function matchCjCategoryPath(
     score -= ownUnmatched * 4;
 
     if (strictHit) {
-      score += chain.length * 2; // précision
+      score += chain.length * 3; // précision
       if (!best || score > best.score || (score === best.score && chain.length > best.chain.length)) {
         best = { cat, chain, score, lastSeg };
       }
