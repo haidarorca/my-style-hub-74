@@ -15,6 +15,8 @@ export const SUPPLIER_PATTERN = /cjdropshipping|cjdropship\.com/i;
 export interface ProductSpec {
   label: string;
   value: string;
+  /** Tableau (guide des tailles) : lignes de cellules. */
+  rows?: string[][];
 }
 
 export interface ParsedDescription {
@@ -106,20 +108,44 @@ export function parseSupplierDescription(input: string | null | undefined): Pars
   const specs: ProductSpec[] = [];
   const seen = new Set<string>();
   const body: string[] = [];
+  let group: ProductSpec | null = null; // rubrique « Libellé : » suivie de lignes
+  const addSpec = (sp: ProductSpec) => {
+    const k = sp.label.toLowerCase();
+    if (seen.has(k)) return null;
+    seen.add(k);
+    specs.push(sp);
+    return sp;
+  };
   for (const raw of htmlToLines(input)) {
     const line = raw.replace(/\s+([,.;:])/g, "$1");
-    if (SECTION_HEADING.test(line)) continue;
+    if (SECTION_HEADING.test(line)) { group = null; continue; }
     if (DROP_LINE.test(line)) continue;
-    const spec = parseSpec(line);
-    if (spec) {
-      const k = spec.label.toLowerCase();
-      if (!seen.has(k)) {
-        seen.add(k);
-        specs.push(spec);
-      }
+    const heading = /^([^:：]{2,40})[:：]$/.exec(line.replace(/^•\s*/, ""));
+    if (heading) {
+      const label = heading[1]!.trim();
+      const isSize = /size|taille|尺码/i.test(label);
+      group = addSpec({ label: label.charAt(0).toUpperCase() + label.slice(1), value: "", ...(isSize ? { rows: [] } : {}) });
       continue;
     }
+    if (group?.rows) {
+      const cells = line.split(/\s+/).filter(Boolean);
+      // Tableau de tailles : lignes courtes, majoritairement chiffrées ou en-têtes.
+      if (cells.length >= 2 && cells.every((c) => c.length <= 12)) { group.rows.push(cells); continue; }
+    }
+    const spec = parseSpec(line);
+    if (spec) { group = null; addSpec(spec); continue; }
+    if (group && !group.rows && line.length <= 120) {
+      group.value = group.value ? `${group.value}, ${line.replace(/^•\s*/, "")}` : line.replace(/^•\s*/, "");
+      continue;
+    }
+    group = null;
     if (body[body.length - 1] !== line) body.push(line);
+  }
+  // Rubriques vides (titre sans contenu) : retirées.
+  for (let i = specs.length - 1; i >= 0; i -= 1) {
+    const sp = specs[i]!;
+    if (!sp.value && !(sp.rows && sp.rows.length)) specs.splice(i, 1);
+    else if (sp.rows && !sp.rows.length) delete sp.rows;
   }
 
   const text = body.join("\n").trim();

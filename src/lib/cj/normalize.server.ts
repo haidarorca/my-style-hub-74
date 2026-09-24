@@ -38,9 +38,7 @@ export async function normalizeCjProducts(admin: any, onlyProductId?: string): P
       res.descriptions += 1;
 
       // Ordre de référence des sources, puis correspondance avec les fichiers hébergés.
-      const set: string[] = Array.isArray(p.productImageSet) ? p.productImageSet : [];
-      const main: string | null = p.productImage ?? (Array.isArray(r.source_images) ? r.source_images[0] : null) ?? null;
-      const order = orderSupplierImages(main, set.length ? set : r.source_images ?? [], parsed.imageUrls);
+      const order = orderSupplierImages(p.productImage ?? r.source_images, p.productImageSet ?? r.source_images, parsed.imageUrls);
       const { data: imgs } = await admin.from("product_images").select("id, url, position").eq("product_id", r.product_id);
       if (!imgs?.length || !order.length) continue;
       const rank = new Map<string, number>();
