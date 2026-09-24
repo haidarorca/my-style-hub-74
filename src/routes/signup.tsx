@@ -229,7 +229,6 @@ function SignupPage() {
               Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.
             </p>
 
-        <div className="mt-6"><GoogleSignInButton /></div>
             <form onSubmit={onSubmit} className="mt-2 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="fullName">Nom complet</Label>
