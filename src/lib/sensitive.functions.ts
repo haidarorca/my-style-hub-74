@@ -155,7 +155,10 @@ export const runSensitiveBatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
-    const sb = await admin();
+    return runBatchCore(await admin());
+  });
+
+export async function runBatchCore(sb: any) {
     const pathOf = await categoryPaths(sb);
     const { data: ruleRows } = await sb.from("sensitive_image_rules").select("id, term, category_id, decision, audience").eq("active", true);
     const rules = (ruleRows ?? []) as LearnedRule[];
@@ -236,7 +239,7 @@ export const runSensitiveBatch = createServerFn({ method: "POST" })
       remaining: Number(remaining ?? 0),
       aiError,
     };
-  });
+}
 
 export const getSensitiveOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
