@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { setSensitiveManual } from "@/lib/sensitive.functions";
 import { getProductImageClassification, requeueVision, setImageManual } from "@/lib/sensitive-vision.functions";
 
@@ -221,5 +224,132 @@ export function AdminProductImagesPanel({ productId }: { productId: string }) {
         </>
       )}
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Classification MANUELLE depuis le catalogue admin — aucune IA.       */
+/* ------------------------------------------------------------------ */
+
+/** Indicateur compact : résumé des classifications des images d'un produit. */
+function useImageSummary(productId: string) {
+  return useQuery({
+    queryKey: ["sensitive-admin", "summary", productId],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sensitive_image_status")
+        .select("final_decision, final_audience")
+        .eq("product_id", productId);
+      if (error) throw error;
+      const rows = ((data ?? []) as any[]).slice();
+      const c = { normal: 0, homme: 0, femme: 0, review: 0, total: rows.length };
+      for (const r of rows) {
+        const s = r.final_decision === "sensitive" ? (r.final_audience === "homme" ? "homme" : "femme")
+          : r.final_decision === "normal" ? "normal" : "review";
+        c[s as "normal"]++;
+      }
+      return c;
+    },
+  });
+}
+
+function SummaryBadge({ productId }: { productId: string }) {
+  const { data } = useImageSummary(productId);
+  if (!data) return null;
+  if (data.total === 0) return <span className="text-[10px] text-muted-foreground">Non classé</span>;
+  const sens = data.homme + data.femme;
+  const kinds = [data.normal, data.homme, data.femme, data.review].filter((n) => n > 0).length;
+  if (kinds === 1) {
+    const st = data.normal ? "normal" : data.homme ? "homme" : data.femme ? "femme" : "review";
+    return <StatusPill status={st} />;
+  }
+  return (
+    <span className="text-[10px] font-medium text-muted-foreground">
+      {sens} sensible{sens > 1 ? "s" : ""} / {data.total} images{data.review ? ` · ${data.review} à vérifier` : ""}
+    </span>
+  );
+}
+
+/** Contenu du dialogue : images complètes + classification manuelle image par image. */
+function ManualImagesDialogBody({ productId }: { productId: string }) {
+  const qc = useQueryClient();
+  const fetchIt = useServerFn(getProductImageClassification);
+  const setImg = useServerFn(setImageManual);
+  const [busy, setBusy] = useState<string | null>(null);
+  const { data, isLoading } = useQuery({
+    queryKey: ["sensitive-admin", "product", productId],
+    queryFn: () => fetchIt({ data: { productId } }),
+  });
+  const choose = async (id: string, idx: number, c: Choice) => {
+    setBusy(id);
+    try {
+      await setImg({ data: { id, choice: c } });
+      toast.success(`Image ${idx + 1} : ${STATUS_LABEL[c]}`);
+      await qc.invalidateQueries({ queryKey: ["sensitive-admin"] });
+      qc.invalidateQueries({ queryKey: ["sensitive-images"] });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
+    finally { setBusy(null); }
+  };
+  if (isLoading) return <Loader2 className="mx-auto my-6 h-5 w-5 animate-spin" />;
+  const imgs = ((data?.images ?? []) as any[]).filter((im) => im.current !== false);
+  if (!imgs.length) return <p className="py-6 text-center text-sm text-muted-foreground">Ce produit n'a aucune image.</p>;
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {imgs.map((im, i) => {
+        const st = statusOf(im.final_decision, im.final_audience);
+        return (
+          <div key={im.id} className="overflow-hidden rounded-lg border bg-card">
+            <img src={im.image_url} alt={`Image ${i + 1}`} className="aspect-square w-full bg-muted object-contain" loading="lazy" />
+            <div className="space-y-2 p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold">Image {i + 1}</span>
+                <StatusPill status={st} />
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {(["normal", "homme", "femme", "review"] as const).map((c) => (
+                  <Button key={c} type="button" size="sm" variant={st === c && im.manual_decision ? "default" : "outline"}
+                    className="h-8 px-1 text-[11px]" disabled={busy === im.id}
+                    onClick={() => choose(im.id, i, c)}>
+                    {STATUS_LABEL[c]}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {im.manual_decision ? "Décision manuelle" : `Pas encore classée manuellement (actuel : ${SOURCE_LABEL[im.final_source] ?? "—"})`}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Bouton « Images sensibles » dans le catalogue admin (admins uniquement). */
+export function AdminSensitiveImagesButton({ productId, productName, fullWidth }: { productId: string; productName: string; fullWidth?: boolean }) {
+  const { isAdmin } = useAuth();
+  const [open, setOpen] = useState(false);
+  if (!isAdmin) return null;
+  return (
+    <div className={cn("flex items-center gap-2", fullWidth && "w-full justify-between")}>
+      <SummaryBadge productId={productId} />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button type="button" size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs">
+            <ShieldCheck className="h-3 w-3" /> Images sensibles
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">Images sensibles — {productName}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Classement manuel, image par image. Aucune IA n'est utilisée. Votre choix s'applique immédiatement aux clients.
+            </DialogDescription>
+          </DialogHeader>
+          {open && <ManualImagesDialogBody productId={productId} />}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

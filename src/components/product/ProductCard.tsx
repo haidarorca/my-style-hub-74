@@ -9,7 +9,6 @@ import { useFormatDisplay } from "@/hooks/use-currencies";
 import { ProductBadges } from "./ProductBadges";
 import { ShareButton } from "@/components/share/ShareButton";
 import { CatalogImage } from "@/components/images/CatalogImage";
-import { AdminCardSensitivity } from "@/components/admin/sensitive/SensitiveControls";
 import {
   CARD_PADDING,
   DEFAULT_DISPLAY,
@@ -110,7 +109,6 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
               {product.stock_status === "out" ? "Rupture de stock" : product.stock_status === "low" ? "Stock limité" : "En stock"}
             </span>
           )}
-          <AdminCardSensitivity productId={product.id} />
           <span className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
 
