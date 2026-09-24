@@ -605,7 +605,7 @@ function ProductPage() {
             <p className="text-xs text-muted-foreground">
               {t("product.code")} : {matchedVariant?.supplier_sku || data.code}
             </p>
-            {productDesignation && (
+            {productDesignation && !/[\u3400-\u9fff]/.test(productDesignation) && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
             <div className="mt-3">
