@@ -28,6 +28,7 @@ interface CatalogImageProps {
   onClick?: () => void;
   /** Catégorie du produit (module Images sensibles). */
   categoryId?: string | null;
+  productId?: string | null;
   children?: React.ReactNode;
 }
 
@@ -42,8 +43,9 @@ export function CatalogImage({
   onClick,
   children,
   categoryId,
+  productId,
 }: CatalogImageProps) {
-  const sens = useSensitiveImage(categoryId);
+  const sens = useSensitiveImage(categoryId, productId);
   return (
     <div
       className={cn("relative w-full overflow-hidden bg-muted/40", className)}
@@ -51,7 +53,7 @@ export function CatalogImage({
       onClick={onClick}
     >
       {src && sens.hidden ? (
-        sens.pending ? <div className="h-full w-full bg-muted" /> : <div className="absolute inset-0"><MaskedImage /></div>
+        sens.pending ? <div className="h-full w-full bg-muted" /> : <div className="absolute inset-0"><MaskedImage withConfirm={sens.canConfirm} /></div>
       ) : src ? (
         <img
           src={optimizedImage(src, width)}

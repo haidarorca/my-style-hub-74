@@ -552,6 +552,7 @@ function ProductPage() {
               onIndexChange={setImgIdx}
               dir={dir}
               categoryId={(data as any).category_id ?? null}
+              productId={productId}
             />
           );
         })()}
@@ -924,7 +925,7 @@ function ProductPage() {
                     >
                       {vImg ? (
                         <span className="h-5 w-5 overflow-hidden rounded border border-border">
-                          <SensitiveThumb categoryId={(data as any).category_id ?? null} src={vImg} alt="" className="h-full w-full object-cover" />
+                          <SensitiveThumb productId={productId} categoryId={(data as any).category_id ?? null} src={vImg} alt="" className="h-full w-full object-cover" />
                         </span>
                       ) : hex ? (
                         <span
