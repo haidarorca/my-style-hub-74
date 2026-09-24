@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
+import { AdminSensitiveImagesButton } from "@/components/admin/sensitive/SensitiveControls";
 
 const DEFAULT_FILTER: ValidationFilter = {
   q: "", status: "to_review", source: "all", kind: "all", vendorId: null, categoryId: null,
@@ -352,6 +353,7 @@ function Row({ row, checked, onCheck, disabled }: { row: ValidationRow; checked:
         <div className="line-clamp-1 text-sm font-semibold">{row.name}</div>
         <div className="text-xs text-muted-foreground">#{row.code} · {fmtMoney(row.price)} · {row.vendor_name ?? "—"} · {fmtDate(row.created_at)}</div>
         <StatusBadges row={row} />
+        <AdminSensitiveImagesButton productId={row.id} productName={row.name} />
         {row.status === "pending" && row.review_reasons.length ? (
           <div className="text-[11px] text-amber-700 dark:text-amber-400">{row.review_reasons.join(" · ")}</div>
         ) : null}
