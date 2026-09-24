@@ -13,7 +13,8 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { imageSrcSet, optimizedImage } from "@/lib/images/cdn";
-import { MaskedImage, useSensitiveImage } from "@/lib/sensitive-images";
+import { MaskedImage, useAdminSensitiveView, useSensitiveImage } from "@/lib/sensitive-images";
+import { ProductSensitivitySelect } from "@/components/admin/sensitive/ProductSensitivity";
 
 interface CatalogImageProps {
   src?: string | null;
@@ -46,6 +47,8 @@ export function CatalogImage({
   productId,
 }: CatalogImageProps) {
   const sens = useSensitiveImage(categoryId, productId, src);
+  const adminView = useAdminSensitiveView();
+  const flagged = adminView.on && !sens.pending && sens.status !== "normal";
   return (
     <div
       className={cn("relative w-full overflow-hidden bg-muted/40", className)}
@@ -71,6 +74,10 @@ export function CatalogImage({
         <div className="h-full w-full bg-gradient-to-br from-muted to-accent/30" />
       )}
       {children}
+      {flagged ? <div className="pointer-events-none absolute inset-0 z-10 border-4 border-destructive" /> : null}
+      {adminView.on && productId && !sens.pending ? (
+        <div className="absolute bottom-2 left-2 z-20"><ProductSensitivitySelect productId={productId} status={sens.status} /></div>
+      ) : null}
     </div>
   );
 }
