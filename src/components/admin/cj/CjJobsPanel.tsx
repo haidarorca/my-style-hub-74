@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -31,6 +31,33 @@ export function CjJobsPanel() {
 
   const { data } = useQuery({ queryKey: ["cj-jobs"], queryFn: () => listFn(), refetchInterval: 4000 });
   const jobs: any[] = data?.jobs ?? [];
+
+  // Relais : tant que la page est ouverte, fait avancer les imports en cours
+  // si le traitement d'arrière-plan ne démarre pas.
+  const activeId = jobs.find((j) => ["pending", "running", "discovering"].includes(j.status))?.id as string | undefined;
+  const pumping = useRef(false);
+  useEffect(() => {
+    if (!activeId) return;
+    let stop = false;
+    const loop = async () => {
+      if (pumping.current) return;
+      pumping.current = true;
+      try {
+        while (!stop) {
+          const r: any = await pumpFn({ data: { jobId: activeId } });
+          qc.invalidateQueries({ queryKey: ["cj-jobs"] });
+          if (!r || r.state === "done" || r.state === "stopped") break;
+          if (r.state === "rate_limited" || !r.processed) await new Promise((res) => setTimeout(res, 5000));
+        }
+      } catch (e) {
+        console.error("[cj pump]", e);
+      } finally {
+        pumping.current = false;
+      }
+    };
+    loop();
+    return () => { stop = true; };
+  }, [activeId]);
 
   async function act(jobId: string, action: any) {
     setBusy(jobId + action);
