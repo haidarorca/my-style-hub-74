@@ -54,6 +54,32 @@ function SignupPage() {
   const [lastSentAt, setLastSentAt] = useState<number | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
 
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=fr`,
+      );
+      if (!res.ok) throw new Error();
+      const j = (await res.json()) as { address?: Record<string, string> };
+      const a = j.address ?? {};
+      const iso = (a.country_code ?? "").toUpperCase();
+      const match = (countries ?? []).find((c) => c.code?.toUpperCase() === iso);
+      if (match) setCountryId(match.id);
+      else if (iso) toast.warning(`Pays détecté (${a.country ?? iso}) non disponible : choisissez-le dans la liste.`);
+      const region = a.state || a.region || a.province || a.county || "";
+      const city = a.city || a.town || a.village || a.municipality || a.city_district || a.county || "";
+      const street = [a.house_number, a.road].filter(Boolean).join(" ");
+      const area = a.suburb || a.neighbourhood || a.quarter || a.hamlet || "";
+      const line = [street, area].filter(Boolean).join(", ");
+      if (region) setRegionText(region);
+      if (city) setCityText(city);
+      if (line) setAddress(line);
+      toast.success("Adresse remplie automatiquement. Vérifiez et complétez si besoin.");
+    } catch {
+      toast.warning("Position enregistrée, mais l'adresse n'a pas pu être trouvée. Remplissez-la à la main.");
+    }
+  };
+
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
       toast.error("Géolocalisation indisponible sur ce navigateur.");
@@ -61,16 +87,24 @@ function SignupPage() {
     }
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        toast.success("Position détectée");
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
+        await reverseGeocode(lat, lng);
         setGeoLoading(false);
       },
       (err) => {
-        toast.error("Impossible de récupérer la position : " + err.message);
+        const msg =
+          err.code === 1
+            ? "Localisation refusée. Autorisez-la dans les réglages du navigateur, puis réessayez."
+            : err.code === 3
+              ? "La recherche de position a pris trop de temps. Réessayez."
+              : "Position indisponible. Activez la localisation (GPS) du téléphone.";
+        toast.error(msg);
         setGeoLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
     );
   };
 
@@ -92,13 +126,13 @@ function SignupPage() {
       toast.error("Merci de fournir une adresse ou votre position.");
       return;
     }
-    if (password.length < 6) {
-      toast.error("Le mot de passe doit faire au moins 6 caractères.");
+    if (password.length < 8) {
+      toast.error("Le mot de passe doit faire au moins 8 caractères.");
       return;
     }
     setLoading(true);
     try {
-      await sendCode({ data: { email: email.trim().toLowerCase() } });
+      await sendCode({ data: { email: email.trim().toLowerCase(), password } });
       setLastSentAt(Date.now());
       setStep("verify");
       toast.success("Code envoyé. Vérifiez votre email (et dossier spam).");
@@ -117,7 +151,7 @@ function SignupPage() {
     }
     setResendLoading(true);
     try {
-      await sendCode({ data: { email: email.trim().toLowerCase() } });
+      await sendCode({ data: { email: email.trim().toLowerCase(), password } });
       setLastSentAt(Date.now());
       toast.success("Nouveau code envoyé.");
     } catch (err) {
@@ -165,7 +199,9 @@ function SignupPage() {
         navigate({ to: "/" });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Vérification échouée.");
+      const msg = err instanceof Error ? err.message : "Vérification échouée.";
+      toast.error(msg);
+      if (/mot de passe/i.test(msg)) setStep("form");
     } finally {
       setLoading(false);
     }

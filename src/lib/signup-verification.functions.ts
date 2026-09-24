@@ -10,7 +10,38 @@ const RESEND_COOLDOWN_SECONDS = 60;
 
 const SendSchema = z.object({
   email: z.string().email().max(255),
+  password: z.string().max(200).optional(),
 });
+
+/** Vérifie (anonymement, k-anonymity) si le mot de passe figure dans les fuites connues. */
+async function isPwnedPassword(password: string): Promise<boolean> {
+  try {
+    const sha1 = createHash("sha1").update(password).digest("hex").toUpperCase();
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${sha1.slice(0, 5)}`, {
+      headers: { "Add-Padding": "true" },
+    });
+    if (!res.ok) return false;
+    const body = await res.text();
+    const suffix = sha1.slice(5);
+    return body.split("\n").some((l) => {
+      const [h, c] = l.trim().split(":");
+      return h === suffix && Number(c) > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+const WEAK_PASSWORD_MSG =
+  "Ce mot de passe est trop connu et facile à deviner. Choisissez-en un autre (mélangez lettres, chiffres et symboles).";
+
+function translateAuthError(msg?: string): string {
+  const m = (msg ?? "").toLowerCase();
+  if (m.includes("weak") || m.includes("easy to guess") || m.includes("pwned")) return WEAK_PASSWORD_MSG;
+  if (m.includes("already") && m.includes("registered")) return "Un compte existe déjà avec cet email.";
+  if (m.includes("password")) return "Mot de passe refusé. Choisissez-en un plus solide (au moins 8 caractères).";
+  return msg || "Création du compte échouée.";
+}
 
 const VerifySchema = z.object({
   email: z.string().email().max(255),
@@ -87,6 +118,10 @@ export const sendSignupVerificationCode = createServerFn({ method: "POST" })
     if (!GOOGLE_MAIL_API_KEY) throw new Error("GOOGLE_MAIL_API_KEY is not configured");
 
     const email = data.email.trim().toLowerCase();
+
+    if (data.password && (await isPwnedPassword(data.password))) {
+      throw new Error(WEAK_PASSWORD_MSG);
+    }
 
     // Refuse if account already exists
     const { data: existing } = await supabaseAdmin
@@ -259,7 +294,7 @@ export const verifySignupAndCreateAccount = createServerFn({ method: "POST" })
     });
     if (createErr || !created?.user) {
       console.error("createUser failed", createErr);
-      throw new Error(createErr?.message ?? "Création du compte échouée.");
+      throw new Error(translateAuthError(createErr?.message));
     }
 
     const userId = created.user.id;
