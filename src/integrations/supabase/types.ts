@@ -4007,9 +4007,11 @@ export type Database = {
           price: number
           rejection_reason: string | null
           requires_international_shipping: boolean
+          review_reasons: string[]
           season: string | null
           show_individually: boolean
           sku: string | null
+          source: string
           source_country_id: string | null
           specifications: Json | null
           status: Database["public"]["Enums"]["product_status"]
@@ -4017,6 +4019,8 @@ export type Database = {
           supplier_ref: string | null
           translated_hash: string | null
           updated_at: string
+          validated_at: string | null
+          validation_mode: string | null
           vendor_id: string
           video_url: string | null
           views_count: number
@@ -4076,9 +4080,11 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          review_reasons?: string[]
           season?: string | null
           show_individually?: boolean
           sku?: string | null
+          source?: string
           source_country_id?: string | null
           specifications?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -4086,6 +4092,8 @@ export type Database = {
           supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
+          validated_at?: string | null
+          validation_mode?: string | null
           vendor_id: string
           video_url?: string | null
           views_count?: number
@@ -4145,9 +4153,11 @@ export type Database = {
           price?: number
           rejection_reason?: string | null
           requires_international_shipping?: boolean
+          review_reasons?: string[]
           season?: string | null
           show_individually?: boolean
           sku?: string | null
+          source?: string
           source_country_id?: string | null
           specifications?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
@@ -4155,6 +4165,8 @@ export type Database = {
           supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
+          validated_at?: string | null
+          validation_mode?: string | null
           vendor_id?: string
           video_url?: string | null
           views_count?: number

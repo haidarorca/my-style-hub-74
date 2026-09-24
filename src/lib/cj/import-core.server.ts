@@ -336,6 +336,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         origin_currency_code: minCost !== null ? "USD" : null,
         status: "pending",
         is_active: false,
+        source: "cj_import",
         cost_price: minCost,
         cost_currency_code: "USD",
         supplier_ref: p.productSku ?? null,
@@ -541,10 +542,41 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     report.cjSku = p.productSku ?? null;
     report.cjCategory = cjCategoryPath;
 
+    // ── Validation automatique (nouveaux produits uniquement) ──
+    // Contrôles de qualité : si tout est conforme → « Validé automatiquement »
+    // (statut approuvé, publication/activation inchangées) ; sinon → « À vérifier »
+    // avec les raisons précises. Une synchronisation ne change jamais le statut.
+    let resultLabel = `Synchronisé : ${[...parts].join(", ")}`;
+    if (isNew) {
+      const { evaluateCjAutoValidation } = await import("./auto-validate");
+      const { data: priced } = await admin.from("products").select("price").eq("id", productId).single();
+      const reasons = evaluateCjAutoValidation({
+        name: nameEn ?? nameCn,
+        galleryCount: gallery?.length ?? 0,
+        costPrice: minCost,
+        salePrice: priced?.price == null ? null : Number(priced.price),
+        variantsTotal: report.variantsTotal,
+        variantsImported: report.variantsImported,
+        variants: report.variants,
+        sku: p.productSku ?? null,
+        categoryId: category.kawzoneCategoryId,
+        publicClean: offenders.length === 0,
+        descriptionHtml: parsed.html,
+      });
+      report.autoValidation = { validated: reasons.length === 0, reasons };
+      const nowV = new Date().toISOString();
+      await admin.from("products").update(
+        reasons.length === 0
+          ? { status: "approved", validation_mode: "auto", validated_at: nowV, review_reasons: [], is_edit: false }
+          : { status: "pending", validation_mode: null, review_reasons: reasons },
+      ).eq("id", productId);
+      resultLabel = reasons.length === 0 ? "Importé — validé automatiquement" : `Importé — à vérifier : ${reasons.join(" ; ")}`;
+    }
+
     await admin.from("cj_import_log").insert({
       cj_product_id: pid, product_id: productId, action: isNew ? "created" : "updated",
       variants_total: report.variantsTotal, variants_imported: report.variantsImported, api_calls: traces.length,
-      result: isNew ? "Produit importé en brouillon" : `Synchronisé : ${[...parts].join(", ")}`,
+      result: resultLabel,
       missing_fields: missing, traces: traces as any, created_by: opts.userId ?? null,
       timings: { ...timings, total: Date.now() - t0 },
     });
