@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCountries } from "@/hooks/use-countries";
+import { FreightCalculator } from "@/components/admin/FreightCalculator";
 import {
   listShippingServices,
   upsertShippingService,
@@ -109,6 +110,12 @@ function ShippingServicesPage() {
                       {countryName(s.source_country_id)} → {countryName(s.destination_country_id)} ·{" "}
                       {Number(s.price_per_kg).toLocaleString("fr-FR")} FCFA /{" "}
                       {s.pricing_unit === "kg" ? "kg" : "m³"}
+                      {s.pricing_unit === "kg" &&
+                        (s.use_volumetric !== false
+                          ? ` · facturé au MAX(réel, volumétrique ÷ ${s.volumetric_divisor ?? 5000})`
+                          : " · facturé au poids réel")}
+                      {Number(s.min_billable_qty ?? 0) > 0 && ` · min ${s.min_billable_qty}`}
+                      {Number(s.fixed_fee ?? 0) > 0 && ` · +${s.fixed_fee} FCFA fixes`}
                       {(s.delay_min_days != null || s.delay_max_days != null) && (
                         <>
                           {" · "}
@@ -131,6 +138,8 @@ function ShippingServicesPage() {
           )}
         </CardContent>
       </Card>
+
+      {!!data?.length && <FreightCalculator services={data.filter((s) => s.is_enabled) as any} />}
 
       {editing && (
         <ServiceEditDialog
