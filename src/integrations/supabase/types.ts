@@ -664,7 +664,10 @@ export type Database = {
           name: string | null
           pid: string
           product_id: string | null
+          started_at: string | null
           status: string
+          step: string | null
+          timings: Json | null
           updated_at: string
         }
         Insert: {
@@ -680,7 +683,10 @@ export type Database = {
           name?: string | null
           pid: string
           product_id?: string | null
+          started_at?: string | null
           status?: string
+          step?: string | null
+          timings?: Json | null
           updated_at?: string
         }
         Update: {
@@ -696,7 +702,10 @@ export type Database = {
           name?: string | null
           pid?: string
           product_id?: string | null
+          started_at?: string | null
           status?: string
+          step?: string | null
+          timings?: Json | null
           updated_at?: string
         }
         Relationships: [
@@ -836,6 +845,7 @@ export type Database = {
           points_used: number | null
           product_id: string | null
           result: string
+          timings: Json | null
           traces: Json
           variants_imported: number
           variants_total: number
@@ -853,6 +863,7 @@ export type Database = {
           points_used?: number | null
           product_id?: string | null
           result: string
+          timings?: Json | null
           traces?: Json
           variants_imported?: number
           variants_total?: number
@@ -870,6 +881,7 @@ export type Database = {
           points_used?: number | null
           product_id?: string | null
           result?: string
+          timings?: Json | null
           traces?: Json
           variants_imported?: number
           variants_total?: number
@@ -984,8 +996,10 @@ export type Database = {
           cj_sku: string | null
           created_at: string
           customs_code: string | null
+          data_synced_at: string | null
           description_images_extracted: number | null
           images: Json
+          images_synced_at: string | null
           kawzone_category_id: string | null
           last_imported_at: string
           main_image: string | null
@@ -993,12 +1007,15 @@ export type Database = {
           name_cn: string | null
           name_en: string | null
           pack_weight_raw: string | null
+          price_synced_at: string | null
           product_id: string | null
           product_weight_raw: string | null
           raw: Json | null
           source_description: string | null
           source_images: Json
+          stock_synced_at: string | null
           updated_at: string
+          variants_synced_at: string | null
         }
         Insert: {
           category_mapping_status?: string
@@ -1009,8 +1026,10 @@ export type Database = {
           cj_sku?: string | null
           created_at?: string
           customs_code?: string | null
+          data_synced_at?: string | null
           description_images_extracted?: number | null
           images?: Json
+          images_synced_at?: string | null
           kawzone_category_id?: string | null
           last_imported_at?: string
           main_image?: string | null
@@ -1018,12 +1037,15 @@ export type Database = {
           name_cn?: string | null
           name_en?: string | null
           pack_weight_raw?: string | null
+          price_synced_at?: string | null
           product_id?: string | null
           product_weight_raw?: string | null
           raw?: Json | null
           source_description?: string | null
           source_images?: Json
+          stock_synced_at?: string | null
           updated_at?: string
+          variants_synced_at?: string | null
         }
         Update: {
           category_mapping_status?: string
@@ -1034,8 +1056,10 @@ export type Database = {
           cj_sku?: string | null
           created_at?: string
           customs_code?: string | null
+          data_synced_at?: string | null
           description_images_extracted?: number | null
           images?: Json
+          images_synced_at?: string | null
           kawzone_category_id?: string | null
           last_imported_at?: string
           main_image?: string | null
@@ -1043,12 +1067,15 @@ export type Database = {
           name_cn?: string | null
           name_en?: string | null
           pack_weight_raw?: string | null
+          price_synced_at?: string | null
           product_id?: string | null
           product_weight_raw?: string | null
           raw?: Json | null
           source_description?: string | null
           source_images?: Json
+          stock_synced_at?: string | null
           updated_at?: string
+          variants_synced_at?: string | null
         }
         Relationships: [
           {
@@ -5619,7 +5646,10 @@ export type Database = {
           name: string | null
           pid: string
           product_id: string | null
+          started_at: string | null
           status: string
+          step: string | null
+          timings: Json | null
           updated_at: string
         }[]
         SetofOptions: {

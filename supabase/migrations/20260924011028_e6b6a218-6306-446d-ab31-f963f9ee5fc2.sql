@@ -1,0 +1,4 @@
+ALTER TABLE public.cj_import_job_items ADD COLUMN IF NOT EXISTS step text, ADD COLUMN IF NOT EXISTS started_at timestamptz, ADD COLUMN IF NOT EXISTS timings jsonb;
+ALTER TABLE public.cj_import_log ADD COLUMN IF NOT EXISTS timings jsonb;
+ALTER TABLE public.cj_products ADD COLUMN IF NOT EXISTS stock_synced_at timestamptz, ADD COLUMN IF NOT EXISTS price_synced_at timestamptz, ADD COLUMN IF NOT EXISTS images_synced_at timestamptz, ADD COLUMN IF NOT EXISTS variants_synced_at timestamptz, ADD COLUMN IF NOT EXISTS data_synced_at timestamptz;
+UPDATE public.cj_products SET stock_synced_at = coalesce(stock_synced_at,last_imported_at), price_synced_at = coalesce(price_synced_at,last_imported_at), images_synced_at = coalesce(images_synced_at,last_imported_at), variants_synced_at = coalesce(variants_synced_at,last_imported_at), data_synced_at = coalesce(data_synced_at,last_imported_at);
