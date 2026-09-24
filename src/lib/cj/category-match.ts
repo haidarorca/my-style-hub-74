@@ -227,6 +227,7 @@ export function matchCjCategoryPath(
     if (!ownHit) continue;
     if (cjGender && catGender === cjGender) score += 8;
     if (!cjGender && catGender === "K") score -= 10;
+    if ((cjGender === "F" || cjGender === "H") && !catGender) score -= 8;
     // Un nom KawZone plein de mots non reconnus est moins sûr.
     const ownUnmatched = [...own].filter((t) => !segConcepts.some((cs) => cs.has(t))).length;
     score -= ownUnmatched * 4;
