@@ -95,6 +95,7 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
             src={img}
             alt={displayName}
             categoryId={product.category_id ?? null}
+            productId={product.id}
             ratio={cfg.imageRatio}
             className="shrink-0 bg-[var(--surface)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
           />

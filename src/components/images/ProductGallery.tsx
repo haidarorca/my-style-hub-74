@@ -37,6 +37,7 @@ interface ProductGalleryProps {
   onIndexChange: (i: number) => void;
   dir: "ltr" | "rtl";
   categoryId?: string | null;
+  productId?: string | null;
 }
 
 export const ProductGallery = React.memo(function ProductGallery({
@@ -46,8 +47,9 @@ export const ProductGallery = React.memo(function ProductGallery({
   onIndexChange,
   dir,
   categoryId,
+  productId,
 }: ProductGalleryProps) {
-  const sens = useSensitiveImage(categoryId);
+  const sens = useSensitiveImage(categoryId, productId);
   const [api, setApi] = useState<CarouselApi | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 

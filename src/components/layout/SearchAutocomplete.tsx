@@ -339,7 +339,7 @@ export function SearchAutocomplete() {
                                 className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-accent"
                               >
                                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
-                                  <SensitiveThumb categoryId={(p as any).category_id} src={img} alt="" className="h-full w-full object-cover" />
+                                  <SensitiveThumb productId={p.id} categoryId={(p as any).category_id} src={img} alt="" className="h-full w-full object-cover" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-sm">{name}</div>

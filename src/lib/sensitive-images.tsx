@@ -78,20 +78,47 @@ export interface SensitiveState {
   canConfirm: boolean;
 }
 
-export function useSensitiveImage(categoryId: string | null | undefined): SensitiveState {
+/** Décisions par produit (sensible, ou correction manuelle « non sensible »). */
+function useProductMap() {
+  return useQuery({
+    queryKey: ["sensitive-images", "products"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const out = new Map<string, SensitiveGender | null>();
+      for (let from = 0; from < 20000; from += 1000) {
+        const { data, error } = await (supabase as any)
+          .from("product_image_sensitivity")
+          .select("product_id, decision, audience, source")
+          .or("decision.eq.sensitive,source.eq.MANUAL")
+          .range(from, from + 999);
+        if (error) throw error;
+        for (const r of data ?? []) {
+          if (r.decision === "sensitive") out.set(r.product_id, r.audience ?? "femme");
+          else if (r.decision === "normal") out.set(r.product_id, null);
+        }
+        if (!data || data.length < 1000) break;
+      }
+      return out;
+    },
+  });
+}
+
+export function useSensitiveImage(categoryId: string | null | undefined, productId?: string | null): SensitiveState {
   const { data, isLoading } = useSensitiveMap();
+  const { data: pmap, isLoading: pLoading } = useProductMap();
   const { gender, fromAccount } = useViewerGender();
   return useMemo(() => {
-    if (!categoryId) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
-    if (isLoading || !data) return { hidden: true, pending: true, sensitive: false, canConfirm: false };
-    const target = data.get(categoryId);
+    if (!categoryId && !productId) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
+    if (isLoading || !data || (productId && (pLoading || !pmap))) return { hidden: true, pending: true, sensitive: false, canConfirm: false };
+    const target = productId && pmap!.has(productId) ? pmap!.get(productId) : categoryId ? data.get(categoryId) : undefined;
     if (!target) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
     return { hidden: gender !== target, pending: false, sensitive: true, canConfirm: !fromAccount };
-  }, [categoryId, data, isLoading, gender, fromAccount]);
+  }, [categoryId, productId, data, pmap, isLoading, pLoading, gender, fromAccount]);
 }
 
 /** Placeholder « Image masquée » (+ confirmation du genre si autorisée). */
 export function MaskedImage({ withConfirm, compact }: { withConfirm?: boolean; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
   if (compact) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
@@ -103,9 +130,18 @@ export function MaskedImage({ withConfirm, compact }: { withConfirm?: boolean; c
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted p-3 text-center text-muted-foreground">
       <Lock className="h-5 w-5" />
       <span className="text-xs font-medium">Image masquée</span>
-      {withConfirm && (
+      {withConfirm && !open && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
+          className="text-xs underline"
+        >
+          Cliquez pour afficher cette image et confirmer votre genre.
+        </button>
+      )}
+      {withConfirm && open && (
         <div className="mt-1 space-y-2" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-          <p className="text-xs">Ce produit contient une image réservée. Pour afficher l'image, confirmez votre genre.</p>
+          <p className="text-xs">Confirmez votre genre :</p>
           <div className="flex justify-center gap-2">
             {(["femme", "homme"] as const).map((g) => (
               <button
@@ -125,8 +161,8 @@ export function MaskedImage({ withConfirm, compact }: { withConfirm?: boolean; c
 }
 
 /** Miniature simple protégée (recherche, suggestions…). */
-export function SensitiveThumb({ categoryId, src, alt, className }: { categoryId?: string | null; src?: string | null; alt: string; className?: string }) {
-  const s = useSensitiveImage(categoryId);
+export function SensitiveThumb({ categoryId, productId, src, alt, className }: { categoryId?: string | null; productId?: string | null; src?: string | null; alt: string; className?: string }) {
+  const s = useSensitiveImage(categoryId, productId);
   if (!src) return null;
   if (s.hidden) return s.pending ? null : <MaskedImage compact />;
   return <img src={src} alt={alt} loading="lazy" decoding="async" className={className} />;
