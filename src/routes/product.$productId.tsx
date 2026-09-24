@@ -38,6 +38,7 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
+import { toReadableText, type ProductSpec } from "@/lib/cj/description";
 import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
 import { GroupSelector } from "@/components/product/GroupSelector";
 import { useTracker, useTrackProductView } from "@/hooks/use-tracker";
@@ -140,6 +141,7 @@ interface Variant {
   /** Disponibilité déclarée par le fournisseur (false = épuisé chez le fournisseur). */
   supplier_available?: boolean | null;
   supplier_stock?: number | null;
+  cj_options?: Record<string, string> | null;
   /** Données logistiques de la variante (prioritaires sur le produit). */
   weight_kg?: number | null;
   length_cm?: number | null;
@@ -148,7 +150,11 @@ interface Variant {
 }
 
 /** Une variante est commandable tant que le fournisseur ne l'a pas déclarée épuisée. */
-const isVariantAvailable = (v: Variant) => v.supplier_available !== false;
+const isVariantAvailable = (v: Variant) => v.supplier_available !== false && v.supplier_stock !== 0;
+
+/** Libellé réel d'une dimension CJ (Size → Taille, Color → Couleur, autre → tel quel). */
+const OPTION_FR: Record<string, string> = { size: "Taille", color: "Couleur", colour: "Couleur", style: "Style", model: "Modèle", quantity: "Quantité", material: "Matière" };
+const optionLabel = (n: string) => OPTION_FR[n.trim().toLowerCase()] ?? n.trim();
 
 interface Customization {
   id: string;
@@ -213,7 +219,7 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
+           specifications, stock_status, weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
 
            group_id, group_option_label,
            product_images(url, position),
@@ -278,20 +284,38 @@ function ProductPage() {
     return Array.from(map.entries());
   }, [variants]);
 
-  // Tailles / couleurs épuisées chez le fournisseur : affichées mais non sélectionnables.
+  // Options en rupture : une taille est en rupture si aucune variante disponible
+  // ne l'offre pour la couleur choisie (et inversement). Affichées, non sélectionnables.
   const soldOutSizes = useMemo(
-    () => new Set(sizes.filter((s) => !variants.some((v) => v.size === s && isVariantAvailable(v)))),
-    [sizes, variants],
+    () =>
+      new Set(
+        sizes.filter(
+          (s) => !variants.some((v) => v.size === s && (!color || colors.length === 0 || v.color === color) && isVariantAvailable(v)),
+        ),
+      ),
+    [sizes, variants, color, colors.length],
   );
   const soldOutColors = useMemo(
     () =>
       new Set(
         colors
           .map(([c]) => c)
-          .filter((c) => !variants.some((v) => v.color === c && isVariantAvailable(v))),
+          .filter((c) => !variants.some((v) => v.color === c && (!size || sizes.length === 0 || v.size === size) && isVariantAvailable(v))),
       ),
-    [colors, variants],
+    [colors, variants, size, sizes.length],
   );
+  // Libellés des options à partir des vrais noms CJ (jamais inventés).
+  const { sizeLabel, colorLabel } = useMemo(() => {
+    const names = variants.map((v) => v.cj_options).find((o) => o && Object.keys(o).length > 0);
+    if (!names) return { sizeLabel: null as string | null, colorLabel: null as string | null };
+    const keys = Object.keys(names).filter((k) => k !== "Option");
+    const sizeKey = keys.find((k) => /size|尺码|尺寸|码/i.test(k));
+    const others = keys.filter((k) => k !== sizeKey);
+    return {
+      sizeLabel: sizeKey ? optionLabel(sizeKey) : null,
+      colorLabel: others.length ? others.map(optionLabel).join(" / ") : null,
+    };
+  }, [variants]);
   const allSoldOut = variants.length > 0 && variants.every((v) => !isVariantAvailable(v));
 
   const matchedVariant = useMemo(() => {
@@ -557,11 +581,31 @@ function ProductPage() {
             ) : (
               <Skeleton className="h-7 w-32" />
             )}
+            {variants.length > 0 && (
+              <p
+                className={`mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold ${
+                  allSoldOut || (matchedVariant && !isVariantAvailable(matchedVariant))
+                    ? "text-destructive"
+                    : (data as any).stock_status === "low"
+                      ? "text-warning"
+                      : "text-success"
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-current" />
+                {allSoldOut
+                  ? "Rupture de stock"
+                  : matchedVariant && !isVariantAvailable(matchedVariant)
+                    ? "Cette variante est en rupture de stock"
+                    : (data as any).stock_status === "low"
+                      ? "Stock limité"
+                      : "En stock"}
+              </p>
+            )}
             <h1 className="mt-1 text-base font-semibold">{productName}</h1>
             <p className="text-xs text-muted-foreground">
               {t("product.code")} : {matchedVariant?.supplier_sku || data.code}
             </p>
-            {productDesignation && (
+            {productDesignation && !/[\u3400-\u9fff]/.test(productDesignation) && (
               <p className="mt-1 text-xs text-muted-foreground">{productDesignation}</p>
             )}
             <div className="mt-3">
@@ -826,7 +870,7 @@ function ProductPage() {
 
           {sizes.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold">{t("product.size")}</p>
+              <p className="mb-1.5 text-xs font-semibold">{sizeLabel ?? t("product.size")}</p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((s) => {
                   const out = soldOutSizes.has(s);
@@ -835,7 +879,8 @@ function ProductPage() {
                       key={s}
                       disabled={out}
                       onClick={() => setSize(s)}
-                      title={out ? "Indisponible" : undefined}
+                      title={out ? "Rupture de stock" : undefined}
+                      aria-label={out ? `${s} — Rupture de stock` : undefined}
                       className={`min-w-12 rounded-md border px-3 py-1.5 text-sm ${
                         out
                           ? "cursor-not-allowed border-border/60 text-muted-foreground line-through opacity-60"
@@ -845,6 +890,7 @@ function ProductPage() {
                       }`}
                     >
                       {s}
+                      {out && <span className="ml-1 text-[10px] no-underline">· Rupture</span>}
                     </button>
                   );
                 })}
@@ -854,7 +900,7 @@ function ProductPage() {
 
           {colors.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold">{t("product.color_model")}</p>
+              <p className="mb-1.5 text-xs font-semibold">{colorLabel ?? t("product.color_model")}</p>
               <div className="flex flex-wrap gap-2">
                 {colors.map(([c, hex]) => {
                   const vImg = variants.find((v) => v.color === c && v.image_url)?.image_url;
@@ -863,7 +909,8 @@ function ProductPage() {
                     <button
                       key={c}
                       disabled={out}
-                      title={out ? "Indisponible" : undefined}
+                      title={out ? "Rupture de stock" : undefined}
+                      aria-label={out ? `${c} — Rupture de stock` : undefined}
                       onClick={() => setColor(c)}
                       className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
                         out
@@ -884,6 +931,7 @@ function ProductPage() {
                         />
                       ) : null}
                       {c}
+                      {out && <span className="text-[10px]">· Rupture</span>}
                     </button>
                   );
                 })}
@@ -1039,14 +1087,62 @@ function ProductPage() {
           </div>
 
 
-          {productDescription && (
+          {toReadableText(productDescription) && (
             <div>
               <p className="mb-1 text-xs font-semibold">{t("product.description")}</p>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {productDescription}
+                {toReadableText(productDescription)}
               </p>
             </div>
           )}
+
+          {(() => {
+            // Caractéristiques : données fournisseur structurées + logistique de la variante.
+            const specs = (Array.isArray((data as any).specifications) ? (data as any).specifications : []) as ProductSpec[];
+            const src = matchedVariant ?? (variants.length === 1 ? variants[0] : null);
+            const w = src?.weight_kg ?? (data as any).weight_kg;
+            const L = src?.length_cm ?? (data as any).length_cm;
+            const W = src?.width_cm ?? (data as any).width_cm;
+            const H = src?.height_cm ?? (data as any).height_cm;
+            const rows: { label: string; value: string }[] = specs
+              .filter((sp) => sp.value)
+              .map((sp) => ({ label: sp.label, value: sp.value }));
+            if (w) rows.push({ label: "Poids", value: w < 1 ? `${Math.round(w * 1000)} g` : `${Number(w).toLocaleString("fr-FR")} kg` });
+            if (L && W && H) rows.push({ label: "Dimensions (L × l × h)", value: `${L} × ${W} × ${H} cm` });
+            const tables = specs.filter((sp) => sp.rows && sp.rows.length);
+            if (!rows.length && !tables.length) return null;
+            return (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold">Caractéristiques</p>
+                {rows.length > 0 && (
+                  <dl className="divide-y divide-border rounded-xl border border-border text-sm">
+                    {rows.map((r) => (
+                      <div key={r.label} className="grid grid-cols-[40%_1fr] gap-2 px-3 py-2">
+                        <dt className="text-muted-foreground">{r.label}</dt>
+                        <dd className="font-medium break-words">{r.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {tables.map((tb) => (
+                  <div key={tb.label} className="mt-3">
+                    <p className="mb-1 text-[11px] font-semibold text-muted-foreground">{tb.label}</p>
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {tb.rows!.map((row, i) => (
+                            <tr key={i} className={i === 0 ? "bg-muted font-semibold" : "border-t border-border"}>
+                              {row.map((cell, j) => <td key={j} className="px-2 py-1 whitespace-nowrap">{cell}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Boutique */}
           <Link
@@ -1124,7 +1220,11 @@ function ProductPage() {
             disabled={!canAdd || submitting}
             onClick={onAdd}
           >
-            {needsSize ? (
+            {allSoldOut ? (
+              "Rupture de stock"
+            ) : matchedVariant && !isVariantAvailable(matchedVariant) ? (
+              "Variante en rupture"
+            ) : needsSize ? (
               t("product.choose_size")
             ) : needsColor ? (
               t("product.choose_color")

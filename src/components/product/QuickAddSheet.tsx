@@ -82,7 +82,9 @@ export function QuickAddSheet({ productId, open, onOpenChange }: Props) {
 
   const needsSize = sizes.length > 0 && !size;
   const needsColor = colors.length > 0 && !color;
-  const canAdd = !needsSize && !needsColor && (variants.length === 0 || !!matchedVariant);
+  const isAvail = (v: any) => v?.supplier_available !== false && v?.supplier_stock !== 0;
+  const allOut = variants.length > 0 && variants.every((v) => !isAvail(v));
+  const canAdd = !allOut && !needsSize && !needsColor && (variants.length === 0 || (!!matchedVariant && isAvail(matchedVariant)));
 
   const onConfirm = async () => {
     if (!data) return;

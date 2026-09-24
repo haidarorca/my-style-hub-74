@@ -3978,7 +3978,9 @@ export type Database = {
           show_individually: boolean
           sku: string | null
           source_country_id: string | null
+          specifications: Json | null
           status: Database["public"]["Enums"]["product_status"]
+          stock_status: string | null
           supplier_ref: string | null
           translated_hash: string | null
           updated_at: string
@@ -4045,7 +4047,9 @@ export type Database = {
           show_individually?: boolean
           sku?: string | null
           source_country_id?: string | null
+          specifications?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
+          stock_status?: string | null
           supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
@@ -4112,7 +4116,9 @@ export type Database = {
           show_individually?: boolean
           sku?: string | null
           source_country_id?: string | null
+          specifications?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
+          stock_status?: string | null
           supplier_ref?: string | null
           translated_hash?: string | null
           updated_at?: string
@@ -5965,6 +5971,10 @@ export type Database = {
           product_id: string
           score: number
         }[]
+      }
+      recompute_supplier_stock_status: {
+        Args: { _product_id: string }
+        Returns: undefined
       }
       register_share_click: {
         Args: { _code: string; _referer?: string; _user_agent?: string }

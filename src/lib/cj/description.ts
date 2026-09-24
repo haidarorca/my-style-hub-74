@@ -1,32 +1,31 @@
 // ═══════════════════════════════════════════════════════════════
 // Transformation de la description fournisseur en données structurées.
 //
-// Fonction PURE (aucune dépendance serveur) : on sépare le contenu
-// textuel utile des images. Les images ne restent JAMAIS dans la
-// description : elles partent dans la galerie du produit.
+// Fonction PURE (aucune dépendance serveur). Résultat :
+//  • imageUrls  : images trouvées (elles partent dans la galerie) ;
+//  • text       : description lisible en texte (paragraphes, listes « • »),
+//                 SANS aucune balise HTML — c'est ce qui est publié ;
+//  • specs      : caractéristiques « Libellé : valeur » (matière, style…),
+//                 affichées séparément dans « Caractéristiques » ;
+//  • html       : alias historique de `text` (compatibilité).
 // ═══════════════════════════════════════════════════════════════
 
 export const SUPPLIER_PATTERN = /cjdropshipping|cjdropship\.com/i;
 
-export interface ParsedDescription {
-  /** Adresses d'images trouvées dans la description, dans l'ordre. */
-  imageUrls: string[];
-  /** Contenu textuel nettoyé (HTML minimal : p, br, ul, li, strong, em). */
-  html: string | null;
-  /** Même contenu en texte brut (utile pour les contrôles). */
-  text: string;
+export interface ProductSpec {
+  label: string;
+  value: string;
+  /** Tableau (guide des tailles) : lignes de cellules. */
+  rows?: string[][];
 }
 
-/** Étiquettes qui ne servent qu'à introduire les images : on les retire. */
-const IMAGE_LABELS = [
-  /product\s*image[s]?\s*:?/gi,
-  /detail\s*image[s]?\s*:?/gi,
-  /picture[s]?\s*:?\s*$/gim,
-  /产品图片[:：]?/g,
-  /细节图[:：]?/g,
-];
-
-const ALLOWED_TAGS = new Set(["p", "br", "ul", "ol", "li", "strong", "b", "em", "i", "h3", "h4"]);
+export interface ParsedDescription {
+  imageUrls: string[];
+  /** Texte public propre (aucune balise). null si rien d'utile. */
+  html: string | null;
+  text: string;
+  specs: ProductSpec[];
+}
 
 function decodeEntities(s: string): string {
   return s
@@ -35,22 +34,64 @@ function decodeEntities(s: string): string {
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n)));
 }
 
-/**
- * Sépare la description fournisseur en (1) adresses d'images et
- * (2) contenu textuel propre, sans balise <img>, sans adresse, sans
- * référence au fournisseur.
- */
+/** Titres de section fournisseur sans valeur pour le client. */
+const SECTION_HEADING =
+  /^(product\s*(information|info|details?|description)|specifications?|overview|features?|description|details?|product\s*image[s]?|detail\s*image[s]?|pictures?|产品信息|产品图片|细节图)\s*[:：]?\s*$/i;
+
+/** Lignes à ne jamais publier (logistique fournisseur, notes internes). */
+const DROP_LINE =
+  /(fastest\s*shipping|shipping\s*time|please\s*consult|customer\s*service|warehouse|dropship|wholesale|moq\b|sku\s*[:：]|note\s*[:：].*(manual|measure|difference|monitor)|due to (the )?(manual|light|monitor)|error is acceptable|not calibrated|slightly different|manual measurement)/i;
+
+/** Transforme un HTML (ou texte) quelconque en lignes de texte propres. */
+export function htmlToLines(input: string): string[] {
+  let out = input;
+  out = out.replace(/<(script|style|iframe|video|audio|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  out = out.replace(/<img\b[^>]*>/gi, " ");
+  out = out.replace(/<li\b[^>]*>/gi, "\n• ");
+  out = out.replace(/<br\s*\/?>/gi, "\n");
+  out = out.replace(/<\/(p|div|li|ul|ol|h[1-6]|tr|table|section)>/gi, "\n");
+  out = out.replace(/<(p|div|ul|ol|h[1-6]|tr|table|section)\b[^>]*>/gi, "\n");
+  out = out.replace(/<[^>]+>/g, " ");
+  out = decodeEntities(out);
+  // Une balise encodée (&lt;p&gt;) peut réapparaître après décodage.
+  out = out.replace(/<\/?[a-z][^>]*>/gi, " ");
+  out = out.replace(/https?:\/\/[^\s"'<>]+/gi, " ");
+  out = out.replace(/cjdropshipping(\.com|\.cn)?/gi, " ");
+  return out
+    .split("\n")
+    .map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim())
+    .filter((l) => l && l !== "•");
+}
+
+/** Texte lisible à partir d'un contenu potentiellement HTML (affichage défensif). */
+export function toReadableText(input: string | null | undefined): string {
+  if (!input) return "";
+  if (!/<[a-z!/]|&[a-z#]+;/i.test(input)) return input.trim();
+  return htmlToLines(input).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function parseSpec(line: string): ProductSpec | null {
+  const m = /^([^:：]{2,40})[:：]\s*(.+)$/.exec(line.replace(/^•\s*/, ""));
+  if (!m) return null;
+  const label = m[1]!.trim();
+  const value = m[2]!.trim();
+  if (!value || value.length > 220) return null;
+  // Une phrase avec deux-points (« 1. SOFT: This shoe is… ») reste de la description.
+  if (/^\d+[.)]/.test(label) || label.split(/\s+/).length > 6) return null;
+  if (label === label.toUpperCase() && /[A-Z]{4,}/.test(label) && value.split(/\s+/).length > 6) return null;
+  const cap = label.charAt(0).toUpperCase() + label.slice(1);
+  return { label: cap, value };
+}
+
 export function parseSupplierDescription(input: string | null | undefined): ParsedDescription {
   const imageUrls: string[] = [];
-  if (!input || typeof input !== "string") return { imageUrls, html: null, text: "" };
+  if (!input || typeof input !== "string") return { imageUrls, html: null, text: "", specs: [] };
 
-  let out = input;
-
-  // 1. Récupérer puis supprimer toutes les images.
-  out = out.replace(/<img\b[^>]*>/gi, (tag) => {
+  input.replace(/<img\b[^>]*>/gi, (tag) => {
     const src =
       /\bsrc\s*=\s*"([^"]+)"/i.exec(tag)?.[1] ??
       /\bsrc\s*=\s*'([^']+)'/i.exec(tag)?.[1] ??
@@ -64,38 +105,49 @@ export function parseSupplierDescription(input: string | null | undefined): Pars
     return " ";
   });
 
-  // 2. Supprimer les éléments non textuels et les liens.
-  out = out.replace(/<(script|style|iframe|video|audio|source|link|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
-  out = out.replace(/<(script|style|iframe|video|audio|source|link|svg|picture)\b[^>]*\/?>/gi, " ");
-  out = out.replace(/<a\b[^>]*>|<\/a>/gi, " ");
-
-  // 3. Ne garder que les balises de mise en forme, sans aucun attribut.
-  out = out.replace(/<\/?([a-zA-Z0-9]+)\b[^>]*>/g, (_m, raw: string) => {
-    const tag = raw.toLowerCase();
-    if (!ALLOWED_TAGS.has(tag)) return tag === "div" || tag === "table" || tag === "tr" ? "\n" : " ";
-    const closing = /^<\//.test(_m);
-    if (tag === "br") return "<br />";
-    return closing ? `</${tag}>` : `<${tag}>`;
-  });
-
-  // 4. Adresses restées en texte brut et références fournisseur.
-  out = out.replace(/https?:\/\/[^\s"'<>]+/gi, " ");
-  out = out.replace(/cjdropshipping(\.com|\.cn)?/gi, " ");
-
-  // 5. Étiquettes d'introduction d'images devenues inutiles.
-  for (const re of IMAGE_LABELS) out = out.replace(re, " ");
-
-  out = decodeEntities(out);
-
-  // 6. Nettoyage final : espaces, balises vides, sauts multiples.
-  out = out.replace(/[ \t\u00a0]+/g, " ");
-  out = out.replace(/\s*\n\s*/g, "\n");
-  out = out.replace(/(<br \/>\s*){3,}/g, "<br /><br />");
-  for (let i = 0; i < 3; i += 1) {
-    out = out.replace(/<(p|li|ul|ol|strong|b|em|i|h3|h4)>\s*<\/\1>/gi, " ");
+  const specs: ProductSpec[] = [];
+  const seen = new Set<string>();
+  const body: string[] = [];
+  let group: ProductSpec | null = null; // rubrique « Libellé : » suivie de lignes
+  const addSpec = (sp: ProductSpec) => {
+    const k = sp.label.toLowerCase();
+    if (seen.has(k)) return null;
+    seen.add(k);
+    specs.push(sp);
+    return sp;
+  };
+  for (const raw of htmlToLines(input)) {
+    const line = raw.replace(/\s+([,.;:])/g, "$1");
+    if (SECTION_HEADING.test(line)) { group = null; continue; }
+    if (DROP_LINE.test(line)) continue;
+    const heading = /^([^:：]{2,40})[:：]$/.exec(line.replace(/^•\s*/, ""));
+    if (heading) {
+      const label = heading[1]!.trim();
+      const isSize = /size|taille|尺码/i.test(label);
+      group = addSpec({ label: label.charAt(0).toUpperCase() + label.slice(1), value: "", ...(isSize ? { rows: [] } : {}) });
+      continue;
+    }
+    if (group?.rows) {
+      const cells = line.split(/\s+/).filter(Boolean);
+      // Tableau de tailles : lignes courtes, majoritairement chiffrées ou en-têtes.
+      if (cells.length >= 1 && line.length <= 80 && cells.every((c) => c.length <= 12)) { group.rows.push(cells); continue; }
+    }
+    const spec = parseSpec(line);
+    if (spec) { group = null; addSpec(spec); continue; }
+    if (group && !group.rows && line.length <= 120) {
+      group.value = group.value ? `${group.value}, ${line.replace(/^•\s*/, "")}` : line.replace(/^•\s*/, "");
+      continue;
+    }
+    group = null;
+    if (body[body.length - 1] !== line) body.push(line);
   }
-  out = out.replace(/\n{3,}/g, "\n\n").trim();
+  // Rubriques vides (titre sans contenu) : retirées.
+  for (let i = specs.length - 1; i >= 0; i -= 1) {
+    const sp = specs[i]!;
+    if (!sp.value && !(sp.rows && sp.rows.length)) specs.splice(i, 1);
+    else if (sp.rows && !sp.rows.length) delete sp.rows;
+  }
 
-  const text = out.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return { imageUrls, html: text ? out : null, text };
+  const text = body.join("\n").trim();
+  return { imageUrls, html: text || null, text, specs };
 }

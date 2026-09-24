@@ -31,6 +31,8 @@ export interface ProductCardProduct {
   home_position?: number | null;
   home_excluded?: boolean | null;
   product_images: { url: string }[] | null;
+  /** Disponibilité fournisseur calculée automatiquement : in | low | out. */
+  stock_status?: string | null;
   // Optionnels — quand fournis par le fetcher, permettent d'afficher
   // un "Total estimé" (produit + transport) sur la carte.
   weight_kg?: number | null;
@@ -95,6 +97,16 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
             ratio={cfg.imageRatio}
             className="shrink-0 bg-[var(--surface)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
           />
+          {product.stock_status && (
+            <span
+              className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-[10px] font-semibold shadow-sm ${
+                product.stock_status === "out" ? "text-destructive" : product.stock_status === "low" ? "text-warning" : "text-success"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {product.stock_status === "out" ? "Rupture de stock" : product.stock_status === "low" ? "Stock limité" : "En stock"}
+            </span>
+          )}
           <span className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </div>
 
