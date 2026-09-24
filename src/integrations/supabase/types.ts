@@ -730,7 +730,9 @@ export type Database = {
           id: string
           kind: string
           last_error: string | null
+          last_item_name: string | null
           lease_until: string | null
+          n_cancelled: number
           n_exists: number
           n_failed: number
           n_pending: number
@@ -759,7 +761,9 @@ export type Database = {
           id?: string
           kind?: string
           last_error?: string | null
+          last_item_name?: string | null
           lease_until?: string | null
+          n_cancelled?: number
           n_exists?: number
           n_failed?: number
           n_pending?: number
@@ -788,7 +792,9 @@ export type Database = {
           id?: string
           kind?: string
           last_error?: string | null
+          last_item_name?: string | null
           lease_until?: string | null
+          n_cancelled?: number
           n_exists?: number
           n_failed?: number
           n_pending?: number
@@ -5660,6 +5666,10 @@ export type Database = {
         }
       }
       cj_refresh_job_counts: { Args: { _job: string }; Returns: undefined }
+      cj_try_lease_job: {
+        Args: { _job: string; _seconds: number }
+        Returns: boolean
+      }
       cj_try_lock_pid: {
         Args: { _pid: string; _seconds: number }
         Returns: boolean
