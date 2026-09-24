@@ -6,3 +6,4 @@
 - [x] Import autonome page fermée (réveil serveur chaque minute), annulation définitive, règle désactivée = imports annulés
 - [x] Transport : moteur central unique panier/checkout (minimum et frais fixes une fois par envoi)
 - [ ] Tester la synchro « stock seul »
+- [x] Validation produits : validation automatique CJ, origine, filtres serveur, liste infinie, tout sélectionner par filtre, actions en masse par lots

@@ -346,7 +346,7 @@ function CjImportPage() {
                   to="/admin/products"
                   className="inline-block pt-1 font-medium text-primary underline"
                 >
-                  Ouvrir « Validation produits » pour contrôler puis publier
+                  Ouvrir « Validation produits »
                 </Link>
               </>
             )}

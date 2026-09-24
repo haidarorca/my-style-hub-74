@@ -222,7 +222,7 @@ export function ValidationPanel() {
       </Card>
 
       {/* Barre de sélection / actions — toujours visible en haut */}
-      <div className="sticky top-0 z-20 space-y-2 rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur">
+      <div className="sticky top-[104px] z-20 space-y-2 rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm">
             <input
