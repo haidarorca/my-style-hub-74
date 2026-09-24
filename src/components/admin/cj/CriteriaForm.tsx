@@ -50,6 +50,13 @@ export function CriteriaForm({
 }) {
   const set = (patch: Partial<Criteria>) => onChange({ ...value, ...patch });
   const catLabel = categories.find((c) => c.id === value.categoryId)?.path ?? "";
+  const checks: Array<[keyof Pick<Criteria, "requireImages" | "requireSku" | "requireWeight" | "requireDimensions" | "newOnly">, string]> = [
+    ["requireImages", "Avec images"],
+    ["requireSku", "Avec SKU"],
+    ["requireWeight", "Avec poids"],
+    ["requireDimensions", "Avec dimensions"],
+  ];
+  if (!hideMain) checks.push(["newOnly", "Nouveaux uniquement"]);
   return (
     <div className="space-y-3">
       {!hideMain && <div className="grid gap-2 sm:grid-cols-2">
@@ -84,13 +91,7 @@ export function CriteriaForm({
         <NumField label="Variantes max" value={value.maxVariants} onChange={(v) => set({ maxVariants: v })} step="1" />
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
-        {([
-          ["requireImages", "Avec images"],
-          ["requireSku", "Avec SKU"],
-          ["requireWeight", "Avec poids"],
-          ["requireDimensions", "Avec dimensions"],
-          ...(!hideMain ? [["newOnly", "Nouveaux uniquement"]] : []),
-        ] as const).map(([k, label]) => (
+        {checks.map(([k, label]) => (
           <label key={k} className="flex items-center gap-2">
             <input type="checkbox" className="h-4 w-4 accent-primary" checked={!!value[k]} onChange={(e) => set({ [k]: e.target.checked } as any)} />
             {label}
