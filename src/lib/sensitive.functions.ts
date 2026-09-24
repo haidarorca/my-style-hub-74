@@ -135,7 +135,7 @@ export async function runBatchCore(sb: any) {
         const answers = (
           await Promise.all(
             chunks.map((ch) =>
-              askAi(ch.map((p) => ({
+              askAi(sb, ch.map((p) => ({
                 id: p.id,
                 category: pathOf(p.category_id).join(" > ") || "(aucune)",
                 name: p.name,
