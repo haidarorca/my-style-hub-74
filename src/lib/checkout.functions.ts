@@ -6,7 +6,7 @@ import { notifyVendorNewOrder } from "@/lib/notifications.functions";
 import { getLineKind, subOrderKey, type LineKind } from "@/lib/line-kind";
 import {
   resolveItemLogistics,
-  quoteFreight,
+  quoteShipment,
   buildLineSnapshot,
   type FreightRule,
   type FreightQuote,
@@ -106,7 +106,38 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       type Bucket = { vendorId: string; kind: LineKind; key: string; declaredFreightSum: number; serviceId: string | null };
       const buckets = new Map<string, Bucket>();
 
-      const orderRows = await Promise.all(data.items.map(async (item) => {
+      // ── Transport : calcul CENTRAL par envoi (même moteur que le panier) ──
+      // Lignes à poids déclaré regroupées par mode choisi : minimum facturable
+      // et frais fixes appliqués UNE fois par envoi, puis répartis par ligne.
+      const shipmentGroups = new Map<string, Array<{ key: string; logistics: ReturnType<typeof resolveItemLogistics>; quantity: number }>>();
+      data.items.forEach((item, idx) => {
+        const product = productMap.get(item.productId) as any;
+        if (!product) return;
+        const variant = item.variantId ? (variantMap.get(item.variantId) as any) : null;
+        const logistics = resolveItemLogistics(product, variant);
+        const kind = getLineKind({
+          destinationCountryId: data.destinationCountryId,
+          vendorSourceCountryId: product.profiles?.source_country_id ?? null,
+          productWeightKg: logistics.weightKg,
+        });
+        const svcId = item.shippingServiceId ?? data.shippingServiceId ?? null;
+        if (kind !== "IMPORT_KNOWN_WEIGHT" || !svcId) return;
+        const g = shipmentGroups.get(svcId) ?? [];
+        g.push({ key: String(idx), logistics, quantity: item.quantity });
+        shipmentGroups.set(svcId, g);
+      });
+      const lineAlloc = new Map<string, { quote: FreightQuote; cost: number }>();
+      for (const [svcId, lines] of shipmentGroups) {
+        const svc = await resolveService(svcId);
+        if (!svc) continue;
+        const sq = quoteShipment(lines, svc);
+        for (const l of lines) {
+          const q = sq.lineQuotes.get(l.key)!;
+          lineAlloc.set(l.key, { quote: q, cost: sq.ok ? sq.perLine.get(l.key) ?? 0 : 0 });
+        }
+      }
+
+      const orderRows = await Promise.all(data.items.map(async (item, idx) => {
         const product = productMap.get(item.productId) as any;
         if (!product) throw new Error("Un produit du panier est introuvable ou indisponible.");
         // Message précis : on indique la donnée réellement bloquante.
@@ -163,10 +194,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           if (svc) {
             // Le moteur applique UNIQUEMENT les règles du mode choisi
             // (kg ou m³, minimum facturable, diviseur volumétrique du service).
-            lineQuote = quoteFreight({ logistics, quantity: item.quantity, rule: svc });
+            const alloc = lineAlloc.get(String(idx));
             lineServiceId = svc.id;
             firstShippingServiceId = firstShippingServiceId ?? svc.id;
-            if (lineQuote.ok) lineFreight = lineQuote.cost;
+            if (alloc) {
+              // Le snapshot porte la part RÉELLE de la ligne (somme = total envoi).
+              lineQuote = { ...alloc.quote, cost: alloc.cost };
+              if (alloc.quote.ok) lineFreight = alloc.cost;
+            }
           }
         } else if (kind === "IMPORT_UNKNOWN_WEIGHT") {
           // Stamp préférence client (sélecteur global) pour traçabilité de l'opérateur.

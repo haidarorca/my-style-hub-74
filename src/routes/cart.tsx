@@ -25,7 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWhatsAppMessage, whatsappUrlTo, type WhatsAppLine } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
-import { resolveItemLogistics, quoteFreight, MODE_LABELS } from "@/lib/logistics/freight";
+import { resolveItemLogistics, quoteShipment, MODE_LABELS } from "@/lib/logistics/freight";
 import { useI18n } from "@/hooks/use-i18n";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
@@ -383,24 +383,31 @@ function CartPage() {
     [selectedItems, destinationCountryId],
   );
 
-  // Fret par ligne — UNIQUEMENT pour IMPORT_KNOWN_WEIGHT, avec le service KNOWN choisi.
-  // UNKNOWN n'engendre AUCUN fret avant pesée (règle stricte).
-  const lineFreight = useCallback((it: any): number => {
-    if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") return 0;
-    const svc = selectedKnownService;
-    if (!svc) return 0;
-    // Variante prioritaire, puis règles propres au mode (kg ou m³).
-    const logistics = resolveItemLogistics(it.products ?? null, it.product_variants ?? null);
-    const q = quoteFreight({ logistics, quantity: it.quantity ?? 1, rule: svc });
-    return q.ok ? q.cost : 0;
-  }, [selectedKnownService, destinationCountryId]);
-
-  // Coût transport cumulé du panier (KNOWN uniquement — UNKNOWN n'est JAMAIS facturé ici).
-  const cartFreightTotal = useMemo(
-    () => selectedItems.reduce((s, it: any) => s + lineFreight(it), 0),
-    [selectedItems, lineFreight],
+  // Lignes KNOWN de la sélection (clé = id de ligne panier).
+  const knownLines = useMemo(
+    () => selectedItems
+      .filter((it: any) => getItemLogisticsType(it) === "IMPORT_KNOWN_WEIGHT")
+      .map((it: any) => ({
+        key: String(it.id),
+        logistics: resolveItemLogistics(it.products ?? null, it.product_variants ?? null),
+        quantity: it.quantity ?? 1,
+      })),
+    [selectedItems, destinationCountryId],
   );
 
+  // Fret calculé par le moteur CENTRAL (identique au checkout) : un envoi par
+  // mode, minimum et frais fixes appliqués une seule fois, puis répartis.
+  const selectedShipment = useMemo(
+    () => (selectedKnownService && knownLines.length ? quoteShipment(knownLines, selectedKnownService) : null),
+    [selectedKnownService, knownLines],
+  );
+  const lineFreight = useCallback((it: any): number => {
+    if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") return 0;
+    return selectedShipment?.ok ? selectedShipment.perLine.get(String(it.id)) ?? 0 : 0;
+  }, [selectedShipment, destinationCountryId]);
+
+  // Coût transport cumulé du panier (KNOWN uniquement — UNKNOWN n'est JAMAIS facturé ici).
+  const cartFreightTotal = selectedShipment?.ok ? selectedShipment.total : 0;
 
   const fmtDelay = (s: ShippingService) =>
     s.delay_min_days && s.delay_max_days
@@ -409,24 +416,16 @@ function CartPage() {
         ? `~${s.delay_max_days} jours`
         : "délai variable";
 
-  // Estimation par service pour les SEULS articles KNOWN (poids déclaré).
+  // Estimation par service pour les SEULS articles KNOWN (même moteur central).
   const knownServiceEstimates = useMemo(() => {
     const m = new Map<string, number>();
-    if (!selectedHasKnown) return m;
-    // Un total par service : chaque mode applique SA règle (kg ou m³).
+    if (!selectedHasKnown || !knownLines.length) return m;
     for (const svc of shippingServices) {
-      let sum = 0;
-      let ok = false;
-      for (const it of selectedItems) {
-        if (getItemLogisticsType(it) !== "IMPORT_KNOWN_WEIGHT") continue;
-        const logistics = resolveItemLogistics(it.products ?? null, it.product_variants ?? null);
-        const q = quoteFreight({ logistics, quantity: it.quantity ?? 1, rule: svc });
-        if (q.ok) { sum += q.cost; ok = true; }
-      }
-      if (ok && sum > 0) m.set(svc.id, sum);
+      const q = quoteShipment(knownLines, svc);
+      if (q.ok && q.total > 0) m.set(svc.id, q.total);
     }
     return m;
-  }, [selectedHasKnown, selectedItems, shippingServices, destinationCountryId]);
+  }, [selectedHasKnown, knownLines, shippingServices]);
 
   /** Sélecteur KNOWN — affiche un prix figé total par service. */
   const renderKnownShippingSelector = () => {
