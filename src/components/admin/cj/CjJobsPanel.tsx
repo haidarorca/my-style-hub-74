@@ -46,8 +46,8 @@ export function CjJobsPanel() {
         while (!stop) {
           const r: any = await pumpFn({ data: { jobId: activeId } });
           qc.invalidateQueries({ queryKey: ["cj-jobs"] });
-          if (!r || r.done || r.status === "paused" || r.status === "cancelled") break;
-          if (!r.processed) await new Promise((res) => setTimeout(res, 3000));
+          if (!r || r.state === "done" || r.state === "stopped") break;
+          if (r.state === "rate_limited" || !r.processed) await new Promise((res) => setTimeout(res, 5000));
         }
       } catch (e) {
         console.error("[cj pump]", e);
