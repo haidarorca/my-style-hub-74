@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin-products.functions";
 import { GroupManagementDialog } from "@/components/product/GroupManagementDialog";
 import { listProductGroups } from "@/lib/product-groups.functions";
+import { ValidationPanel } from "@/components/admin/products/ValidationPanel";
 import { PermissionGate } from "@/components/admin/PermissionGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,12 +112,7 @@ function ProductsAdminPage() {
       {search.tab === "groups" ? (
         <GroupsPanel />
       ) : search.tab === "moderation" ? (
-        <ModerationPanel
-          search={search}
-          navigate={navigate}
-          queryInput={queryInput}
-          setQueryInput={setQueryInput}
-        />
+<ValidationPanel />
       ) : (
         <ReportedPanel
           search={search}
@@ -201,6 +197,8 @@ type PanelProps = {
   setQueryInput: (s: string) => void;
 };
 
+// Ancien panneau conservé (non utilisé)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ModerationPanel({ search, navigate, queryInput, setQueryInput }: PanelProps) {
   const qc = useQueryClient();
   const fetchList = useServerFn(listAdminProducts);
