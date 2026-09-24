@@ -1,6 +1,6 @@
+import { asImageList, orderSupplierImages } from "./image-order";
 // ═══════════════════════════════════════════════════════════════
-// Cœur d'import { asImageList, orderSupplierImages } from "./image-order";
-import / synchronisation CJ — SERVEUR UNIQUEMENT.
+// Cœur d'import / synchronisation CJ — SERVEUR UNIQUEMENT.
 // Utilisé par l'import unitaire (écran admin) ET par le worker
 // d'arrière-plan (imports massifs, imports programmés).
 //
