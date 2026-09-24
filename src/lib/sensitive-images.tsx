@@ -76,6 +76,38 @@ export interface SensitiveState {
   pending: boolean;
   sensitive: boolean;
   canConfirm: boolean;
+  /** Classification effective du produit (pour l'admin) : normal | homme | femme | review. */
+  status: SensitiveStatus;
+}
+export type SensitiveStatus = "normal" | "homme" | "femme" | "review";
+
+/* ---------- Mode admin « Voir les images sensibles » (appareil de l'admin uniquement) ---------- */
+const ADMIN_KEY = "kz_admin_sensitive_view";
+const ADMIN_FILTER_KEY = "kz_admin_sensitive_filter";
+const ADMIN_EVENT = "kz-admin-sensitive-view";
+export type AdminSensitiveFilter = "all" | SensitiveStatus;
+export function setAdminSensitiveView(on: boolean) {
+  try { localStorage.setItem(ADMIN_KEY, on ? "1" : "0"); } catch { /* ignore */ }
+  window.dispatchEvent(new Event(ADMIN_EVENT));
+}
+export function setAdminSensitiveFilter(f: AdminSensitiveFilter) {
+  try { localStorage.setItem(ADMIN_FILTER_KEY, f); } catch { /* ignore */ }
+  window.dispatchEvent(new Event(ADMIN_EVENT));
+}
+export function useAdminSensitiveView(): { on: boolean; filter: AdminSensitiveFilter } {
+  const { isAdmin } = useAuth();
+  const [st, setSt] = useState<{ on: boolean; filter: AdminSensitiveFilter }>({ on: false, filter: "all" });
+  useEffect(() => {
+    const read = () => {
+      try {
+        setSt({ on: localStorage.getItem(ADMIN_KEY) === "1", filter: (localStorage.getItem(ADMIN_FILTER_KEY) as AdminSensitiveFilter) || "all" });
+      } catch { /* ignore */ }
+    };
+    read();
+    window.addEventListener(ADMIN_EVENT, read);
+    return () => window.removeEventListener(ADMIN_EVENT, read);
+  }, []);
+  return isAdmin ? st : { on: false, filter: "all" };
 }
 
 /** Décisions par produit (sensible, ou correction manuelle « non sensible »). */
@@ -84,7 +116,8 @@ function useProductMap() {
     queryKey: ["sensitive-images", "products"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const out = new Map<string, SensitiveGender | null>();
+      // Décision au niveau PRODUIT : { target (genre autorisé) , manual, review }
+      const out = new Map<string, { target: SensitiveGender | null; manual: boolean; review: boolean }>();
       for (let from = 0; from < 20000; from += 1000) {
         const { data, error } = await (supabase as any)
           .from("product_image_sensitivity")
@@ -93,8 +126,9 @@ function useProductMap() {
           .range(from, from + 999);
         if (error) throw error;
         for (const r of data ?? []) {
-          if (r.decision === "sensitive") out.set(r.product_id, r.audience ?? "femme");
-          else if (r.decision === "normal") out.set(r.product_id, null);
+          const manual = r.source === "MANUAL";
+          if (r.decision === "sensitive") out.set(r.product_id, { target: r.audience ?? "femme", manual, review: false });
+          else if (manual) out.set(r.product_id, { target: null, manual, review: r.decision === "review" });
         }
         if (!data || data.length < 1000) break;
       }
@@ -135,21 +169,27 @@ export function useSensitiveResolver() {
   const { data: imap, isLoading: iLoading } = useImageMap();
   const { gender, fromAccount } = useViewerGender();
   const { isAdmin, loading: authLoading } = useAuth();
+  const adminView = useAdminSensitiveView();
   return useCallback(
     (categoryId: string | null | undefined, productId?: string | null, src?: string | null): SensitiveState => {
-      if (!categoryId && !productId && !src) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
+      const N = { hidden: false, pending: false, sensitive: false, canConfirm: false, status: "normal" as SensitiveStatus };
+      if (!categoryId && !productId && !src) return N;
       if (authLoading || isLoading || !data || iLoading || !imap || (productId && (pLoading || !pmap)))
-        return { hidden: true, pending: true, sensitive: false, canConfirm: false };
+        return { hidden: true, pending: true, sensitive: false, canConfirm: false, status: "normal" };
+      const pd = productId ? pmap!.get(productId) : undefined;
       let target: SensitiveGender | null | undefined;
-      if (src && imap.has(src)) target = imap.get(src);
-      else if (productId && pmap!.has(productId)) target = pmap!.get(productId);
+      let review = false;
+      // Priorité : décision MANUELLE du produit (toutes ses images la suivent).
+      if (pd?.manual) { target = pd.target; review = pd.review; }
+      else if (src && imap.has(src)) target = imap.get(src);
+      else if (pd) target = pd.target;
       else if (categoryId) target = data.get(categoryId);
-      if (!target) return { hidden: false, pending: false, sensitive: false, canConfirm: false };
-      // Administrateurs : accès complet pour contrôler le catalogue.
-      if (isAdmin) return { hidden: false, pending: false, sensitive: true, canConfirm: false };
-      return { hidden: gender !== target, pending: false, sensitive: true, canConfirm: !fromAccount };
+      if (!target) return { ...N, status: review ? "review" : "normal" };
+      // Administrateur avec « Voir les images sensibles » activé : image réelle.
+      if (isAdmin && adminView.on) return { hidden: false, pending: false, sensitive: true, canConfirm: false, status: target };
+      return { hidden: gender !== target, pending: false, sensitive: true, canConfirm: !fromAccount, status: target };
     },
-    [data, pmap, imap, isLoading, pLoading, iLoading, gender, fromAccount, isAdmin, authLoading],
+    [data, pmap, imap, isLoading, pLoading, iLoading, gender, fromAccount, isAdmin, authLoading, adminView.on],
   );
 }
 
