@@ -32,6 +32,22 @@ export interface ImportCriteria {
   requireWeight?: boolean;
   requireDimensions?: boolean;
   newOnly?: boolean;
+  // ── Filtres ajoutés (voir listV2Query / failsCriteria) ──
+  maxStock?: number | null;
+  minWeightKg?: number | null;
+  minImages?: number | null;
+  maxSideCm?: number | null;
+  maxCbm?: number | null;
+  material?: string | null;
+  countryCode?: string | null;
+  freeShipping?: boolean;
+  newArrivals?: boolean;
+  hasVideo?: boolean;
+  verifiedOnly?: boolean;
+  listedAfter?: string | null;
+  supplierId?: string | null;
+  orderBy?: number | null;
+  sort?: "asc" | "desc" | null;
 }
 
 export type CoreStatus = "SUCCESS" | "ALREADY_EXISTS" | "SYNCED" | "FAILED" | "SKIPPED" | "LOCKED";
@@ -143,6 +159,12 @@ export function summarizeCjProduct(p: any) {
   const prices = vs.map((v) => v.price).filter((n): n is number => n !== null);
   const stocks = vs.map((v) => v.stock).filter((n): n is number => n !== null);
   const weights = vs.map((v) => v.weightKg).filter((n): n is number => n !== null);
+  const { resolveMaterial } = require_material();
+  const { parseSupplierDescription: parseDesc } = require_desc();
+  const mat = resolveMaterial(parseDesc(p?.description).specs, p);
+  const sides = vs.flatMap((v) => [v.lengthCm, v.widthCm, v.heightCm]).filter((n): n is number => n !== null);
+  const cbms = vs.map((v) => v.cbm).filter((n): n is number => n !== null);
+  const imageCount = new Set([...asImageList(p?.productImage), ...images]).size;
   const completeness = {
     images: images.length > 0 || !!p?.productImage,
     sku: !!p?.productSku && vs.every((v) => !!v.sku),
@@ -152,10 +174,11 @@ export function summarizeCjProduct(p: any) {
     dimensions: vs.length > 0 && vs.every((v) => v.cbm !== null),
     variants: vs.length > 0,
     description: !!(p?.description && String(p.description).replace(/<[^>]+>/g, "").trim()),
+    material: !!mat.value,
+    category: !!p?.categoryId,
   };
-  const score = Math.round(
-    (Object.values(completeness).filter(Boolean).length / Object.keys(completeness).length) * 100,
-  );
+  const quality = computeCompleteness(completeness);
+  const score = quality.score;
   return {
     pid: String(p?.pid ?? ""),
     name: p?.productNameEn ?? null,
@@ -173,7 +196,41 @@ export function summarizeCjProduct(p: any) {
     variants: vs,
     completeness,
     score,
+    quality,
+    imageCount,
+    material: mat.value,
+    materialSource: mat.source,
+    minWeightKg: weights.length ? Math.min(...weights) : null,
+    maxSideCm: sides.length ? Math.max(...sides) : null,
+    maxCbm: cbms.length ? Math.max(...cbms) : null,
+    video: !!(p?.productVideo && String(p.productVideo).replace(/[\[\]"\s]/g, "")),
   };
+}
+
+// Niveaux de qualité : obligatoire (bloque la validation automatique),
+// recommandé, optionnel (n'empêchent jamais l'import).
+export const QUALITY_LEVELS: Record<string, { level: "required" | "recommended" | "optional"; label: string; weight: number }> = {
+  images: { level: "required", label: "Image", weight: 3 },
+  price: { level: "required", label: "Prix d'achat", weight: 3 },
+  variants: { level: "required", label: "Variantes", weight: 3 },
+  sku: { level: "required", label: "SKU", weight: 3 },
+  weight: { level: "required", label: "Poids", weight: 3 },
+  dimensions: { level: "required", label: "Dimensions / volume", weight: 3 },
+  category: { level: "recommended", label: "Catégorie", weight: 2 },
+  stock: { level: "recommended", label: "Stock", weight: 2 },
+  description: { level: "recommended", label: "Description", weight: 2 },
+  material: { level: "optional", label: "Matière", weight: 1 },
+};
+
+export function computeCompleteness(c: Record<string, boolean>) {
+  let got = 0, total = 0;
+  const missing: Array<{ key: string; label: string; level: string }> = [];
+  for (const [k, def] of Object.entries(QUALITY_LEVELS)) {
+    if (!(k in c)) continue;
+    total += def.weight;
+    if (c[k]) got += def.weight; else missing.push({ key: k, label: def.label, level: def.level });
+  }
+  return { score: total ? Math.round((got / total) * 100) : 0, missing };
 }
 
 /** Vérifie une fiche complète contre des critères ; renvoie la liste des critères non remplis. */
@@ -190,6 +247,16 @@ export function failsCriteria(sum: ReturnType<typeof summarizeCjProduct>, c?: Im
   if (c.maxWeightKg != null && (sum.maxWeightKg === null || sum.maxWeightKg > c.maxWeightKg)) out.push(`poids > ${c.maxWeightKg} kg`);
   if (c.minVariants != null && sum.variantCount < c.minVariants) out.push(`variantes < ${c.minVariants}`);
   if (c.maxVariants != null && sum.variantCount > c.maxVariants) out.push(`variantes > ${c.maxVariants}`);
+  if (c.maxStock != null && sum.totalStock !== null && sum.totalStock > c.maxStock) out.push(`stock > ${c.maxStock}`);
+  if (c.minWeightKg != null && (sum.minWeightKg === null || sum.minWeightKg < c.minWeightKg)) out.push(`poids < ${c.minWeightKg} kg`);
+  if (c.minImages != null && sum.imageCount < c.minImages) out.push(`moins de ${c.minImages} images`);
+  if (c.maxSideCm != null && (sum.maxSideCm === null || sum.maxSideCm > c.maxSideCm)) out.push(`dimension > ${c.maxSideCm} cm`);
+  if (c.maxCbm != null && (sum.maxCbm === null || sum.maxCbm > c.maxCbm)) out.push(`volume > ${c.maxCbm} m³`);
+  if (c.material) {
+    const want = c.material.toLowerCase();
+    if (!sum.material || !sum.material.toLowerCase().includes(want)) out.push(`matière ≠ ${c.material}`);
+  }
+  if (c.hasVideo && !sum.video) out.push("sans vidéo");
   return out;
 }
 
