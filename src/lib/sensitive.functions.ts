@@ -37,7 +37,7 @@ async function categoryPaths(sb: any) {
 
 type AiItem = { id: string; sensitive: boolean; hidden_for: "male" | "female" | "none"; confidence: "high" | "medium" | "low"; reason: string; detected_concepts: string[] };
 
-async function askAi(items: Array<{ id: string; category: string; name: string; description: string; material: string }>): Promise<AiItem[]> {
+export async function askAi(items: Array<{ id: string; category: string; name: string; description: string; material: string }>): Promise<AiItem[]> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Assistant IA non configuré");
   const prompt = `Tu aides une marketplace à respecter des règles religieuses d'affichage d'images.
