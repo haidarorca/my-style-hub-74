@@ -1,3 +1,4 @@
+import { SensitiveThumb } from "@/lib/sensitive-images";
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -132,7 +133,7 @@ function SearchPage() {
       const first = term.charAt(0);
       let q1 = supabase
         .from("products")
-        .select("id, name, name_i18n, price, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)")
+        .select("id, name, name_i18n, price, category_id, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)")
         .order("position", { referencedTable: "product_images", ascending: true })
         .eq("status", "approved")
         .or(
@@ -536,7 +537,7 @@ function SearchPage() {
                         >
                           <div className="aspect-square overflow-hidden bg-muted">
                             {p.product_images?.[0]?.url ? (
-                              <img src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                              <SensitiveThumb categoryId={(p as any).category_id} src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
                             ) : null}
                           </div>
                           <div className="p-2">

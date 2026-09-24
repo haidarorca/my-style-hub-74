@@ -1,3 +1,4 @@
+import { SensitiveThumb } from "@/lib/sensitive-images";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -107,7 +108,7 @@ export function SearchAutocomplete() {
       const first = term.charAt(0);
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, code, designation, price, product_images(url, position)")
+        .select("id, name, name_i18n, code, designation, price, category_id, product_images(url, position)")
         .eq("status", "approved")
         .or(`name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%`)
         .limit(20);
@@ -338,7 +339,7 @@ export function SearchAutocomplete() {
                                 className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-accent"
                               >
                                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
-                                  {img && <img src={img} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+                                  <SensitiveThumb categoryId={(p as any).category_id} src={img} alt="" className="h-full w-full object-cover" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-sm">{name}</div>

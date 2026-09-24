@@ -38,6 +38,7 @@ import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabi
 import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPanel";
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
+import { SensitiveThumb } from "@/lib/sensitive-images";
 import { toReadableText, type ProductSpec } from "@/lib/cj/description";
 import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
 import { GroupSelector } from "@/components/product/GroupSelector";
@@ -550,6 +551,7 @@ function ProductPage() {
               activeIndex={imgIdx}
               onIndexChange={setImgIdx}
               dir={dir}
+              categoryId={(data as any).category_id ?? null}
             />
           );
         })()}
@@ -922,7 +924,7 @@ function ProductPage() {
                     >
                       {vImg ? (
                         <span className="h-5 w-5 overflow-hidden rounded border border-border">
-                          <img src={vImg} alt="" className="h-full w-full object-cover" />
+                          <SensitiveThumb categoryId={(data as any).category_id ?? null} src={vImg} alt="" className="h-full w-full object-cover" />
                         </span>
                       ) : hex ? (
                         <span

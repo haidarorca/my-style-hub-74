@@ -362,6 +362,8 @@ export type Database = {
           name_i18n: Json | null
           parent_id: string | null
           position: number | null
+          sensitive_gender: Database["public"]["Enums"]["user_sex"] | null
+          sensitive_images: boolean
           slug: string
           translated_hash: string | null
         }
@@ -375,6 +377,8 @@ export type Database = {
           name_i18n?: Json | null
           parent_id?: string | null
           position?: number | null
+          sensitive_gender?: Database["public"]["Enums"]["user_sex"] | null
+          sensitive_images?: boolean
           slug: string
           translated_hash?: string | null
         }
@@ -388,6 +392,8 @@ export type Database = {
           name_i18n?: Json | null
           parent_id?: string | null
           position?: number | null
+          sensitive_gender?: Database["public"]["Enums"]["user_sex"] | null
+          sensitive_images?: boolean
           slug?: string
           translated_hash?: string | null
         }
