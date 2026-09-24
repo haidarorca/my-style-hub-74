@@ -25,6 +25,17 @@ export function listV2Query(c: ImportCriteria, page: number, size: number): stri
   if (c.minPrice != null) q.set("startSellPrice", String(c.minPrice));
   if (c.maxPrice != null) q.set("endSellPrice", String(c.maxPrice));
   if (c.minStock != null) q.set("startWarehouseInventory", String(c.minStock));
+  // Paramètres officiels listV2 (doc CJ « Product List V2 »)
+  if (c.maxStock != null) q.set("endWarehouseInventory", String(c.maxStock));
+  if (c.countryCode) q.set("countryCode", c.countryCode);
+  if (c.freeShipping) q.set("addMarkStatus", "1");
+  if (c.newArrivals) q.set("productFlag", "1");
+  if (c.hasVideo) q.set("productType", "10");
+  if (c.verifiedOnly) q.set("verifiedWarehouse", "1");
+  if (c.supplierId) q.set("supplierId", c.supplierId);
+  if (c.listedAfter) { const t = Date.parse(c.listedAfter); if (Number.isFinite(t)) q.set("timeStart", String(t)); }
+  if (c.orderBy != null) q.set("orderBy", String(c.orderBy));
+  if (c.sort) q.set("sort", c.sort);
   return `/product/listV2?${q.toString()}`;
 }
 

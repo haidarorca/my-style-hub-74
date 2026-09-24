@@ -24,6 +24,23 @@ export interface Criteria {
   requireWeight?: boolean;
   requireDimensions?: boolean;
   newOnly?: boolean;
+  maxStock?: number | null;
+  minWeightKg?: number | null;
+  minImages?: number | null;
+  maxSideCm?: number | null;
+  maxCbm?: number | null;
+  material?: string | null;
+  countryCode?: string | null;
+  freeShipping?: boolean;
+  newArrivals?: boolean;
+  hasVideo?: boolean;
+  verifiedOnly?: boolean;
+  listedAfter?: string | null;
+  supplierId?: string | null;
+  orderBy?: number | null;
+  sort?: "asc" | "desc" | null;
+  /** Affichage : tous / jamais importés / déjà importés. */
+  importState?: "all" | "new" | "imported";
 }
 
 const optNum = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -42,6 +59,22 @@ function cleanCriteria(c: any): Criteria {
     requireWeight: !!c?.requireWeight,
     requireDimensions: !!c?.requireDimensions,
     newOnly: c?.newOnly !== false,
+    maxStock: optNum(c?.maxStock),
+    minWeightKg: optNum(c?.minWeightKg),
+    minImages: optNum(c?.minImages),
+    maxSideCm: optNum(c?.maxSideCm),
+    maxCbm: optNum(c?.maxCbm),
+    material: c?.material ? String(c.material).slice(0, 60).trim() || null : null,
+    countryCode: c?.countryCode && /^[A-Z]{2}$/.test(String(c.countryCode)) ? String(c.countryCode) : null,
+    freeShipping: !!c?.freeShipping,
+    newArrivals: !!c?.newArrivals,
+    hasVideo: !!c?.hasVideo,
+    verifiedOnly: !!c?.verifiedOnly,
+    listedAfter: c?.listedAfter && /^\d{4}-\d{2}-\d{2}$/.test(String(c.listedAfter)) ? String(c.listedAfter) : null,
+    supplierId: c?.supplierId ? String(c.supplierId).slice(0, 200) : null,
+    orderBy: [0, 1, 2, 3, 4].includes(Number(c?.orderBy)) ? Number(c.orderBy) : null,
+    sort: c?.sort === "asc" || c?.sort === "desc" ? c.sort : null,
+    importState: c?.importState === "new" || c?.importState === "imported" ? c.importState : "all",
   };
 }
 
@@ -59,6 +92,18 @@ export interface ExploreHit {
   weightKg: number | null;
   missing: string[];
   needsSync: boolean;
+  /** Renseignés après vérification de la fiche complète (filtres avancés). */
+  score?: number | null;
+  imageCount?: number | null;
+  material?: string | null;
+  maxSideCm?: number | null;
+}
+
+/** Critères qui exigent la fiche complète (CJ ne sait pas les filtrer). */
+function needsDetail(c: Criteria) {
+  return c.minWeightKg != null || c.maxWeightKg != null || c.minImages != null || c.maxSideCm != null
+    || c.maxCbm != null || !!c.material || c.minVariants != null || c.maxVariants != null
+    || !!c.requireImages || !!c.requireSku || !!c.requireWeight || !!c.requireDimensions;
 }
 
 /** Parcours du catalogue CJ (listV2, 50 points par page de 100 max). Résultats mis en cache 1 h. */
@@ -88,7 +133,7 @@ export const exploreCj = createServerFn({ method: "POST" })
         await a.from("cj_api_cache").upsert({ cache_key: key, payload: r, fetched_at: new Date().toISOString() });
       }
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [] as ExploreHit[], total: 0, totalPages: 0, cached, apiCalls: traces.length };
+      return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [] as ExploreHit[], total: 0, totalPages: 0, cached, apiCalls: traces.length, excluded: 0, deepChecked: false };
     }
     const list: any[] = (Array.isArray(r?.content) ? r.content : []).flatMap((x: any) => x?.productList ?? []);
     const items = list.map(mapListItem).filter((i) => i.pid);
@@ -112,8 +157,33 @@ export const exploreCj = createServerFn({ method: "POST" })
       ],
       needsSync: ex.has(i.pid) && (latestMissing.get(i.pid)?.length ?? 0) > 0,
     }));
+    // Filtre « déjà importés / jamais importés » : côté serveur.
+    if (data.criteria.importState === "new") hits = hits.filter((h) => !h.exists);
+    if (data.criteria.importState === "imported") hits = hits.filter((h) => h.exists);
+    // Filtres que CJ ne sait pas appliquer : vérification sur la fiche
+    // complète (cache 6 h, 3 appels en parallèle), uniquement pour cette page.
+    let excluded = 0;
+    if (needsDetail(data.criteria) && hits.length) {
+      const { fetchCjProduct, summarizeCjProduct, failsCriteria } = await import("@/lib/cj/import-core.server");
+      const kept: ExploreHit[] = [];
+      for (let i = 0; i < hits.length; i += 3) {
+        const chunk = hits.slice(i, i + 3);
+        const res = await Promise.all(chunk.map(async (h) => {
+          try {
+            const p = await fetchCjProduct(h.pid, traces, 6 * 3600_000);
+            if (!p?.pid) return null;
+            const sum = summarizeCjProduct(p);
+            if (failsCriteria(sum, data.criteria).length) return null;
+            return { ...h, score: sum.score, imageCount: sum.imageCount, material: sum.material, maxSideCm: sum.maxSideCm,
+              variantCount: sum.variantCount, weightKg: sum.maxWeightKg } as ExploreHit;
+          } catch { return null; }
+        }));
+        for (const r of res) if (r) kept.push(r); else excluded += 1;
+      }
+      hits = kept;
+    }
     return {
-      ok: true, error: null as string | null, hits,
+      ok: true, error: null as string | null, hits, excluded, deepChecked: needsDetail(data.criteria),
       total: Number(r?.totalRecords ?? 0) || 0, totalPages: Number(r?.totalPages ?? 0) || 0,
       cached, apiCalls: traces.length,
     };

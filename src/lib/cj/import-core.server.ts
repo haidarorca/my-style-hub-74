@@ -14,6 +14,8 @@ import { asImageList, orderSupplierImages } from "./image-order";
 import { cjGet, type CjCallTrace } from "./client.server";
 import type { MediaStats } from "./media.server";
 import { parseCjVariantOptions } from "./variant-options";
+import { resolveMaterial } from "./material";
+import { parseSupplierDescription as parseDesc } from "./description";
 
 export type SyncPart = "stock" | "price" | "images" | "variants" | "data";
 export const ALL_SYNC_PARTS: SyncPart[] = ["stock", "price", "images", "variants", "data"];
@@ -32,6 +34,22 @@ export interface ImportCriteria {
   requireWeight?: boolean;
   requireDimensions?: boolean;
   newOnly?: boolean;
+  // ── Filtres ajoutés (voir listV2Query / failsCriteria) ──
+  maxStock?: number | null;
+  minWeightKg?: number | null;
+  minImages?: number | null;
+  maxSideCm?: number | null;
+  maxCbm?: number | null;
+  material?: string | null;
+  countryCode?: string | null;
+  freeShipping?: boolean;
+  newArrivals?: boolean;
+  hasVideo?: boolean;
+  verifiedOnly?: boolean;
+  listedAfter?: string | null;
+  supplierId?: string | null;
+  orderBy?: number | null;
+  sort?: "asc" | "desc" | null;
 }
 
 export type CoreStatus = "SUCCESS" | "ALREADY_EXISTS" | "SYNCED" | "FAILED" | "SKIPPED" | "LOCKED";
@@ -143,6 +161,10 @@ export function summarizeCjProduct(p: any) {
   const prices = vs.map((v) => v.price).filter((n): n is number => n !== null);
   const stocks = vs.map((v) => v.stock).filter((n): n is number => n !== null);
   const weights = vs.map((v) => v.weightKg).filter((n): n is number => n !== null);
+  const mat = resolveMaterial(parseDesc(p?.description).specs, p);
+  const sides = vs.flatMap((v) => [v.lengthCm, v.widthCm, v.heightCm]).filter((n): n is number => n !== null);
+  const cbms = vs.map((v) => v.cbm).filter((n): n is number => n !== null);
+  const imageCount = new Set([...asImageList(p?.productImage), ...images]).size;
   const completeness = {
     images: images.length > 0 || !!p?.productImage,
     sku: !!p?.productSku && vs.every((v) => !!v.sku),
@@ -152,10 +174,11 @@ export function summarizeCjProduct(p: any) {
     dimensions: vs.length > 0 && vs.every((v) => v.cbm !== null),
     variants: vs.length > 0,
     description: !!(p?.description && String(p.description).replace(/<[^>]+>/g, "").trim()),
+    material: !!mat.value,
+    category: !!p?.categoryId,
   };
-  const score = Math.round(
-    (Object.values(completeness).filter(Boolean).length / Object.keys(completeness).length) * 100,
-  );
+  const quality = computeCompleteness(completeness);
+  const score = quality.score;
   return {
     pid: String(p?.pid ?? ""),
     name: p?.productNameEn ?? null,
@@ -173,7 +196,41 @@ export function summarizeCjProduct(p: any) {
     variants: vs,
     completeness,
     score,
+    quality,
+    imageCount,
+    material: mat.value,
+    materialSource: mat.source,
+    minWeightKg: weights.length ? Math.min(...weights) : null,
+    maxSideCm: sides.length ? Math.max(...sides) : null,
+    maxCbm: cbms.length ? Math.max(...cbms) : null,
+    video: !!(p?.productVideo && String(p.productVideo).replace(/[\[\]"\s]/g, "")),
   };
+}
+
+// Niveaux de qualité : obligatoire (bloque la validation automatique),
+// recommandé, optionnel (n'empêchent jamais l'import).
+export const QUALITY_LEVELS: Record<string, { level: "required" | "recommended" | "optional"; label: string; weight: number }> = {
+  images: { level: "required", label: "Image", weight: 3 },
+  price: { level: "required", label: "Prix d'achat", weight: 3 },
+  variants: { level: "required", label: "Variantes", weight: 3 },
+  sku: { level: "required", label: "SKU", weight: 3 },
+  weight: { level: "required", label: "Poids", weight: 3 },
+  dimensions: { level: "required", label: "Dimensions / volume", weight: 3 },
+  category: { level: "recommended", label: "Catégorie", weight: 2 },
+  stock: { level: "recommended", label: "Stock", weight: 2 },
+  description: { level: "recommended", label: "Description", weight: 2 },
+  material: { level: "optional", label: "Matière", weight: 1 },
+};
+
+export function computeCompleteness(c: Record<string, boolean>) {
+  let got = 0, total = 0;
+  const missing: Array<{ key: string; label: string; level: string }> = [];
+  for (const [k, def] of Object.entries(QUALITY_LEVELS)) {
+    if (!(k in c)) continue;
+    total += def.weight;
+    if (c[k]) got += def.weight; else missing.push({ key: k, label: def.label, level: def.level });
+  }
+  return { score: total ? Math.round((got / total) * 100) : 0, missing };
 }
 
 /** Vérifie une fiche complète contre des critères ; renvoie la liste des critères non remplis. */
@@ -190,6 +247,16 @@ export function failsCriteria(sum: ReturnType<typeof summarizeCjProduct>, c?: Im
   if (c.maxWeightKg != null && (sum.maxWeightKg === null || sum.maxWeightKg > c.maxWeightKg)) out.push(`poids > ${c.maxWeightKg} kg`);
   if (c.minVariants != null && sum.variantCount < c.minVariants) out.push(`variantes < ${c.minVariants}`);
   if (c.maxVariants != null && sum.variantCount > c.maxVariants) out.push(`variantes > ${c.maxVariants}`);
+  if (c.maxStock != null && sum.totalStock !== null && sum.totalStock > c.maxStock) out.push(`stock > ${c.maxStock}`);
+  if (c.minWeightKg != null && (sum.minWeightKg === null || sum.minWeightKg < c.minWeightKg)) out.push(`poids < ${c.minWeightKg} kg`);
+  if (c.minImages != null && sum.imageCount < c.minImages) out.push(`moins de ${c.minImages} images`);
+  if (c.maxSideCm != null && (sum.maxSideCm === null || sum.maxSideCm > c.maxSideCm)) out.push(`dimension > ${c.maxSideCm} cm`);
+  if (c.maxCbm != null && (sum.maxCbm === null || sum.maxCbm > c.maxCbm)) out.push(`volume > ${c.maxCbm} m³`);
+  if (c.material) {
+    const want = c.material.toLowerCase();
+    if (!sum.material || !sum.material.toLowerCase().includes(want)) out.push(`matière ≠ ${c.material}`);
+  }
+  if (c.hasVideo && !sum.video) out.push("sans vidéo");
   return out;
 }
 
@@ -263,13 +330,6 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     })();
     const images: string[] = asImageList(p.productImageSet);
     const mainImage: string | null = asImageList(p.productImage)[0] ?? images[0] ?? null;
-    const material: string | null = (() => {
-      const raw = p.materialNameEnSet ?? p.materialNameSet ?? p.materialNameEn ?? null;
-      let arr: any[] = [];
-      if (Array.isArray(raw)) arr = raw;
-      else if (raw) { try { const x = JSON.parse(String(raw)); arr = Array.isArray(x) ? x : [raw]; } catch { arr = [raw]; } }
-      return arr.filter(Boolean).join(", ").trim() || null;
-    })();
     if (!nameEn && !nameCn) missing.push("nom du produit");
     if (!p.description) missing.push("description");
     if (!images.length) missing.push("galerie d'images");
@@ -305,6 +365,15 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const media: MediaStats = newMediaStats();
     const mediaCache = new Map<string, string>();
     const parsed = parseSupplierDescription(p.description);
+    const materialInfo = resolveMaterial(parsed.specs, p);
+    const material: string | null = materialInfo.value;
+    report.material = materialInfo;
+    // Vidéo : champ officiel productVideo (URL ou liste), jamais inventée.
+    const video: string | null = (() => {
+      const raw = p.productVideo;
+      const list = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim() ? (() => { try { const x = JSON.parse(raw); return Array.isArray(x) ? x : [raw]; } catch { return [raw]; } })() : [];
+      return list.map(String).find((u: string) => /^https?:\/\//i.test(u)) ?? null;
+    })();
 
     // ── Catégorie ──
     const cjCategoryPath: string | null =
@@ -342,6 +411,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         supplier_ref: p.productSku ?? null,
         external_product_id: pid,
         material,
+        video_url: video,
       };
       const { data: created, error } = await admin.from("products").insert(payload).select("id").single();
       if (error) {
@@ -359,7 +429,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       const upd: Record<string, unknown> = {};
       // Jamais de changement de statut/publication lors d'une synchronisation.
       if (parts.has("data")) {
-        Object.assign(upd, { name: nameEn ?? nameCn ?? pid, designation: nameCn ?? null, description: parsed.html, specifications: parsed.specs.length ? parsed.specs : null, material });
+        Object.assign(upd, { name: nameEn ?? nameCn ?? pid, designation: nameCn ?? null, description: parsed.html, specifications: parsed.specs.length ? parsed.specs : null, material, ...(video ? { video_url: video } : {}) });
       }
       if (parts.has("price") && minCost !== null) {
         Object.assign(upd, { origin_price: minCost, origin_currency_code: "USD", cost_price: minCost, cost_currency_code: "USD" });
@@ -516,6 +586,8 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       ...syncStamps,
       cj_product_id: pid, product_id: productId, cj_sku: p.productSku ?? null, name_cn: nameCn, name_en: nameEn,
       cj_category_id: category.cjCategoryId, cj_category_name: category.cjCategoryName, cj_category_path: category.cjCategoryPath,
+      quality_score: sum.quality.score, quality_missing: sum.quality.missing,
+      material_source: materialInfo.source, material_cj_class: materialInfo.cjClass,
       customs_code: p.entryCode ?? null, material, pack_weight_raw: p.packingWeight ?? null, product_weight_raw: p.productWeight ?? null,
       source_description: p.description ?? null, source_images: orderSupplierImages(p.productImage, images),
       description_images_extracted: parsed.imageUrls.length,
