@@ -194,14 +194,19 @@ export class CjRateLimitError extends Error {
   retryable = true;
 }
 
-// CJ autorise ~2 requêtes/seconde par défaut : on espace les appels.
+// Débit CJ adaptatif : intervalle de base 600 ms (≈ limite par défaut de CJ).
+// Sur limitation (429 / 1600200), l'intervalle double (max 4 s) pour TOUS
+// les traitements en cours, puis redescend progressivement après succès.
+// Aucun délai fixe entre produits : seuls les appels CJ sont espacés.
 let lastCallAt = 0;
-const MIN_INTERVAL_MS = 600;
+const BASE_INTERVAL_MS = 600;
+let intervalMs = BASE_INTERVAL_MS;
 async function throttle() {
-  const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
-  lastCallAt = Math.max(Date.now(), lastCallAt + MIN_INTERVAL_MS);
+  const wait = lastCallAt + intervalMs - Date.now();
+  lastCallAt = Math.max(Date.now(), lastCallAt + intervalMs);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
 }
+export function cjCurrentInterval() { return intervalMs; }
 
 /** Appel authentifié à l'API CJ (GET), espacé et réessayé en cas de limite de débit. */
 export async function cjGet<T = any>(
@@ -212,8 +217,12 @@ export async function cjGet<T = any>(
   for (let attempt = 0; ; attempt += 1) {
     await throttle();
     const r = await cjFetch(path, { method: "GET", headers: { "CJ-Access-Token": token } }, traces);
-    if (r.body?.result === true) return r.body.data as T;
+    if (r.body?.result === true) {
+      intervalMs = Math.max(BASE_INTERVAL_MS, Math.round(intervalMs * 0.9));
+      return r.body.data as T;
+    }
     const limited = r.status === 429 || r.body?.code === 1600200;
+    if (limited) intervalMs = Math.min(4000, intervalMs * 2);
     if (limited && attempt < 3) {
       await new Promise((res) => setTimeout(res, 1500 * (attempt + 1) + Math.random() * 500));
       continue;

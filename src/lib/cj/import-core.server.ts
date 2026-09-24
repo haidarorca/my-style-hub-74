@@ -46,6 +46,8 @@ export interface CoreOptions {
   criteria?: ImportCriteria | null;
   userId?: string | null;
   traces?: CjCallTrace[];
+  /** Étape courante (progression réelle affichée dans l'admin). */
+  onStep?: (step: string) => void | Promise<void>;
 }
 
 export interface CoreResult {
@@ -194,8 +196,17 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     kawzoneCategoryChain: [], categoryUnresolved: [], categoryMapping: "pending",
     publicCleanCheck: { clean: true, offenders: [] }, variants: [], missing,
   };
-  const done = (status: CoreStatus, productId: string | null, error: string | null = null): CoreResult =>
-    ({ status, productId, error, missing, report });
+  // Mesure du temps par étape (journal technique uniquement).
+  const timings: Record<string, number> = {};
+  const t0 = Date.now();
+  let tMark = t0;
+  const lap = (k: string) => { const n = Date.now(); timings[k] = (timings[k] ?? 0) + (n - tMark); tMark = n; };
+  const step = async (s: string) => { try { await opts.onStep?.(s); } catch { /* affichage seulement */ } };
+  report.timings = timings;
+  const done = (status: CoreStatus, productId: string | null, error: string | null = null): CoreResult => {
+    timings.total = Date.now() - t0;
+    return { status, productId, error, missing, report };
+  };
 
   // ── Verrou par PID : deux traitements simultanés du même produit sont impossibles ──
   const { data: locked } = await admin.rpc("cj_try_lock_pid", { _pid: pid, _seconds: 300 });
@@ -209,7 +220,11 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const isNew = !existingId;
     const parts = new Set<SyncPart>(isNew ? ALL_SYNC_PARTS : (opts.syncParts?.length ? opts.syncParts : ALL_SYNC_PARTS));
     // Le stock doit être frais pour une synchro de stock ; sinon le cache (30 min) suffit.
+    lap("antiDoublon");
+    await step("Récupération du produit CJ");
     const p = await fetchCjProduct(pid, traces, parts.has("stock") && !isNew ? 0 : 30 * 60 * 1000);
+    lap("cjProduit");
+    const heavy = isNew || parts.has("data") || parts.has("images") || parts.has("variants");
     if (!p?.pid) return done("FAILED", existingId, "Produit introuvable chez CJ.");
 
     const sum = summarizeCjProduct(p);
@@ -261,12 +276,13 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
           if (vid && qty !== null) stockByVid.set(vid, qty);
         }
       } catch { /* stock laissé inconnu */ }
+      lap("cjStock");
     }
 
     const costs = cjVariants.map((v) => num(v.variantSellPrice)).filter((n): n is number => n !== null);
     const minCost = costs.length ? Math.min(...costs) : null;
 
-    const { mirrorImage, newMediaStats, containsSupplierRef } = await import("./media.server");
+    const { newMediaStats, containsSupplierRef } = await import("./media.server");
     const { parseSupplierDescription } = await import("./description");
     const { resolveCjCategory } = await import("./categories.server");
     const media: MediaStats = newMediaStats();
@@ -276,7 +292,11 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     // ── Catégorie ──
     const cjCategoryPath: string | null =
       p.categoryName ?? ([p.categoryFirstName, p.categorySecondName].filter(Boolean).join(" > ") || null);
-    const category = await resolveCjCategory(p.categoryId ? String(p.categoryId) : null, p.categoryName ?? null, cjCategoryPath);
+    // Catégorie : utile seulement à la création ou à une synchro complète des données.
+    const category = heavy
+      ? await resolveCjCategory(p.categoryId ? String(p.categoryId) : null, p.categoryName ?? null, cjCategoryPath)
+      : { reason: null, status: "unchanged", kawzoneChain: [], unresolved: [], kawzoneCategoryId: null, cjCategoryId: p.categoryId ? String(p.categoryId) : null, cjCategoryName: p.categoryName ?? null, cjCategoryPath } as any;
+    lap("categorie");
     if (category.reason) missing.push(category.reason);
     report.categoryMapping = category.status;
     report.kawzoneCategoryChain = category.kawzoneChain;
@@ -284,6 +304,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
 
     // ── Produit ──
     let productId = existingId;
+    await step(isNew ? "Création du produit" : "Mise à jour du produit");
     if (isNew) {
       const payload: Record<string, unknown> = {
         vendor_id: VENDOR_ID,
@@ -332,16 +353,30 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     }
 
     // ── Images ──
+    lap("produit");
     let gallery: string[] | null = null;
     let hostedMain: string | null = null;
+    // Toutes les images nécessaires (galerie + variantes) sont rapatriées EN
+    // PARALLÈLE, une seule fois chacune (empreinte d'URL). Un échec d'image
+    // n'arrête pas le produit : il est signalé dans « missing ».
+    const { mirrorMany } = await import("./media.server");
+    const needVariantImages = parts.has("images") || parts.has("variants") || isNew;
+    const orderedGallery = parts.has("images") ? orderSupplierImages(p.productImage, images, parsed.imageUrls).slice(0, 40) : [];
+    const variantImgUrls = needVariantImages ? cjVariants.map((v) => v.variantImage).filter(Boolean) : [];
+    let hostedMap = new Map<string, string | null>();
+    if (orderedGallery.length || variantImgUrls.length) {
+      await step(`Téléchargement des images (${new Set([...orderedGallery, ...variantImgUrls]).size})`);
+      hostedMap = await mirrorMany([...orderedGallery, ...variantImgUrls], media, mediaCache, 8);
+      if (media.failed) missing.push(`${media.failed} image(s) non rapatriée(s) — à réessayer`);
+    }
+    lap("images");
     if (parts.has("images")) {
       // Ordre : image principale CJ (productImage) → galerie CJ dans l'ordre
       // fourni (productImageSet) → images de détail de la description.
       // Les images de variantes restent liées à leurs variantes (pas en galerie).
-      const ordered = orderSupplierImages(p.productImage, images, parsed.imageUrls).slice(0, 40);
       gallery = [];
-      for (const src of ordered) {
-        const hosted = await mirrorImage(src, media, mediaCache);
+      for (const src of orderedGallery) {
+        const hosted = hostedMap.get(src.trim()) ?? null;
         if (hosted && !gallery.includes(hosted)) gallery.push(hosted);
       }
       hostedMain = gallery[0] ?? null;
@@ -353,7 +388,10 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       report.images = gallery.length;
     }
 
-    // ── Variantes ──
+    // ── Variantes ── (insertions groupées, mises à jour en parallèle)
+    await step(`Enregistrement des variantes (${cjVariants.length})`);
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: string; payload: any; label: string }> = [];
     const { data: existingVars } = await admin
       .from("product_variants").select("id, external_variant_id, product_id").in("external_variant_id", cjVariants.map((v) => String(v.vid)));
     const byVid = new Map<string, any>((existingVars ?? []).map((r: any) => [String(r.external_variant_id), r]));
@@ -378,7 +416,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       const payload: Record<string, unknown> = {};
       const needImage = parts.has("images") || (!ex && parts.has("variants"));
       if (needImage) {
-        const img = v.variantImage ? await mirrorImage(v.variantImage, media, mediaCache) : null;
+        const img = v.variantImage ? (hostedMap.get(String(v.variantImage).trim()) ?? null) : null;
         if (img) { payload.image_url = img; report.variantImages += 1; }
       }
       if (!ex || parts.has("variants")) {
@@ -398,15 +436,9 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       }
 
       if (ex) {
-        if (Object.keys(payload).length) {
-          const { error } = await admin.from("product_variants").update(payload).eq("id", ex.id);
-          if (error) throw new Error(`Variante ${v.variantSku ?? vid} : ${error.message}`);
-        }
+        if (Object.keys(payload).length) toUpdate.push({ id: ex.id, payload, label: v.variantSku ?? vid });
       } else if (isNew || parts.has("variants")) {
-        const { error } = await admin.from("product_variants").insert({
-          ...payload, product_id: productId, stock: 0, external_variant_id: vid,
-        });
-        if (error && error.code !== "23505") throw new Error(`Variante ${v.variantSku ?? vid} : ${error.message}`);
+        toInsert.push({ ...payload, product_id: productId, stock: 0, external_variant_id: vid });
       } else {
         continue;
       }
@@ -417,6 +449,21 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         weightKg, lengthCm, widthCm, heightCm, cbm, image: (payload.image_url as string) ?? null,
       });
     }
+
+    // Insertion groupée ; l'index unique sur external_variant_id garantit
+    // qu'un même VID ne crée jamais deux variantes (conflit → ignoré).
+    const INSERT_KEYS = ["size", "color", "cj_options", "variant_ref", "weight_kg", "length_cm", "width_cm", "height_cm", "supplier_sku", "supplier_ref", "cost_price", "cost_currency_code", "supplier_stock", "supplier_available", "image_url", "product_id", "stock", "external_variant_id"];
+    const normRows = toInsert.map((row) => Object.fromEntries(INSERT_KEYS.map((k) => [k, row[k] ?? (k === "supplier_available" ? true : null)])));
+    for (let i = 0; i < normRows.length; i += 200) {
+      const { error } = await admin.from("product_variants")
+        .upsert(normRows.slice(i, i + 200), { onConflict: "external_variant_id", ignoreDuplicates: true });
+      if (error) throw new Error(`Variantes : ${error.message}`);
+    }
+    for (let i = 0; i < toUpdate.length; i += 8) {
+      const res = await Promise.all(toUpdate.slice(i, i + 8).map((u) => admin.from("product_variants").update(u.payload).eq("id", u.id).then((r: any) => ({ r, u }))));
+      for (const { r, u } of res) if (r.error) throw new Error(`Variante ${u.label} : ${r.error.message}`);
+    }
+    lap("variantes");
 
     // Stock : la disponibilité (variante et produit) est recalculée
     // automatiquement en base à partir de supplier_stock. Le produit n'est
@@ -429,8 +476,26 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       }
     }
 
-    // ── Trace CJ ──
+    // ── Trace CJ ── (+ date de dernière synchronisation par partie)
+    await step("Finalisation");
+    const nowIso = new Date().toISOString();
+    const syncStamps: Record<string, string> = {};
+    for (const part of parts) syncStamps[`${part}_synced_at`] = nowIso;
+    if (!heavy) {
+      // Synchro légère (stock / prix) : on ne réécrit pas toute la fiche.
+      await admin.from("cj_products").update({ ...syncStamps, raw: { product: p, stock: Object.fromEntries(stockByVid) } }).eq("cj_product_id", pid);
+      lap("base");
+      await admin.from("cj_import_log").insert({
+        cj_product_id: pid, product_id: productId, action: "updated",
+        variants_total: report.variantsTotal, variants_imported: report.variantsImported, api_calls: traces.length,
+        result: `Synchronisé : ${[...parts].join(", ")}`, missing_fields: missing, traces: traces as any,
+        timings: { ...timings, total: Date.now() - t0 }, created_by: opts.userId ?? null,
+      });
+      report.productName = nameEn ?? nameCn;
+      return done("SYNCED", productId);
+    }
     const cjRow: Record<string, unknown> = {
+      ...syncStamps,
       cj_product_id: pid, product_id: productId, cj_sku: p.productSku ?? null, name_cn: nameCn, name_en: nameEn,
       cj_category_id: category.cjCategoryId, cj_category_name: category.cjCategoryName, cj_category_path: category.cjCategoryPath,
       customs_code: p.entryCode ?? null, material, pack_weight_raw: p.packingWeight ?? null, product_weight_raw: p.productWeight ?? null,
@@ -447,6 +512,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     }
 
     // ── Contrôle : aucune référence fournisseur publique ──
+    lap("base");
     const offenders: string[] = [];
     const { data: pubProd } = await admin.from("products").select("name, designation, description").eq("id", productId).single();
     for (const [f, val] of Object.entries(pubProd ?? {})) if (containsSupplierRef(val)) offenders.push(`produit.${f}`);
@@ -463,13 +529,14 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       variants_total: report.variantsTotal, variants_imported: report.variantsImported, api_calls: traces.length,
       result: isNew ? "Produit importé en brouillon" : `Synchronisé : ${[...parts].join(", ")}`,
       missing_fields: missing, traces: traces as any, created_by: opts.userId ?? null,
+      timings: { ...timings, total: Date.now() - t0 },
     });
     return done(isNew ? "SUCCESS" : "SYNCED", productId);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
     await admin.from("cj_import_log").insert({
       cj_product_id: pid, action: "error", api_calls: traces.length, result: "Échec",
-      error_message: message, traces: traces as any, created_by: opts.userId ?? null,
+      error_message: message, traces: traces as any, timings: { ...timings, total: Date.now() - t0 }, created_by: opts.userId ?? null,
     });
     const r = done("FAILED", null, message);
     (r as any).retryable = (e as any)?.retryable === true;

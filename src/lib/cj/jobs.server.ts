@@ -117,47 +117,66 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
   const { runCjProductImport } = await import("./import-core.server");
   let rateLimited = false;
 
-  try {
-    while (Date.now() - started < budgetMs) {
-      // Statut relu à chaque tour : pause / annulation prises en compte immédiatement.
+  // File de travail : plusieurs produits traités EN PARALLÈLE (concurrence
+  // contrôlée). Les appels CJ restent espacés par le limiteur global du
+  // client ; les téléchargements d'images et écritures en base, eux, se
+  // chevauchent. Sur limitation CJ, on repasse à 1 worker.
+  const CONCURRENCY = Math.max(1, Math.min(6, Number(job.options?.concurrency ?? process.env["CJ_IMPORT_CONCURRENCY"] ?? 4) || 4));
+  let stop = false;
+  const worker = async () => {
+    while (!stop && !rateLimited && Date.now() - started < budgetMs) {
       const { data: cur } = await a.from("cj_import_jobs").select("status, discover_done, discover_page, criteria, target_count, id").eq("id", jobId).single();
-      if (cur.status === "paused" || cur.status === "cancelled") break;
-
+      if (cur.status === "paused" || cur.status === "cancelled") { stop = true; break; }
       const { data: claimed } = await a.rpc("cj_claim_job_items", { _job: jobId, _n: 1 });
       const item = (claimed ?? [])[0];
       if (!item) {
-        if (!cur.discover_done) {
-          await discoverPage(cur, traces);
+        if (!cur.discover_done && !discovering) {
+          discovering = true;
+          try { await discoverPage(cur, traces); } finally { discovering = false; }
           continue;
         }
         break;
       }
-      const r = await runCjProductImport({
-        pid: item.pid,
-        mode: job.kind === "sync" ? "sync" : "import",
-        syncParts: (job.sync_parts ?? []) as SyncPart[],
-        withStock: !!job.options?.withStock,
-        criteria: job.criteria ?? job.options?.criteria ?? null,
-        userId: job.created_by,
-        traces,
-      });
-      if (r.status === "LOCKED" || (r as any).retryable) {
-        // Réessayé plus tard, sans compter comme une erreur.
-        await a.from("cj_import_job_items").update({ status: "PENDING", lease_until: null, error: r.error }).eq("id", item.id);
-        if ((r as any).retryable) { rateLimited = true; break; }
+      await a.from("cj_import_job_items").update({ step: "Démarrage", started_at: new Date().toISOString() }).eq("id", item.id);
+      let r: any;
+      try {
+        r = await runCjProductImport({
+          pid: item.pid,
+          mode: job.kind === "sync" ? "sync" : "import",
+          syncParts: (job.sync_parts ?? []) as SyncPart[],
+          withStock: !!job.options?.withStock,
+          criteria: job.criteria ?? job.options?.criteria ?? null,
+          userId: job.created_by,
+          traces,
+          onStep: (st) => a.from("cj_import_job_items").update({ step: st }).eq("id", item.id).then(() => undefined),
+        });
+      } catch (e) {
+        r = { status: "FAILED", productId: null, error: e instanceof Error ? e.message : String(e), missing: [], report: {}, retryable: (e as any)?.retryable === true };
+      }
+      if (r.status === "LOCKED" || r.retryable) {
+        await a.from("cj_import_job_items").update({ status: "PENDING", lease_until: null, error: r.error, step: null }).eq("id", item.id);
+        if (r.retryable) { rateLimited = true; break; }
         continue;
       }
+      // Un échec n'arrête pas le job : l'élément passe en FAILED avec son erreur.
       await a.from("cj_import_job_items").update({
         status: r.status,
         product_id: r.productId,
         error: r.error,
-        missing: r.missing.length ? r.missing.slice(0, 40) : null,
+        missing: r.missing?.length ? r.missing.slice(0, 40) : null,
         lease_until: null,
         finished_at: new Date().toISOString(),
         name: r.report?.productName ?? item.name,
+        step: null,
+        timings: r.report?.timings ?? null,
       }).eq("id", item.id);
       processed += 1;
     }
+  };
+  let discovering = false;
+  try {
+    await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) =>
+      new Promise((res) => setTimeout(res, i * 250)).then(worker)));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await a.from("cj_import_jobs").update({ last_error: msg.slice(0, 500) }).eq("id", jobId);
