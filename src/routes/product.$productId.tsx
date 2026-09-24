@@ -39,7 +39,6 @@ import { EstimatedShippingPanel } from "@/components/product/EstimatedShippingPa
 import { useEstimatedShipping } from "@/hooks/use-estimated-shipping";
 import { ProductGallery } from "@/components/images/ProductGallery";
 import { SensitiveThumb } from "@/lib/sensitive-images";
-import { AdminProductImagesPanel } from "@/components/admin/sensitive/SensitiveControls";
 import { toReadableText, type ProductSpec } from "@/lib/cj/description";
 import { DeliveryToConfirmNotice } from "@/components/shared/DeliveryNotice";
 import { GroupSelector } from "@/components/product/GroupSelector";
@@ -557,7 +556,6 @@ function ProductPage() {
             />
           );
         })()}
-        <AdminProductImagesPanel productId={productId} />
 
 
         <div className="space-y-4 px-4 py-3">

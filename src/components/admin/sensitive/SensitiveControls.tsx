@@ -239,10 +239,10 @@ function useImageSummary(productId: string) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("sensitive_image_status")
-        .select("final_decision, final_audience, current")
+        .select("final_decision, final_audience")
         .eq("product_id", productId);
       if (error) throw error;
-      const rows = ((data ?? []) as any[]).filter((r) => r.current !== false);
+      const rows = ((data ?? []) as any[]).slice();
       const c = { normal: 0, homme: 0, femme: 0, review: 0, total: rows.length };
       for (const r of rows) {
         const s = r.final_decision === "sensitive" ? (r.final_audience === "homme" ? "homme" : "femme")
