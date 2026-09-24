@@ -126,8 +126,8 @@ function SignupPage() {
       toast.error("Merci de fournir une adresse ou votre position.");
       return;
     }
-    if (password.length < 8) {
-      toast.error("Le mot de passe doit faire au moins 8 caractères.");
+    if (password.length < 6) {
+      toast.error("Le mot de passe doit faire au moins 6 caractères.");
       return;
     }
     setLoading(true);
