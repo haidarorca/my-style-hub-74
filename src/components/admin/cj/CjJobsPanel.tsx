@@ -15,7 +15,7 @@ const STATUS_FR: Record<string, string> = {
 };
 const ITEM_FR: Record<string, string> = {
   PENDING: "En attente", PROCESSING: "En cours", SUCCESS: "Importé", ALREADY_EXISTS: "Déjà existant",
-  SYNCED: "Synchronisé", FAILED: "Erreur", SKIPPED: "Ignoré (critères)",
+  SYNCED: "Synchronisé", FAILED: "Erreur", SKIPPED: "Ignoré (critères)", CANCELLED: "Annulé",
 };
 const PARTS: Array<[string, string]> = [["stock", "Stock"], ["price", "Prix d'achat"], ["images", "Images"], ["variants", "Variantes"], ["data", "Données produit"]];
 
@@ -32,8 +32,8 @@ export function CjJobsPanel() {
   const { data } = useQuery({ queryKey: ["cj-jobs"], queryFn: () => listFn(), refetchInterval: 4000 });
   const jobs: any[] = data?.jobs ?? [];
 
-  // Relais : tant que la page est ouverte, fait avancer les imports en cours
-  // si le traitement d'arrière-plan ne démarre pas.
+  // Accélérateur facultatif : le serveur avance déjà seul (réveil chaque minute) ;
+  // page ouverte, on enchaîne les lots sans attendre. Bail exclusif côté serveur.
   const activeId = jobs.find((j) => ["pending", "running", "discovering"].includes(j.status))?.id as string | undefined;
   const pumping = useRef(false);
   useEffect(() => {
@@ -103,7 +103,7 @@ export function CjJobsPanel() {
 
       {jobs.length === 0 && <div className="grid min-h-56 place-items-center text-center"><div><PackageOpen className="mx-auto mb-3 h-9 w-9 text-muted-foreground" /><p className="font-medium">Aucun import pour l'instant</p><p className="text-sm text-muted-foreground">Les imports lancés depuis Explorer apparaîtront ici.</p></div></div>}
       {jobs.map((j) => {
-        const done = j.n_success + j.n_exists + j.n_synced + j.n_failed + j.n_skipped;
+        const done = j.n_success + j.n_exists + j.n_synced + j.n_failed + j.n_skipped + (j.n_cancelled ?? 0);
         const pct = j.total ? Math.round((done / j.total) * 100) : 0;
         const active = ["pending", "running", "discovering"].includes(j.status);
         return (
@@ -124,7 +124,7 @@ export function CjJobsPanel() {
                 <Stat l="Importés" v={j.n_success} />
                 <Stat l="Déjà existants" v={j.n_exists} />
                 <Stat l="Erreurs" v={j.n_failed} bad />
-                <Stat l="En cours / attente" v={j.n_processing + j.n_pending} />
+                {j.status === "cancelled" ? <Stat l="Annulés" v={j.n_cancelled ?? 0} /> : <Stat l="En cours / attente" v={j.n_processing + j.n_pending} />}
               </div>
               {active && Array.isArray(j.current) && j.current.length > 0 && (
                 <div className="space-y-1 rounded-md border border-dashed p-2 text-xs">
@@ -133,12 +133,14 @@ export function CjJobsPanel() {
                   ))}
                 </div>
               )}
+              {j.last_item_name && <p className="truncate text-[11px] text-muted-foreground">Dernier produit traité : {j.last_item_name}</p>}
+              {active && <p className="text-[11px] text-muted-foreground">Continue automatiquement, même page fermée.</p>}
               {j.last_error && <p className="text-[11px] text-destructive">Dernière erreur : {j.last_error}</p>}
               <div className="flex flex-wrap gap-2">
                 {active && <Button size="sm" variant="outline" onClick={() => act(j.id, "pause")}><Pause className="mr-1 h-3 w-3" />Pause</Button>}
                 {j.status === "paused" && <Button size="sm" variant="outline" onClick={() => act(j.id, "resume")}><Play className="mr-1 h-3 w-3" />Reprendre</Button>}
                 {(active || j.status === "paused") && <Button size="sm" variant="outline" onClick={() => act(j.id, "cancel")}><X className="mr-1 h-3 w-3" />Annuler</Button>}
-                {j.n_failed > 0 && j.status !== "cancelled" && <Button size="sm" variant="outline" onClick={() => act(j.id, "retry_failed")}><RotateCcw className="mr-1 h-3 w-3" />Réessayer les erreurs</Button>}
+                {j.n_failed > 0 && j.status !== "cancelled" && !active && <Button size="sm" variant="outline" onClick={() => act(j.id, "retry_failed")}><RotateCcw className="mr-1 h-3 w-3" />Réessayer les erreurs</Button>}
                 <Button size="sm" variant="ghost" onClick={() => setOpen(open === j.id ? null : j.id)}>
                   {open === j.id ? <ChevronUp className="mr-1 h-3 w-3" /> : <ChevronDown className="mr-1 h-3 w-3" />} Voir les détails
                 </Button>
