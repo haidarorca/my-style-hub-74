@@ -162,7 +162,7 @@ function CataloguePage() {
             <SelectTrigger className="h-9 w-[130px] shrink-0 sm:w-44"><SelectValue /></SelectTrigger>
             <SelectContent>{Object.entries(SORTS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent>
           </Select>
-          <Button className="h-9 shrink-0 gap-1.5" onClick={() => setOpen(true)}>
+          <Button className="h-9 shrink-0 gap-1.5" aria-label="Filtrer" onClick={() => setOpen(true)}>
             <SlidersHorizontal className="h-4 w-4" /><span className="hidden sm:inline">Filtrer</span>
             {chips.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary-foreground px-1 text-[11px] font-bold text-primary">{chips.length}</span>}
           </Button>
