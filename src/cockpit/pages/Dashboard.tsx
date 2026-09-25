@@ -7,7 +7,10 @@ import { CjStockAlert } from "@/components/admin/CjStockAlert";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
-import { Search, ClipboardList, Archive, ArrowUpDown, Download } from "lucide-react";
+import { Search, ClipboardList, Archive, ArrowUpDown, Download, CheckCircle2 } from "lucide-react";
+import { TodoBoard } from "@/cockpit/components/TodoBoard";
+import { ArchiveTab } from "@/cockpit/components/ArchiveTab";
+import type { TodoTile } from "@/lib/reminders.functions";
 import { Input } from "@/components/ui/input";
 import { useRealOrders } from "@/cockpit/hooks/useRealOrders";
 import { useAuth } from "@/hooks/use-auth";
@@ -90,7 +93,16 @@ export default function CockpitDashboard() {
     }
   }, [search.orderId, search.focus, orders, navigate]);
 
-  const [activeTab, setActiveTab] = useState<"actions" | "archive">("actions");
+  const [activeTab, setActiveTab] = useState<"actions" | "done" | "archive">("actions");
+  const [focusTile, setFocusTile] = useState<TodoTile | null>(null);
+  const selectTile = useCallback((t: TodoTile | null) => {
+    setFocusTile(t);
+    // Une seule commande concernée → ouverture directe de la fiche.
+    if (t && t.orderIds.length === 1) {
+      const found = orders.find(o => o.order_id === t.orderIds[0]);
+      if (found) { setSelectedSubKey(undefined); setSelectedOrder(found); }
+    }
+  }, [orders]);
 
 
   // ─── Moteur de filtres métier multi-dimensions ───
@@ -130,13 +142,18 @@ export default function CockpitDashboard() {
   // du Cockpit). Le pipeline a besoin de la liste des commandes mères
   // correspondantes pour ses colonnes — on les dérive ici.
   const tabbedSubRows = useMemo(() => {
+    // Clic sur une tuile « À faire » : uniquement les commandes concernées.
+    if (focusTile && activeTab === "actions") {
+      const ids = new Set(focusTile.orderIds);
+      return filteredSubRows.filter(r => ids.has(r.mother_order_id));
+    }
     const isDone = (r: typeof filteredSubRows[number]) => {
       const s = (r.effective_status ?? r.order.logistics_status ?? "").trim();
       return s === "delivered" || s === "cancelled";
     };
-    if (activeTab === "archive") return filteredSubRows.filter(isDone);
+    if (activeTab === "done") return filteredSubRows.filter(isDone);
     return filteredSubRows.filter(r => !isDone(r));
-  }, [filteredSubRows, activeTab]);
+  }, [filteredSubRows, activeTab, focusTile]);
 
   const displayOrders = useMemo(() => {
     const seen = new Set<string>();
@@ -178,6 +195,11 @@ export default function CockpitDashboard() {
           <span className="text-[10px] text-gray-500">{subOrderRows.length} sous-commandes</span>
         </div>
         <CjStockAlert />
+        {activeTab === "actions" && (
+          <div className="mb-2">
+            <TodoBoard activeKey={focusTile?.key ?? null} onSelect={selectTile} />
+          </div>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
           <Input
@@ -252,6 +274,8 @@ export default function CockpitDashboard() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-16">
         {activeTab === "archive" ? (
+          <div className="p-4"><ArchiveTab /></div>
+        ) : activeTab === "done" ? (
           <ArchiveView orders={displayOrders} onSelect={setSelectedOrder} cancellations={cancellations} />
         ) : (
           <PipelineView
@@ -271,14 +295,15 @@ export default function CockpitDashboard() {
         )}
       </div>
 
-      {/* Bottom nav — Actions + Archive uniquement */}
+      {/* Bottom nav — Actions / Terminées / Archives */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
         <div className="flex justify-around items-center h-14">
           {[
             { k: "actions" as const, l: "Actions", i: ClipboardList },
-            { k: "archive" as const, l: "Archive", i: Archive },
+            { k: "done" as const, l: "Terminées", i: CheckCircle2 },
+            { k: "archive" as const, l: "Archives", i: Archive },
           ].map(t => (
-            <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => setActiveTab(t.k)}>
+            <button key={t.k} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${activeTab === t.k ? "text-orange-600" : "text-gray-500"}`} onClick={() => { setActiveTab(t.k); setFocusTile(null); }}>
               <t.i className="h-5 w-5" /><span className="text-[10px] font-medium">{t.l}</span>
             </button>
           ))}
