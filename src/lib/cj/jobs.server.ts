@@ -398,6 +398,7 @@ export async function createJob(input: {
   withStock?: boolean;
   scheduleId?: string | null;
   userId?: string | null;
+  cursors?: Record<string, unknown> | null;
 }): Promise<string> {
   const a = await admin();
   const byCriteria = !input.pids?.length && !!input.criteria;
@@ -407,7 +408,7 @@ export async function createJob(input: {
     sync_parts: input.syncParts ?? [],
     criteria: input.criteria ?? null,
     target_count: input.targetCount ?? null,
-    options: { withStock: !!input.withStock },
+    options: { withStock: !!input.withStock, ...(input.cursors ? { cursors: input.cursors } : {}) },
     discover_done: !byCriteria,
     schedule_id: input.scheduleId ?? null,
     created_by: input.userId ?? null,
@@ -450,7 +451,9 @@ export async function runDueSchedules(): Promise<string[]> {
       .update({ last_run_at: now.toISOString() }).eq("id", r.id)
       .or(`last_run_at.is.null,last_run_at.lt.${hourStart.toISOString()}`).select("id");
     if (!claimed?.length) continue;
+    const cursors = await carriedCursors(r.last_job_id);
     const jobId = await createJob({
+      cursors,
       name: `Programmé — ${r.name} — ${now.toISOString().slice(0, 10)}`,
       kind: "import",
       criteria: scheduleCriteria(r.criteria),
@@ -474,4 +477,22 @@ export function scheduleCriteria(c: any): any {
     }
   }
   return out;
+}
+
+/** Position de parcours des familles, reprise à l'exécution suivante (économie de points CJ). */
+export async function carriedCursors(lastJobId: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!lastJobId) return null;
+  const a = await admin();
+  const { data } = await a.from("cj_import_jobs").select("options").eq("id", lastJobId).maybeSingle();
+  const ts = data?.options?.tstate ?? {};
+  const prev = data?.options?.cursors ?? {};
+  const out: Record<string, unknown> = {};
+  for (const key of new Set([...Object.keys(prev), ...Object.keys(ts)])) {
+    const st = ts[key] ?? prev[key];
+    if (!st?.lp) continue;
+    const lp: Record<string, { p: number }> = {};
+    for (const [leaf, v] of Object.entries<any>(st.lp)) lp[leaf] = { p: Math.max(1, Number(v?.p) || 1) };
+    out[key] = { leaf: st.leaf ?? 0, lp };
+  }
+  return Object.keys(out).length ? out : null;
 }
