@@ -220,6 +220,10 @@ export function scoreHit(
   // Pertinent : tous les concepts couverts (titre ou catégorie) ; au moins la moitié dans le titre.
   const covered = inTitle + inCat;
   // Le nom principal doit figurer dans le titre (sinon : hors sujet).
-  const relevant = headInTitle && (n === 1 || covered >= Math.ceil(n * (n >= 3 ? 0.67 : 1)));
+  // Exception : la catégorie CJ porte l'expression complète (« Cake Decorating Supplies »)
+  // et au moins un concept figure dans le titre.
+  const catPhrase = plan.queries.some((q) => q.q.includes(" ") && pc.includes(` ${q.q} `));
+  if (catPhrase) score += 15;
+  const relevant = (headInTitle && (n === 1 || covered >= Math.ceil(n * (n >= 3 ? 0.67 : 1)))) || (catPhrase && inTitle >= 1);
   return { score: Math.min(100, Math.round(score)), relevant };
 }
