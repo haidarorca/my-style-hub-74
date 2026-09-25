@@ -4314,6 +4314,7 @@ export type Database = {
           group_option_label: string | null
           group_option_label_i18n: Json | null
           group_position: number
+          has_size_guide: boolean
           height_cm: number | null
           home_excluded: boolean
           home_position: number | null
@@ -4393,6 +4394,7 @@ export type Database = {
           group_option_label?: string | null
           group_option_label_i18n?: Json | null
           group_position?: number
+          has_size_guide?: boolean
           height_cm?: number | null
           home_excluded?: boolean
           home_position?: number | null
@@ -4472,6 +4474,7 @@ export type Database = {
           group_option_label?: string | null
           group_option_label_i18n?: Json | null
           group_position?: number
+          has_size_guide?: boolean
           height_cm?: number | null
           home_excluded?: boolean
           home_position?: number | null
@@ -6863,6 +6866,10 @@ export type Database = {
         Returns: undefined
       }
       refresh_product_facets: { Args: { _ids: string[] }; Returns: undefined }
+      refresh_products_size_guide: {
+        Args: { _ids: string[] }
+        Returns: undefined
+      }
       register_share_click: {
         Args: { _code: string; _referer?: string; _user_agent?: string }
         Returns: undefined
@@ -7081,6 +7088,7 @@ export type Database = {
         Args: { _role_key: string; _user_id: string }
         Returns: boolean
       }
+      variant_has_measurements: { Args: { m: Json }; Returns: boolean }
       vendor_contacts_visible: {
         Args: { _vendor_id: string }
         Returns: boolean
