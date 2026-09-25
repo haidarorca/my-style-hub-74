@@ -176,6 +176,7 @@ export default function CockpitDashboard() {
           <h1 className="text-sm font-bold">Kawzone Cockpit</h1>
           <span className="text-[10px] text-gray-500">{subOrderRows.length} sous-commandes</span>
         </div>
+        <CjStockAlert />
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
           <Input
