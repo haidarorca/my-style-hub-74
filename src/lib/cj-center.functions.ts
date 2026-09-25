@@ -137,7 +137,22 @@ export const exploreCj = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const a = supabaseAdmin as any;
     const traces: CjCallTrace[] = [];
-    const path = listV2Query(data.criteria, data.page, data.size);
+    // Famille / sous-famille : CJ ne filtre que les catégories finales.
+    const fam = data.criteria.categoryId && /^[fs]:/.test(data.criteria.categoryId) ? data.criteria.categoryId : null;
+    let famLeaves: Set<string> | null = null;
+    let listCrit = data.criteria;
+    let listPage = data.page;
+    if (fam) {
+      const { resolveLeafIds } = await import("@/lib/cj/category-tree.server");
+      const leaves = await resolveLeafIds(fam);
+      if (data.criteria.keyword) { famLeaves = new Set(leaves); listCrit = { ...data.criteria, categoryId: null }; }
+      else if (leaves.length) {
+        const idx = (data.page - 1) % leaves.length;
+        listCrit = { ...data.criteria, categoryId: leaves[idx] };
+        listPage = Math.floor((data.page - 1) / leaves.length) + 1;
+      }
+    }
+    const path = listV2Query(listCrit, listPage, data.size);
     const key = `lv2:${path}`;
     let r: any = null;
     let cached = false;
@@ -152,7 +167,7 @@ export const exploreCj = createServerFn({ method: "POST" })
       return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [] as ExploreHit[], total: 0, totalPages: 0, cached, apiCalls: traces.length, excluded: 0, deepChecked: false };
     }
     const list: any[] = (Array.isArray(r?.content) ? r.content : []).flatMap((x: any) => x?.productList ?? []);
-    const items = list.map(mapListItem).filter((i) => i.pid);
+    const items = list.map(mapListItem).filter((i) => i.pid && (!famLeaves || (i.categoryId && famLeaves.has(String(i.categoryId)))));
     const ex = await existingPidMap(items.map((i) => i.pid));
     const { data: logs } = await a.from("cj_import_log")
       .select("cj_product_id, missing_fields, created_at")
@@ -200,7 +215,8 @@ export const exploreCj = createServerFn({ method: "POST" })
     }
     return {
       ok: true, error: null as string | null, hits, excluded, deepChecked: needsDetail(data.criteria),
-      total: Number(r?.totalRecords ?? 0) || 0, totalPages: Number(r?.totalPages ?? 0) || 0,
+      total: Number(r?.totalRecords ?? 0) || 0,
+      totalPages: fam && !data.criteria.keyword ? Math.max(data.page + (items.length ? 1 : 0), Number(r?.totalPages ?? 0) || 0) : Number(r?.totalPages ?? 0) || 0,
       cached, apiCalls: traces.length,
     };
   });
@@ -451,6 +467,7 @@ export const runCjScheduleNow = createServerFn({ method: "POST" })
     const jobId = await createJob({
       name: `Manuel — ${rule.name}`, kind: "import", criteria: scheduleCriteria(rule.criteria),
       targetCount: rule.max_new, scheduleId: rule.id, userId: context.userId,
+      cursors: await (await import("@/lib/cj/jobs.server")).carriedCursors(rule.last_job_id),
     });
     await kick(jobId);
     return { jobId };
@@ -469,8 +486,14 @@ export const smartSearchCj = createServerFn({ method: "POST" })
     if (!data.keyword) throw new Error("Indiquez un mot-clé.");
     const { smartSearch } = await import("@/lib/cj/smart-search.server");
     const { keyword: _k, importState: _s, targets: _t, ...base } = data.criteria as any;
+    let famLeaves: Set<string> | null = null;
+    if (base.categoryId && /^[fs]:/.test(base.categoryId)) {
+      const { resolveLeafIds } = await import("@/lib/cj/category-tree.server");
+      famLeaves = new Set(await resolveLeafIds(base.categoryId));
+      base.categoryId = null;
+    }
     try {
-      const r = await smartSearch({ keyword: data.keyword, criteria: base, want: data.deep ? 80 : 40, maxCalls: data.deep ? 12 : 6 });
+      const r = await smartSearch({ keyword: data.keyword, criteria: base, leafFilter: famLeaves ? [...famLeaves] : undefined, want: data.deep ? 80 : 40, maxCalls: data.deep ? 12 : 6 });
       return { ok: true, error: null as string | null, hits: r.hits, stats: r.stats, queries: r.plan.queries };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [], stats: null, queries: [] };

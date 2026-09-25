@@ -62,7 +62,7 @@ export interface SmartStats {
  * sont trouvés ou quand `maxCalls` appels CJ réels sont consommés.
  */
 export async function smartSearch(opts: {
-  keyword: string; criteria?: ImportCriteria; want?: number; maxCalls?: number; pagesPerQuery?: number; traces?: CjCallTrace[];
+  keyword: string; criteria?: ImportCriteria; want?: number; maxCalls?: number; pagesPerQuery?: number; traces?: CjCallTrace[]; leafFilter?: string[];
 }): Promise<{ plan: QueryPlan; hits: SmartHit[]; stats: SmartStats }> {
   const t0 = Date.now();
   const traces = opts.traces ?? [];
@@ -86,7 +86,8 @@ export async function smartSearch(opts: {
       const r = await listV2Cached({ ...(opts.criteria ?? {}), keyword: q.q }, page, 100, traces);
       if (r.cached) stats.cachedCalls++; else calls++;
       if (page === 1) { qStat.total = r.total; if (qi === 0) stats.initialCount = r.total; stats.broadenedCount += r.total; }
-      const fresh = r.items.filter((i) => !seen.has(i.pid));
+      const leafSet = opts.leafFilter ? new Set(opts.leafFilter) : null;
+      const fresh = r.items.filter((i) => !seen.has(i.pid) && (!leafSet || (i.categoryId && leafSet.has(String(i.categoryId)))));
       const ex = await existingPidMap(fresh.map((i) => i.pid));
       let newRelevant = 0, pageRelevant = 0;
       for (const i of fresh) {
