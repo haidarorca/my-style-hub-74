@@ -343,6 +343,36 @@ export const createCjOrder = createServerFn({ method: "POST" })
       throw new Error("Choisissez une méthode logistique parmi celles renvoyées par CJ.");
     }
 
+    // Verrou atomique : une seule tentative d'envoi à la fois.
+    const { data: locked } = await (supabaseAdmin as any).rpc("cj_try_lock_order_send", { _order_id: order.id });
+    if (!locked) throw new Error("Un envoi vers CJ est déjà en cours ou terminé pour cette commande.");
+    const unlock = () => (supabaseAdmin as any).from("orders").update({ cj_send_lock_at: null }).eq("id", order.id);
+
+    try {
+    // Récupération après coupure : la commande existe-t-elle déjà chez CJ ?
+    const refForLookup = data.sandbox ? `TEST-${order.reference}` : order.reference;
+    const existing = refForLookup ? await findCjOrderByNumber(refForLookup) : null;
+    if (existing?.orderId) {
+      await (supabaseAdmin as any).from("orders").update({
+        cj_order_id: existing.orderId,
+        cj_order_number: existing.orderNum ?? refForLookup,
+        cj_order_status: existing.orderStatus ?? null,
+        cj_synced_at: new Date().toISOString(),
+        cj_last_error: null,
+      }).eq("id", order.id);
+      return { ok: true, http_status: 200, cj_code: null, message: "Commande déjà présente chez CJ : rattachée sans doublon.", orderNumber: refForLookup, remark: null, data: existing, stock_issues: [] as StockIssue[] };
+    }
+
+    // Contrôle de stock n°2 (obligatoire, temps réel).
+    const stockCheck = await runStockCheck(order.id, cjItems, supabaseAdmin);
+    if (stockCheck.issues.length) {
+      return {
+        ok: false, http_status: 0, cj_code: null,
+        message: "Problème de stock — action requise. Rien n'a été envoyé à CJ.",
+        data: null, stock_issues: stockCheck.issues,
+      };
+    }
+
     const { data: wh } = await (supabaseAdmin as any)
       .from("cj_warehouse_address")
       .select(WAREHOUSE_FIELDS)
