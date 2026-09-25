@@ -136,7 +136,9 @@ export function InstallAppBanner() {
             <p className="text-[11px] leading-snug opacity-90">
               {iosHint
                 ? "Appuyez sur Partager puis « Sur l’écran d’accueil »"
-                : "L’application sur votre téléphone : plus rapide, sans navigateur."}
+                : samsung
+                  ? "Pour une installation sécurisée, installez KawZone depuis Chrome."
+                  : "L’application sur votre téléphone : plus rapide, sans navigateur."}
             </p>
           </div>
           {iosHint ? (
