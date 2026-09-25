@@ -99,7 +99,7 @@ function CataloguePage() {
     while (grew) { grew = false; for (const c of cats) if (c.parent_id && out.has(c.parent_id) && !out.has(c.id)) { out.add(c.id); grew = true; } }
     return [...out];
   }, [s.cat, cats]);
-  const catName = (id: string) => { const c = cats.find((x) => x.id === id); return c ? pickI18n(c.name_i18n, lang, c.name) : ""; };
+  const catName = (id: string) => { const c = cats.find((x) => x.id === id); return c ? pickI18n(c.name, c.name_i18n, lang as any) : ""; };
 
   const filters = {
     q: s.q, categories: catIds, materials: s.mat, colors: s.col, sizes: s.size, countries: s.country,
@@ -275,7 +275,7 @@ function PriceRange({ min, max, onApply }: { min?: number; max?: number; onApply
 }
 
 function CategoryPicker({ cats, lang, value, onChange }: { cats: any[]; lang: string; value: string; onChange: (v: string) => void }) {
-  const name = (c: any) => pickI18n(c.name_i18n, lang as any, c.name);
+  const name = (c: any) => pickI18n(c.name, c.name_i18n, lang as any);
   const chain = useMemo(() => {
     const out: any[] = [];
     let cur = cats.find((c) => c.id === value);
