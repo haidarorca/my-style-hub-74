@@ -190,7 +190,7 @@ export const hardDeleteOrder = createServerFn({ method: "POST" })
       if (decIds.length) {
         const { count: fm } = await sb.from("financial_movements").select("id", { count: "exact", head: true }).in("decision_id" as never, decIds);
         if ((fm ?? 0) > 0) throw new Error("Des mouvements financiers sont liés à cette commande. Suppression refusée pour garder la comptabilité exacte ; archivez-la plutôt.");
-        await sb.from("order_decisions").update({ superseded_by: null } as never).in("superseded_by" as never, decIds);
+        await sb.from("order_decisions").update({ supersedes_decision_id: null } as never).in("supersedes_decision_id" as never, decIds);
         const { error: dErr } = await sb.from("order_decisions").delete().in("id", decIds);
         if (dErr) throw new Error("Suppression impossible : " + dErr.message);
       }
