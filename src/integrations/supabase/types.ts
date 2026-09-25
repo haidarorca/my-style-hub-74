@@ -673,6 +673,7 @@ export type Database = {
           started_at: string | null
           status: string
           step: string | null
+          target_key: string | null
           timings: Json | null
           updated_at: string
         }
@@ -692,6 +693,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           step?: string | null
+          target_key?: string | null
           timings?: Json | null
           updated_at?: string
         }
@@ -711,6 +713,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           step?: string | null
+          target_key?: string | null
           timings?: Json | null
           updated_at?: string
         }
@@ -6018,6 +6021,7 @@ export type Database = {
           started_at: string | null
           status: string
           step: string | null
+          target_key: string | null
           timings: Json | null
           updated_at: string
         }[]
