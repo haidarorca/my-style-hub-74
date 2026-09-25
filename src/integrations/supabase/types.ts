@@ -6290,6 +6290,8 @@ export type Database = {
         Args: { _lat: number; _lng: number; _poly: Json }
         Returns: number
       }
+      kz_color_family: { Args: { _c: string }; Returns: string }
+      kz_material_family: { Args: { _m: string }; Returns: string }
       log_admin_action: {
         Args: {
           _action: string
@@ -6436,6 +6438,7 @@ export type Database = {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
       }
+      shop_catalog: { Args: { _f: Json }; Returns: Json }
       taobao_session_clear: { Args: never; Returns: undefined }
       taobao_session_load: { Args: { _key: string }; Returns: Json }
       taobao_session_mark_expired: { Args: never; Returns: undefined }
