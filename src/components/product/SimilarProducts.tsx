@@ -22,7 +22,8 @@ export function SimilarProducts({
     queryFn: async () => {
       let q = supabase
         .from("products")
-        .select("id, name, price, code, category_id, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url), product_variants(measurements)")
+        .select("id, name, price, code, category_id, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, has_size_guide, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url)")
+        .limit(1, { referencedTable: "product_images" })
         .eq("status", "approved")
         .neq("id", productId)
         .limit(10);
