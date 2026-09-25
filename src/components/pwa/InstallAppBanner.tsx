@@ -36,6 +36,12 @@ export function InstallAppBanner() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosHint, setIosHint] = useState(false);
+  const [samsung, setSamsung] = useState(false);
+
+  const openInChrome = () => {
+    const { host, pathname, search } = window.location;
+    window.location.href = `intent://${host}${pathname}${search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent("https://play.google.com/store/apps/details?id=com.android.chrome")};end`;
+  };
 
   useEffect(() => {
     if (isStandalone() || recentlyDismissed()) return;
@@ -65,6 +71,15 @@ export function InstallAppBanner() {
     if (isIos) {
       timer = setTimeout(() => {
         setIosHint(true);
+        setVisible(true);
+      }, 2500);
+    }
+    // Samsung Internet fabrique une application signalée par Play Protect :
+    // on propose d'installer via Chrome à la place.
+    if (/SamsungBrowser/i.test(ua) && /Android/i.test(ua)) {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      timer = setTimeout(() => {
+        setSamsung(true);
         setVisible(true);
       }, 2500);
     }
@@ -121,7 +136,9 @@ export function InstallAppBanner() {
             <p className="text-[11px] leading-snug opacity-90">
               {iosHint
                 ? "Appuyez sur Partager puis « Sur l’écran d’accueil »"
-                : "L’application sur votre téléphone : plus rapide, sans navigateur."}
+                : samsung
+                  ? "Pour une installation sécurisée, installez KawZone depuis Chrome."
+                  : "L’application sur votre téléphone : plus rapide, sans navigateur."}
             </p>
           </div>
           {iosHint ? (
@@ -131,13 +148,13 @@ export function InstallAppBanner() {
             </div>
           ) : (
             <Button
-              onClick={install}
+              onClick={samsung ? openInChrome : install}
               size="sm"
               variant="secondary"
               className="shrink-0 rounded-full px-4 font-extrabold shadow-md"
             >
               <Download className="mr-1 h-4 w-4" />
-              Installer
+              {samsung ? "Ouvrir Chrome" : "Installer"}
             </Button>
           )}
           <button
