@@ -72,8 +72,97 @@ export async function existingPidMap(pids: string[]): Promise<Map<string, string
   return out;
 }
 
+export interface ScheduleTarget {
+  key: string; label: string; keyword?: string | null; categoryId?: string | null; quota: number; priority: number;
+}
+interface TargetState {
+  q: number; page: number; exhausted: boolean; calls: number; examined: number; relevant: number;
+  offTopic: number; existing: number; added: number; initial: number | null; reason?: string;
+}
+const MAX_CALLS_PER_TARGET = 12;
+const MAX_PAGES_PER_QUERY = 5;
+
+/**
+ * Découverte multi-catégories : une page CJ par appel, catégorie par catégorie
+ * (ordre de priorité), recherche élargie si besoin, passage à la suivante
+ * quand la catégorie est pleine ou épuisée. Quota par catégorie OU global.
+ */
+async function discoverTargets(job: any, traces: CjCallTrace[]) {
+  const a = await admin();
+  const c: any = job.criteria ?? {};
+  const targets: ScheduleTarget[] = [...(c.targets ?? [])].sort((x, y) => (x.priority ?? 99) - (y.priority ?? 99));
+  const mode: "per_category" | "global" = c.quotaMode === "global" ? "global" : "per_category";
+  const options = job.options ?? {};
+  const tstate: Record<string, TargetState> = options.tstate ?? {};
+  const { data: rows } = await a.from("cj_import_job_items").select("target_key, status").eq("job_id", job.id).limit(20000);
+  const usefulBy = new Map<string, number>();
+  let usefulAll = 0;
+  for (const r of rows ?? []) {
+    if (["SKIPPED", "FAILED", "CANCELLED"].includes(r.status)) continue;
+    usefulAll++;
+    usefulBy.set(r.target_key ?? "", (usefulBy.get(r.target_key ?? "") ?? 0) + 1);
+  }
+  const globalCap = job.target_count ?? 100;
+  const roomFor = (t: ScheduleTarget) => {
+    const u = usefulBy.get(t.key) ?? 0;
+    const tRoom = t.quota > 0 ? t.quota - u : Infinity;
+    return Math.max(0, Math.min(tRoom, globalCap - usefulAll));
+  };
+  const target = targets.find((t) => {
+    const st = tstate[t.key];
+    return !st?.exhausted && roomFor(t) > 0 && (mode === "per_category" ? t.quota > 0 : true);
+  });
+  if (!target || usefulAll >= globalCap) {
+    await a.from("cj_import_jobs").update({ discover_done: true }).eq("id", job.id);
+    return;
+  }
+  const st: TargetState = tstate[target.key] ?? { q: 0, page: 1, exhausted: false, calls: 0, examined: 0, relevant: 0, offTopic: 0, existing: 0, added: 0, initial: null };
+  const { buildQueryPlan, scoreHit } = await import("./smart-search");
+  const plan = target.keyword ? buildQueryPlan(target.keyword) : null;
+  const queries = plan ? plan.queries.map((q) => q.q) : [""];
+  const save = async () => {
+    tstate[target.key] = st;
+    await a.from("cj_import_jobs").update({ options: { ...options, tstate } }).eq("id", job.id);
+  };
+  if (st.q >= queries.length || st.calls >= MAX_CALLS_PER_TARGET) {
+    st.exhausted = true; st.reason = st.calls >= MAX_CALLS_PER_TARGET ? "limite d'appels atteinte" : "recherches épuisées";
+    await save(); return;
+  }
+  const { listV2Cached } = await import("./smart-search.server");
+  const base: ImportCriteria = { ...c, targets: undefined, keyword: queries[st.q] || null, categoryId: target.categoryId ?? null } as any;
+  const r = await listV2Cached(base, st.page, 100, traces);
+  if (!r.cached) st.calls++;
+  if (st.q === 0 && st.page === 1) st.initial = r.total;
+  const ex = await existingPidMap(r.items.map((i) => i.pid));
+  const candidates: Array<{ pid: string; name: string | null; image: string | null; score: number }> = [];
+  for (const i of r.items) {
+    st.examined++;
+    const s = plan ? scoreHit(plan, i) : { score: 50, relevant: true };
+    if (!s.relevant) { st.offTopic++; continue; }
+    st.relevant++;
+    if (ex.has(i.pid)) { st.existing++; continue; }
+    candidates.push({ pid: i.pid, name: i.name, image: i.image, score: s.score });
+  }
+  const { data: still } = await a.from("cj_import_jobs").select("status").eq("id", job.id).single();
+  if (!ACTIVE.includes(still?.status)) return;
+  candidates.sort((x, y) => y.score - x.score);
+  const toAdd = candidates.slice(0, roomFor(target));
+  if (toAdd.length) {
+    const { data: ins } = await a.from("cj_import_job_items").upsert(
+      toAdd.map((i) => ({ job_id: job.id, pid: i.pid, name: i.name, image: i.image, target_key: target.key })),
+      { onConflict: "job_id,pid", ignoreDuplicates: true },
+    ).select("id");
+    st.added += ins?.length ?? 0;
+  }
+  // Page suivante seulement si utile ; sinon requête élargie suivante.
+  if (!candidates.length || st.page >= Math.min(r.totalPages || 1, MAX_PAGES_PER_QUERY)) { st.q++; st.page = 1; }
+  else st.page++;
+  await save();
+}
+
 /** Découvre une page de produits pour un job par critères. */
 async function discoverPage(job: any, traces: CjCallTrace[]) {
+  if (Array.isArray(job.criteria?.targets) && job.criteria.targets.length) return discoverTargets(job, traces);
   const a = await admin();
   const { cjGet } = await import("./client.server");
   const c: ImportCriteria = job.criteria ?? {};
