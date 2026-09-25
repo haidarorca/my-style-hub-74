@@ -229,24 +229,13 @@ export const getCjCategoryTree = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-    const { cjGet } = await import("@/lib/cj/client.server");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const a = supabaseAdmin as any;
-    const key = "getCategory";
-    let tree: any = null;
-    const { data: c } = await a.from("cj_api_cache").select("payload, fetched_at").eq("cache_key", key).maybeSingle();
-    if (c?.payload && Date.now() - new Date(c.fetched_at).getTime() < 86400_000) tree = c.payload;
-    if (!tree) {
-      try {
-        tree = await cjGet<any>("/product/getCategory", []);
-        await a.from("cj_api_cache").upsert({ cache_key: key, payload: tree, fetched_at: new Date().toISOString() });
-      } catch { tree = c?.payload ?? []; }
-    }
-    const out: Array<{ id: string; path: string }> = [];
-    for (const f of tree ?? []) for (const s of f?.categoryFirstList ?? []) for (const t of s?.categorySecondList ?? []) {
-      if (t?.categoryId) out.push({ id: String(t.categoryId), path: `${f.categoryFirstName} › ${s.categorySecondName} › ${t.categoryName}` });
-    }
-    return { categories: out };
+    const { loadCjTree, buildNodes } = await import("@/lib/cj/category-tree.server");
+    const nodes = buildNodes(await loadCjTree());
+    return {
+      // Rétro-compatibilité : liste des catégories finales.
+      categories: nodes.filter((n) => n.level === 3).map((n) => ({ id: n.id, path: n.path })),
+      nodes: nodes.map((n) => ({ id: n.id, path: n.path, level: n.level, leafCount: n.leafIds.length })),
+    };
   });
 
 async function kick(jobId: string) {
