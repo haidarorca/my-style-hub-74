@@ -8,6 +8,7 @@ import {
 import { useAuth, type AdminPermission } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
+import { CockpitNotifier } from "@/components/admin/CockpitNotifier";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { StuckLoadingDetector } from "@/components/admin/StuckLoadingDetector";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -38,6 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
       { to: "/admin/notifications", label: "Notifications", icon: Bell },
+      { to: "/admin/settings/notifications", label: "Réglages notifications & rappels", icon: Bell, perm: "orders", badge: "NEW" },
     ],
   },
   {
@@ -245,6 +247,7 @@ function AdminLayout() {
 
           <CurrencySwitcher className="hidden sm:block" />
           <AdminNotificationBell />
+          <CockpitNotifier />
         </div>
 
         {/* Desktop grouped nav */}

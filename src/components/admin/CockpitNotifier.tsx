@@ -16,7 +16,7 @@ const LEVEL_RANK: Record<string, number> = { critical: 0, important: 1, attentio
 const WINDOW_MS = 10_000;
 
 export function CockpitNotifier() {
-  const { user, isAdmin, isSuperAdmin } = useAuth() as ReturnType<typeof useAuth> & { isAdmin?: boolean };
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const qc = useQueryClient();
   const { prefs } = useNotificationPrefs();
   const prefsRef = useRef(prefs);
