@@ -170,6 +170,7 @@ function CategoryPage() {
         .from("products")
         .select(PRODUCT_CARD_SELECT)
         .order("position", { referencedTable: "product_images", ascending: true })
+        .limit(1, { referencedTable: "product_images" })
         // Groupes : on n'affiche que les articles visibles seuls + l'article principal du groupe
         .or("group_id.is.null,show_individually.eq.true,group_position.eq.0")
         .eq("status", "approved")

@@ -21,7 +21,8 @@ export interface HomeSection {
 export function useHomeSections(includeDisabled = false) {
   return useQuery({
     queryKey: ["home-sections", includeDisabled],
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     queryFn: async () => {
       let q = (supabase as any).from("home_sections").select("*").order("position");
       if (!includeDisabled) q = q.eq("enabled", true);
@@ -51,12 +52,14 @@ export function sectionProductsQueryOptions(section: HomeSection) {
       section.max_items,
     ] as const,
     enabled: PRODUCT_SECTION_KINDS.includes(section.kind),
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     queryFn: async (): Promise<ProductCardProduct[]> => {
       const limit = Math.max(1, section.max_items || 8);
       // Vivier volontairement plus large que l'affichage : la rotation marketing
-      // et la déduplication entre sections piochent dedans.
-      const poolLimit = Math.min(90, Math.max(24, limit * 5));
+      // et la déduplication entre sections piochent dedans. Calibré pour rester
+      // léger sur un gros catalogue.
+      const poolLimit = Math.min(30, Math.max(16, limit * 2));
       let q = (supabase as any)
         .from("products")
         .select(PRODUCT_CARD_SELECT)
@@ -64,7 +67,8 @@ export function sectionProductsQueryOptions(section: HomeSection) {
         .not("category_id", "is", null)
         .eq("home_excluded", false)
         .or("group_id.is.null,show_individually.eq.true,group_position.eq.0")
-        .order("position", { referencedTable: "product_images", ascending: true });
+        .order("position", { referencedTable: "product_images", ascending: true })
+        .limit(1, { referencedTable: "product_images" });
 
       if (section.kind === "featured") {
         const ids = section.product_ids ?? [];

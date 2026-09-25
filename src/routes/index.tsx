@@ -178,8 +178,9 @@ function Home() {
       const from = (pageParam as number) * PAGE_SIZE;
       let q = supabase
         .from("products")
-        .select("id, name, name_i18n, price, code, category_id, home_priority, home_position, home_excluded, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url, position), product_variants(measurements)")
+        .select("id, name, name_i18n, price, code, category_id, home_priority, home_position, home_excluded, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, has_size_guide, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url, position)")
         .order("position", { referencedTable: "product_images", ascending: true })
+        .limit(1, { referencedTable: "product_images" })
         .eq("status", "approved")
         .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
         // Groupes : on n'affiche que les articles visibles seuls + l'article principal du groupe

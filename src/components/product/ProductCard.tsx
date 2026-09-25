@@ -45,6 +45,8 @@ export interface ProductCardProduct {
   material?: string | null;
   material_composition_items?: CompositionItem[] | unknown | null;
   min_order_qty?: number | null;
+  /** Pré-calculé en base : évite de charger toutes les variantes. */
+  has_size_guide?: boolean | null;
   origin_country?:
     | { name?: string | null; flag_emoji?: string | null }
     | Array<{ name?: string | null; flag_emoji?: string | null }>
@@ -152,11 +154,15 @@ export function ProductCard({ product, onQuickAdd, display }: Props) {
             ))}
           {cfg.showBadges && (() => {
             const oc = Array.isArray(product.origin_country) ? product.origin_country[0] : product.origin_country;
-            const hasSizeGuide = (product.product_variants ?? []).some((v: any) => {
-              const m = v?.measurements;
-              if (!m || typeof m !== "object") return false;
-              return Object.values(m).some((n) => Number(n) > 0);
-            });
+            // Valeur pré-calculée en base ; repli sur les variantes quand
+            // l'appelant les fournit encore (fiche produit, admin).
+            const hasSizeGuide =
+              product.has_size_guide ??
+              (product.product_variants ?? []).some((v: any) => {
+                const m = v?.measurements;
+                if (!m || typeof m !== "object") return false;
+                return Object.values(m).some((n) => Number(n) > 0);
+              });
             return (
               <ProductBadges
                 size="xs"

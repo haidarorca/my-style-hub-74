@@ -1,3 +1,10 @@
-/** Sélection PostgREST commune pour les cartes produits du catalogue. */
+/**
+ * Sélection PostgREST commune pour les cartes produits du catalogue.
+ *
+ * Performance : on ne joint plus `product_variants` (≈174 000 lignes) juste
+ * pour savoir s'il existe un guide des tailles. L'information est désormais
+ * stockée sur le produit (`has_size_guide`) et tenue à jour automatiquement
+ * par la base à chaque modification de variante.
+ */
 export const PRODUCT_CARD_SELECT =
-  "id, name, name_i18n, price, code, category_id, views_count, created_at, home_priority, home_position, home_excluded, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, stock_status, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url, position), product_variants(measurements)";
+  "id, name, name_i18n, price, code, category_id, views_count, created_at, home_priority, home_position, home_excluded, weight_kg, length_cm, width_cm, height_cm, warranty_days, material, material_composition_items, min_order_qty, has_size_guide, stock_status, origin_country:countries!products_origin_country_id_fkey(name, flag_emoji), profiles!products_vendor_id_profiles_fkey(source_country_id), product_images(url, position)";

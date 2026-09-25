@@ -8,7 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 export function useCategoryProductCounts() {
   return useQuery({
     queryKey: ["category-product-counts"],
-    staleTime: 60_000,
+    // Le comptage parcourt tout l'arbre des catégories : on le garde en mémoire
+    // 10 minutes plutôt que de le relancer à chaque navigation.
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_category_product_counts");
       if (error) throw error;
