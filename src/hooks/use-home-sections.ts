@@ -21,7 +21,8 @@ export interface HomeSection {
 export function useHomeSections(includeDisabled = false) {
   return useQuery({
     queryKey: ["home-sections", includeDisabled],
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     queryFn: async () => {
       let q = (supabase as any).from("home_sections").select("*").order("position");
       if (!includeDisabled) q = q.eq("enabled", true);
