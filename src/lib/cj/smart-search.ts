@@ -153,7 +153,8 @@ export function buildQueryPlan(raw: string): QueryPlan {
   const concepts: Concept[] = fixed.map((w) => {
     const en = FR_EN[w] ?? [w];
     const terms = [...new Set(en.flatMap(synonymsOf))].slice(0, 8);
-    const stems = [...new Set(terms.flatMap((t) => t.split(" ")).map(stem))];
+    // Racines : mot principal (dernier mot) de chaque équivalent — « water pump » → pump, jamais « water ».
+    const stems = [...new Set(terms.map((t) => stem(t.split(" ").pop() ?? t)))];
     return { source: w, terms, stems, fr: !!FR_EN[w] && FR_EN[w][0] !== w };
   });
   const queries: QueryPlan["queries"] = [];
