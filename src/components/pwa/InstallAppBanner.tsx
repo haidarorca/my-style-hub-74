@@ -68,6 +68,15 @@ export function InstallAppBanner() {
         setVisible(true);
       }, 2500);
     }
+    // Samsung Internet fabrique une application signalée par Play Protect :
+    // on propose d'installer via Chrome à la place.
+    if (/SamsungBrowser/i.test(ua) && /Android/i.test(ua)) {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      timer = setTimeout(() => {
+        setSamsung(true);
+        setVisible(true);
+      }, 2500);
+    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
