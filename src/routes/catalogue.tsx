@@ -118,7 +118,8 @@ function CataloguePage() {
       let products: ProductCardProduct[] = [];
       if (r.ids.length) {
         const { data: rows } = await supabase.from("products").select(PRODUCT_CARD_SELECT).in("id", r.ids)
-          .order("position", { referencedTable: "product_images", ascending: true });
+          .order("position", { referencedTable: "product_images", ascending: true })
+          .limit(1, { referencedTable: "product_images" });
         const byId = new Map((rows ?? []).map((p: any) => [p.id, p]));
         products = r.ids.map((id) => byId.get(id)).filter(Boolean) as ProductCardProduct[];
       }
