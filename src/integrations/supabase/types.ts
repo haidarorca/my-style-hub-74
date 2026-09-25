@@ -3942,6 +3942,7 @@ export type Database = {
         Row: {
           cj_options: Json | null
           color: string | null
+          color_family: string | null
           color_hex: string | null
           cost_currency_code: string | null
           cost_price: number | null
@@ -3955,6 +3956,7 @@ export type Database = {
           price_override: number | null
           product_id: string
           size: string | null
+          size_norm: string | null
           stock: number
           supplier_available: boolean
           supplier_ref: string | null
@@ -3968,6 +3970,7 @@ export type Database = {
         Insert: {
           cj_options?: Json | null
           color?: string | null
+          color_family?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
           cost_price?: number | null
@@ -3981,6 +3984,7 @@ export type Database = {
           price_override?: number | null
           product_id: string
           size?: string | null
+          size_norm?: string | null
           stock?: number
           supplier_available?: boolean
           supplier_ref?: string | null
@@ -3994,6 +3998,7 @@ export type Database = {
         Update: {
           cj_options?: Json | null
           color?: string | null
+          color_family?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
           cost_price?: number | null
@@ -4007,6 +4012,7 @@ export type Database = {
           price_override?: number | null
           product_id?: string
           size?: string | null
+          size_norm?: string | null
           stock?: number
           supplier_available?: boolean
           supplier_ref?: string | null
@@ -4066,6 +4072,7 @@ export type Database = {
           material: string | null
           material_composition: string | null
           material_composition_items: Json | null
+          material_family: string | null
           min_order_qty: number
           name: string
           name_i18n: Json | null
@@ -4139,6 +4146,7 @@ export type Database = {
           material?: string | null
           material_composition?: string | null
           material_composition_items?: Json | null
+          material_family?: string | null
           min_order_qty?: number
           name: string
           name_i18n?: Json | null
@@ -4212,6 +4220,7 @@ export type Database = {
           material?: string | null
           material_composition?: string | null
           material_composition_items?: Json | null
+          material_family?: string | null
           min_order_qty?: number
           name?: string
           name_i18n?: Json | null
