@@ -1,0 +1,2 @@
+- Order archiving: an order is archived iff `orders.archived_at` is set (never inferred from status); why: status-based archive caused ghost orders.
+- Cockpit reminders run server-side (`run_reminder_engine`, pg_cron every 5 min) from current order state, one live reminder per (rule, order); why: survives closed browsers and stays idempotent.

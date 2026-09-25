@@ -39,7 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
       { to: "/admin/notifications", label: "Notifications", icon: Bell },
-      { to: "/admin/settings/notifications", label: "Réglages notifications & rappels", icon: Bell, perm: "orders", badge: "NEW" },
+      { to: "/admin/settings/notifications", label: "Rappels & sons", icon: Bell, perm: "orders", badge: "NEW" },
     ],
   },
   {
