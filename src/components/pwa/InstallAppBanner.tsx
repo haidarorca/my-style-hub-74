@@ -146,13 +146,13 @@ export function InstallAppBanner() {
             </div>
           ) : (
             <Button
-              onClick={install}
+              onClick={samsung ? openInChrome : install}
               size="sm"
               variant="secondary"
               className="shrink-0 rounded-full px-4 font-extrabold shadow-md"
             >
               <Download className="mr-1 h-4 w-4" />
-              Installer
+              {samsung ? "Ouvrir Chrome" : "Installer"}
             </Button>
           )}
           <button
