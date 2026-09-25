@@ -37,7 +37,7 @@ const FR_EN: Record<string, string[]> = {
   voiture: ["car"], auto: ["car", "auto"], moto: ["motorcycle"], velo: ["bike", "bicycle"],
   // Agriculture / jardin / solaire
   pompe: ["pump"], solaire: ["solar"], eau: ["water"], irrigation: ["irrigation", "drip"], arrosage: ["watering", "irrigation", "sprinkler"],
-  filet: ["net", "netting", "mesh"], agricole: ["agricultural", "farm", "garden"], agriculture: ["agricultural", "farm", "farming"],
+  filet: ["net", "netting", "mesh"], agricole: ["agricultural", "farm", "farming"], agriculture: ["agricultural", "farm", "farming"],
   ferme: ["farm"], jardin: ["garden"], jardinage: ["gardening", "garden"], serre: ["greenhouse"], graine: ["seed"], graines: ["seeds"],
   plante: ["plant"], plantes: ["plants"], pot: ["pot", "planter"], tuyau: ["hose", "pipe"], goutte: ["drip"], outil: ["tool"], outils: ["tools"],
   panneau: ["panel"], generateur: ["generator"], ventilateur: ["fan"], poulailler: ["chicken coop"], poule: ["chicken"], elevage: ["livestock", "poultry"],
@@ -73,7 +73,7 @@ const EN_SYN: string[][] = [
   ["baking", "pastry", "bakeware"], ["decoration", "decorating", "decor", "ornament"],
   ["phone case", "mobile phone case", "phone cover", "phone shell"], ["case", "cover", "shell"],
   ["solar pump", "solar water pump", "solar irrigation pump"], ["pump", "water pump"],
-  ["agricultural net", "crop net", "farming net", "garden net", "shade net"], ["net", "netting", "mesh"],
+  ["agricultural net", "crop net", "farming net", "shade net"], ["net", "netting", "mesh"],
   ["earphone", "earbuds", "headphone", "headset"], ["charger", "charging adapter"], ["holder", "stand", "mount", "bracket"],
   ["mold", "mould"], ["storage", "organizer", "storage box"], ["rug", "carpet", "mat"], ["sneakers", "shoes", "trainers"],
   ["bag", "handbag", "tote"], ["jewelry", "jewellery"], ["kids", "children", "child"], ["women", "womens", "ladies"],
@@ -87,7 +87,7 @@ export function normalize(s: string | null | undefined): string {
 /** Racine grossière (pluriels, -ing, -ion…) pour comparer decoration/decorating. */
 export function stem(w: string): string {
   let s = w;
-  for (const suf of ["ations", "ation", "ings", "ing", "ions", "ion", "ers", "er", "ies", "es", "ed", "s"]) {
+  for (const suf of ["ations", "ation", "ating", "ated", "ator", "ings", "ing", "ions", "ion", "ers", "er", "ies", "es", "ed", "s"]) {
     if (s.length - suf.length >= 4 && s.endsWith(suf)) { s = s.slice(0, -suf.length); break; }
   }
   return s;
@@ -129,11 +129,13 @@ export function correctWord(w: string): string {
   return bestD <= max ? best : w;
 }
 
-export interface Concept { source: string; terms: string[]; stems: string[] }
+export interface Concept { source: string; terms: string[]; stems: string[]; fr: boolean }
 export interface QueryPlan {
   original: string;
   corrected: string;
   concepts: Concept[];
+  /** Nom principal : 1er mot en français (« coque » téléphone), dernier en anglais (phone « case »). */
+  head: number;
   /** Requêtes CJ ordonnées, de la plus précise à la plus large. */
   queries: Array<{ q: string; stage: "exact" | "traduction" | "synonymes" | "combinaison" | "élargie" }>;
 }
@@ -152,7 +154,7 @@ export function buildQueryPlan(raw: string): QueryPlan {
     const en = FR_EN[w] ?? [w];
     const terms = [...new Set(en.flatMap(synonymsOf))].slice(0, 8);
     const stems = [...new Set(terms.flatMap((t) => t.split(" ")).map(stem))];
-    return { source: w, terms, stems };
+    return { source: w, terms, stems, fr: !!FR_EN[w] && FR_EN[w][0] !== w };
   });
   const queries: QueryPlan["queries"] = [];
   const push = (q: string, stage: QueryPlan["queries"][number]["stage"]) => {
@@ -179,7 +181,8 @@ export function buildQueryPlan(raw: string): QueryPlan {
     // Élargissement : concept le plus spécifique seul (le premier en français = nom principal).
     if (concepts.length >= 2) push(concepts[concepts.length - 1].terms[0] + " " + concepts[0].terms[0], "élargie");
   }
-  return { original, corrected: fixed.join(" "), concepts, queries: queries.slice(0, 10) };
+  const french = concepts.some((c) => c.fr);
+  return { original, corrected: fixed.join(" "), concepts, head: french ? 0 : Math.max(0, concepts.length - 1), queries: queries.slice(0, 10) };
 }
 
 /**
@@ -198,21 +201,25 @@ export function scoreHit(
   const sku = normalize(item.sku);
   if (sku && sku === normalize(plan.original)) return { score: 100, relevant: true };
 
-  let inTitle = 0, inCat = 0;
-  for (const c of plan.concepts) {
-    const hitT = c.terms.some((t) => title.includes(t)) || c.stems.some((s) => tStems.has(s));
-    const hitC = c.terms.some((t) => cat.includes(t)) || c.stems.some((s) => cStems.has(s));
+  const pt = ` ${title} `, pc = ` ${cat} `;
+  let inTitle = 0, inCat = 0, headInTitle = false;
+  for (const [idx, c] of plan.concepts.entries()) {
+    // Mots entiers uniquement (« pump » ne doit pas matcher « pumpkin »).
+    const hitT = c.terms.some((t) => pt.includes(` ${t} `)) || c.stems.some((s) => tStems.has(s));
+    const hitC = c.terms.some((t) => pc.includes(` ${t} `)) || c.stems.some((s) => cStems.has(s));
     if (hitT) inTitle++; else if (hitC) inCat++;
+    if (idx === plan.head && hitT) headInTitle = true;
   }
   const n = plan.concepts.length;
   let score = (inTitle / n) * 55 + (inCat / n) * 20;
   // Expression complète dans le titre (ex. « cake decoration »).
-  if (plan.queries.slice(0, 6).some((q) => q.q.includes(" ") && title.includes(q.q))) score += 25;
+  if (plan.queries.slice(0, 6).some((q) => q.q.includes(" ") && pt.includes(` ${q.q} `))) score += 25;
   if ((item.stock ?? 0) > 0) score += 5;
   if (item.image) score += 3;
   if (item.price != null) score += 2;
   // Pertinent : tous les concepts couverts (titre ou catégorie) ; au moins la moitié dans le titre.
   const covered = inTitle + inCat;
-  const relevant = n === 1 ? inTitle + inCat >= 1 : covered >= Math.ceil(n * (n >= 3 ? 0.67 : 1)) && inTitle >= Math.ceil(n / 2);
+  // Le nom principal doit figurer dans le titre (sinon : hors sujet).
+  const relevant = headInTitle && (n === 1 || covered >= Math.ceil(n * (n >= 3 ? 0.67 : 1)));
   return { score: Math.min(100, Math.round(score)), relevant };
 }
