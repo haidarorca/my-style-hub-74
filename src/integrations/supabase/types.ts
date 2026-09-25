@@ -6852,11 +6852,37 @@ export type Database = {
       }
       translation_arm_worker: { Args: never; Returns: undefined }
       translation_disarm_worker: { Args: never; Returns: undefined }
+      translation_pending_dict: {
+        Args: { _langs: string[]; _limit: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          kind: string
+          manual: Json
+          src: string
+          src_norm: string
+          tr: Json
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "translation_dictionary"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       translation_pending_products: {
         Args: { _exclude: string[]; _langs: string[]; _limit: number }
         Returns: string[]
       }
       translation_preview: { Args: { _langs: string[] }; Returns: Json }
+      translation_product_hashes: {
+        Args: { _ids: string[] }
+        Returns: {
+          h: string
+          id: string
+        }[]
+      }
       translation_seed_dictionary: { Args: never; Returns: number }
       translation_try_lease: {
         Args: { _seconds: number }
