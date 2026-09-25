@@ -88,12 +88,12 @@ export async function smartSearch(opts: {
       if (page === 1) { qStat.total = r.total; if (qi === 0) stats.initialCount = r.total; stats.broadenedCount += r.total; }
       const fresh = r.items.filter((i) => !seen.has(i.pid));
       const ex = await existingPidMap(fresh.map((i) => i.pid));
-      let newRelevant = 0;
+      let newRelevant = 0, pageRelevant = 0;
       for (const i of fresh) {
         stats.examined++;
         const s = scoreHit(plan, i);
         if (!s.relevant) { stats.offTopic++; seen.set(i.pid, null as any); continue; }
-        qStat.relevant++; stats.relevant++;
+        qStat.relevant++; stats.relevant++; pageRelevant++;
         const exists = ex.has(i.pid);
         if (exists) stats.alreadyImported++; else { stats.fresh++; newRelevant++; }
         seen.set(i.pid, {
@@ -102,8 +102,10 @@ export async function smartSearch(opts: {
         });
       }
       if (stats.fresh >= want) break outer;
-      // Page suivante seulement si celle-ci apportait du nouveau pertinent.
-      if (!newRelevant || page >= r.totalPages) break;
+      // Page suivante seulement si celle-ci contenait des résultats pertinents
+      // (même déjà importés : les nouveaux sont souvent plus loin).
+      void newRelevant;
+      if (!pageRelevant || page >= r.totalPages) break;
     }
   }
   const hits = [...seen.values()].filter(Boolean).sort((a, b) => b.relevance - a.relevance || (b.stock ?? 0) - (a.stock ?? 0));

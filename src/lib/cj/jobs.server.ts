@@ -155,7 +155,8 @@ async function discoverTargets(job: any, traces: CjCallTrace[]) {
     st.added += ins?.length ?? 0;
   }
   // Page suivante seulement si utile ; sinon requête élargie suivante.
-  if (!candidates.length || st.page >= Math.min(r.totalPages || 1, MAX_PAGES_PER_QUERY)) { st.q++; st.page = 1; }
+  const pageRelevant = r.items.length - (plan ? r.items.filter((i) => !scoreHit(plan, i).relevant).length : 0);
+  if (!pageRelevant || st.page >= Math.min(r.totalPages || 1, MAX_PAGES_PER_QUERY)) { st.q++; st.page = 1; }
   else st.page++;
   await save();
 }
