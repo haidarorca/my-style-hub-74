@@ -27,6 +27,7 @@ export function GroupSelector({
   currentProductId: string;
   className?: string;
 }) {
+  const { lang } = useI18n();
   const { data } = useQuery({
     queryKey: ["product-group-public", groupId],
     queryFn: async () => {
