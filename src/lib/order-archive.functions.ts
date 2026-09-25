@@ -162,7 +162,7 @@ export const hardDeleteOrder = createServerFn({ method: "POST" })
     });
     const { error: signErr } = await verifier.auth.signInWithPassword({ email, password: data.password });
     if (signErr) throw new Error("Mot de passe incorrect.");
-    await clearRateLimit(`order_hard_delete:${context.userId}`);
+    await clearRateLimit(`order_hard_delete:${context.userId}`, "change_pw");
 
     const sb = await admin();
     const { data: order } = await sb.from("orders")
