@@ -181,6 +181,20 @@ export const hardDeleteOrder = createServerFn({ method: "POST" })
       details: { snapshot: o, ip: getRequest().headers.get("x-forwarded-for") ?? null, actor: context.userId },
     });
     await sb.from("order_status_history").delete().eq("order_id", o.id);
+    // Décisions liées aux événements de la commande (bloquent la suppression en cascade).
+    const { data: evs } = await sb.from("order_events").select("id").eq("order_id", o.id);
+    const evIds = ((evs ?? []) as { id: string }[]).map((e) => e.id);
+    if (evIds.length) {
+      const { data: decs } = await sb.from("order_decisions").select("id").in("event_id", evIds);
+      const decIds = ((decs ?? []) as { id: string }[]).map((d) => d.id);
+      if (decIds.length) {
+        const { count: fm } = await sb.from("financial_movements").select("id", { count: "exact", head: true }).in("decision_id" as never, decIds);
+        if ((fm ?? 0) > 0) throw new Error("Des mouvements financiers sont liés à cette commande. Suppression refusée pour garder la comptabilité exacte ; archivez-la plutôt.");
+        await sb.from("order_decisions").update({ supersedes_decision_id: null } as never).in("supersedes_decision_id" as never, decIds);
+        const { error: dErr } = await sb.from("order_decisions").delete().in("id", decIds);
+        if (dErr) throw new Error("Suppression impossible : " + dErr.message);
+      }
+    }
     const { error } = await sb.from("orders").delete().eq("id", o.id);
     if (error) throw new Error("Suppression impossible : " + error.message);
     return { ok: true, reference: o.reference };

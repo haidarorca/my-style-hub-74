@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { ShoppingCart, UserRound, LogOut, ShieldCheck, Building2, MapPinned, PackageSearch, MessagesSquare, LifeBuoy } from "lucide-react";
+import { ShoppingCart, UserRound, LogOut, ShieldCheck, Building2, MapPinned, PackageSearch, MessagesSquare, LifeBuoy, Heart } from "lucide-react";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -115,6 +115,9 @@ export function AppHeader() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/orders"><PackageSearch className="mr-2 h-4 w-4" /> {t("nav.orders")}</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/favorites"><Heart className="mr-2 h-4 w-4" /> Mes favoris</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/account"><MapPinned className="mr-2 h-4 w-4" /> {t("nav.addresses")}</Link>

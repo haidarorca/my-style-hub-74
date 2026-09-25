@@ -2,23 +2,13 @@
 // Helpers pour rendre un noeud DOM en PNG téléchargeable.
 // ═══════════════════════════════════════════════════════════════
 
-import html2canvas from "html2canvas";
+import { toBlob } from "html-to-image";
 
+// html-to-image laisse le navigateur peindre (supporte oklch/lab, contrairement à html2canvas).
 export async function nodeToBlob(node: HTMLElement, scale = 2): Promise<Blob> {
-  const canvas = await html2canvas(node, {
-    scale,
-    useCORS: true,
-    allowTaint: false,
-    backgroundColor: null,
-    logging: false,
-  });
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Blob generation failed"))),
-      "image/png",
-      0.95,
-    );
-  });
+  const blob = await toBlob(node, { pixelRatio: scale, cacheBust: true });
+  if (!blob) throw new Error("Blob generation failed");
+  return blob;
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
