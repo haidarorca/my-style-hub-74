@@ -168,7 +168,7 @@ export function buildQueryPlan(raw: string): QueryPlan {
     push(primary.join(" "), "traduction");
     // Synonymes des expressions composées connues.
     const phrase = [...primary].reverse().join(" ");
-    for (const s of synonymsOf(phrase)) push(s, "synonymes");
+    for (const s of [...synonymsOf(phrase), ...synonymsOf(primary.join(" "))]) push(s, "synonymes");
     // Combinaisons : 2e/3e équivalent de chaque concept.
     if (concepts.length >= 2) {
       const [a, b] = [concepts[concepts.length - 1], concepts[0]];
