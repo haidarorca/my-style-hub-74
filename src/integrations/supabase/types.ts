@@ -3509,6 +3509,35 @@ export type Database = {
           },
         ]
       }
+      product_facets: {
+        Row: {
+          colors: string[]
+          product_id: string
+          sizes: string[]
+          updated_at: string
+        }
+        Insert: {
+          colors?: string[]
+          product_id: string
+          sizes?: string[]
+          updated_at?: string
+        }
+        Update: {
+          colors?: string[]
+          product_id?: string
+          sizes?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_facets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_group_media: {
         Row: {
           created_at: string
@@ -6394,6 +6423,7 @@ export type Database = {
         Args: { _product_id: string }
         Returns: undefined
       }
+      refresh_product_facets: { Args: { _ids: string[] }; Returns: undefined }
       register_share_click: {
         Args: { _code: string; _referer?: string; _user_agent?: string }
         Returns: undefined
