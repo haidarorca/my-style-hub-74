@@ -40,7 +40,7 @@ export function useRealOrders() {
 
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ["cockpit-orders"],
-    queryFn: async () => { const r = await listLogisticsOrders({ data: { page: 1, pageSize: 100 } }); return r.rows ?? []; },
+    queryFn: async () => { const r = await listLogisticsOrders({ data: { page: 1, pageSize: 500 } }); return r.rows ?? []; },
     refetchInterval: 30000,
   });
 

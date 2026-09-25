@@ -137,7 +137,7 @@ export type LogisticsStats = {
 
 const ListSchema = z.object({
   page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(5).max(100).default(25),
+  pageSize: z.number().int().min(5).max(500).default(25),
   orderStatus: z.string().default(""),
   logisticsStatus: z.string().default(""),
   paymentStatus: z.string().default(""),
@@ -213,9 +213,9 @@ async function tryLogisticsView(
       q = q.or(`customer_name.ilike.${term},customer_phone.ilike.${term},order_id.ilike.${term},tracking_number.ilike.${term}`);
     }
 
-    // ═════ Pré-filtre archivage côté serveur (Bug fix: évite de polluer la pagination)
+    // ═════ Pré-filtre archivage côté serveur (archivée ⇔ archived_at rempli)
     if (!data.includeArchived) {
-      q = q.not("order_status", "eq", "delivered").not("order_status", "eq", "validated");
+      q = q.is("archived_at", null);
     }
 
     const { data: rows, error, count } = await q.range(from, to);
@@ -254,13 +254,11 @@ async function fallbackLogisticsQuery(
     return { rows: [], count: count ?? 0 };
   }
 
-  // ═════ Pré-filtre archivage côté serveur (AVANT pagination — Bug fix)
+  // ═════ Pré-filtre archivage côté serveur (AVANT pagination)
+  // Règle unique : archivée ⇔ archived_at rempli. Le statut n'intervient plus
+  // (les livrées/annulées non archivées apparaissent dans l'onglet « Terminées »).
   if (!data.includeArchived) {
-    rawOrders = rawOrders.filter((order: Record<string, unknown>) => {
-      const status = String(order.status ?? "");
-      return status !== "delivered" && status !== "validated";
-    });
-    // Recalculer le count après filtrage
+    rawOrders = rawOrders.filter((order: Record<string, unknown>) => !order.archived_at);
     count = rawOrders.length;
   }
 

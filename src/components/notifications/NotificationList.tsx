@@ -36,7 +36,7 @@ export function NotificationList({ items, onMarkRead, onDelete, emptyMessage = "
                 type="button"
                 onClick={() => {
                   onMarkRead(n.id);
-                  if (n.link) navigate({ to: n.link });
+                  if (n.link) navigate(n.link.includes("?") ? ({ href: n.link } as never) : { to: n.link });
                 }}
                 className="flex-1 text-left"
               >

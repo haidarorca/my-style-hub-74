@@ -156,6 +156,33 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_notification_prefs: {
+        Row: {
+          muted: boolean
+          sound_enabled: boolean
+          types: Json
+          updated_at: string
+          user_id: string
+          volume: number
+        }
+        Insert: {
+          muted?: boolean
+          sound_enabled?: boolean
+          types?: Json
+          updated_at?: string
+          user_id: string
+          volume?: number
+        }
+        Update: {
+          muted?: boolean
+          sound_enabled?: boolean
+          types?: Json
+          updated_at?: string
+          user_id?: string
+          volume?: number
+        }
+        Relationships: []
+      }
       admin_permissions: {
         Row: {
           granted_at: string
@@ -1178,6 +1205,24 @@ export type Database = {
           province?: string | null
           updated_at?: string
           zip?: string | null
+        }
+        Relationships: []
+      }
+      cockpit_settings: {
+        Row: {
+          default_retention_days: number | null
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          default_retention_days?: number | null
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          default_retention_days?: number | null
+          id?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2560,6 +2605,48 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          level: string
+          message: string | null
+          order_id: string | null
+          order_ref: string | null
+          reminder_id: string | null
+          rule_id: string | null
+          sound: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          level?: string
+          message?: string | null
+          order_id?: string | null
+          order_ref?: string | null
+          reminder_id?: string | null
+          rule_id?: string | null
+          sound?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          level?: string
+          message?: string | null
+          order_id?: string | null
+          order_ref?: string | null
+          reminder_id?: string | null
+          rule_id?: string | null
+          sound?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           channel: string
@@ -3047,6 +3134,66 @@ export type Database = {
           },
         ]
       }
+      order_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          last_sent_at: string | null
+          max_count: number | null
+          next_at: string
+          order_id: string
+          resolved_at: string | null
+          resolved_reason: string | null
+          rule_id: string
+          sent_count: number
+          started_at: string
+          state: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string | null
+          max_count?: number | null
+          next_at: string
+          order_id: string
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          rule_id: string
+          sent_count?: number
+          started_at: string
+          state?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string | null
+          max_count?: number | null
+          next_at?: string
+          order_id?: string
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          rule_id?: string
+          sent_count?: number
+          started_at?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_reminders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_reminders_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "reminder_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_shipment_assessments: {
         Row: {
           admin_comment: string | null
@@ -3171,6 +3318,7 @@ export type Database = {
         Row: {
           address: string | null
           archived_at: string | null
+          archived_by: string | null
           buyer_id: string | null
           city: string | null
           cj_created_at: string | null
@@ -3210,7 +3358,9 @@ export type Database = {
           other_fees_total: number
           products_total: number | null
           purchase_cost_total: number | null
+          purge_at: string | null
           reference: string | null
+          retention_days: number | null
           shipping_estimate_note: string | null
           shipping_service_id: string | null
           shipping_total: number | null
@@ -3220,6 +3370,7 @@ export type Database = {
         Insert: {
           address?: string | null
           archived_at?: string | null
+          archived_by?: string | null
           buyer_id?: string | null
           city?: string | null
           cj_created_at?: string | null
@@ -3259,7 +3410,9 @@ export type Database = {
           other_fees_total?: number
           products_total?: number | null
           purchase_cost_total?: number | null
+          purge_at?: string | null
           reference?: string | null
+          retention_days?: number | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
           shipping_total?: number | null
@@ -3269,6 +3422,7 @@ export type Database = {
         Update: {
           address?: string | null
           archived_at?: string | null
+          archived_by?: string | null
           buyer_id?: string | null
           city?: string | null
           cj_created_at?: string | null
@@ -3308,7 +3462,9 @@ export type Database = {
           other_fees_total?: number
           products_total?: number | null
           purchase_cost_total?: number | null
+          purge_at?: string | null
           reference?: string | null
+          retention_days?: number | null
           shipping_estimate_note?: string | null
           shipping_service_id?: string | null
           shipping_total?: number | null
@@ -4525,6 +4681,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reminder_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          delay_minutes: number
+          enabled: boolean
+          frequency_minutes: number
+          id: string
+          level: string
+          max_count: number | null
+          message_template: string | null
+          name: string
+          sound: string
+          sound_enabled: boolean
+          trigger_status: string | null
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          delay_minutes?: number
+          enabled?: boolean
+          frequency_minutes?: number
+          id?: string
+          level?: string
+          max_count?: number | null
+          message_template?: string | null
+          name: string
+          sound?: string
+          sound_enabled?: boolean
+          trigger_status?: string | null
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          delay_minutes?: number
+          enabled?: boolean
+          frequency_minutes?: number
+          id?: string
+          level?: string
+          max_count?: number | null
+          message_template?: string | null
+          name?: string
+          sound?: string
+          sound_enabled?: boolean
+          trigger_status?: string | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       return_case_actions: {
         Row: {
@@ -6092,6 +6302,20 @@ export type Database = {
         Args: { _pid: string; _seconds: number }
         Returns: boolean
       }
+      cockpit_emit: {
+        Args: {
+          _event_key: string
+          _level: string
+          _message: string
+          _order_id: string
+          _reminder_id?: string
+          _rule_id?: string
+          _sound: string
+          _title: string
+          _type: string
+        }
+        Returns: undefined
+      }
       compute_product_content_hash: {
         Args: { _description: string; _designation: string; _name: string }
         Returns: string
@@ -6248,6 +6472,7 @@ export type Database = {
         Args: { _product_id: string }
         Returns: undefined
       }
+      is_cockpit_admin: { Args: { _uid: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       kawscan_apply_formula: {
         Args: {
@@ -6342,6 +6567,7 @@ export type Database = {
         Returns: number
       }
       kz_color_family: { Args: { _c: string }; Returns: string }
+      kz_human_duration: { Args: { _i: string }; Returns: string }
       kz_material_family: { Args: { _m: string }; Returns: string }
       log_admin_action: {
         Args: {
@@ -6399,6 +6625,7 @@ export type Database = {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
       }
+      purge_expired_archived_orders: { Args: never; Returns: Json }
       purge_old_read_notifications: { Args: never; Returns: number }
       recalc_return_case_suggested: {
         Args: { _case_id: string }
@@ -6441,6 +6668,17 @@ export type Database = {
         Args: { _code: string; _referer?: string; _user_agent?: string }
         Returns: undefined
       }
+      reminder_candidates: {
+        Args: { _order_id?: string; _rule_id: string }
+        Returns: {
+          order_id: string
+          started_at: string
+        }[]
+      }
+      reminders_reconcile_order: {
+        Args: { _order_id: string }
+        Returns: undefined
+      }
       resolve_commission:
         | {
             Args: { _product_id: string }
@@ -6470,6 +6708,7 @@ export type Database = {
           show_whatsapp: boolean
         }[]
       }
+      run_reminder_engine: { Args: never; Returns: Json }
       sensitive_input_hash: {
         Args: { p: Database["public"]["Tables"]["products"]["Row"] }
         Returns: string

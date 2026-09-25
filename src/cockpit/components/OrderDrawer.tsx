@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { UnknownItem } from "./WeightForm";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { OrderArchiveActions } from "./OrderArchiveActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -241,6 +242,8 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
               </div>
             </div>
           </SheetHeader>
+
+          {order?.order_id && <OrderArchiveActions orderId={order.order_id} onDone={onClose} />}
 
           {isScoped && onSubOrderChange && (
             <RelatedSubOrdersStrip
