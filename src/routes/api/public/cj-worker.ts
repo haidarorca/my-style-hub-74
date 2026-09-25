@@ -11,8 +11,14 @@ export const Route = createFileRoute("/api/public/cj-worker")({
       POST: async () => {
         const { runWorkerTick } = await import("@/lib/cj/jobs.server");
         try {
-          const r = await runWorkerTick(50_000);
-          return Response.json({ ok: true, created: r.created, jobs: r.jobs.length });
+          const r = await runWorkerTick(45_000);
+          // Relecture légère des commandes CJ ouvertes (toutes les 2 h par commande).
+          let ordersSynced = 0;
+          try {
+            const { syncOpenCjOrders } = await import("@/lib/cj/order-sync.server");
+            ordersSynced = await syncOpenCjOrders(5);
+          } catch { /* n'empêche jamais l'import */ }
+          return Response.json({ ok: true, created: r.created, jobs: r.jobs.length, ordersSynced });
         } catch (e) {
           return Response.json({ ok: false, error: e instanceof Error ? e.message : "error" }, { status: 500 });
         }

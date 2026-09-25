@@ -2,6 +2,7 @@
 // DASHBOARD — Cockpit Kawzone (architecture sous-commandes boutiques)
 // Une seule vue : pipeline par sous-commande boutique.
 // Le concept MIXTE et les KPI globaux ont été retirés.
+import { CjStockAlert } from "@/components/admin/CjStockAlert";
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -176,6 +177,7 @@ export default function CockpitDashboard() {
           <h1 className="text-sm font-bold">Kawzone Cockpit</h1>
           <span className="text-[10px] text-gray-500">{subOrderRows.length} sous-commandes</span>
         </div>
+        <CjStockAlert />
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
           <Input

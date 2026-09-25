@@ -59,7 +59,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         variantIds.length
           ? supabaseAdmin
               .from("product_variants")
-              .select("id, product_id, size, color, price_override, variant_ref, supplier_sku, weight_kg, length_cm, width_cm, height_cm, cost_price, cost_currency_code")
+              .select("id, product_id, size, color, price_override, variant_ref, supplier_sku, weight_kg, length_cm, width_cm, height_cm, cost_price, cost_currency_code, external_variant_id, supplier_stock")
               .in("id", variantIds)
           : Promise.resolve({ data: [] as any[], error: null }),
       ]);
@@ -69,6 +69,33 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
       const productMap = new Map((products ?? []).map((product: any) => [product.id, product]));
       const variantMap = new Map((variants ?? []).map((variant: any) => [variant.id, variant]));
+
+      // ── Contrôle de stock CJ n°1 (temps réel, variante exacte) ──
+      // Si CJ ne répond pas, on se fie au dernier stock connu : la commande
+      // n'est pas bloquée et le contrôle n°2 aura lieu avant tout envoi.
+      {
+        const { data: cjRows } = await (supabaseAdmin as any)
+          .from("cj_products").select("product_id").in("product_id", productIds);
+        const cjProductIds = new Set((cjRows ?? []).map((r: any) => r.product_id));
+        const cjLines = data.items
+          .map((item) => ({ item, v: item.variantId ? (variantMap.get(item.variantId) as any) : null }))
+          .filter(({ item, v }) => cjProductIds.has(item.productId) && v?.external_variant_id);
+        if (cjLines.length) {
+          const { checkCjVariantsStock } = await import("@/lib/cj/stock.server");
+          const stocks = await checkCjVariantsStock(cjLines.map(({ v }) => String(v.external_variant_id)), supabaseAdmin, 6000);
+          for (const { item, v } of cjLines) {
+            const s = stocks.get(String(v.external_variant_id));
+            const known = s?.stock ?? (v.supplier_stock != null ? Number(v.supplier_stock) : null);
+            if (known !== null && known < item.quantity) {
+              const p = productMap.get(item.productId) as any;
+              const label = [v.color, v.size].filter(Boolean).join(" / ");
+              throw new Error(known <= 0
+                ? `Rupture de stock : ${p?.name ?? "produit"}${label ? ` (${label})` : ""}. Retirez cet article du panier.`
+                : `Stock insuffisant : ${p?.name ?? "produit"}${label ? ` (${label})` : ""} — ${known} disponible(s).`);
+            }
+          }
+        }
+      }
       let total = 0;
       let productsTotal = 0;
       let purchaseCostTotal = 0;

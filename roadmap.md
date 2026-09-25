@@ -10,3 +10,12 @@
 - [x] Sourcing CJ : sélection famille / sous-famille / sous-sous-famille (manuel + programmé), quota jusqu'à 5 000/jour, reprise du parcours d'un jour à l'autre
 - [x] Import manuel réorganisé (sélecteur en arbre, tri, détails repliés, import auto des nouveaux)
 - [x] Catalogue public filtrable (/catalogue) : matière, couleur, taille, pays, prix, stock, tri
+
+## Intégration commandes CJ
+- [x] Contrôle stock n°1 (commande client) et n°2 (avant envoi CJ), par variante
+- [x] Statut « Problème de stock — action requise » + alerte Cockpit
+- [x] Verrou anti-doublon + rattachement d'une commande CJ déjà existante
+- [x] Relecture automatique statuts/suivi CJ (toutes les 2 h)
+- [ ] Webhooks CJ (attente : activation dans le compte CJ)
+- [ ] Paiement CJ automatique (attente : plafond choisi par l'utilisateur)
+- [ ] Module Caisses CN-2026-xxx (attente : accord consolidation avec CJ)

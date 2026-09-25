@@ -3184,8 +3184,12 @@ export type Database = {
           cj_order_status: string | null
           cj_paid_at: string | null
           cj_payment_status: string | null
+          cj_send_lock_at: string | null
           cj_shipment_order_id: string | null
           cj_shipped_at: string | null
+          cj_stock_checked_at: string | null
+          cj_stock_issues: Json | null
+          cj_stock_status: string | null
           cj_synced_at: string | null
           cj_tracking_number: string | null
           cj_tracking_provider: string | null
@@ -3229,8 +3233,12 @@ export type Database = {
           cj_order_status?: string | null
           cj_paid_at?: string | null
           cj_payment_status?: string | null
+          cj_send_lock_at?: string | null
           cj_shipment_order_id?: string | null
           cj_shipped_at?: string | null
+          cj_stock_checked_at?: string | null
+          cj_stock_issues?: Json | null
+          cj_stock_status?: string | null
           cj_synced_at?: string | null
           cj_tracking_number?: string | null
           cj_tracking_provider?: string | null
@@ -3274,8 +3282,12 @@ export type Database = {
           cj_order_status?: string | null
           cj_paid_at?: string | null
           cj_payment_status?: string | null
+          cj_send_lock_at?: string | null
           cj_shipment_order_id?: string | null
           cj_shipped_at?: string | null
+          cj_stock_checked_at?: string | null
+          cj_stock_issues?: Json | null
+          cj_stock_status?: string | null
           cj_synced_at?: string | null
           cj_tracking_number?: string | null
           cj_tracking_provider?: string | null
@@ -6075,6 +6087,7 @@ export type Database = {
         Args: { _job: string; _seconds: number }
         Returns: boolean
       }
+      cj_try_lock_order_send: { Args: { _order_id: string }; Returns: boolean }
       cj_try_lock_pid: {
         Args: { _pid: string; _seconds: number }
         Returns: boolean

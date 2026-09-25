@@ -31,6 +31,8 @@ import {
   quoteCjLogistics,
   createCjOrder,
   syncCjOrder,
+  checkCjOrderStock,
+  countCjStockIssues,
   type CjWarehouseAddress,
   type CjLogisticOption,
 } from "@/lib/cj-orders.functions";
@@ -165,6 +167,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
   const quoteFn = useServerFn(quoteCjLogistics);
   const createFn = useServerFn(createCjOrder);
   const syncFn = useServerFn(syncCjOrder);
+  const stockFn = useServerFn(checkCjOrderStock);
 
   const [options, setOptions] = useState<CjLogisticOption[] | null>(null);
   const [selected, setSelected] = useState<string>("");
@@ -217,8 +220,24 @@ function OrderDetail({ orderId }: { orderId: string }) {
         data: { order_id: orderId, logistic_name: selected, sandbox },
       });
       setLastResponse(r);
-      if (r.ok) toast.success("Commande transmise à CJ");
+      if (r.ok) toast.success(r.message && r.message.includes("rattachée") ? r.message : "Commande transmise à CJ");
+      else if (r.stock_issues?.length) toast.error("Problème de stock — action requise", { description: "Rien n'a été envoyé à CJ." });
       else toast.error("CJ a refusé la commande", { description: r.message ?? "" });
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Échec");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onStock = async () => {
+    setBusy("stock");
+    try {
+      const r = await stockFn({ data: { order_id: orderId } });
+      setLastResponse(r);
+      if (r.issues.length === 0) toast.success("Stock CJ disponible pour tous les articles");
+      else toast.warning(`${r.issues.length} article(s) posent problème`);
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
@@ -246,6 +265,31 @@ function OrderDetail({ orderId }: { orderId: string }) {
 
   return (
     <div className="space-y-4">
+      {o.cj_stock_issues && o.cj_stock_issues.length > 0 && !o.cj_order_id && (
+        <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">
+          <p className="font-semibold text-destructive">
+            Attention — commande {o.reference ?? o.order_id.slice(0, 8)} : problème de stock, action requise
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {o.cj_stock_issues.map((i) => (
+              <li key={i.item_id}>
+                {i.product_name}{i.variant ? ` — ${i.variant}` : ""} :{" "}
+                {i.reason === "rupture" ? "rupture chez CJ" : i.reason === "insuffisant" ? `${i.stock} disponible(s) pour ${i.requested} commandé(s)` : "CJ injoignable, stock non confirmé"}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted-foreground">Rien n'a été envoyé ni payé chez CJ. Décidez : contacter le client, remplacer, retirer, attendre ou annuler.</p>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Button size="sm" variant="outline" onClick={onStock} disabled={busy !== null}>
+          {busy === "stock" ? "Vérification…" : "Vérifier le stock CJ"}
+        </Button>
+        <span className="text-muted-foreground">
+          Stock : {o.cj_stock_status === "ok" ? "disponible" : o.cj_stock_status === "issue" ? "problème" : o.cj_stock_status === "unknown" ? "non confirmé" : "jamais vérifié"}
+          {o.cj_stock_checked_at ? ` (${fmt(o.cj_stock_checked_at)})` : ""}
+        </span>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -444,7 +488,9 @@ function CjOrdersPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{o.reference ?? o.order_id.slice(0, 8)}</span>
-                {o.cj_order_id ? (
+                {o.cj_stock_status === "issue" && !o.cj_order_id ? (
+                  <Badge variant="destructive">Problème de stock</Badge>
+                ) : o.cj_order_id ? (
                   <Badge>CJ : {o.cj_order_status ?? "créée"}</Badge>
                 ) : (
                   <Badge variant="secondary">CJ : non créée</Badge>
