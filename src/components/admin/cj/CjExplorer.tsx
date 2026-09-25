@@ -187,7 +187,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
                 <SelectContent><SelectItem value="relevance">Pertinence</SelectItem><SelectItem value="price_asc">Prix croissant</SelectItem><SelectItem value="price_desc">Prix décroissant</SelectItem><SelectItem value="stock">Stock le plus élevé</SelectItem></SelectContent>
               </Select>
             </div>
-            {!smart && res.total > res.hits.length && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer selon les critères :</span>{[100, 500, 1000].filter((n) => n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(Math.min(res.total, 20000))}>Tous</Button></div>}
+            {(smart || res.total > res.hits.length) && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer automatiquement les nouveaux :</span>{[100, 500, 1000].filter((n) => smart || n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(smart ? 2000 : Math.min(res.total, 20000))}>{smart ? "2 000" : "Tous"}</Button></div>}
           </div>
         </section>
 
