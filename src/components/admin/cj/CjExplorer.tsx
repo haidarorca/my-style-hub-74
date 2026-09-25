@@ -168,7 +168,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
       {res && <>
         <section className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            {smart && <SmartSummary s={smart} deep={page > 1} loading={loading} onDeeper={() => search(2)} />}
+            {smart && <SmartSummaryInner s={smart} deep={page > 1} loading={loading} onDeeper={() => search(2)} />}
           {!smart && <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>}
             {!smart && <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>}
           </div>
@@ -225,10 +225,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div><p className="text-[11px] text-muted-foreground">{label}</p><p className="truncate font-medium">{value}</p></div>;
 }
 const STAGE_FR: Record<string, string> = { exact: "exacte", traduction: "traduction", synonymes: "synonyme", combinaison: "combinaison", "élargie": "élargie" };
-
-function SmartSummary({ s, deep, loading, onDeeper }: { s: NonNullable<Parameters<typeof SmartSummaryInner>[0]["s"]>; deep: boolean; loading: boolean; onDeeper: () => void }) {
-  return <SmartSummaryInner s={s} deep={deep} loading={loading} onDeeper={onDeeper} />;
-}
 
 function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }; deep: boolean; loading: boolean; onDeeper: () => void }) {
   return (
