@@ -442,9 +442,9 @@ export const runCjScheduleNow = createServerFn({ method: "POST" })
     const { data: r } = await context.supabase.from("cj_import_schedules" as any).select("*").eq("id", data.id).single();
     if (!r) throw new Error("Règle introuvable.");
     const rule = r as any;
-    const { createJob } = await import("@/lib/cj/jobs.server");
+    const { createJob, scheduleCriteria } = await import("@/lib/cj/jobs.server");
     const jobId = await createJob({
-      name: `Manuel — ${rule.name}`, kind: "import", criteria: { ...(rule.criteria ?? {}), newOnly: true },
+      name: `Manuel — ${rule.name}`, kind: "import", criteria: scheduleCriteria(rule.criteria),
       targetCount: rule.max_new, scheduleId: rule.id, userId: context.userId,
     });
     await kick(jobId);

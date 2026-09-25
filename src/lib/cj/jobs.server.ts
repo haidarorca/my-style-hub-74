@@ -263,7 +263,7 @@ export async function processJobBatch(jobId: string, budgetMs = 20_000): Promise
   let stop = false;
   const worker = async () => {
     while (!stop && !rateLimited && Date.now() - started < budgetMs) {
-      const { data: cur } = await a.from("cj_import_jobs").select("status, discover_done, discover_page, criteria, target_count, id").eq("id", jobId).single();
+      const { data: cur } = await a.from("cj_import_jobs").select("status, discover_done, discover_page, criteria, target_count, id, options").eq("id", jobId).single();
       if (cur.status === "paused" || cur.status === "cancelled") { stop = true; break; }
       const { data: claimed } = await a.rpc("cj_claim_job_items", { _job: jobId, _n: 1 });
       const item = (claimed ?? [])[0];
@@ -396,6 +396,9 @@ export async function runDueSchedules(): Promise<string[]> {
   const created: string[] = [];
   for (const r of rules ?? []) {
     if (r.last_run_at && new Date(r.last_run_at) >= hourStart) continue;
+    // Fréquence (jours) : tous les jours / 2 jours / semaine…
+    const everyDays = Math.max(1, Number(r.criteria?.frequencyDays ?? 1) || 1);
+    if (r.last_run_at && Date.now() - new Date(r.last_run_at).getTime() < everyDays * 86400_000 - 3 * 3600_000) continue;
     // Réservation de l'exécution (évite deux jobs si le déclencheur passe deux fois).
     const { data: claimed } = await a.from("cj_import_schedules")
       .update({ last_run_at: now.toISOString() }).eq("id", r.id)
@@ -404,7 +407,7 @@ export async function runDueSchedules(): Promise<string[]> {
     const jobId = await createJob({
       name: `Programmé — ${r.name} — ${now.toISOString().slice(0, 10)}`,
       kind: "import",
-      criteria: { ...(r.criteria ?? {}), newOnly: true },
+      criteria: scheduleCriteria(r.criteria),
       targetCount: r.max_new,
       scheduleId: r.id,
       userId: r.created_by,
@@ -413,4 +416,16 @@ export async function runDueSchedules(): Promise<string[]> {
     created.push(jobId);
   }
   return created;
+}
+
+/** Critères d'exécution d'une règle : un ancien mot-clé seul devient une cible intelligente. */
+export function scheduleCriteria(c: any): any {
+  const out = { ...(c ?? {}), newOnly: true };
+  if (!Array.isArray(out.targets) || !out.targets.length) {
+    if (out.keyword || out.categoryId) {
+      out.targets = [{ key: "t1", label: out.keyword || "Catégorie", keyword: out.keyword ?? null, categoryId: out.categoryId ?? null, quota: 0, priority: 1 }];
+      out.quotaMode = "global";
+    }
+  }
+  return out;
 }
