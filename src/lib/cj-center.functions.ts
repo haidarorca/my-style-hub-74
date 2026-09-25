@@ -41,7 +41,13 @@ export interface Criteria {
   sort?: "asc" | "desc" | null;
   /** Affichage : tous / jamais importés / déjà importés. */
   importState?: "all" | "new" | "imported";
+  /** Programmation multi-catégories. */
+  targets?: ScheduleTarget[];
+  quotaMode?: "per_category" | "global";
+  frequencyDays?: number;
 }
+
+export interface ScheduleTarget { key: string; label: string; keyword?: string | null; categoryId?: string | null; quota: number; priority: number }
 
 const optNum = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 function cleanCriteria(c: any): Criteria {
@@ -75,6 +81,16 @@ function cleanCriteria(c: any): Criteria {
     orderBy: [0, 1, 2, 3, 4].includes(Number(c?.orderBy)) ? Number(c.orderBy) : null,
     sort: c?.sort === "asc" || c?.sort === "desc" ? c.sort : null,
     importState: c?.importState === "new" || c?.importState === "imported" ? c.importState : "all",
+    targets: Array.isArray(c?.targets) ? c.targets.slice(0, 20).map((t: any, i: number) => ({
+      key: String(t?.key || `t${i + 1}`).slice(0, 40),
+      label: String(t?.label || t?.keyword || "Catégorie").slice(0, 120),
+      keyword: t?.keyword ? String(t.keyword).slice(0, 120) : null,
+      categoryId: t?.categoryId ? String(t.categoryId).slice(0, 80) : null,
+      quota: Math.max(0, Math.min(5000, Math.floor(Number(t?.quota ?? 10)) || 0)),
+      priority: Math.max(1, Math.min(99, Math.floor(Number(t?.priority ?? i + 1)) || i + 1)),
+    })).filter((t: ScheduleTarget) => t.keyword || t.categoryId) : undefined,
+    quotaMode: c?.quotaMode === "global" ? "global" : "per_category",
+    frequencyDays: [1, 2, 3, 7].includes(Number(c?.frequencyDays)) ? Number(c.frequencyDays) : 1,
   };
 }
 
@@ -449,4 +465,72 @@ export const runCjScheduleNow = createServerFn({ method: "POST" })
     });
     await kick(jobId);
     return { jobId };
+  });
+
+// ── Recherche intelligente (multi-étapes, sans IA) ─────────────
+export const smartSearchCj = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { keyword: string; criteria?: any; deep?: boolean }) => ({
+    keyword: String(i?.keyword ?? "").trim().slice(0, 200),
+    criteria: cleanCriteria(i?.criteria ?? {}),
+    deep: !!i?.deep,
+  }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context);
+    if (!data.keyword) throw new Error("Indiquez un mot-clé.");
+    const { smartSearch } = await import("@/lib/cj/smart-search.server");
+    const { keyword: _k, importState: _s, targets: _t, ...base } = data.criteria as any;
+    try {
+      const r = await smartSearch({ keyword: data.keyword, criteria: base, want: data.deep ? 80 : 40, maxCalls: data.deep ? 12 : 6 });
+      return { ok: true, error: null as string | null, hits: r.hits, stats: r.stats, queries: r.plan.queries };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [], stats: null, queries: [] };
+    }
+  });
+
+/** Rapport simple d'une exécution : par catégorie cible, objectif / trouvés / importés / exclus + raisons. */
+export const getCjJobReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { jobId: string }) => ({ jobId: String(i?.jobId ?? "") }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const a = supabaseAdmin as any;
+    const { data: job } = await a.from("cj_import_jobs").select("criteria, options, target_count").eq("id", data.jobId).maybeSingle();
+    if (!job) return { targets: [] };
+    const { data: items } = await a.from("cj_import_job_items").select("target_key, status, error").eq("job_id", data.jobId).limit(20000);
+    const targets: any[] = job.criteria?.targets ?? [];
+    const tstate = job.options?.tstate ?? {};
+    const reasonOf = (e: string | null) => {
+      const m = String(e ?? "").replace(/^Critères non remplis : /, "");
+      if (/stock/.test(m)) return "stock insuffisant";
+      if (/poids/.test(m)) return "poids trop élevé";
+      if (/prix/.test(m)) return "prix hors limite";
+      if (/images/.test(m)) return "pas assez d'images";
+      if (/dimension|volume/.test(m)) return "dimensions hors limite";
+      return m ? m.slice(0, 60) : "autre";
+    };
+    return {
+      mode: job.criteria?.quotaMode ?? "per_category",
+      targets: targets.map((t) => {
+        const st = tstate[t.key] ?? {};
+        const mine = (items ?? []).filter((i: any) => i.target_key === t.key);
+        const reasons: Record<string, number> = {};
+        if (st.offTopic) reasons["hors sujet"] = st.offTopic;
+        if (st.existing) reasons["déjà importé"] = st.existing;
+        let imported = 0, skipped = 0, failed = 0, pending = 0;
+        for (const i of mine) {
+          if (i.status === "SUCCESS") imported++;
+          else if (i.status === "ALREADY_EXISTS") { reasons["déjà importé"] = (reasons["déjà importé"] ?? 0) + 1; }
+          else if (i.status === "SKIPPED") { skipped++; const r = reasonOf(i.error); reasons[r] = (reasons[r] ?? 0) + 1; }
+          else if (i.status === "FAILED") { failed++; reasons["erreur d'import"] = (reasons["erreur d'import"] ?? 0) + 1; }
+          else if (i.status === "PENDING" || i.status === "PROCESSING") pending++;
+        }
+        return {
+          label: t.label, goal: t.quota || null, found: st.relevant ?? 0, examined: st.examined ?? 0, fresh: (st.relevant ?? 0) - (st.existing ?? 0),
+          existing: st.existing ?? 0, imported, skipped, failed, pending, calls: st.calls ?? 0,
+          exhausted: !!st.exhausted, reasons,
+        };
+      }),
+    };
   });
