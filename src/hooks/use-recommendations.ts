@@ -23,7 +23,8 @@ async function fetchProducts(ids: string[]): Promise<ProductCardProduct[]> {
     .select(PRODUCT_CARD_SELECT)
     .in("id", ids)
     .eq("status", "approved")
-    .order("position", { referencedTable: "product_images", ascending: true });
+    .order("position", { referencedTable: "product_images", ascending: true })
+    .limit(1, { referencedTable: "product_images" });
   if (error) throw error;
   const rows = (data ?? []) as ProductCardProduct[];
   const order = new Map(ids.map((id, i) => [id, i]));
