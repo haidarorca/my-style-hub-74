@@ -10,8 +10,10 @@ export const translationSyncJob = inngest.createFunction(
     retries: 2,
     triggers: [{ cron: "0 */6 * * *" }, { event: "translation/sync.requested" }],
   },
-  async ({ step }) => {
-    return await step.run("run-sync", async () => runTranslationSync());
+  async () => {
+    // Remplacé par le Centre de traduction (tâches lancées depuis le tableau de bord).
+    void runTranslationSync;
+    return { skipped: true };
   },
 );
 

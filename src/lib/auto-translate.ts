@@ -9,17 +9,18 @@ type ProductInput = {
 };
 
 /**
- * Fire-and-forget: translate FR product fields to EN+AR via the AI gateway,
- * then store them in the *_i18n JSONB columns on the same product row.
- *
- * The product stays a SINGLE row — we just enrich it with translations so
- * the client can read the right language via pickI18n(). Brand names, codes
- * and prices are preserved by the prompt and never written here.
- *
- * Errors are swallowed (logged only) so a temporary AI hiccup never blocks
- * the vendor's save flow. Next save will retry.
+ * Désactivé : cette ancienne traduction supposait que le texte était en
+ * français, ce qui est faux pour les produits CJ. Les produits nouveaux ou
+ * modifiés sont désormais traduits par le Centre de traduction (tableau de
+ * bord admin), qui détecte la langue source. Signature conservée pour ne pas
+ * casser les appels existants.
  */
 export async function autoTranslateProduct(input: ProductInput): Promise<void> {
+  void input;
+  return;
+}
+
+async function legacyAutoTranslateProduct(input: ProductInput): Promise<void> {
   try {
     const res = await translateProductFields({
       data: {
@@ -75,3 +76,4 @@ export async function autoTranslateCategory(categoryId: string, name: string): P
     console.warn("autoTranslateCategory failed", e);
   }
 }
+void legacyAutoTranslateProduct;

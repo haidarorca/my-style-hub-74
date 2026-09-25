@@ -1,186 +1,213 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { syncTranslations } from "@/lib/sync-translations.functions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Languages, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Globe, Loader2, Pause, Play, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { TRANSLATION_LANGS, TRANSLATION_SCOPES, type TranslationScope } from "@/lib/translation/langs";
+import { controlTranslation, getTranslationJobs, previewTranslation, startTranslation } from "@/lib/translation/center.functions";
 
-type Report = Awaited<ReturnType<typeof syncTranslations>>;
+type Bucket = { total: number; pending: number; translated: number; skipped: number; errors: number; done: boolean };
+type Job = {
+  id: string; status: string; langs: string[]; scopes: TranslationScope[]; current_scope: string | null;
+  stats: Record<string, Bucket>; pause_reason: string | null; last_error: string | null;
+  created_at: string; finished_at: string | null;
+};
 
-type Scope = "all" | "products" | "categories" | "countries" | "shops" | "banners" | "settings";
+const STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  queued: { label: "En attente", variant: "secondary" },
+  running: { label: "En cours", variant: "default" },
+  paused: { label: "En pause", variant: "outline" },
+  cancelled: { label: "Annulée", variant: "outline" },
+  done: { label: "Terminée", variant: "secondary" },
+  error: { label: "Erreur", variant: "destructive" },
+};
+const scopeLabel = (s: string) => TRANSLATION_SCOPES.find((x) => x.id === s)?.label ?? s;
 
-const SCOPES: Array<{ id: Scope; label: string }> = [
-  { id: "all", label: "Tout" },
-  { id: "products", label: "Produits" },
-  { id: "categories", label: "Catégories" },
-  { id: "countries", label: "Pays" },
-  { id: "shops", label: "Boutiques" },
-  { id: "banners", label: "Bannières" },
-  { id: "settings", label: "Paramètres" },
-];
-
-const BUCKETS: Array<{ key: keyof Pick<Report, "products" | "categories" | "countries" | "shops" | "banners" | "settings">; label: string }> = [
-  { key: "products", label: "Produits" },
-  { key: "categories", label: "Catégories" },
-  { key: "countries", label: "Pays" },
-  { key: "shops", label: "Boutiques" },
-  { key: "banners", label: "Bannières" },
-  { key: "settings", label: "Paramètres du site" },
-];
-
+/** Centre de traduction : bouton « Traduire les contenus » du tableau de bord admin. */
 export function TranslationSyncCard() {
-  const sync = useServerFn(syncTranslations);
-  const [scope, setScope] = useState<Scope>("all");
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [report, setReport] = useState<Report | null>(null);
+  const qc = useQueryClient();
+  const fetchJobs = useServerFn(getTranslationJobs);
+  const preview = useServerFn(previewTranslation);
+  const start = useServerFn(startTranslation);
+  const control = useServerFn(controlTranslation);
 
-  const onClick = async () => {
-    setRunning(true);
-    setReport(null);
-    setProgress(8);
-    const tick = setInterval(() => {
-      setProgress((p) => (p < 90 ? p + Math.max(1, Math.round((90 - p) / 12)) : p));
-    }, 600);
+  const [open, setOpen] = useState(false);
+  const [langs, setLangs] = useState<string[]>(TRANSLATION_LANGS.map((l) => l.code));
+  const [scopes, setScopes] = useState<string[]>(TRANSLATION_SCOPES.map((s) => s.id));
+  const [counts, setCounts] = useState<Record<string, { pending: number; total: number }> | null>(null);
+  const [loadingCounts, setLoadingCounts] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["translation-jobs"],
+    queryFn: () => fetchJobs() as Promise<Job[]>,
+    refetchInterval: (q) => ((q.state.data as Job[] | undefined)?.some((j) => j.status === "running" || j.status === "queued") ? 4000 : false),
+  });
+  const active = jobs.find((j) => ["queued", "running", "paused"].includes(j.status));
+  const last = active ?? jobs[0];
+
+  useEffect(() => {
+    if (!open || langs.length === 0) { setCounts(null); return; }
+    let cancel = false;
+    setLoadingCounts(true);
+    preview({ data: { langs } })
+      .then((c) => { if (!cancel) setCounts(c as any); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Estimation impossible"))
+      .finally(() => { if (!cancel) setLoadingCounts(false); });
+    return () => { cancel = true; };
+  }, [open, langs.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggle = (arr: string[], v: string, set: (a: string[]) => void) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  const launch = async () => {
+    setBusy(true);
     try {
-      const r = await sync({ data: { scope } });
-      setReport(r);
-      const total = BUCKETS.reduce((acc, b) => acc + r[b.key].translated, 0);
-      const errors = BUCKETS.reduce((acc, b) => acc + r[b.key].errors, 0);
-      const pending = BUCKETS.reduce((acc, b) => acc + r[b.key].pending, 0);
-      if (errors > 0) {
-        toast.warning(`Synchronisation terminée avec ${errors} erreur${errors > 1 ? "s" : ""}`, {
-          description: `${total} élément${total > 1 ? "s" : ""} traduit${total > 1 ? "s" : ""}${pending > 0 ? ` · ${pending} en attente` : ""}`,
-        });
-      } else if (total === 0) {
-        toast.success("Tout est déjà à jour", {
-          description: "Aucun nouvel élément à traduire",
-        });
-      } else {
-        toast.success("Traductions mises à jour", {
-          description: `${total} élément${total > 1 ? "s" : ""} traduit${total > 1 ? "s" : ""}${pending > 0 ? ` · ${pending} en attente — relancez pour finir` : ""}`,
-        });
-      }
+      await start({ data: { langs, scopes } });
+      toast.success("Traduction lancée", { description: "Elle continue en arrière-plan, même si vous fermez le navigateur." });
+      setOpen(false);
+      qc.invalidateQueries({ queryKey: ["translation-jobs"] });
     } catch (e) {
-      toast.error("Échec de la synchronisation", {
-        description: e instanceof Error ? e.message : "Erreur inconnue",
-      });
-    } finally {
-      clearInterval(tick);
-      setProgress(100);
-      setRunning(false);
-      setTimeout(() => setProgress(0), 1200);
-    }
+      toast.error(e instanceof Error ? e.message : "Lancement impossible");
+    } finally { setBusy(false); }
   };
 
-  const totalErrors = report ? BUCKETS.reduce((a, b) => a + report[b.key].errors, 0) : 0;
-  const totalPending = report ? BUCKETS.reduce((a, b) => a + report[b.key].pending, 0) : 0;
+  const act = async (action: "pause" | "resume" | "cancel") => {
+    if (!active) return;
+    await control({ data: { id: active.id, action } });
+    qc.invalidateQueries({ queryKey: ["translation-jobs"] });
+  };
+
+  const totals = last ? last.scopes.reduce((a, s) => {
+    const b = last.stats[s]; if (!b) return a;
+    a.pending += b.pending; a.processed += b.translated + b.skipped + b.errors; return a;
+  }, { pending: 0, processed: 0 }) : { pending: 0, processed: 0 };
+  const pct = last ? (last.status === "done" ? 100 : totals.pending ? Math.min(99, Math.round((totals.processed / totals.pending) * 100)) : 0) : 0;
 
   return (
-    <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5">
+    <Card className="border-primary/30 bg-primary/5">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white">
-            <Languages className="h-6 w-6" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Globe className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold">Centre de traduction multilingue</div>
-            <div className="text-xs text-muted-foreground">
-              FR · EN · AR — détecte automatiquement les nouveaux contenus et corrige ceux non traduits
-            </div>
+            <div className="text-sm font-semibold">Centre de traduction</div>
+            <div className="text-xs text-muted-foreground">Produits, variantes, catégories, pays, boutiques, bannières — uniquement ce qui manque ou a changé</div>
           </div>
-          <Button size="sm" onClick={onClick} disabled={running}>
-            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Languages className="mr-1 h-4 w-4" />}
-            {running ? "En cours…" : "Synchroniser"}
-          </Button>
         </div>
+        <Button className="w-full" onClick={() => setOpen(true)} disabled={!!active}>
+          <Globe className="mr-2 h-4 w-4" /> 🌐 Traduire les contenus
+        </Button>
 
-        <div className="flex flex-wrap gap-1.5">
-          {SCOPES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setScope(s.id)}
-              disabled={running}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                scope === s.id
-                  ? "border-violet-500 bg-violet-500 text-white"
-                  : "border-border bg-card text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        {(running || progress > 0) && <Progress value={progress} className="h-2" />}
-
-        {report && (
-          <div className="space-y-2 rounded-md border bg-card/50 p-3 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                {totalErrors > 0 ? (
-                  <><AlertTriangle className="h-4 w-4 text-amber-600" /> Synchronisation terminée avec avertissements</>
-                ) : (
-                  <><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Synchronisation terminée</>
-                )}
+        {last && (
+          <div className="space-y-2 rounded-md border bg-card p-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant={STATUS[last.status]?.variant ?? "secondary"}>{STATUS[last.status]?.label ?? last.status}</Badge>
+                <span className="text-muted-foreground">{last.langs.map((l) => l.toUpperCase()).join(" · ")}</span>
+                {last.status === "running" && last.current_scope && <span className="text-muted-foreground">— {scopeLabel(last.current_scope)}</span>}
               </div>
-              <div className="text-muted-foreground">
-                Portée : <Badge variant="secondary" className="ml-1">{SCOPES.find((s) => s.id === report.scope)?.label ?? report.scope}</Badge>
-              </div>
+              {active && (
+                <div className="flex gap-1">
+                  {active.status === "paused"
+                    ? <Button size="sm" variant="outline" className="h-7" onClick={() => act("resume")}><Play className="mr-1 h-3 w-3" />Reprendre</Button>
+                    : <Button size="sm" variant="outline" className="h-7" onClick={() => act("pause")}><Pause className="mr-1 h-3 w-3" />Pause</Button>}
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => act("cancel")}><X className="mr-1 h-3 w-3" />Annuler</Button>
+                </div>
+              )}
             </div>
-
+            <Progress value={pct} className="h-2" />
+            {last.pause_reason && last.status === "paused" && <p className="text-muted-foreground">{last.pause_reason}</p>}
+            {last.last_error && active && <p className="text-muted-foreground">Dernier incident : {last.last_error} (reprise automatique)</p>}
             <div className="overflow-hidden rounded-md border">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-muted-foreground">
+              <table className="w-full">
+                <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1 text-left font-medium">Type</th>
+                    <th className="px-2 py-1 text-left font-medium">Contenu</th>
+                    <th className="px-2 py-1 text-right font-medium">À traiter</th>
                     <th className="px-2 py-1 text-right font-medium">Traduits</th>
-                    <th className="px-2 py-1 text-right font-medium">À jour</th>
+                    <th className="px-2 py-1 text-right font-medium">Déjà à jour</th>
                     <th className="px-2 py-1 text-right font-medium">Erreurs</th>
-                    <th className="px-2 py-1 text-right font-medium">En attente</th>
+                    <th className="px-2 py-1 text-right font-medium">État</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {BUCKETS.map((b) => {
-                    const v = report[b.key];
+                  {last.scopes.map((s) => {
+                    const b = last.stats[s] ?? { pending: 0, translated: 0, skipped: 0, errors: 0, done: false, total: 0 };
                     return (
-                      <tr key={b.key}>
-                        <td className="px-2 py-1">{b.label}</td>
-                        <td className="px-2 py-1 text-right font-semibold tabular-nums">{v.translated}</td>
-                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{v.skipped}</td>
-                        <td className={`px-2 py-1 text-right tabular-nums ${v.errors > 0 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{v.errors}</td>
-                        <td className={`px-2 py-1 text-right tabular-nums ${v.pending > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>{v.pending}</td>
+                      <tr key={s}>
+                        <td className="px-2 py-1">{scopeLabel(s)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{b.pending}</td>
+                        <td className="px-2 py-1 text-right font-semibold tabular-nums">{b.translated}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{Math.max(0, b.total - b.pending) + b.skipped}</td>
+                        <td className={`px-2 py-1 text-right tabular-nums ${b.errors ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{b.errors}</td>
+                        <td className="px-2 py-1 text-right text-muted-foreground">{b.done ? "Fini" : last.current_scope === s && last.status === "running" ? "En cours" : "En attente"}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span>Durée : {(report.durationMs / 1000).toFixed(1)}s</span>
-              {totalPending > 0 && (
-                <span className="text-amber-600">Relancez pour traiter les {totalPending} élément{totalPending > 1 ? "s" : ""} restant{totalPending > 1 ? "s" : ""}</span>
-              )}
-            </div>
-
-            {report.errorSamples.length > 0 && (
-              <details className="rounded-md border bg-destructive/5 p-2">
-                <summary className="cursor-pointer text-xs font-semibold text-destructive">
-                  {report.errorSamples.length} erreur{report.errorSamples.length > 1 ? "s" : ""} (extrait)
-                </summary>
-                <ul className="mt-1.5 space-y-0.5 pl-2 text-[11px] text-destructive">
-                  {report.errorSamples.map((m, i) => <li key={i}>• {m}</li>)}
-                </ul>
-              </details>
+            {last.status === "done" && last.finished_at && (
+              <p className="text-muted-foreground">Terminée le {new Date(last.finished_at).toLocaleString("fr-FR")}. Les éléments en erreur seront retentés au prochain lancement.</p>
             )}
           </div>
         )}
       </CardContent>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>🌐 Traduire les contenus</DialogTitle>
+            <DialogDescription>Seuls les contenus manquants ou modifiés sont traduits. Les traductions saisies à la main ne sont jamais écrasées.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Langues</p>
+              <div className="grid grid-cols-3 gap-2">
+                {TRANSLATION_LANGS.map((l) => (
+                  <label key={l.code} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
+                    <Checkbox checked={langs.includes(l.code)} onCheckedChange={() => toggle(langs, l.code, setLangs)} />
+                    <span>{l.flag} {l.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Contenus</p>
+                {loadingCounts && <span className="flex items-center text-xs text-muted-foreground"><RefreshCw className="mr-1 h-3 w-3 animate-spin" />Calcul…</span>}
+              </div>
+              <div className="space-y-1.5">
+                {TRANSLATION_SCOPES.map((s) => {
+                  const c = counts?.[s.id];
+                  return (
+                    <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
+                      <Checkbox checked={scopes.includes(s.id)} onCheckedChange={() => toggle(scopes, s.id, setScopes)} />
+                      <span className="flex-1">{s.label}</span>
+                      {c && (
+                        <span className="text-xs text-muted-foreground">
+                          <b className="text-foreground">{c.pending.toLocaleString("fr-FR")}</b> à traduire · {(c.total - c.pending).toLocaleString("fr-FR")} à jour
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <Button className="w-full" onClick={launch} disabled={busy || langs.length === 0 || scopes.length === 0}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+              Lancer la traduction
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

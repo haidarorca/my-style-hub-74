@@ -4256,11 +4256,13 @@ export type Database = {
           gender: string | null
           group_id: string | null
           group_option_label: string | null
+          group_option_label_i18n: Json | null
           group_position: number
           height_cm: number | null
           home_excluded: boolean
           home_position: number | null
           home_priority: number | null
+          i18n_meta: Json
           id: string
           is_active: boolean
           is_edit: boolean
@@ -4270,6 +4272,7 @@ export type Database = {
           material_composition: string | null
           material_composition_items: Json | null
           material_family: string | null
+          material_i18n: Json | null
           min_order_qty: number
           name: string
           name_i18n: Json | null
@@ -4288,7 +4291,9 @@ export type Database = {
           sku: string | null
           source: string
           source_country_id: string | null
+          source_lang: string | null
           specifications: Json | null
+          specifications_i18n: Json | null
           status: Database["public"]["Enums"]["product_status"]
           stock_status: string | null
           supplier_ref: string | null
@@ -4330,11 +4335,13 @@ export type Database = {
           gender?: string | null
           group_id?: string | null
           group_option_label?: string | null
+          group_option_label_i18n?: Json | null
           group_position?: number
           height_cm?: number | null
           home_excluded?: boolean
           home_position?: number | null
           home_priority?: number | null
+          i18n_meta?: Json
           id?: string
           is_active?: boolean
           is_edit?: boolean
@@ -4344,6 +4351,7 @@ export type Database = {
           material_composition?: string | null
           material_composition_items?: Json | null
           material_family?: string | null
+          material_i18n?: Json | null
           min_order_qty?: number
           name: string
           name_i18n?: Json | null
@@ -4362,7 +4370,9 @@ export type Database = {
           sku?: string | null
           source?: string
           source_country_id?: string | null
+          source_lang?: string | null
           specifications?: Json | null
+          specifications_i18n?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
           stock_status?: string | null
           supplier_ref?: string | null
@@ -4404,11 +4414,13 @@ export type Database = {
           gender?: string | null
           group_id?: string | null
           group_option_label?: string | null
+          group_option_label_i18n?: Json | null
           group_position?: number
           height_cm?: number | null
           home_excluded?: boolean
           home_position?: number | null
           home_priority?: number | null
+          i18n_meta?: Json
           id?: string
           is_active?: boolean
           is_edit?: boolean
@@ -4418,6 +4430,7 @@ export type Database = {
           material_composition?: string | null
           material_composition_items?: Json | null
           material_family?: string | null
+          material_i18n?: Json | null
           min_order_qty?: number
           name?: string
           name_i18n?: Json | null
@@ -4436,7 +4449,9 @@ export type Database = {
           sku?: string | null
           source?: string
           source_country_id?: string | null
+          source_lang?: string | null
           specifications?: Json | null
+          specifications_i18n?: Json | null
           status?: Database["public"]["Enums"]["product_status"]
           stock_status?: string | null
           supplier_ref?: string | null
@@ -5786,6 +5801,93 @@ export type Database = {
           },
         ]
       }
+      translation_dictionary: {
+        Row: {
+          attempts: number
+          created_at: string
+          kind: string
+          manual: Json
+          src: string
+          src_norm: string
+          tr: Json
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          kind: string
+          manual?: Json
+          src: string
+          src_norm: string
+          tr?: Json
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          kind?: string
+          manual?: Json
+          src?: string
+          src_norm?: string
+          tr?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      translation_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_scope: string | null
+          failed: Json
+          finished_at: string | null
+          id: string
+          langs: string[]
+          last_error: string | null
+          lease_until: string | null
+          pause_reason: string | null
+          scopes: string[]
+          started_at: string | null
+          stats: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_scope?: string | null
+          failed?: Json
+          finished_at?: string | null
+          id?: string
+          langs: string[]
+          last_error?: string | null
+          lease_until?: string | null
+          pause_reason?: string | null
+          scopes: string[]
+          started_at?: string | null
+          stats?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_scope?: string | null
+          failed?: Json
+          finished_at?: string | null
+          id?: string
+          langs?: string[]
+          last_error?: string | null
+          lease_until?: string | null
+          pause_reason?: string | null
+          scopes?: string[]
+          started_at?: string | null
+          stats?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ui_overrides: {
         Row: {
           key: string
@@ -6625,6 +6727,17 @@ export type Database = {
         Args: { _code: string; _exclude_product_id?: string; _shop_id: string }
         Returns: boolean
       }
+      product_i18n_hash: {
+        Args: {
+          _description: string
+          _designation: string
+          _grp: string
+          _material: string
+          _name: string
+          _specs: Json
+        }
+        Returns: string
+      }
       purge_expired_archived_orders: { Args: never; Returns: Json }
       purge_old_read_notifications: { Args: never; Returns: number }
       recalc_return_case_suggested: {
@@ -6736,6 +6849,66 @@ export type Database = {
       taobao_session_save: {
         Args: { _cookies: Json; _key: string; _nickname: string; _ua: string }
         Returns: undefined
+      }
+      translation_arm_worker: { Args: never; Returns: undefined }
+      translation_disarm_worker: { Args: never; Returns: undefined }
+      translation_pending_dict: {
+        Args: { _langs: string[]; _limit: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          kind: string
+          manual: Json
+          src: string
+          src_norm: string
+          tr: Json
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "translation_dictionary"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      translation_pending_products: {
+        Args: { _exclude: string[]; _langs: string[]; _limit: number }
+        Returns: string[]
+      }
+      translation_preview: { Args: { _langs: string[] }; Returns: Json }
+      translation_product_hashes: {
+        Args: { _ids: string[] }
+        Returns: {
+          h: string
+          id: string
+        }[]
+      }
+      translation_seed_dictionary: { Args: never; Returns: number }
+      translation_try_lease: {
+        Args: { _seconds: number }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          current_scope: string | null
+          failed: Json
+          finished_at: string | null
+          id: string
+          langs: string[]
+          last_error: string | null
+          lease_until: string | null
+          pause_reason: string | null
+          scopes: string[]
+          started_at: string | null
+          stats: Json
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "translation_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       update_currency: {
         Args: {

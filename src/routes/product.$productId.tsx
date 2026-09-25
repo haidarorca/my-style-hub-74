@@ -32,6 +32,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { useDisplayPriceLines } from "@/hooks/use-display-prices";
 import { useFormatDisplay } from "@/hooks/use-currencies";
 import { pickI18n } from "@/lib/i18n/localized";
+import { useOptionDictionary } from "@/hooks/use-option-dictionary";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { DeliveryAvailabilityBadge } from "@/components/product/DeliveryAvailabilityBadge";
@@ -220,7 +221,7 @@ function ProductPage() {
         .from("products")
         .select(
           `id, name, name_i18n, code, designation, designation_i18n, description, description_i18n, price, vendor_id, category_id,
-           specifications, stock_status, weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
+           specifications, specifications_i18n, material_i18n, stock_status, weight_kg, length_cm, width_cm, height_cm, brand, brand_id, warranty_days, is_fragile, min_order_qty, video_url, origin_country_id, fit_type, material, material_composition, material_composition_items, season, gender, age_group, care_instructions,
 
            group_id, group_option_label,
            product_images(url, position),
@@ -305,6 +306,7 @@ function ProductPage() {
       ),
     [colors, variants, size, sizes.length],
   );
+  const { tv, tn } = useOptionDictionary(variants, lang);
   // Libellés des options à partir des vrais noms CJ (jamais inventés).
   const { sizeLabel, colorLabel } = useMemo(() => {
     const names = variants.map((v) => v.cj_options).find((o) => o && Object.keys(o).length > 0);
@@ -313,10 +315,10 @@ function ProductPage() {
     const sizeKey = keys.find((k) => /size|尺码|尺寸|码/i.test(k));
     const others = keys.filter((k) => k !== sizeKey);
     return {
-      sizeLabel: sizeKey ? optionLabel(sizeKey) : null,
-      colorLabel: others.length ? others.map(optionLabel).join(" / ") : null,
+      sizeLabel: sizeKey ? tn(sizeKey) : null,
+      colorLabel: others.length ? others.map(tn).join(" / ") : null,
     };
-  }, [variants]);
+  }, [variants, tn]);
   const allSoldOut = variants.length > 0 && variants.every((v) => !isVariantAvailable(v));
 
   const matchedVariant = useMemo(() => {
@@ -706,7 +708,7 @@ function ProductPage() {
             const compoText = items.length > 0
               ? formatComposition(items)
               : ((data as any).material_composition as string | null) ?? null;
-            const matPrimary = (data as any).material as string | null;
+            const matPrimary = (data as any).material ? pickI18n((data as any).material, (data as any).material_i18n, lang) : null;
             const brandObj = (data as any).brands;
             const brandName = brandObj
               ? (Array.isArray(brandObj) ? brandObj[0]?.name : brandObj.name)
@@ -813,9 +815,9 @@ function ProductPage() {
                         .filter((v) => hasAnyMeasurement(v.measurements))
                         .map((v) => (
                           <tr key={v.id} className="border-t">
-                            <td className="p-2 font-semibold">{v.size ?? "—"}</td>
+                            <td className="p-2 font-semibold">{v.size ? tv(v.size) : "—"}</td>
                             {variants.some((x) => x.color) && (
-                              <td className="p-2 text-muted-foreground">{v.color ?? "—"}</td>
+                              <td className="p-2 text-muted-foreground">{v.color ? tv(v.color) : "—"}</td>
                             )}
                             {measurementFields.map((f) => {
                               const n = Number((v.measurements as any)?.[f.key]);
@@ -893,7 +895,7 @@ function ProductPage() {
                             : "border-border"
                       }`}
                     >
-                      {s}
+                      {tv(s)}
                       {out && <span className="ml-1 text-[10px] no-underline">· Rupture</span>}
                     </button>
                   );
@@ -934,7 +936,7 @@ function ProductPage() {
                           style={{ backgroundColor: hex }}
                         />
                       ) : null}
-                      {c}
+                      {tv(c)}
                       {out && <span className="text-[10px]">· Rupture</span>}
                     </button>
                   );
@@ -1102,7 +1104,9 @@ function ProductPage() {
 
           {(() => {
             // Caractéristiques : données fournisseur structurées + logistique de la variante.
-            const specs = (Array.isArray((data as any).specifications) ? (data as any).specifications : []) as ProductSpec[];
+            const specsBase = (Array.isArray((data as any).specifications) ? (data as any).specifications : []) as ProductSpec[];
+            const specsTr = (data as any).specifications_i18n?.[lang];
+            const specs = (Array.isArray(specsTr) && specsTr.length === specsBase.length ? specsTr : specsBase) as ProductSpec[];
             const src = matchedVariant ?? (variants.length === 1 ? variants[0] : null);
             const w = src?.weight_kg ?? (data as any).weight_kg;
             const L = src?.length_cm ?? (data as any).length_cm;

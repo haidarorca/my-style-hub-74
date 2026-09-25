@@ -41,6 +41,7 @@ import { confirmShipmentPayment } from "@/lib/admin-logistics.functions";
 import { getOrCreateShipmentAssessment } from "@/lib/shipment-assessments.functions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 
 export const Route = createFileRoute("/admin/")({
   component: ActionCenter,
@@ -230,6 +231,9 @@ function ActionCenter() {
             <MiniKPI label="Revenu 30j" value={gs ? `${(gs.orders.revenue_30d / 1000).toFixed(0)}k` : undefined} icon={DollarSign} color="text-warning" />
             <MiniKPI label="Expédiées" value={ls?.shipped} icon={Package} color="text-violet-400" />
           </div>
+
+          <TranslationSyncCard />
+
 
           {/* Reste à payer */}
           {ls && ls.total_remaining > 0 && (

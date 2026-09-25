@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
+import { pickI18n } from "@/lib/i18n/localized";
 
 type Member = {
   id: string;
@@ -25,6 +27,7 @@ export function GroupSelector({
   currentProductId: string;
   className?: string;
 }) {
+  const { lang } = useI18n();
   const { data } = useQuery({
     queryKey: ["product-group-public", groupId],
     queryFn: async () => {
@@ -32,7 +35,7 @@ export function GroupSelector({
         supabase.from("product_groups").select("name, criterion_label").eq("id", groupId).maybeSingle(),
         supabase
           .from("products")
-          .select("id, name, price, group_option_label, group_position, status")
+          .select("id, name, name_i18n, price, group_option_label, group_option_label_i18n, group_position, status")
           .eq("group_id", groupId)
           .eq("status", "approved")
           .order("group_position", { ascending: true }),
@@ -66,7 +69,7 @@ export function GroupSelector({
                 active ? "border-primary bg-primary/10 font-semibold" : "hover:bg-muted",
               )}
             >
-              <span className="block">{m.group_option_label || m.name}</span>
+              <span className="block">{pickI18n(m.group_option_label, (m as any).group_option_label_i18n, lang) || pickI18n(m.name, (m as any).name_i18n, lang)}</span>
               <span className="block text-[11px] text-muted-foreground">
                 {new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Number(m.price ?? 0))} FCFA
               </span>
