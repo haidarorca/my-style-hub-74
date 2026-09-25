@@ -4135,6 +4135,62 @@ export type Database = {
           },
         ]
       }
+      product_search_index: {
+        Row: {
+          attrs: string
+          category_id: string | null
+          cats: string
+          codes: string[]
+          created_at: string | null
+          descr: string
+          doc: string
+          names: string
+          price: number | null
+          product_id: string
+          status: string | null
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          attrs?: string
+          category_id?: string | null
+          cats?: string
+          codes?: string[]
+          created_at?: string | null
+          descr?: string
+          doc?: string
+          names?: string
+          price?: number | null
+          product_id: string
+          status?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          attrs?: string
+          category_id?: string | null
+          cats?: string
+          codes?: string[]
+          created_at?: string | null
+          descr?: string
+          doc?: string
+          names?: string
+          price?: number | null
+          product_id?: string
+          status?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_search_index_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           cj_options: Json | null
@@ -4998,6 +5054,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      search_synonyms: {
+        Row: {
+          grp: number
+          id: number
+          term: string
+        }
+        Insert: {
+          grp: number
+          id?: number
+          term: string
+        }
+        Update: {
+          grp?: number
+          id?: number
+          term?: string
+        }
+        Relationships: []
+      }
+      search_vocab: {
+        Row: {
+          word: string
+        }
+        Insert: {
+          word: string
+        }
+        Update: {
+          word?: string
+        }
+        Relationships: []
       }
       sensitive_ai_calls: {
         Row: {
@@ -6822,6 +6908,38 @@ export type Database = {
         }[]
       }
       run_reminder_engine: { Args: never; Returns: Json }
+      search_categories_v2: {
+        Args: { p_limit?: number; p_q: string }
+        Returns: {
+          id: string
+          level: number
+          logo_url: string
+          name: string
+          name_i18n: Json
+          score: number
+        }[]
+      }
+      search_expand: { Args: { p_q: string }; Returns: Json }
+      search_index_rebuild: { Args: { p_ids: string[] }; Returns: undefined }
+      search_jtxt: { Args: { j: Json }; Returns: string }
+      search_norm: { Args: { p: string }; Returns: string }
+      search_products_v2: {
+        Args: {
+          p_limit?: number
+          p_max?: number
+          p_min?: number
+          p_offset?: number
+          p_q: string
+          p_vendor_ids?: string[]
+        }
+        Returns: {
+          corrected: string
+          match_kind: string
+          product_id: string
+          score: number
+          total: number
+        }[]
+      }
       sensitive_input_hash: {
         Args: { p: Database["public"]["Tables"]["products"]["Row"] }
         Returns: string
