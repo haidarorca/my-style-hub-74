@@ -17,7 +17,7 @@ export function CjStockAlert() {
           {data.length} commande(s) : problème de stock CJ — action requise
         </p>
         <p className="text-xs text-muted-foreground">
-          {data.slice(0, 3).map((o) => `${o.reference ?? o.id.slice(0, 8)} (${o.issues.map((i) => i.product_name).join(", ").slice(0, 60)})`).join(" · ")}
+          {data.slice(0, 3).map((o: { id: string; reference: string | null; issues: Array<{ product_name: string }> }) => `${o.reference ?? o.id.slice(0, 8)} (${o.issues.map((i: { product_name: string }) => i.product_name).join(", ").slice(0, 60)})`).join(" · ")}
         </p>
       </div>
     </Link>
