@@ -36,6 +36,12 @@ export function InstallAppBanner() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosHint, setIosHint] = useState(false);
+  const [samsung, setSamsung] = useState(false);
+
+  const openInChrome = () => {
+    const { host, pathname, search } = window.location;
+    window.location.href = `intent://${host}${pathname}${search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent("https://play.google.com/store/apps/details?id=com.android.chrome")};end`;
+  };
 
   useEffect(() => {
     if (isStandalone() || recentlyDismissed()) return;
