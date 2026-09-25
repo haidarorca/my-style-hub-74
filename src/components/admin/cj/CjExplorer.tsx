@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { exploreCj, createCjJob, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
+import { exploreCj, createCjJob, smartSearchCj, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
 import { CriteriaForm, EMPTY_CRITERIA } from "./CriteriaForm";
 import { CjProductDetail } from "./CjProductDetail";
 
@@ -19,6 +19,8 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
   const qc = useQueryClient();
   const exploreFn = useServerFn(exploreCj);
   const jobFn = useServerFn(createCjJob);
+  const smartFn = useServerFn(smartSearchCj);
+  const [smart, setSmart] = useState<null | { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }>(null);
   const [criteria, setCriteria] = useState<Criteria>({ ...EMPTY_CRITERIA });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,19 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
     if (!criteria.keyword?.trim() && !criteria.categoryId) { toast.error("Indiquez un mot-clé ou choisissez une catégorie."); return; }
     setLoading(true);
     try {
+      if (criteria.keyword?.trim()) {
+        const r = await smartFn({ data: { keyword: criteria.keyword, criteria, deep: p > 1 } });
+        if (!r.ok || !r.stats) { toast.error(r.error ?? "Recherche impossible"); return; }
+        setPage(p);
+        setSmart(r.stats);
+        setRes({
+          hits: r.hits.map((h: any) => ({ ...h, weightKg: null, missing: [], needsSync: false, score: null, relevance: h.relevance })),
+          total: r.hits.length, totalPages: 1, excluded: r.stats.offTopic, deepChecked: false,
+        });
+        setResultFilter(criteria.newOnly === false ? "all" : "new");
+        return;
+      }
+      setSmart(null);
       const r = await exploreFn({ data: { criteria, page: p, size: 50 } });
       if (!r.ok) { toast.error(r.error ?? "Recherche impossible"); return; }
       setPage(p);
@@ -153,15 +168,16 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
       {res && <>
         <section className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>
-            <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>
+            {smart && <SmartSummary s={smart} deep={page > 1} loading={loading} onDeeper={() => search(2)} />}
+          {!smart && <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>}
+            {!smart && <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>}
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
             {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés'], ['sync', 'À synchroniser'], ['incomplete', 'Incomplets']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label}</Button>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
             <label className="flex items-center gap-2 text-sm font-medium"><Checkbox checked={pageSelected} onCheckedChange={togglePage} />Sélectionner la page</label>
-            {res.total > res.hits.length && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer selon les critères :</span>{[100, 500, 1000].filter((n) => n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(Math.min(res.total, 20000))}>Tous</Button></div>}
+            {!smart && res.total > res.hits.length && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer selon les critères :</span>{[100, 500, 1000].filter((n) => n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(Math.min(res.total, 20000))}>Tous</Button></div>}
           </div>
         </section>
 
@@ -171,6 +187,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
               <Button variant="ghost" className="absolute inset-0 z-0 h-full w-full rounded-none p-0" onClick={() => setDetail(h.pid)} aria-label={`Voir ${h.name ?? "le produit"}`} />
               {h.image ? <img src={h.image} alt={h.name ?? "Produit CJ"} loading="lazy" className="h-full w-full object-contain" /> : <div className="grid h-full place-items-center"><PackageSearch className="h-8 w-8 text-muted-foreground" /></div>}
               <label className="absolute left-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-md border bg-background/95 shadow-sm"><Checkbox checked={selected.has(h.pid)} onCheckedChange={() => toggle(h)} aria-label="Sélectionner ce produit" /></label>
+              {(h as any).relevance != null && <Badge variant="outline" className="absolute bottom-2 left-2 bg-background/95">Pertinence {(h as any).relevance}</Badge>}
               <Badge className="absolute right-2 top-2" variant={h.exists ? "secondary" : "default"}>{h.needsSync ? "À synchroniser" : h.exists ? <><CheckCircle2 className="h-3 w-3" />Déjà importé</> : "Nouveau"}</Badge>
             </div>
             <div className="space-y-3 p-3">
@@ -187,7 +204,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
             </div>
           </article>)}
         </div>
-        {!visible.length && <p className="py-12 text-center text-sm text-muted-foreground">Aucun produit dans cette vue.</p>}
+        {!visible.length && <p className="py-12 text-center text-sm text-muted-foreground">{smart ? (smart.relevant ? "Tous les produits pertinents trouvés sont déjà importés." : "Aucun produit pertinent trouvé, même après élargissement de la recherche.") : "Aucun produit dans cette vue."}</p>}
       </>}
 
       {selected.size > 0 && <div className="sticky bottom-3 z-30 mx-auto grid max-w-3xl gap-3 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -206,4 +223,30 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><p className="text-[11px] text-muted-foreground">{label}</p><p className="truncate font-medium">{value}</p></div>;
+}
+const STAGE_FR: Record<string, string> = { exact: "exacte", traduction: "traduction", synonymes: "synonyme", combinaison: "combinaison", "élargie": "élargie" };
+
+function SmartSummary({ s, deep, loading, onDeeper }: { s: NonNullable<Parameters<typeof SmartSummaryInner>[0]["s"]>; deep: boolean; loading: boolean; onDeeper: () => void }) {
+  return <SmartSummaryInner s={s} deep={deep} loading={loading} onDeeper={onDeeper} />;
+}
+
+function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }; deep: boolean; loading: boolean; onDeeper: () => void }) {
+  return (
+    <div className="col-span-2 min-w-0 space-y-2">
+      {s.corrected && <p className="text-xs text-muted-foreground">Recherche corrigée : <span className="font-medium text-foreground">{s.corrected}</span></p>}
+      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+        <Metric label="Recherche initiale" value={`${s.initialCount.toLocaleString("fr-FR")} résultat(s)`} />
+        <Metric label="Recherche élargie" value={`${s.examined.toLocaleString("fr-FR")} examinés`} />
+        <Metric label="Pertinents" value={String(s.relevant)} />
+        <Metric label="Déjà importés" value={String(s.alreadyImported)} />
+        <Metric label="Nouveaux disponibles" value={String(s.fresh)} />
+      </div>
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer">Recherches essayées ({s.queriesTried.length}) · {s.apiCalls} appel(s) CJ · {(s.ms / 1000).toFixed(1)} s</summary>
+        <ul className="mt-1 space-y-0.5">{s.queriesTried.map((q) => <li key={q.q}>« {q.q} » ({STAGE_FR[q.stage] ?? q.stage}) — {q.total.toLocaleString("fr-FR")} chez CJ, {q.relevant} pertinent(s)</li>)}</ul>
+        {s.offTopic > 0 && <p className="mt-1">{s.offTopic} résultat(s) hors sujet écarté(s).</p>}
+      </details>
+      {!deep && <Button size="sm" variant="outline" disabled={loading} onClick={onDeeper}>Élargir davantage la recherche</Button>}
+    </div>
+  );
 }
