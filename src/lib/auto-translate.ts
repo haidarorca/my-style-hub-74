@@ -76,3 +76,4 @@ export async function autoTranslateCategory(categoryId: string, name: string): P
     console.warn("autoTranslateCategory failed", e);
   }
 }
+void legacyAutoTranslateProduct;

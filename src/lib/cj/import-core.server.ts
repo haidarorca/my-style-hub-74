@@ -398,6 +398,8 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         code: p.productSku ?? pid,
         sku: p.productSku ?? null,
         name: nameEn ?? nameCn ?? pid,
+        // Langue réelle du texte fourni par CJ (jamais supposé français).
+        source_lang: nameEn ? "en" : nameCn ? "zh" : null,
         designation: nameCn ?? null,
         description: parsed.html,
         specifications: parsed.specs.length ? parsed.specs : null,
