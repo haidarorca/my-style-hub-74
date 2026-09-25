@@ -78,14 +78,20 @@ export interface ScheduleTarget {
 interface TargetState {
   q: number; page: number; exhausted: boolean; calls: number; examined: number; relevant: number;
   offTopic: number; existing: number; added: number; initial: number | null; reason?: string;
+  /** Famille : curseur par catégorie finale (page suivante, fin atteinte) et rotation. */
+  leaf?: number; lp?: Record<string, { p: number; end?: boolean; dry?: number; seen?: number }>;
 }
 const MAX_CALLS_PER_TARGET = 12;
 const MAX_PAGES_PER_QUERY = 5;
+const MAX_PAGES_PER_LEAF_RUN = 8;
 
 /**
  * Découverte multi-catégories : une page CJ par appel, catégorie par catégorie
  * (ordre de priorité), recherche élargie si besoin, passage à la suivante
  * quand la catégorie est pleine ou épuisée. Quota par catégorie OU global.
+ * Une cible peut être une FAMILLE ou SOUS-FAMILLE : ses catégories finales sont
+ * parcourues en rotation, les plus riches en nouveautés recevant naturellement
+ * plus de produits ; la position est mémorisée d'une exécution à l'autre.
  */
 async function discoverTargets(job: any, traces: CjCallTrace[]) {
   const a = await admin();
@@ -116,33 +122,66 @@ async function discoverTargets(job: any, traces: CjCallTrace[]) {
     await a.from("cj_import_jobs").update({ discover_done: true }).eq("id", job.id);
     return;
   }
-  const st: TargetState = tstate[target.key] ?? { q: 0, page: 1, exhausted: false, calls: 0, examined: 0, relevant: 0, offTopic: 0, existing: 0, added: 0, initial: null };
+  const carried = options.cursors?.[target.key];
+  const st: TargetState = tstate[target.key] ?? { q: 0, page: 1, exhausted: false, calls: 0, examined: 0, relevant: 0, offTopic: 0, existing: 0, added: 0, initial: null, leaf: carried?.leaf ?? 0, lp: carried?.lp ?? {} };
   const { buildQueryPlan, scoreHit } = await import("./smart-search");
+  const { resolveLeafIds } = await import("./category-tree.server");
+  const leaves = await resolveLeafIds(target.categoryId);
+  const isFamily = !!target.categoryId && (target.categoryId.startsWith("f:") || target.categoryId.startsWith("s:"));
   const plan = target.keyword ? buildQueryPlan(target.keyword) : null;
   const queries = plan ? plan.queries.map((q) => q.q) : [""];
+  const goal = target.quota > 0 ? target.quota : globalCap;
+  const maxCalls = isFamily ? Math.min(400, Math.max(MAX_CALLS_PER_TARGET, Math.ceil(goal / 12) + leaves.length)) : MAX_CALLS_PER_TARGET;
   const save = async () => {
     tstate[target.key] = st;
     await a.from("cj_import_jobs").update({ options: { ...options, tstate } }).eq("id", job.id);
   };
-  if (st.q >= queries.length || st.calls >= MAX_CALLS_PER_TARGET) {
-    st.exhausted = true; st.reason = st.calls >= MAX_CALLS_PER_TARGET ? "limite d'appels atteinte" : "recherches épuisées";
-    await save(); return;
+  if (isFamily && !leaves.length) { st.exhausted = true; st.reason = "famille introuvable"; await save(); return; }
+  if (st.calls >= maxCalls) { st.exhausted = true; st.reason = "limite d'appels atteinte"; await save(); return; }
+  if (!isFamily || plan) {
+    if (st.q >= queries.length) { st.exhausted = true; st.reason = "recherches épuisées"; await save(); return; }
   }
   const { listV2Cached } = await import("./smart-search.server");
-  const base: ImportCriteria = { ...c, targets: undefined, keyword: queries[st.q] || null, categoryId: target.categoryId ?? null } as any;
-  const r = await listV2Cached(base, st.page, 100, traces);
+
+  // Mode famille SANS mot-clé : rotation des catégories finales.
+  let leafId: string | null = null;
+  let page = st.page;
+  if (isFamily && !plan) {
+    st.lp = st.lp ?? {};
+    const lp = st.lp;
+    const usable = (id: string) => {
+      const s = lp[id];
+      return !(s?.end) && (s?.seen ?? 0) < MAX_PAGES_PER_LEAF_RUN && (s?.dry ?? 0) < 2;
+    };
+    let found = -1;
+    for (let k = 0; k < leaves.length; k++) {
+      const idx = ((st.leaf ?? 0) + k) % leaves.length;
+      if (usable(leaves[idx])) { found = idx; break; }
+    }
+    if (found < 0) { st.exhausted = true; st.reason = "toutes les sous-catégories parcourues"; await save(); return; }
+    leafId = leaves[found];
+    page = lp[leafId]?.p ?? 1;
+    st.leaf = found + 1;
+  }
+  const categoryId = isFamily ? (plan ? null : leafId) : (target.categoryId ?? null);
+  const base: ImportCriteria = { ...c, targets: undefined, keyword: queries[st.q] || null, categoryId } as any;
+  const r = await listV2Cached(base, page, 100, traces);
   if (!r.cached) st.calls++;
-  if (st.q === 0 && st.page === 1) st.initial = r.total;
-  const ex = await existingPidMap(r.items.map((i) => i.pid));
+  if (st.initial == null) st.initial = r.total;
+  const leafSet = isFamily && plan ? new Set(leaves) : null;
+  const items = leafSet ? r.items.filter((i) => i.categoryId && leafSet.has(String(i.categoryId))) : r.items;
+  const ex = await existingPidMap(items.map((i) => i.pid));
   const candidates: Array<{ pid: string; name: string | null; image: string | null; score: number }> = [];
-  for (const i of r.items) {
+  let pageRelevant = 0;
+  for (const i of items) {
     st.examined++;
     const s = plan ? scoreHit(plan, i) : { score: 50, relevant: true };
     if (!s.relevant) { st.offTopic++; continue; }
-    st.relevant++;
+    st.relevant++; pageRelevant++;
     if (ex.has(i.pid)) { st.existing++; continue; }
     candidates.push({ pid: i.pid, name: i.name, image: i.image, score: s.score });
   }
+  st.offTopic += r.items.length - items.length;
   const { data: still } = await a.from("cj_import_jobs").select("status").eq("id", job.id).single();
   if (!ACTIVE.includes(still?.status)) return;
   candidates.sort((x, y) => y.score - x.score);
@@ -154,9 +193,15 @@ async function discoverTargets(job: any, traces: CjCallTrace[]) {
     ).select("id");
     st.added += ins?.length ?? 0;
   }
-  // Page suivante seulement si utile ; sinon requête élargie suivante.
-  const pageRelevant = r.items.length - (plan ? r.items.filter((i) => !scoreHit(plan, i).relevant).length : 0);
-  if (!pageRelevant || st.page >= Math.min(r.totalPages || 1, MAX_PAGES_PER_QUERY)) { st.q++; st.page = 1; }
+  if (leafId) {
+    const cur = st.lp![leafId] ?? { p: 1 };
+    const end = !r.items.length || page >= (r.totalPages || 1) || page >= 1000;
+    st.lp![leafId] = {
+      p: end ? 1 : page + 1, end,
+      seen: (cur.seen ?? 0) + 1,
+      dry: candidates.length ? 0 : (cur.dry ?? 0) + 1,
+    };
+  } else if (!pageRelevant || page >= Math.min(r.totalPages || 1, MAX_PAGES_PER_QUERY * (isFamily ? 3 : 1))) { st.q++; st.page = 1; }
   else st.page++;
   await save();
 }
