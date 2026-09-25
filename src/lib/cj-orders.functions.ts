@@ -17,6 +17,34 @@
 // ═══════════════════════════════════════════════════════════════
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { StockIssue } from "@/lib/cj/stock.server";
+
+/** Recherche une commande CJ par notre référence (anti-doublon après coupure). */
+async function findCjOrderByNumber(orderNumber: string): Promise<any | null> {
+  const { cjGet } = await import("@/lib/cj/client.server");
+  try {
+    const traces: any[] = [];
+    const d = await cjGet<any>(`/shopping/order/list?pageNum=1&pageSize=50`, traces);
+    const list: any[] = Array.isArray(d?.list) ? d.list : [];
+    return list.find((o) => o?.orderNum === orderNumber) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Contrôle de stock CJ des lignes d'une commande, enregistré sur la commande. */
+async function runStockCheck(orderId: string, cjItems: any[], supabaseAdmin: any) {
+  const { checkCjVariantsStock, evaluateLines } = await import("@/lib/cj/stock.server");
+  const stocks = await checkCjVariantsStock(cjItems.map((i: any) => String(i.cj_variant_id)), supabaseAdmin, 20000);
+  const issues = evaluateLines(cjItems, stocks);
+  const onlyUnreachable = issues.length > 0 && issues.every((i) => i.reason === "injoignable");
+  await supabaseAdmin.from("orders").update({
+    cj_stock_status: issues.length === 0 ? "ok" : onlyUnreachable ? "unknown" : "issue",
+    cj_stock_issues: issues.length ? issues : null,
+    cj_stock_checked_at: new Date().toISOString(),
+  }).eq("id", orderId);
+  return { issues, stocks: Object.fromEntries([...stocks].map(([k, v]) => [k, v.stock])) };
+}
 
 async function assertAdmin(context: any) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", {
@@ -94,7 +122,7 @@ async function loadOrderForCj(orderId: string) {
       "id, reference, status, total, customer_name, customer_phone, address, city, created_at, " +
         "cj_order_id, cj_order_code, cj_order_number, cj_shipment_order_id, cj_order_status, cj_payment_status, " +
         "cj_logistic_name, cj_tracking_number, cj_tracking_provider, cj_tracking_url, " +
-        "cj_created_at, cj_paid_at, cj_shipped_at, cj_synced_at, cj_last_error, cj_is_sandbox",
+        "cj_created_at, cj_paid_at, cj_shipped_at, cj_synced_at, cj_last_error, cj_is_sandbox, cj_stock_status, cj_stock_checked_at, cj_stock_issues",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -145,6 +173,9 @@ export interface CjOrderOverview {
   cj_synced_at: string | null;
   cj_last_error: string | null;
   cj_is_sandbox: boolean;
+  cj_stock_status: string | null;
+  cj_stock_checked_at: string | null;
+  cj_stock_issues: StockIssue[] | null;
   items: Array<{
     id: string;
     product_name: string;
@@ -210,6 +241,9 @@ async function buildOverview(orderId: string): Promise<CjOrderOverview> {
     cj_synced_at: order.cj_synced_at ?? null,
     cj_last_error: order.cj_last_error ?? null,
     cj_is_sandbox: !!order.cj_is_sandbox,
+    cj_stock_status: order.cj_stock_status ?? null,
+    cj_stock_checked_at: order.cj_stock_checked_at ?? null,
+    cj_stock_issues: order.cj_stock_issues ?? null,
     items: items.map((i: any) => ({
       id: i.id,
       product_name: i.product_name,
@@ -454,7 +488,7 @@ export const createCjOrder = createServerFn({ method: "POST" })
         .from("orders")
         .update({ cj_last_error: r.body?.message ?? `HTTP ${r.status}`, cj_synced_at: new Date().toISOString() })
         .eq("id", order.id);
-      return { ok: false, http_status: r.status, cj_code: r.body?.code ?? null, message: r.body?.message ?? null, data: d };
+      return { ok: false, http_status: r.status, cj_code: r.body?.code ?? null, message: r.body?.message ?? null, data: d, stock_issues: [] as StockIssue[] };
     }
 
     await (supabaseAdmin as any)
@@ -483,7 +517,11 @@ export const createCjOrder = createServerFn({ method: "POST" })
       orderNumber,
       remark,
       data: d,
+      stock_issues: [] as StockIssue[],
     };
+    } finally {
+      await unlock();
+    }
   });
 
 // ─── Synchronisation du statut / suivi CJ ────────────────────────
@@ -554,4 +592,29 @@ export const syncCjOrder = createServerFn({ method: "POST" })
 
     await (supabaseAdmin as any).from("orders").update(patch).eq("id", order.id);
     return { ok: true, message: null, detail, status };
+  });
+
+// ─── Vérification manuelle du stock CJ d'une commande ───────────
+export const checkCjOrderStock = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { order_id: string }) => ({ order_id: String(input.order_id) }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context);
+    const { order, cjItems, supabaseAdmin } = await loadOrderForCj(data.order_id);
+    if (cjItems.length === 0) throw new Error("Aucun article CJ dans cette commande.");
+    const r = await runStockCheck(order.id, cjItems, supabaseAdmin);
+    return { issues: r.issues, stocks: r.stocks };
+  });
+
+/** Nombre de commandes bloquées pour problème de stock (alerte Cockpit). */
+export const countCjStockIssues = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as any)
+      .from("orders").select("id, reference, cj_stock_issues")
+      .eq("cj_stock_status", "issue").is("cj_order_id", null)
+      .neq("status", "cancelled").limit(50);
+    return (data ?? []).map((o: any) => ({ id: o.id, reference: o.reference, issues: (o.cj_stock_issues ?? []) as StockIssue[] }));
   });
