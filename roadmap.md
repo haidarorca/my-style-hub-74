@@ -19,3 +19,5 @@
 - [ ] Webhooks CJ (attente : activation dans le compte CJ)
 - [ ] Paiement CJ automatique (attente : plafond choisi par l'utilisateur)
 - [ ] Module Caisses CN-2026-xxx (attente : accord consolidation avec CJ)
+
+- [x] Cockpit : archivage fiable, suppression définitive protégée, rappels serveur, sons, tableau À faire, historique
