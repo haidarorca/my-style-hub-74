@@ -3509,6 +3509,35 @@ export type Database = {
           },
         ]
       }
+      product_facets: {
+        Row: {
+          colors: string[]
+          product_id: string
+          sizes: string[]
+          updated_at: string
+        }
+        Insert: {
+          colors?: string[]
+          product_id: string
+          sizes?: string[]
+          updated_at?: string
+        }
+        Update: {
+          colors?: string[]
+          product_id?: string
+          sizes?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_facets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_group_media: {
         Row: {
           created_at: string
@@ -3942,6 +3971,7 @@ export type Database = {
         Row: {
           cj_options: Json | null
           color: string | null
+          color_family: string | null
           color_hex: string | null
           cost_currency_code: string | null
           cost_price: number | null
@@ -3955,6 +3985,7 @@ export type Database = {
           price_override: number | null
           product_id: string
           size: string | null
+          size_norm: string | null
           stock: number
           supplier_available: boolean
           supplier_ref: string | null
@@ -3968,6 +3999,7 @@ export type Database = {
         Insert: {
           cj_options?: Json | null
           color?: string | null
+          color_family?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
           cost_price?: number | null
@@ -3981,6 +4013,7 @@ export type Database = {
           price_override?: number | null
           product_id: string
           size?: string | null
+          size_norm?: string | null
           stock?: number
           supplier_available?: boolean
           supplier_ref?: string | null
@@ -3994,6 +4027,7 @@ export type Database = {
         Update: {
           cj_options?: Json | null
           color?: string | null
+          color_family?: string | null
           color_hex?: string | null
           cost_currency_code?: string | null
           cost_price?: number | null
@@ -4007,6 +4041,7 @@ export type Database = {
           price_override?: number | null
           product_id?: string
           size?: string | null
+          size_norm?: string | null
           stock?: number
           supplier_available?: boolean
           supplier_ref?: string | null
@@ -4066,6 +4101,7 @@ export type Database = {
           material: string | null
           material_composition: string | null
           material_composition_items: Json | null
+          material_family: string | null
           min_order_qty: number
           name: string
           name_i18n: Json | null
@@ -4139,6 +4175,7 @@ export type Database = {
           material?: string | null
           material_composition?: string | null
           material_composition_items?: Json | null
+          material_family?: string | null
           min_order_qty?: number
           name: string
           name_i18n?: Json | null
@@ -4212,6 +4249,7 @@ export type Database = {
           material?: string | null
           material_composition?: string | null
           material_composition_items?: Json | null
+          material_family?: string | null
           min_order_qty?: number
           name?: string
           name_i18n?: Json | null
@@ -6290,6 +6328,8 @@ export type Database = {
         Args: { _lat: number; _lng: number; _poly: Json }
         Returns: number
       }
+      kz_color_family: { Args: { _c: string }; Returns: string }
+      kz_material_family: { Args: { _m: string }; Returns: string }
       log_admin_action: {
         Args: {
           _action: string
@@ -6383,6 +6423,7 @@ export type Database = {
         Args: { _product_id: string }
         Returns: undefined
       }
+      refresh_product_facets: { Args: { _ids: string[] }; Returns: undefined }
       register_share_click: {
         Args: { _code: string; _referer?: string; _user_agent?: string }
         Returns: undefined
@@ -6436,6 +6477,7 @@ export type Database = {
         Args: { _code: string; _margin?: number; _note?: string; _rate: number }
         Returns: string
       }
+      shop_catalog: { Args: { _f: Json }; Returns: Json }
       taobao_session_clear: { Args: never; Returns: undefined }
       taobao_session_load: { Args: { _key: string }; Returns: Json }
       taobao_session_mark_expired: { Args: never; Returns: undefined }

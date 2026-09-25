@@ -12,7 +12,7 @@ import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useSiteSettings, useHomeBanners } from "@/hooks/use-site-settings";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
-import { Flame, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { Flame, ShieldCheck, Sparkles, Truck, SlidersHorizontal } from "lucide-react";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { useHomeSections } from "@/hooks/use-home-sections";
@@ -347,6 +347,18 @@ function Home() {
             />
           )
         )}
+
+        {/* Accès au catalogue filtrable */}
+        <Link
+          to="/catalogue"
+          className="mt-5 flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
+            <span className="truncate font-semibold">Filtrer tout le catalogue</span>
+          </span>
+          <span className="shrink-0 text-xs text-muted-foreground">Matière · Couleur · Taille · Prix · Pays</span>
+        </Link>
 
         {/* Catégories — cartes compactes */}
         {showKind("categories") && universes && universes.length > 0 && (

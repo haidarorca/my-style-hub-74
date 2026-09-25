@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listCjSchedules, saveCjSchedule, deleteCjSchedule, runCjScheduleNow, getCjJobReport, type Criteria, type ScheduleTarget } from "@/lib/cj-center.functions";
 import { EMPTY_CRITERIA } from "./CriteriaForm";
+import { CategoryTreePicker, type CjNode } from "./CategoryTreePicker";
 
 type Draft = { id: string | null; name: string; enabled: boolean; hourUtc: number; maxNew: number; criteria: Criteria };
 const newTarget = (i: number): ScheduleTarget => ({ key: `t${Date.now().toString(36)}${i}`, label: "", keyword: "", categoryId: null, quota: 10, priority: i + 1 });
@@ -31,7 +32,7 @@ function toDraft(s: any): Draft {
   return { id: s.id, name: s.name, enabled: s.enabled, hourUtc: s.hour_utc, maxNew: s.max_new, criteria: c };
 }
 
-export function CjSchedulesPanel({ categories }: { categories: Array<{ id: string; path: string }> }) {
+export function CjSchedulesPanel({ categories, nodes = [] }: { categories: Array<{ id: string; path: string }>; nodes?: CjNode[] }) {
   const qc = useQueryClient();
   const listFn = useServerFn(listCjSchedules);
   const saveFn = useServerFn(saveCjSchedule);
@@ -41,15 +42,16 @@ export function CjSchedulesPanel({ categories }: { categories: Array<{ id: strin
   const [report, setReport] = useState<string | null>(null);
   const { data } = useQuery({ queryKey: ["cj-schedules"], queryFn: () => listFn() });
   const refresh = () => qc.invalidateQueries({ queryKey: ["cj-schedules"] });
-  const catName = (id?: string | null) => categories.find((c) => c.id === id)?.path.split(" > ").pop() ?? null;
+  const allNodes: CjNode[] = nodes.length ? nodes : categories.map((c) => ({ ...c, level: 3 as const }));
+  const catName = (id?: string | null) => allNodes.find((c) => c.id === id)?.path.split(" › ").pop() ?? null;
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b pb-4">
-        <div className="min-w-0"><h2 className="font-semibold">Imports automatiques</h2><p className="text-sm text-muted-foreground">« Tous les jours, cherche 10 nouveaux produits dans ces catégories. » La recherche continue sur le serveur, page fermée.</p></div>
+        <div className="min-w-0"><h2 className="font-semibold">Imports automatiques</h2><p className="text-sm text-muted-foreground">Choisissez une famille entière ou une sous-catégorie, et un nombre de produits par jour (jusqu'à 5 000). La recherche continue sur le serveur, page fermée.</p></div>
         {!draft && <Button size="sm" onClick={() => setDraft(structuredClone(NEW))}><Plus className="h-4 w-4" />Nouvelle règle</Button>}
       </div>
-      {draft && <RuleEditor draft={draft} setDraft={setDraft} categories={categories} onSave={async () => {
+      {draft && <RuleEditor draft={draft} setDraft={setDraft} nodes={allNodes} onSave={async () => {
         const targets = (draft.criteria.targets ?? []).filter((t) => t.keyword?.trim() || t.categoryId);
         if (!targets.length) { toast.error("Ajoutez au moins une recherche (mot-clé ou catégorie)."); return; }
         const criteria = { ...draft.criteria, targets: targets.map((t, i) => ({ ...t, label: t.label || t.keyword || catName(t.categoryId) || `Recherche ${i + 1}`, priority: i + 1 })) };
@@ -95,7 +97,7 @@ function NumIn({ label, value, onChange, min = 0 }: { label: string; value: numb
   return <div className="space-y-1"><Label className="text-[11px]">{label}</Label><Input type="number" min={min} className="h-9" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} /></div>;
 }
 
-function RuleEditor({ draft, setDraft, categories, onSave }: { draft: Draft; setDraft: (d: Draft | null) => void; categories: Array<{ id: string; path: string }>; onSave: () => void }) {
+function RuleEditor({ draft, setDraft, nodes, onSave }: { draft: Draft; setDraft: (d: Draft | null) => void; nodes: CjNode[]; onSave: () => void }) {
   const c = draft.criteria;
   const targets = c.targets ?? [];
   const setC = (patch: Partial<Criteria>) => setDraft({ ...draft, criteria: { ...c, ...patch } });
@@ -113,12 +115,9 @@ function RuleEditor({ draft, setDraft, categories, onSave }: { draft: Draft; set
           {targets.map((t, i) => (
             <div key={t.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border p-2">
               <div className="flex flex-col"><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => move(i, -1)} aria-label="Monter"><ArrowUp className="h-3 w-3" /></Button><span className="text-center text-xs font-semibold">{i + 1}</span><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => move(i, 1)} aria-label="Descendre"><ArrowDown className="h-3 w-3" /></Button></div>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_90px]">
-                <Input className="h-9" value={t.keyword ?? ""} onChange={(e) => setT(i, { keyword: e.target.value, label: e.target.value })} placeholder="Mot-clé (français ou anglais)" />
-                <Select value={t.categoryId ?? "all"} onValueChange={(v) => setT(i, { categoryId: v === "all" ? null : v })}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Catégorie CJ" /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">Toutes les catégories CJ</SelectItem>{categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.path}</SelectItem>)}</SelectContent>
-                </Select>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_90px]">
+                <Input className="h-9" value={t.keyword ?? ""} onChange={(e) => setT(i, { keyword: e.target.value, label: e.target.value })} placeholder="Mot-clé (facultatif)" />
+                <CategoryTreePicker className="h-9" nodes={nodes} value={t.categoryId} onChange={(id) => setT(i, { categoryId: id })} placeholder="Toutes les catégories CJ" />
                 <Input className="h-9" type="number" min={0} value={t.quota} onChange={(e) => setT(i, { quota: Math.max(0, Number(e.target.value) || 0) })} aria-label="Quota" title={perCat ? "Produits max pour cette recherche" : "Plafond facultatif (0 = sans limite)"} />
               </div>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setC({ targets: targets.filter((_, j) => j !== i) })} aria-label="Retirer"><X className="h-4 w-4" /></Button>
@@ -135,7 +134,7 @@ function RuleEditor({ draft, setDraft, categories, onSave }: { draft: Draft; set
               <SelectContent><SelectItem value="per_category">Quota par catégorie</SelectItem><SelectItem value="global">Quota global (ordre de priorité)</SelectItem></SelectContent>
             </Select>
           </div>
-          <NumIn label={perCat ? "Maximum total / exécution" : "Quota global"} value={draft.maxNew} min={1} onChange={(v) => setDraft({ ...draft, maxNew: Math.max(1, v ?? 1) })} />
+          <NumIn label={perCat ? "Maximum total par exécution" : "Produits par exécution"} value={draft.maxNew} min={1} onChange={(v) => setDraft({ ...draft, maxNew: Math.max(1, v ?? 1) })} />
           <div className="space-y-1">
             <Label className="text-[11px]">Fréquence</Label>
             <Select value={String(c.frequencyDays ?? 1)} onValueChange={(v) => setC({ frequencyDays: Number(v) })}>

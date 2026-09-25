@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { exploreCj, createCjJob, smartSearchCj, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
 import { CriteriaForm, EMPTY_CRITERIA } from "./CriteriaForm";
 import { CjProductDetail } from "./CjProductDetail";
+import { CategoryTreePicker, type CjNode } from "./CategoryTreePicker";
 
 type ResultFilter = "all" | "new" | "existing" | "sync" | "incomplete";
 
-export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ id: string; path: string }>; onJobCreated: () => void }) {
+export function CjExplorer({ categories, nodes = [], onJobCreated }: { categories: Array<{ id: string; path: string }>; nodes?: CjNode[]; onJobCreated: () => void }) {
   const qc = useQueryClient();
   const exploreFn = useServerFn(exploreCj);
   const jobFn = useServerFn(createCjJob);
@@ -30,6 +31,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resultFilter, setResultFilter] = useState<ResultFilter>("new");
   const [busy, setBusy] = useState(false);
+  const [sortBy, setSortBy] = useState<"relevance" | "price_asc" | "price_desc" | "stock">("relevance");
 
   const visible = useMemo(() => (res?.hits ?? []).filter((h) => {
     if (resultFilter === "new") return !h.exists;
@@ -37,12 +39,17 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
     if (resultFilter === "sync") return h.needsSync;
     if (resultFilter === "incomplete") return h.missing.length > 0;
     return true;
-  }), [res, resultFilter]);
+  }).sort((a, b) => {
+    if (sortBy === "price_asc") return (a.price ?? Infinity) - (b.price ?? Infinity);
+    if (sortBy === "price_desc") return (b.price ?? -1) - (a.price ?? -1);
+    if (sortBy === "stock") return (b.stock ?? -1) - (a.stock ?? -1);
+    return 0;
+  }), [res, resultFilter, sortBy]);
   const selectedRows = [...selected.values()];
   const selectedNew = selectedRows.filter((h) => !h.exists);
   const selectedExisting = selectedRows.filter((h) => h.exists);
   const pageSelected = visible.length > 0 && visible.every((h) => selected.has(h.pid));
-  const categoryLabel = categories.find((c) => c.id === criteria.categoryId)?.path;
+  const categoryLabel = (nodes.find((n) => n.id === criteria.categoryId) ?? categories.find((c) => c.id === criteria.categoryId))?.path;
 
   async function search(p = 1) {
     if (!criteria.keyword?.trim() && !criteria.categoryId) { toast.error("Indiquez un mot-clé ou choisissez une catégorie."); return; }
@@ -89,7 +96,7 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
 
   async function createJob(kind: "import" | "sync", rows: ExploreHit[], targetCount?: number) {
     return jobFn({ data: targetCount
-      ? { kind: "import", criteria: { ...criteria, newOnly: true }, targetCount, name: `Import par critères — ${criteria.keyword || categoryLabel || "catalogue"} (${targetCount})` }
+      ? { kind: "import", criteria: { ...criteria, newOnly: true, quotaMode: "global", targets: [{ key: "t1", label: criteria.keyword || categoryLabel || "Catalogue", keyword: criteria.keyword || null, categoryId: criteria.categoryId ?? null, quota: 0, priority: 1 }] }, targetCount, name: `Import par critères — ${criteria.keyword || categoryLabel || "catalogue"} (${targetCount})` }
       : { kind, criteria, pids: rows.map((h) => ({ pid: h.pid, name: h.name, image: h.image })), syncParts: kind === "sync" ? ["stock", "price", "images", "variants", "data"] : [] }
     });
   }
@@ -134,15 +141,12 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
   return (
     <div className="space-y-5">
       <section className="space-y-3 border-b pb-5">
-        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_240px_auto]" onSubmit={(e) => { e.preventDefault(); search(1); }}>
+        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_280px_auto]" onSubmit={(e) => { e.preventDefault(); search(1); }}>
           <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="h-11 pl-9" value={criteria.keyword ?? ""} onChange={(e) => setCriteria({ ...criteria, keyword: e.target.value })} placeholder="Rechercher un produit, un SKU…" />
           </div>
-          <Select value={criteria.categoryId ?? "all"} onValueChange={(value) => setCriteria({ ...criteria, categoryId: value === "all" ? null : value })}>
-            <SelectTrigger className="h-11"><SelectValue placeholder="Toutes les catégories" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.path}</SelectItem>)}</SelectContent>
-          </Select>
+          <CategoryTreePicker nodes={nodes.length ? nodes : categories.map((c) => ({ ...c, level: 3 as const }))} value={criteria.categoryId} onChange={(id) => setCriteria({ ...criteria, categoryId: id })} />
           <Button type="submit" className="h-11" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}<span>Rechercher</span></Button>
         </form>
 
@@ -176,8 +180,14 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
             {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés'], ['sync', 'À synchroniser'], ['incomplete', 'Incomplets']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label}</Button>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
-            <label className="flex items-center gap-2 text-sm font-medium"><Checkbox checked={pageSelected} onCheckedChange={togglePage} />Sélectionner la page</label>
-            {!smart && res.total > res.hits.length && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer selon les critères :</span>{[100, 500, 1000].filter((n) => n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(Math.min(res.total, 20000))}>Tous</Button></div>}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium"><Checkbox checked={pageSelected} onCheckedChange={togglePage} />Tout sélectionner</label>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+                <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="relevance">Pertinence</SelectItem><SelectItem value="price_asc">Prix croissant</SelectItem><SelectItem value="price_desc">Prix décroissant</SelectItem><SelectItem value="stock">Stock le plus élevé</SelectItem></SelectContent>
+              </Select>
+            </div>
+            {(smart || res.total > res.hits.length) && <div className="flex flex-wrap items-center justify-end gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Importer automatiquement les nouveaux :</span>{[100, 500, 1000].filter((n) => smart || n <= res.total).map((n) => <Button key={n} size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(n)}>{n.toLocaleString("fr-FR")}</Button>)}<Button size="sm" variant="outline" disabled={busy} onClick={() => launchTarget(smart ? 2000 : Math.min(res.total, 20000))}>{smart ? "2 000" : "Tous"}</Button></div>}
           </div>
         </section>
 
@@ -187,7 +197,6 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
               <Button variant="ghost" className="absolute inset-0 z-0 h-full w-full rounded-none p-0" onClick={() => setDetail(h.pid)} aria-label={`Voir ${h.name ?? "le produit"}`} />
               {h.image ? <img src={h.image} alt={h.name ?? "Produit CJ"} loading="lazy" className="h-full w-full object-contain" /> : <div className="grid h-full place-items-center"><PackageSearch className="h-8 w-8 text-muted-foreground" /></div>}
               <label className="absolute left-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-md border bg-background/95 shadow-sm"><Checkbox checked={selected.has(h.pid)} onCheckedChange={() => toggle(h)} aria-label="Sélectionner ce produit" /></label>
-              {(h as any).relevance != null && <Badge variant="outline" className="absolute bottom-2 left-2 bg-background/95">Pertinence {(h as any).relevance}</Badge>}
               <Badge className="absolute right-2 top-2" variant={h.exists ? "secondary" : "default"}>{h.needsSync ? "À synchroniser" : h.exists ? <><CheckCircle2 className="h-3 w-3" />Déjà importé</> : "Nouveau"}</Badge>
             </div>
             <div className="space-y-3 p-3">
@@ -195,12 +204,12 @@ export function CjExplorer({ categories, onJobCreated }: { categories: Array<{ i
               <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                 <Metric label="Prix" value={h.price != null ? `${h.price} USD` : "À vérifier"} />
                 <Metric label="Stock" value={h.stock != null ? h.stock.toLocaleString("fr-FR") : "À vérifier"} />
-                <Metric label="Variantes" value={h.variantCount != null ? String(h.variantCount) : "Voir la fiche"} />
-                <Metric label="Poids" value={h.weightKg != null ? `${h.weightKg} kg` : "Voir la fiche"} />
+                {h.variantCount != null && <Metric label="Variantes" value={String(h.variantCount)} />}
+                {h.weightKg != null && <Metric label="Poids" value={`${h.weightKg} kg`} />}
                 {h.material != null && <Metric label="Matière" value={h.material} />}
                 {h.imageCount != null && <Metric label="Images" value={String(h.imageCount)} />}
               </div>
-              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-success"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.score != null ? `Données complètes : ${h.score} %` : h.missing.length ? "Données manquantes" : "Complet"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
+              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-muted-foreground"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.score != null ? `Complet à ${h.score} %` : h.missing.length ? "Données manquantes" : "—"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
             </div>
           </article>)}
         </div>
@@ -230,15 +239,11 @@ function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: 
   return (
     <div className="col-span-2 min-w-0 space-y-2">
       {s.corrected && <p className="text-xs text-muted-foreground">Recherche corrigée : <span className="font-medium text-foreground">{s.corrected}</span></p>}
-      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-        <Metric label="Recherche initiale" value={`${s.initialCount.toLocaleString("fr-FR")} résultat(s)`} />
-        <Metric label="Recherche élargie" value={`${s.examined.toLocaleString("fr-FR")} examinés`} />
-        <Metric label="Pertinents" value={String(s.relevant)} />
-        <Metric label="Déjà importés" value={String(s.alreadyImported)} />
-        <Metric label="Nouveaux disponibles" value={String(s.fresh)} />
-      </div>
+      <h2 className="text-lg font-semibold">{s.fresh} nouveau(x) produit(s) pertinent(s)</h2>
+      <p className="text-xs text-muted-foreground">{s.relevant} pertinent(s) dont {s.alreadyImported} déjà importé(s)</p>
       <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer">Recherches essayées ({s.queriesTried.length}) · {s.apiCalls} appel(s) CJ · {(s.ms / 1000).toFixed(1)} s</summary>
+        <summary className="cursor-pointer">Détails de la recherche</summary>
+        <p className="mt-1">{s.examined.toLocaleString("fr-FR")} produits examinés · {s.apiCalls} appel(s) CJ · {(s.ms / 1000).toFixed(1)} s</p>
         <ul className="mt-1 space-y-0.5">{s.queriesTried.map((q) => <li key={q.q}>« {q.q} » ({STAGE_FR[q.stage] ?? q.stage}) — {q.total.toLocaleString("fr-FR")} chez CJ, {q.relevant} pertinent(s)</li>)}</ul>
         {s.offTopic > 0 && <p className="mt-1">{s.offTopic} résultat(s) hors sujet écarté(s).</p>}
       </details>

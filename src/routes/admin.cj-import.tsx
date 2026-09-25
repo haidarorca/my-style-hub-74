@@ -63,6 +63,7 @@ function CjCenter() {
   const [tab, setTab] = useState("explore");
   const { data: tree } = useQuery({ queryKey: ["cj-cat-tree"], queryFn: () => treeFn(), staleTime: 3600_000 });
   const categories = tree?.categories ?? [];
+  const nodes = (tree as any)?.nodes ?? [];
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-5 p-3 sm:p-5 lg:p-6">
       <div className="flex min-w-0 items-center gap-3">
@@ -81,9 +82,9 @@ function CjCenter() {
           <TabsTrigger value="schedules">Programmés</TabsTrigger>
           <TabsTrigger value="single">Produit unique</TabsTrigger>
         </TabsList>
-        <TabsContent value="explore"><CjExplorer categories={categories} onJobCreated={() => setTab("jobs")} /></TabsContent>
+        <TabsContent value="explore"><CjExplorer categories={categories} nodes={nodes} onJobCreated={() => setTab("jobs")} /></TabsContent>
         <TabsContent value="jobs"><CjJobsPanel /></TabsContent>
-        <TabsContent value="schedules"><CjSchedulesPanel categories={categories} /></TabsContent>
+        <TabsContent value="schedules"><CjSchedulesPanel categories={categories} nodes={nodes} /></TabsContent>
         <TabsContent value="single"><CjImportPage /></TabsContent>
       </Tabs>
     </div>

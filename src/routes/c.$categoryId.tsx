@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard, type ProductCardProduct } from "@/components/product/ProductCard";
 import { RecommendationBlock } from "@/components/product/RecommendationBlock";
@@ -269,9 +269,18 @@ function CategoryPage() {
 
         {/* Products grid */}
         <section>
-          <h2 className="mb-3 text-base font-bold">
-            {hasChildren ? t("category.all_products") : categoryName || t("nav.products")}
-          </h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="min-w-0 truncate text-base font-bold">
+              {hasChildren ? t("category.all_products") : categoryName || t("nav.products")}
+            </h2>
+            <Link
+              to="/catalogue"
+              search={{ cat: categoryId } as any}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold hover:border-primary"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />Filtrer
+            </Link>
+          </div>
           {productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
