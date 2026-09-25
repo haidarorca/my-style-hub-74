@@ -7,3 +7,6 @@
 - [x] Transport : moteur central unique panier/checkout (minimum et frais fixes une fois par envoi)
 - [ ] Tester la synchro « stock seul »
 - [x] Validation produits : validation automatique CJ, origine, filtres serveur, liste infinie, tout sélectionner par filtre, actions en masse par lots
+- [x] Sourcing CJ : sélection famille / sous-famille / sous-sous-famille (manuel + programmé), quota jusqu'à 5 000/jour, reprise du parcours d'un jour à l'autre
+- [x] Import manuel réorganisé (sélecteur en arbre, tri, détails repliés, import auto des nouveaux)
+- [x] Catalogue public filtrable (/catalogue) : matière, couleur, taille, pays, prix, stock, tri
