@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight, ScanLine } from "lucide-react";
+import { MapPin, Plus, Pencil, Trash2, Star, Crosshair, ArrowLeft, Package, Store, ChevronRight, ScanLine, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -373,6 +373,7 @@ function AccountPage() {
 
         <SettingsSection title="Commandes">
           <SettingsLinkRow to="/orders" icon={<Package />} title={t("nav.orders")} description="Suivi, factures et historique" />
+          <SettingsLinkRow to="/favorites" icon={<Heart />} title="Mes favoris" description="Produits enregistrés avec le cœur" />
         </SettingsSection>
 
         <SettingsSection title="Vendeur">
