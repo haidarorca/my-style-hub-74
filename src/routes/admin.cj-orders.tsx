@@ -488,7 +488,9 @@ function CjOrdersPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{o.reference ?? o.order_id.slice(0, 8)}</span>
-                {o.cj_order_id ? (
+                {o.cj_stock_status === "issue" && !o.cj_order_id ? (
+                  <Badge variant="destructive">Problème de stock</Badge>
+                ) : o.cj_order_id ? (
                   <Badge>CJ : {o.cj_order_status ?? "créée"}</Badge>
                 ) : (
                   <Badge variant="secondary">CJ : non créée</Badge>
