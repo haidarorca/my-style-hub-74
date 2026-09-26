@@ -110,8 +110,8 @@ export const Route = createFileRoute("/s/$code")({
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:url" content="${escapeHtml(target)}" />
 <meta property="og:image" content="${escapeHtml(ogImage)}" />
-<meta property="og:image:width" content="800" />
-<meta property="og:image:height" content="420" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 ${
   product?.price != null
     ? `<meta property="product:price:amount" content="${product.price}" />
