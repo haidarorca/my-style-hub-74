@@ -25,8 +25,13 @@ export function looksLikeSize(value: string): boolean {
   if (/^\d{1,3}(\.\d)?$/.test(numeric)) return true;
   // Tailles composées : « 2XL », « XL/XXL », « 90B »
   if (/^\d{1,2}\s?(x{1,3}l|xs|s|m|l)$/i.test(v)) return true;
+  // Tailles enfants : stature chinoise (« 80cm », « 120 cm »)
+  if (/^\d{2,3}\s?cm$/i.test(v)) return true;
+  // Tailles enfants US : « 2T », « 6M », « 24M », « 5Y »
+  if (/^\d{1,2}\s?(t|m|y)$/i.test(v)) return true;
   return false;
 }
+
 
 /**
  * Découpe une clé de variante fournisseur en { size, color } en
@@ -70,14 +75,29 @@ export function parseCjVariantOptions(
   const names = typeof productKeyEn === "string" && productKeyEn.trim()
     ? productKeyEn.split("-").map((s) => s.trim()).filter(Boolean)
     : [];
-  const isSize = (n: string) => /size|尺码|尺寸|码/i.test(n);
+  // Nom de dimension explicitement « taille ».
+  const isStrictSize = (n: string) => /size|taille|尺码|尺寸|码/i.test(n);
+  // Noms utilisés par les fournisseurs enfants : « Suitable For Height »,
+  // « Child size », « Age », « 身高 », « 年龄 ». Ils ne comptent comme taille
+  // que si la valeur associée ressemble réellement à une taille.
+  const isSoftSize = (n: string) => /height|stature|age\b|ages\b|âge|month|year|身高|年龄|岁/i.test(n);
   let values = key.split("-").map((s) => s.trim()).filter(Boolean);
+
+  const pickSizeIdx = (ns: string[], vs: string[]): number => {
+    const strict = ns.findIndex(isStrictSize);
+    if (strict >= 0) return strict;
+    const soft = ns.findIndex((n, i) => isSoftSize(n) && (!vs[i] || looksLikeSize(vs[i]!)));
+    if (soft >= 0) return soft;
+    // Dernier recours : une seule valeur ressemble à une taille.
+    const like = vs.map((v, i) => (looksLikeSize(v) ? i : -1)).filter((i) => i >= 0);
+    return like.length === 1 ? like[0]! : -1;
+  };
 
   if (names.length === 1) values = [key];
   if (names.length && names.length < values.length && names.length > 1) {
     // Une valeur contient un tiret (« All-Black-44 ») : on regroupe dans la
     // dimension non-taille, la taille restant la valeur isolée à sa position.
-    const sizeIdx = names.findIndex(isSize);
+    const sizeIdx = names.findIndex((n) => isStrictSize(n) || isSoftSize(n));
     if (names.length === 2 && sizeIdx >= 0) {
       values = sizeIdx === 0
         ? [values[0]!, values.slice(1).join("-")]
@@ -87,11 +107,17 @@ export function parseCjVariantOptions(
   if (names.length && names.length === values.length) {
     const options: Record<string, string> = {};
     names.forEach((n, i) => { options[n] = values[i]!; });
-    const sIdx = names.findIndex(isSize);
+    const sIdx = pickSizeIdx(names, values);
     const size = sIdx >= 0 ? values[sIdx]! : null;
     const rest = values.filter((_, i) => i !== sIdx).join(" / ");
     return { size, color: rest || null, options };
   }
-  // Ambigu ou noms absents : rien n'est deviné, la clé est gardée entière.
+  // Noms absents ou ambigus : on détecte quand même la taille dans la clé,
+  // sans jamais réécrire les valeurs fournisseur.
+  const guessed = parseVariantKey(key);
+  if (guessed.size && looksLikeSize(guessed.size)) {
+    return { size: guessed.size, color: guessed.color, options: { Size: guessed.size, ...(guessed.color ? { Option: guessed.color } : {}) } };
+  }
   return { size: null, color: key, options: { Option: key } };
+
 }

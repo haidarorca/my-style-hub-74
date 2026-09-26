@@ -9,6 +9,8 @@ import { fitTypeOption } from "@/lib/fit-types";
 import { formatComposition, type CompositionItem } from "@/lib/textile-materials";
 import { SEASONS, GENDERS, AGE_GROUPS, CARE_INSTRUCTIONS, labelOf } from "@/lib/clothing-attributes";
 import { parseVideoUrl } from "@/lib/product-video";
+import { childSizeHint } from "@/lib/child-sizes";
+
 
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
@@ -312,7 +314,7 @@ function ProductPage() {
     const names = variants.map((v) => v.cj_options).find((o) => o && Object.keys(o).length > 0);
     if (!names) return { sizeLabel: null as string | null, colorLabel: null as string | null };
     const keys = Object.keys(names).filter((k) => k !== "Option");
-    const sizeKey = keys.find((k) => /size|尺码|尺寸|码/i.test(k));
+    const sizeKey = keys.find((k) => /size|taille|height|stature|age|âge|尺码|尺寸|码|身高|年龄/i.test(k));
     const others = keys.filter((k) => k !== sizeKey);
     return {
       sizeLabel: sizeKey ? tn(sizeKey) : null,
@@ -881,14 +883,15 @@ function ProductPage() {
               <div className="flex flex-wrap gap-2">
                 {sizes.map((s) => {
                   const out = soldOutSizes.has(s);
+                  const ageHint = isClothing ? childSizeHint(s) : null;
                   return (
                     <button
                       key={s}
                       disabled={out}
                       onClick={() => setSize(s)}
-                      title={out ? "Rupture de stock" : undefined}
-                      aria-label={out ? `${s} — Rupture de stock` : undefined}
-                      className={`min-w-12 rounded-md border px-3 py-1.5 text-sm ${
+                      title={out ? "Rupture de stock" : ageHint ? `Environ ${ageHint}` : undefined}
+                      aria-label={out ? `${s} — Rupture de stock` : ageHint ? `${s} — environ ${ageHint}` : undefined}
+                      className={`min-w-12 rounded-md border px-3 py-1.5 text-sm leading-tight ${
                         out
                           ? "cursor-not-allowed border-border/60 text-muted-foreground line-through opacity-60"
                           : size === s
@@ -896,11 +899,17 @@ function ProductPage() {
                             : "border-border"
                       }`}
                     >
-                      {tv(s)}
+                      <span className="block">{tv(s)}</span>
+                      {ageHint && (
+                        <span className={`block text-[10px] no-underline ${size === s && !out ? "opacity-90" : "text-muted-foreground"}`}>
+                          {ageHint}
+                        </span>
+                      )}
                       {out && <span className="ml-1 text-[10px] no-underline">· Rupture</span>}
                     </button>
                   );
                 })}
+
               </div>
             </div>
           )}
