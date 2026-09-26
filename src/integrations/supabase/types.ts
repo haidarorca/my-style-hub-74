@@ -4145,6 +4145,7 @@ export type Database = {
           descr: string
           doc: string
           names: string
+          pname: string | null
           price: number | null
           product_id: string
           status: string | null
@@ -4161,6 +4162,7 @@ export type Database = {
           descr?: string
           doc?: string
           names?: string
+          pname?: string | null
           price?: number | null
           product_id: string
           status?: string | null
@@ -4177,6 +4179,7 @@ export type Database = {
           descr?: string
           doc?: string
           names?: string
+          pname?: string | null
           price?: number | null
           product_id?: string
           status?: string | null
@@ -6940,6 +6943,24 @@ export type Database = {
           p_max?: number
           p_min?: number
           p_offset?: number
+          p_q: string
+          p_vendor_ids?: string[]
+        }
+        Returns: {
+          corrected: string
+          match_kind: string
+          product_id: string
+          score: number
+          total: number
+        }[]
+      }
+      search_products_v3: {
+        Args: {
+          p_after_id?: string
+          p_after_score?: number
+          p_limit?: number
+          p_max?: number
+          p_min?: number
           p_q: string
           p_vendor_ids?: string[]
         }

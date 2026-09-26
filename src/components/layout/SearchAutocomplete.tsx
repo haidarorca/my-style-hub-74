@@ -9,7 +9,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { useFormatDisplay } from "@/hooks/use-currencies";
-import { searchProducts } from "@/lib/search-engine";
+import { searchProductsPage as searchProducts } from "@/lib/search-engine";
 
 const RECENT_KEY = "kawzone.recent_searches.v1";
 const MAX_RECENT = 6;
