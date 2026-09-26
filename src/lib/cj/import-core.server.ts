@@ -412,8 +412,8 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         cost_currency_code: "USD",
         supplier_ref: p.productSku ?? null,
         external_product_id: pid,
-        // Les articles CJ sont sourcés en Chine ; l'entrepôt d'expédition
-        // n'est pas une preuve d'un autre pays de fabrication.
+        // Provenance commerciale CJ = Chine selon la règle métier KawZone.
+        // Ne pas présenter ce pays comme une preuve du lieu de fabrication.
         origin_country_id: "60dfa0a1-818e-4538-8c50-9af19249273e",
         material,
         video_url: video,

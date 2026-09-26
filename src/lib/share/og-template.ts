@@ -44,7 +44,7 @@ export function buildOgTemplate(p: OgProductData): El {
             src: p.imageUrl,
             width: 520,
             height: 630,
-             style: { objectFit: "contain" },
+            style: { objectFit: "contain" },
           })
         : el("div", {
             style: {
@@ -97,7 +97,7 @@ export function buildOgTemplate(p: OgProductData): El {
           fontSize: "30px",
           fontWeight: 700,
           padding: "6px 20px",
-           borderRadius: "6px",
+          borderRadius: "6px",
         },
         children: `-${Math.round(p.discountPct)}%`,
       }),
