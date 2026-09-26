@@ -15,11 +15,11 @@ export function SimilarProducts({
   categoryId: string | null;
 }) {
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
-  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+  const { countryId, vendorIds: deliverableVendorIds, ready: deliveryReady } = useDeliverableVendorIds();
 
   const { data: products, isPending } = useQuery({
     queryKey: ["similar", productId, categoryId, countryId, deliverableVendorIds],
-    enabled: !countryId || deliverableVendorIds !== null,
+    enabled: deliveryReady,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (deliverableVendorIds?.length === 0) return [];

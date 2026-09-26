@@ -57,7 +57,7 @@ function Home() {
   const settings = useSiteSettings();
   const { data: banners } = useHomeBanners();
   const { t, lang } = useI18n();
-  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+  const { countryId, vendorIds: deliverableVendorIds, ready: deliveryReady } = useDeliverableVendorIds();
   const { data: homeSections } = useHomeSections();
   const { global: globalDisplay, resolve: resolveDisplay } = useResolveDisplay();
   const showKind = (kind: string) =>
@@ -174,7 +174,9 @@ function Home() {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ["products", "approved", universeId, subCategoryId, subSubCategoryId, descendantIds, countryId, deliverableVendorIds],
-    enabled: (!needsDescendants || !!descendantIds) && (!countryId || deliverableVendorIds !== null),
+    // Le catalogue se charge dès que la détection de pays est terminée. Une
+    // liste de vendeurs vide (null) signifie "aucun filtre", pas "ne rien charger".
+    enabled: (!needsDescendants || !!descendantIds) && deliveryReady,
     initialPageParam: 0,
     getNextPageParam: (lastPage: unknown[], allPages) =>
       lastPage.length < PAGE_SIZE ? undefined : allPages.length,
