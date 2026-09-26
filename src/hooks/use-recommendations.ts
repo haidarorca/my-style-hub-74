@@ -52,7 +52,7 @@ export function useRecommendations({
   const anonId = getAnonId();
 
   return useQuery({
-     queryKey: ["reco", context, user?.id ?? anonId, categoryIds, exclude, limit],
+    queryKey: ["reco", context, user?.id ?? anonId, categoryIds, exclude, limit],
     enabled,
     staleTime: 60_000,
     queryFn: async (): Promise<ProductCardProduct[]> => {
@@ -76,9 +76,8 @@ export function useRecommendations({
         candidates = [...inFamily, ...candidates.filter((c) => !inFamily.includes(c))];
       }
 
-       // Sur une fiche produit, les découvertes de la même famille passent
-       // toujours avant les tendances générales, sans requête supplémentaire.
-       const picked = selectRecommendations(candidates, { limit, context, exclude, maxPerCategory: context === "product" ? limit : 2 });
+      // Sur une fiche produit, la même famille précède les tendances générales.
+      const picked = selectRecommendations(candidates, { limit, context, exclude, maxPerCategory: context === "product" ? limit : 2 });
       return fetchProducts(picked.map((p) => p.id));
     },
   });

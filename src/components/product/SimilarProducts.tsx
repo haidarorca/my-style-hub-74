@@ -62,7 +62,7 @@ export function SimilarProducts({
     },
   });
 
-  if (isPending) return null;
+  if (isPending) return <section className="min-h-40"><h2 className="mb-2 text-sm font-bold">Vous aimerez aussi</h2></section>;
   if (!products || products.length === 0) return <section><h2 className="mb-2 text-sm font-bold">Vous aimerez aussi</h2><Link to="/catalogue" className="text-sm text-primary underline">Découvrir le catalogue →</Link></section>;
 
   return (
