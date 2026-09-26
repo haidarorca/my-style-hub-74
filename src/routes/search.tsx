@@ -1,7 +1,7 @@
 import { SensitiveThumb } from "@/lib/sensitive-images";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { Search as SearchIcon, X, Clock, TrendingUp, SlidersHorizontal, Store, LayoutGrid, Package } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BackButton } from "@/components/layout/BackButton";
@@ -21,7 +21,7 @@ import { useTracker } from "@/hooks/use-tracker";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFormatDisplay } from "@/hooks/use-currencies";
-import { searchProducts, searchCategories } from "@/lib/search-engine";
+import { searchProductsPage, searchCategories, type SearchCursor } from "@/lib/search-engine";
 
 function SearchPriceTag({ productId }: { productId: string; currency?: string }) {
   const dp = useProductDisplayPrice(productId);
@@ -125,34 +125,41 @@ function SearchPage() {
     },
   });
 
-  // Products
-  const { data: products, isFetching: pLoading } = useQuery({
-    queryKey: ["search", "products", debounced, filters, countryId, deliverableVendorIds],
-    enabled: debounced.length >= 1 && (deliveryReady),
-    queryFn: async () => {
-      const term = debounced;
-      const { rows: found } = await searchProducts<any>({
-        q: term,
+  // Products — 20 par 20, curseur (score, id), sans plafond.
+  const productsQ = useInfiniteQuery({
+    queryKey: ["search", "products-v3", debounced, filters.minPrice, filters.maxPrice, countryId, deliverableVendorIds],
+    enabled: debounced.length >= 1 && deliveryReady,
+    initialPageParam: null as SearchCursor | null,
+    queryFn: ({ pageParam }) =>
+      searchProductsPage<any>({
+        q: debounced,
         select: "id, name, name_i18n, price, category_id, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)",
         vendorIds: deliverableVendorIds,
         min: filters.minPrice ? Number(filters.minPrice) : null,
         max: filters.maxPrice ? Number(filters.maxPrice) : null,
-        limit: 60,
-      });
-      let rows = found;
-      if (filters.size) {
-        rows = rows.filter((p: any) =>
-          p.product_variants?.some((v: any) => (v.size ?? "").toLowerCase() === filters.size.toLowerCase()),
-        );
-      }
-      if (filters.color) {
-        rows = rows.filter((p: any) =>
-          p.product_variants?.some((v: any) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())),
-        );
-      }
-      return rows as Array<any>;
-    },
+        limit: 20,
+        cursor: pageParam,
+      }),
+    getNextPageParam: (last) => last.next,
   });
+  const pLoading = productsQ.isLoading && productsQ.fetchStatus !== "idle";
+  const totalProducts = productsQ.data?.pages[0]?.total ?? 0;
+  const products = useMemo(() => {
+    let rows = (productsQ.data?.pages ?? []).flatMap((pg) => pg.rows) as Array<any>;
+    if (filters.size) rows = rows.filter((p: any) => p.product_variants?.some((v: any) => (v.size ?? "").toLowerCase() === filters.size.toLowerCase()));
+    if (filters.color) rows = rows.filter((p: any) => p.product_variants?.some((v: any) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())));
+    return rows;
+  }, [productsQ.data, filters.size, filters.color]);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && productsQ.hasNextPage && !productsQ.isFetchingNextPage) productsQ.fetchNextPage();
+    }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [productsQ.hasNextPage, productsQ.isFetchingNextPage, productsQ.fetchNextPage, products.length]);
 
   // Categories
   const { data: categories } = useQuery({
@@ -208,7 +215,7 @@ function SearchPage() {
   };
 
   const counts = {
-    products: products?.length ?? 0,
+    products: filters.size || filters.color ? products.length : totalProducts,
     categories: categories?.length ?? 0,
     shops: shops?.length ?? 0,
   };
@@ -228,7 +235,7 @@ function SearchPage() {
     enabled: debounced.length >= 1 && !pLoading,
   });
   const showProducts = tab === "all" || tab === "products";
-  const showCategories = tab === "all" || tab === "categories";
+  const showCategories = tab === "categories";
   const showShops = tab === "all" || tab === "shops";
 
   const onSubmit = (e: React.FormEvent) => {
@@ -356,7 +363,7 @@ function SearchPage() {
               {([
                 { id: "all", label: t("search.tab_all") },
                 { id: "products", label: `${t("search.tab_products")} (${counts.products})` },
-                { id: "categories", label: `${t("search.tab_categories")} (${counts.categories})` },
+                { id: "categories", label: t("search.tab_categories") },
                 { id: "shops", label: `${t("search.tab_shops")} (${counts.shops})` },
               ] as const).map((tt) => (
                 <button
@@ -452,7 +459,18 @@ function SearchPage() {
               <section>
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
                   <Package className="h-4 w-4" /> {t("search.tab_products")}
+                  {counts.products > 0 && <span className="text-xs font-medium text-muted-foreground">({counts.products})</span>}
                 </h2>
+                {tab === "all" && categories && categories.length > 0 && (
+                  <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
+                    {categories.slice(0, 8).map((c) => (
+                      <Link key={c.id} to="/c/$categoryId" params={{ categoryId: c.id }}
+                        className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground">
+                        {pickI18n(c.name, c.name_i18n, lang)}
+                      </Link>
+                    ))}
+                  </div>
+                )}
                 {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
                 {!pLoading && products && products.length > 0 ? (
                   <ProductPricesProvider productIds={products.map((p: any) => p.id)}>
@@ -478,6 +496,15 @@ function SearchPage() {
                         </Link>
                       ))}
                     </div>
+                    <div ref={sentinelRef} className="h-1" />
+                    {productsQ.isFetchingNextPage && <p className="mt-3 text-center text-xs text-muted-foreground">{t("search.searching")}</p>}
+                    {productsQ.hasNextPage && !productsQ.isFetchingNextPage && (
+                      <div className="mt-3 flex justify-center">
+                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => productsQ.fetchNextPage()}>
+                          Voir plus ({products.length} / {counts.products})
+                        </Button>
+                      </div>
+                    )}
                   </ProductPricesProvider>
                 ) : (
                   !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
