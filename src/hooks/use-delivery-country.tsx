@@ -86,8 +86,9 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
-      // fallback: first enabled country
-      setCountryIdState(countries[0].id);
+      // fallback: marché de référence KawZone (Sénégal), sinon premier pays activé.
+      const senegal = countries.find((c) => c.code?.toUpperCase() === "SN");
+      setCountryIdState((senegal ?? countries[0]).id);
     })();
     return () => { cancelled = true; };
   }, [ready, isManual, countryId, countries]);
