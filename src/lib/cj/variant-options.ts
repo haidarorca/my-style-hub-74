@@ -25,8 +25,13 @@ export function looksLikeSize(value: string): boolean {
   if (/^\d{1,3}(\.\d)?$/.test(numeric)) return true;
   // Tailles composées : « 2XL », « XL/XXL », « 90B »
   if (/^\d{1,2}\s?(x{1,3}l|xs|s|m|l)$/i.test(v)) return true;
+  // Tailles enfants : stature chinoise (« 80cm », « 120 cm »)
+  if (/^\d{2,3}\s?cm$/i.test(v)) return true;
+  // Tailles enfants US : « 2T », « 6M », « 24M », « 5Y »
+  if (/^\d{1,2}\s?(t|m|y)$/i.test(v)) return true;
   return false;
 }
+
 
 /**
  * Découpe une clé de variante fournisseur en { size, color } en
