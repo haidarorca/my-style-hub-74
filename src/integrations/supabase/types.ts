@@ -6448,7 +6448,6 @@ export type Database = {
       }
     }
     Functions: {
-      _search_dbg: { Args: { p_q: string }; Returns: Json }
       apply_currency_recompute: { Args: { _code: string }; Returns: number }
       apply_stock_delta: {
         Args: { _delta: number; _reason?: string; _variant_id: string }
