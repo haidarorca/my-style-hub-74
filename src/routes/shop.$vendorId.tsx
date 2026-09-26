@@ -69,12 +69,12 @@ function ShopPage() {
     },
   });
 
-  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+  const { countryId, vendorIds: deliverableVendorIds, ready: deliveryReady } = useDeliverableVendorIds();
   const vendorDeliverable = !countryId || !deliverableVendorIds || deliverableVendorIds.includes(vendorId);
 
   const { data: products } = useQuery({
     queryKey: ["vendor-products", vendorId, countryId, vendorDeliverable],
-    enabled: !countryId || deliverableVendorIds !== null,
+    enabled: deliveryReady,
     queryFn: async () => {
       if (!vendorDeliverable) return [] as ShopProduct[];
       const { data, error } = await supabase

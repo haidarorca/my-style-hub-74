@@ -85,7 +85,7 @@ function SearchPage() {
   const { q: initialQ } = Route.useSearch();
   const navigate = useNavigate();
   const { lang, t } = useI18n();
-  const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
+  const { countryId, vendorIds: deliverableVendorIds, ready: deliveryReady } = useDeliverableVendorIds();
   const [q, setQ] = useState(initialQ ?? "");
   useEffect(() => {
     setQ(initialQ ?? "");
@@ -108,7 +108,7 @@ function SearchPage() {
   // Trending: latest approved products (cheap proxy for popular)
   const { data: trending } = useQuery({
     queryKey: ["search", "trending", countryId, deliverableVendorIds],
-    enabled: !countryId || deliverableVendorIds !== null,
+    enabled: deliveryReady,
     queryFn: async () => {
       let q = supabase
         .from("products")
@@ -128,7 +128,7 @@ function SearchPage() {
   // Products
   const { data: products, isFetching: pLoading } = useQuery({
     queryKey: ["search", "products", debounced, filters, countryId, deliverableVendorIds],
-    enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
+    enabled: debounced.length >= 1 && (deliveryReady),
     queryFn: async () => {
       const term = debounced;
       const { rows: found } = await searchProducts<any>({
@@ -166,7 +166,7 @@ function SearchPage() {
   // Shops (vendor profiles) — match substring OR same first letter
   const { data: shops } = useQuery({
     queryKey: ["search", "shops", debounced, countryId, deliverableVendorIds],
-    enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
+    enabled: debounced.length >= 1 && (deliveryReady),
     queryFn: async () => {
       const term = debounced;
       const first = term.charAt(0);
