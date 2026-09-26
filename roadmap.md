@@ -21,6 +21,6 @@
 - [ ] Module Caisses CN-2026-xxx (attente : accord consolidation avec CJ)
 
 - [x] Cockpit : archivage fiable, suppression définitive protégée, rappels serveur, sons, tableau À faire, historique
-- [ ] Suggestions sous les produits : famille pertinente avec repli non vide
-- [ ] Pays d'origine des produits CJ existants et des prochains imports
-- [ ] Partage KawZone : QR vers le bon site et visuels propres à la marque
+- [x] Suggestions sous les produits : famille pertinente avec repli non vide (vérification en situation réelle après retour de la base)
+- [ ] Pays d'origine des produits CJ existants : correction progressive lancée, contrôle final après retour de la base ; futurs imports renseignés
+- [x] Partage KawZone : QR vers le bon site et visuels propres à la marque (aperçu vérifié)
