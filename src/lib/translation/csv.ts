@@ -79,7 +79,7 @@ export const CSV_FIELDS: Record<CsvScope, Array<{ prefix: string; col: string }>
 /** Colonnes : une colonne par langue et par champ (ex. nom_fr, nom_en, nom_ar). */
 export function csvHeaders(scope: CsvScope, langs: readonly string[]): string[] {
   const base = scope === "products"
-    ? ["product_id", "code", "langue_source", "nom_source", "designation_source", "description_source"]
+    ? ["product_id", "code", "categorie", "langue_source", "nom_source", "designation_source", "description_source"]
     : scope === "variants" ? ["kind", "src_norm", "texte_source"] : ["category_id", "nom_source"];
   const tr = CSV_FIELDS[scope].flatMap((f) => langs.map((l) => `${f.prefix}_${l}`));
   return [...base, ...tr];

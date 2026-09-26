@@ -32,7 +32,7 @@ export async function exportPage(scope: CsvScope, langs: string[], mode: CsvMode
   : Promise<{ rows: CsvRow[]; next: string | null }> {
   if (scope === "products") {
     let q = db.from("products")
-      .select("id, code, source_lang, name, designation, description, name_i18n, designation_i18n, description_i18n, material_i18n")
+      .select("id, code, category_id, source_lang, name, designation, description, name_i18n, designation_i18n, description_i18n, material_i18n")
       .order("id").limit(size);
     if (cursor) q = q.gt("id", cursor);
     if (mode === "missing") q = q.or(langs.map((l) => `name_i18n->>${l}.is.null`).concat(langs.map((l) => `description_i18n->>${l}.is.null`)).join(","));
