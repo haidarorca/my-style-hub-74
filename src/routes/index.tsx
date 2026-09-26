@@ -65,10 +65,27 @@ function Home() {
 
   const { data: counts } = useCategoryProductCounts();
 
+  // Premier affichage prioritaire : les blocs secondaires (recommandations,
+  // tendances) ne partent qu'une fois l'écran initial libre, pour ne pas
+  // saturer le réseau au chargement.
+  const [showSecondary, setShowSecondary] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback && w.cancelIdleCallback) {
+      const id = w.requestIdleCallback(() => setShowSecondary(true), { timeout: 2500 });
+      return () => w.cancelIdleCallback!(id);
+    }
+    const id = window.setTimeout(() => setShowSecondary(true), 900);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Viviers larges : la déduplication globale pioche dedans sans jamais
   // compléter artificiellement une section.
-  const { data: reco, isLoading: recoLoading } = useRecommendations({ context: "home", limit: 24 });
-  const { data: trending, isLoading: trendingLoading } = useTrendingProducts(24);
+  const { data: reco, isLoading: recoLoading } = useRecommendations({ context: "home", limit: 24, enabled: showSecondary });
+  const { data: trending, isLoading: trendingLoading } = useTrendingProducts(24, showSecondary);
 
   // Source de vérité unique : sélection + priorités admin + déduplication.
   const feed = useHomeFeed({
