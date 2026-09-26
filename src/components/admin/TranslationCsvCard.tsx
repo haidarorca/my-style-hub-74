@@ -46,6 +46,9 @@ export function TranslationCsvCard() {
         setProgress(`Export en cours… ${all.length.toLocaleString("fr-FR")} lignes`);
       } while (cursor);
       if (all.length === 0) { toast.info("Rien à exporter", { description: "Tout est déjà traduit dans ces langues." }); return; }
+      if (scope === "products") {
+        all.sort((a, b) => (a.categorie ?? "").localeCompare(b.categorie ?? "", "fr") || (a.nom_source ?? "").localeCompare(b.nom_source ?? "", "fr"));
+      }
       downloadCsv(`kawzone-${scope}-${langs.join("-")}-${all.length}.csv`, toCsv(csvHeaders(scope, langs), all));
       toast.success(`${all.length.toLocaleString("fr-FR")} lignes exportées`, { description: "Remplissez les colonnes de chaque langue puis réimportez le fichier." });
     } catch (e) {
