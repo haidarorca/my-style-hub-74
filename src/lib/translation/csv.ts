@@ -64,12 +64,25 @@ export const CSV_SCOPES = [
 export type CsvScope = (typeof CSV_SCOPES)[number]["id"];
 export const CSV_SCOPE_IDS = CSV_SCOPES.map((s) => s.id) as CsvScope[];
 
-/** Colonnes attendues par langue (identiques à l'export et à l'import). */
-export function csvHeaders(scope: CsvScope, lang: string): string[] {
-  if (scope === "products") {
-    return ["product_id", "code", "langue_source", "nom_source", "designation_source", "description_source",
-      `nom_${lang}`, `designation_${lang}`, `description_${lang}`, `matiere_${lang}`];
-  }
-  if (scope === "variants") return ["kind", "src_norm", "texte_source", `traduction_${lang}`];
-  return ["category_id", "nom_source", `nom_${lang}`];
+/** Champs traduisibles par type de contenu (préfixe de colonne → colonne i18n). */
+export const CSV_FIELDS: Record<CsvScope, Array<{ prefix: string; col: string }>> = {
+  products: [
+    { prefix: "nom", col: "name_i18n" },
+    { prefix: "designation", col: "designation_i18n" },
+    { prefix: "description", col: "description_i18n" },
+    { prefix: "matiere", col: "material_i18n" },
+  ],
+  variants: [{ prefix: "traduction", col: "tr" }],
+  categories: [{ prefix: "nom", col: "name_i18n" }],
+};
+
+/** Colonnes : une colonne par langue et par champ (ex. nom_fr, nom_en, nom_ar). */
+export function csvHeaders(scope: CsvScope, langs: readonly string[]): string[] {
+  const base = scope === "products"
+    ? ["product_id", "code", "langue_source", "nom_source", "designation_source", "description_source"]
+    : scope === "variants" ? ["kind", "src_norm", "texte_source"] : ["category_id", "nom_source"];
+  const tr = CSV_FIELDS[scope].flatMap((f) => langs.map((l) => `${f.prefix}_${l}`));
+  return [...base, ...tr];
 }
+
+export type CsvMode = "missing" | "all";

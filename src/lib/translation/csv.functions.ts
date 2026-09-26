@@ -24,20 +24,24 @@ export const csvPending = createServerFn({ method: "POST" })
     return out;
   });
 
-export const csvExport = createServerFn({ method: "POST" })
+/** Export paginé : le navigateur enchaîne les pages jusqu'à la fin (aucune limite totale). */
+export const csvExportPage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ lang, scope, limit: z.number().int().min(1).max(2000) }).parse(d))
+  .inputValidator((d) => z.object({
+    langs: z.array(lang).min(1), scope, mode: z.enum(["missing", "all"]),
+    cursor: z.string().max(100).nullable(),
+  }).parse(d))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { exportRows } = await import("./csv.server");
-    return await exportRows(data.scope as any, data.lang, data.limit);
+    const { exportPage } = await import("./csv.server");
+    return await exportPage(data.scope as any, data.langs, data.mode, data.cursor, 500);
   });
 
 export const csvImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ lang, scope, rows: z.array(z.record(z.string(), z.string())).max(300) }).parse(d))
+  .inputValidator((d) => z.object({ scope, rows: z.array(z.record(z.string(), z.string())).max(300) }).parse(d))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { importRows } = await import("./csv.server");
-    return await importRows(data.scope as any, data.lang, data.rows);
+    return await importRows(data.scope as any, data.rows);
   });
