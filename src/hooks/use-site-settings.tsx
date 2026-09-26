@@ -164,6 +164,8 @@ export function useHomeBanners() {
       if (error) throw error;
       return (data ?? []) as unknown as HomeBanner[];
     },
-    staleTime: 60_000,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
