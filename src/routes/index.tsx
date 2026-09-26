@@ -268,15 +268,21 @@ function Home() {
     [universes, t],
   );
 
+  const scrollTop = () => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const onSelectUniverse = (id: string) => {
     setUniverseId(id);
     setSubCategoryId(null);
     setSubSubCategoryId(null);
+    scrollTop();
   };
 
   const onSelectSubCategory = (id: string | null) => {
     setSubCategoryId(id);
     setSubSubCategoryId(null);
+    scrollTop();
   };
 
   return (
@@ -356,7 +362,7 @@ function Home() {
             {visibleSubSubs.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSubSubCategoryId(c.id)}
+                onClick={() => { setSubSubCategoryId(c.id); scrollTop(); }}
                 className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   subSubCategoryId === c.id
                     ? "bg-accent text-foreground"
@@ -372,6 +378,7 @@ function Home() {
 
       <main className="page-container pb-28 md:pb-10">
         <AdminSensitiveBar />
+        {universeId === ALL && <>
         {/* Hero: carousel if banners exist, else vitrine marketing */}
         {showKind("hero") && (
           banners && banners.length > 0 ? (
@@ -467,7 +474,7 @@ function Home() {
         </section>
 
         {/* Sections configurables depuis l'admin (déjà dédupliquées) */}
-        {feed.sectionSlots.map((slot) => (
+        {universeId === ALL && feed.sectionSlots.map((slot) => (
           <HomeSectionBlock
             key={slot.key}
             section={slot.section!}
@@ -477,23 +484,26 @@ function Home() {
           />
         ))}
 
-        {/* Recommandé pour vous — profil d'intérêt */}
-        <RecommendationBlock
-          title="✨ Recommandé pour vous"
-          subtitle="D'après les produits et catégories que vous consultez"
-          products={feed.recoProducts}
-          isLoading={feed.recoLoading}
-          onQuickAdd={setQuickAddProductId}
-        />
+        {universeId === ALL && (
+          <>
+            <RecommendationBlock
+              title="✨ Recommandé pour vous"
+              subtitle="D'après les produits et catégories que vous consultez"
+              products={feed.recoProducts}
+              isLoading={feed.recoLoading}
+              onQuickAdd={setQuickAddProductId}
+            />
+            <RecommendationBlock
+              title="🔥 Tendances en ce moment"
+              subtitle="Les produits les plus consultés ces derniers jours"
+              products={feed.trendingProducts}
+              isLoading={feed.trendingLoading}
+              onQuickAdd={setQuickAddProductId}
+            />
+          </>
+        )}
+        </>}
 
-        {/* Tendances réelles (consultations et paniers récents) */}
-        <RecommendationBlock
-          title="🔥 Tendances en ce moment"
-          subtitle="Les produits les plus consultés ces derniers jours"
-          products={feed.trendingProducts}
-          isLoading={feed.trendingLoading}
-          onQuickAdd={setQuickAddProductId}
-        />
 
 
         {/* Catalogue — tout le reste, sans répéter les produits déjà affichés */}
