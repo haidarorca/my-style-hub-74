@@ -31,6 +31,12 @@ export function SubOrderProfitabilityPanel({ sub, articles }: Props) {
     : sub.cockpit_scope === "commission" ? "bg-purple-600 text-white"
     : "bg-gray-400 text-white";
 
+  const active = articles.filter(a => a.status !== "cancelled");
+  const costKnown = active.filter(a => a.purchase_cost_total != null);
+  const purchaseCost = costKnown.reduce((s, a) => s + Number(a.purchase_cost_total ?? 0), 0);
+  const freight = active.reduce((s, a) => s + Number(a.freight_fee ?? 0), 0);
+  const realCost = purchaseCost + freight;
+  const netMargin = costKnown.length > 0 ? f.product_total - purchaseCost : null;
   const cancelled = articles.filter(a => a.status === "cancelled").length;
   const blocked = f.blocked_count;
   const replaced = articles.filter(a => a.stock_break?.action === "replace").length;
@@ -56,10 +62,24 @@ export function SubOrderProfitabilityPanel({ sub, articles }: Props) {
 
       {/* Coût réel — placeholder en attendant le champ produit */}
       <div className="grid grid-cols-3 gap-2">
-        <Cell label="Coût réel" value="—" hint="À renseigner sur la fiche produit" tone="muted" />
+        <Cell
+          label="Coût réel"
+          value={costKnown.length > 0 || freight > 0 ? fmtF(realCost) : "—"}
+          hint={costKnown.length > 0
+            ? `Achat ${fmtF(purchaseCost)} + transport ${fmtF(freight)}${costKnown.length < active.length ? " (partiel)" : ""}`
+            : freight > 0 ? `Transport ${fmtF(freight)} · achat non renseigné` : "Coût d'achat non renseigné"}
+          tone={costKnown.length > 0 || freight > 0 ? "default" : "muted"}
+        />
         <Cell label="Remboursés" value={fmtF(f.refund_total)} icon={<RotateCcw className="h-3 w-3" />} tone={f.refund_total > 0 ? "red" : "muted"} />
         <Cell label="Avoirs" value={fmtF(f.credit_total)} icon={<Receipt className="h-3 w-3" />} tone={f.credit_total > 0 ? "amber" : "muted"} />
       </div>
+
+      {netMargin != null && (
+        <div className={`rounded p-2 text-xs flex justify-between ${netMargin >= 0 ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+          <span className="font-semibold">Marge nette produits (vente − achat)</span>
+          <span className="font-bold">{fmtF(netMargin)}</span>
+        </div>
+      )}
 
       {/* Indicateurs opérationnels */}
       <div className="border-t pt-2">
