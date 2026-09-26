@@ -13,7 +13,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 
-const SITE = "https://diakounda.com";
+const SITE = "https://kawzone.com";
 
 function escapeHtml(s: string): string {
   return s
@@ -79,10 +79,10 @@ export const Route = createFileRoute("/s/$code")({
         }
 
         const name = product?.name ?? "Produit";
-        const title = `${name} — Diakounda`;
+        const title = `${name} — KawZone`;
         const description = (
           product?.description ??
-          `${name} disponible sur Diakounda, matériels et machines agricoles.`
+          `${name} disponible sur KawZone, votre marketplace au Sénégal.`
         ).slice(0, 200);
         const primaryImage = product?.product_images?.find(
           (media) => (media.media_type ?? "image") === "image",
@@ -103,15 +103,15 @@ export const Route = createFileRoute("/s/$code")({
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}" />
 <link rel="canonical" href="${SITE}/product/${link.product_id}" />
-<meta property="og:site_name" content="Diakounda" />
+<meta property="og:site_name" content="KawZone" />
 <meta property="og:locale" content="fr_FR" />
 <meta property="og:type" content="product" />
 <meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:url" content="${escapeHtml(target)}" />
 <meta property="og:image" content="${escapeHtml(ogImage)}" />
-<meta property="og:image:width" content="800" />
-<meta property="og:image:height" content="420" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 ${
   product?.price != null
     ? `<meta property="product:price:amount" content="${product.price}" />

@@ -2,3 +2,6 @@
 - Cockpit reminders run server-side (`run_reminder_engine`, pg_cron every 5 min) from current order state, one live reminder per (rule, order); why: survives closed browsers and stays idempotent.
 
 - Translation center: jobs in `translation_jobs`, processed by `/api/public/translation-worker` via a pg_cron job armed on start and unscheduled when idle; per-language hashes in `products.i18n_meta` (manual flag protects user-typed translations); variant option names/values translated once in `translation_dictionary`. Why: resumable background translation without re-translating up-to-date content, and never assuming source text is French.
+- Shared product URLs and QR codes always use the canonical kawzone.com origin, while `/s/$code` retains click attribution; why: preview links and legacy redirect domains must never send customers elsewhere.
+- Product-detail suggestions use the current category branch before broader fallbacks; why: a sparse leaf must not leave the section blank or lead with unrelated products.
+- CJ imports record China as the sourcing origin, independently of warehouse location; why: fulfillment location is not manufacturing provenance and existing product-origin values must remain untouched.

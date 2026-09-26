@@ -344,6 +344,7 @@ function ProductPage() {
 
   const { data: complementary, isLoading: complementaryLoading } = useRecommendations({
     context: "product",
+    categoryIds: (data as any)?.category_id ? [(data as any).category_id] : null,
     exclude: data?.id ? [data.id] : [],
     limit: 8,
     enabled: !!data?.id,
@@ -732,7 +733,7 @@ function ProductPage() {
                   <p className="text-sm"><span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Marque : </span><span className="font-semibold">{brandName}</span></p>
                 )}
                 {originName && (
-                  <p className="text-sm">🌍 <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Fabriqué en </span><span className="font-semibold">{originFlag ? originFlag + " " : ""}{originName}</span></p>
+                  <p className="text-sm">🌍 <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Provenance : </span><span className="font-semibold">{originFlag ? originFlag + " " : ""}{originName}</span></p>
                 )}
                 {minQ > 1 && (
                   <p className="text-sm">📦 <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Quantité minimale : </span><span className="font-semibold">{minQ} unités</span></p>
@@ -1205,8 +1206,7 @@ function ProductPage() {
 
         {/* Complémentaires — moteur de recommandations central */}
         <RecommendationBlock
-          title="🧰 Vous pourriez aussi en avoir besoin"
-          subtitle="Produits souvent utiles avec celui-ci"
+           title="Découvertes selon vos intérêts"
           products={complementary}
           isLoading={complementaryLoading}
         />

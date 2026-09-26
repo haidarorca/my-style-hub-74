@@ -18,8 +18,8 @@ type El = { type: string; props: Record<string, unknown> };
 
 const el = (type: string, props: Record<string, unknown>): El => ({ type, props });
 
-const BRAND = "#0f5132";
-const ACCENT = "#f59e0b";
+const BRAND = "#233857";
+const ACCENT = "#d58c48";
 
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
@@ -44,7 +44,7 @@ export function buildOgTemplate(p: OgProductData): El {
             src: p.imageUrl,
             width: 520,
             height: 630,
-            style: { objectFit: "cover" },
+            style: { objectFit: "contain" },
           })
         : el("div", {
             style: {
@@ -97,7 +97,7 @@ export function buildOgTemplate(p: OgProductData): El {
           fontSize: "30px",
           fontWeight: 700,
           padding: "6px 20px",
-          borderRadius: "999px",
+          borderRadius: "6px",
         },
         children: `-${Math.round(p.discountPct)}%`,
       }),
@@ -174,7 +174,7 @@ export function buildOgTemplate(p: OgProductData): El {
         padding: "14px 34px",
         borderRadius: "16px",
       },
-      children: "Acheter maintenant",
+       children: "Voir sur KawZone →",
     }),
   );
 

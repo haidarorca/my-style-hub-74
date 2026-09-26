@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// Templates visuels marketing KawZone — inspirés Alibaba / 1688 /
-// AliExpress / Temu. 4 thèmes distincts, 4 formats (poster/story/
+// Templates visuels marketing KawZone. 4 thèmes, 4 formats (poster/story/
 // square/thumb). Toutes les dimensions internes sont exprimées en
 // "unités base 1080" puis multipliées par s = w/1080 pour rester
 // pixel-perfect quel que soit le format.
@@ -42,7 +41,7 @@ const DIM: Record<PosterFormat, { w: number; h: number }> = {
   thumb: { w: 600, h: 600 },
 };
 
-const DEFAULT_BADGES = ["Produit vérifié", "Paiement sécurisé", "Livraison KawZone"];
+const DEFAULT_BADGES = ["Découvrir sur KawZone"];
 
 const FONT = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
 
@@ -130,100 +129,38 @@ function DiscountBadge({ s, pct, big }: { s: number; pct: number; big?: boolean 
 }
 
 // ────────────────────────────────────────────────────────────
-// THEME 1 — Alibaba style : image + bandeau prix jaune + CTA orange
+// THEME 1 — signature KawZone : photo lisible, prix et lien directs
 // ────────────────────────────────────────────────────────────
 
 function AlibabaTheme({ w, h, format, data }: { w: number; h: number; format: PosterFormat; data: PosterData }) {
   const s = w / 1080;
-  const isThumb = format === "thumb";
   const isStory = format === "story";
+  const isThumb = format === "thumb";
   const pad = 48 * s;
-  const cardR = 40 * s;
-  const imgH = isStory ? 1180 * s : 780 * s;
-  const priceBarH = isThumb ? 120 * s : 170 * s;
-  const badges = (data.badges?.length ? data.badges : DEFAULT_BADGES).slice(0, 3);
+  const photoTop = 118 * s;
+  const infoHeight = (isStory ? 460 : isThumb ? 168 : 290) * s;
+  const photoHeight = h - photoTop - infoHeight - pad;
   const pct = computePct(data);
 
   return (
-    <div style={{ width: w, height: h, background: "#f5f5f5", position: "relative" }}>
-      {/* Header */}
-      <div style={{ position: "absolute", top: pad * 0.6, left: pad, right: pad, display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 5 }}>
-        <KawzoneWordmark s={s} />
-        <div style={{ fontSize: 22 * s, color: "#666", fontWeight: 600 }}>kawzone.com</div>
+    <div style={{ width: w, height: h, background: "#f8fafc", position: "relative", color: "#233857" }}>
+      <div style={{ position: "absolute", top: 32 * s, left: pad, right: pad, height: 66 * s, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `${2 * s}px solid #dce3eb` }}>
+        <KawzoneWordmark s={s} color="#233857" />
+        <span style={{ fontSize: 22 * s, fontWeight: 700, color: "#50617a" }}>kawzone.com</span>
       </div>
-
-      <div style={{ position: "absolute", top: 130 * s, left: pad, right: pad, bottom: pad, background: "#fff", borderRadius: cardR, overflow: "hidden", boxShadow: `0 ${30 * s}px ${80 * s}px rgba(0,0,0,0.15)`, display: "flex", flexDirection: "column" }}>
-        {/* Image + overlays */}
-        <div style={{ position: "relative", width: "100%", height: imgH, background: "#fafafa", flexShrink: 0 }}>
-          {/* Origin pill top-right */}
-          {data.originType && (
-            <div style={{ position: "absolute", top: 28 * s, right: 28 * s, zIndex: 5 }}>
-              <OriginPill s={s} originType={data.originType} originLabel={data.originLabel} />
-            </div>
-          )}
-          {/* Discount badge top-left */}
-          {pct && !isThumb && (
-            <div style={{ position: "absolute", top: 40 * s, left: 40 * s, zIndex: 4 }}>
-              <DiscountBadge s={s} pct={pct} />
-            </div>
-          )}
-          {/* Advantage pills bottom-left */}
-          {!isThumb && (
-            <div style={{ position: "absolute", bottom: 24 * s, left: 24 * s, display: "flex", flexDirection: "column", gap: 10 * s, zIndex: 4, maxWidth: "75%" }}>
-              {badges.map((b, i) => (
-                <div key={i} style={{ background: "rgba(15,23,42,0.85)", color: "#fff", padding: `${10 * s}px ${18 * s}px`, borderRadius: 999, fontWeight: 700, fontSize: 22 * s, display: "flex", alignItems: "center", gap: 10 * s, backdropFilter: "blur(4px)", whiteSpace: "nowrap" }}>
-                  <span style={{ width: 14 * s, height: 14 * s, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
-                  {b}
-                </div>
-              ))}
-            </div>
-          )}
-          {data.imageUrl ? (
-            <img src={data.imageUrl} alt="" crossOrigin="anonymous" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : (
-            <PlaceholderImg s={s} />
-          )}
-        </div>
-
-        {/* Bandeau prix jaune + promo */}
-        <div style={{ display: "flex", width: "100%", height: priceBarH, flexShrink: 0 }}>
-          <div style={{ background: "#fbbf24", flex: "0 0 45%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `0 ${24 * s}px` }}>
-            {data.oldPriceLabel && !isThumb && (
-              <div style={{ fontSize: 24 * s, color: "#78350f", textDecoration: "line-through", fontWeight: 600, marginBottom: 4 * s }}>
-                {data.oldPriceLabel}
-              </div>
-            )}
-            <div style={{ fontSize: (isThumb ? 44 : 78) * s, fontWeight: 900, color: "#111", letterSpacing: -2 * s, lineHeight: 1 }}>
-              {data.priceLabel}
-            </div>
+      <div style={{ position: "absolute", top: photoTop, left: pad, right: pad, height: photoHeight, background: "#ffffff", overflow: "hidden", borderRadius: 8 * s }}>
+        {data.imageUrl ? <img src={data.imageUrl} alt="" crossOrigin="anonymous" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} /> : <PlaceholderImg s={s} />}
+        {pct && !isThumb && <div style={{ position: "absolute", top: 18 * s, left: 18 * s, background: "#b64332", color: "#ffffff", fontSize: 29 * s, fontWeight: 800, padding: `${9 * s}px ${18 * s}px` }}>-{pct}%</div>}
+      </div>
+      <div style={{ position: "absolute", top: photoTop + photoHeight + 24 * s, left: pad, right: pad, height: infoHeight - 34 * s, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ fontSize: (isThumb ? 29 : 44) * s, fontWeight: 800, lineHeight: 1.18, maxHeight: (isStory ? 132 : isThumb ? 72 : 106) * s, overflow: "hidden", overflowWrap: "anywhere" }}>{data.productName}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16 * s }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {data.oldPriceLabel && <div style={{ fontSize: 22 * s, textDecoration: "line-through", color: "#64748b" }}>{data.oldPriceLabel}</div>}
+            <div style={{ fontSize: (isThumb ? 42 : 65) * s, fontWeight: 900, color: "#a54a27", lineHeight: 1.05, overflowWrap: "anywhere" }}>{data.priceLabel}</div>
+            {!isThumb && <div style={{ fontSize: 22 * s, color: "#50617a", marginTop: 12 * s }}>{data.originLabel ? `Origine : ${data.originLabel}` : data.shopName ? `Vendu par ${data.shopName}` : "Retrouvez ce produit sur KawZone"}</div>}
           </div>
-          <div style={{ background: "linear-gradient(90deg,#f97316,#ec4899)", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `0 ${28 * s}px`, textAlign: "center", color: "#fff" }}>
-            <div style={{ fontSize: (isThumb ? 14 : 20) * s, fontWeight: 700, letterSpacing: 3 * s, opacity: 0.95, marginBottom: 8 * s }}>
-              {pct ? `ÉCONOMISEZ ${pct}%` : "OFFRE LIMITÉE"}
-            </div>
-            <div style={{ fontSize: (isThumb ? 22 : 34) * s, fontWeight: 900, lineHeight: 1.1 }}>
-              Acheter maintenant →
-            </div>
-          </div>
-        </div>
-
-        {/* Bloc titre noir */}
-        <div style={{ background: "#0f172a", color: "#fff", flex: 1, padding: `${28 * s}px ${36 * s}px`, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16 * s }}>
-          <div style={{ fontSize: (isThumb ? 22 : 38) * s, fontWeight: 800, lineHeight: 1.2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-            {data.productName}
-          </div>
-          {!isThumb && (
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20 * s }}>
-              <div style={{ fontSize: 22 * s, color: "#94a3b8", fontWeight: 600, minWidth: 0 }}>
-                {data.shopName ? `Vendu par ${data.shopName}` : "Boutique vérifiée KawZone"}
-              </div>
-              {data.qrDataUrl && (
-                <div style={{ background: "#fff", padding: 10 * s, borderRadius: 14 * s, flexShrink: 0 }}>
-                  <img src={data.qrDataUrl} alt="" style={{ width: (isStory ? 160 : 130) * s, height: (isStory ? 160 : 130) * s, display: "block" }} />
-                </div>
-              )}
-            </div>
-          )}
+          {!isThumb && data.qrDataUrl && <div style={{ flexShrink: 0, background: "#ffffff", padding: 8 * s, border: `${2 * s}px solid #dce3eb` }}><img src={data.qrDataUrl} alt="" style={{ width: 126 * s, height: 126 * s, display: "block" }} /></div>}
         </div>
       </div>
     </div>

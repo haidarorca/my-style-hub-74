@@ -1,5 +1,5 @@
 /**
- * Moteur de recommandations Diakounda — logique de sélection partagée.
+ * Moteur de recommandations KawZone — logique de sélection partagée.
  *
  * Une seule source de vérité : toutes les surfaces (accueil, catégorie,
  * recherche, fiche produit, panier) passent par ce module pour diversifier,

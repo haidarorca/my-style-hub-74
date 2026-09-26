@@ -22,9 +22,8 @@ export type SharePlatform =
  *   Même jour = même URL = cache réutilisé (pas de scrape inutile).
  */
 export function siteOrigin(): string {
-  return typeof window !== "undefined" && window.location?.origin
-    ? window.location.origin
-    : "https://kawzone.com";
+  // Les affiches imprimées et les QR doivent rester valables hors de l'aperçu.
+  return "https://kawzone.com";
 }
 
 /** URL du lien court /s/{code} — c'est elle qui porte l'aperçu social serveur. */
@@ -71,11 +70,7 @@ export function buildTrackedUrl(
 }
 
 export function productUrl(productId: string): string {
-  const origin =
-    typeof window !== "undefined" && window.location?.origin
-      ? window.location.origin
-      : "https://kawzone.com";
-  return `${origin}/product/${productId}`;
+  return `${siteOrigin()}/product/${productId}`;
 }
 
 export function shareLinkFor(platform: SharePlatform, url: string, message: string): string {

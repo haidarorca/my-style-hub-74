@@ -126,7 +126,7 @@ export const Route = createFileRoute("/api/public/og/product/$productId")({
 
           const renderer = new resvg.Resvg(svg, {
             fitTo: { mode: "width", value: 800 },
-            background: "#0f3d2e",
+            background: "#233857",
           });
           const png = renderer.render().asPng();
 

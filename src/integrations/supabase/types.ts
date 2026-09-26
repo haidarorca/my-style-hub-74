@@ -6453,6 +6453,7 @@ export type Database = {
         Args: { _delta: number; _reason?: string; _variant_id: string }
         Returns: number
       }
+      backfill_cj_origin_batch: { Args: never; Returns: undefined }
       can_insert_order_item: {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
