@@ -109,8 +109,8 @@ export const ProductGallery = React.memo(function ProductGallery({
 
   return (
     <>
-      <div className="relative">
-        <Carousel setApi={setApi} opts={{ loop: false, align: "start" }}>
+      <div className="relative" dir={dir}>
+        <Carousel setApi={setApi} opts={{ loop: false, align: "start", direction: dir }} dir={dir}>
           <CarouselContent className="ml-0">
             {urls.map((url, i) => (
               <CarouselItem key={`${url}-${i}`} className="pl-0 basis-full">
