@@ -170,6 +170,9 @@ function Home() {
   const { data: descendantIds } = useQuery({
     queryKey: ["category-descendants", universeId, subCategoryId, subSubCategoryId],
     enabled: universeId !== ALL,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const root = subSubCategoryId ?? subCategoryId ?? universeId;
       // Fetch level 2 + 3 children
