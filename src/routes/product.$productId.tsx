@@ -344,6 +344,7 @@ function ProductPage() {
 
   const { data: complementary, isLoading: complementaryLoading } = useRecommendations({
     context: "product",
+    categoryIds: (data as any)?.category_id ? [(data as any).category_id] : null,
     exclude: data?.id ? [data.id] : [],
     limit: 8,
     enabled: !!data?.id,
@@ -1205,8 +1206,7 @@ function ProductPage() {
 
         {/* Complémentaires — moteur de recommandations central */}
         <RecommendationBlock
-          title="🧰 Vous pourriez aussi en avoir besoin"
-          subtitle="Produits souvent utiles avec celui-ci"
+           title="Découvertes selon vos intérêts"
           products={complementary}
           isLoading={complementaryLoading}
         />
