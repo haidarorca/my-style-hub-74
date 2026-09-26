@@ -273,7 +273,7 @@ async function fallbackLogisticsQuery(
     /* 1b */ countryIds.length > 0
       ? supabase.from("countries").select("id, name, flag_emoji").in("id", countryIds)
       : Promise.resolve({ data: [] }),
-    /* 2 */ supabase.from("order_items").select("order_id, product_id, quantity, unit_price, customization").in("order_id", orderIds),
+    /* 2 */ supabase.from("order_items").select("order_id, product_id, variant_id, quantity, unit_price, customization, unit_weight_kg").in("order_id", orderIds),
     /* 4 */ supabase.from("order_shipment_assessments").select(
       `id, order_id, status, real_weight_kg, volumetric_weight_kg,
       air_freight_fee, service_fee, extra_fees, admin_comment, parcel_photo_url,
@@ -293,7 +293,7 @@ async function fallbackLogisticsQuery(
   }
 
   // ── Order items (avec unit_price + customization pour calculer total et fret déclaré)
-  let orderItemsMap = new Map<string, Array<{ product_id: string; quantity: number; unit_price: number; customization: any }>>();
+  let orderItemsMap = new Map<string, Array<{ product_id: string; variant_id: string | null; line_weight: number | null; quantity: number; unit_price: number; customization: any }>>();
   let orderTotalFromItems = new Map<string, number>();
   let declaredFreightFromItemsMap = new Map<string, number>();
   if (itemsResult.status === "fulfilled" && itemsResult.value.data) {
@@ -302,7 +302,7 @@ async function fallbackLogisticsQuery(
       const qty = it.quantity ?? 1;
       const price = it.unit_price ?? 0;
       const cust = (it as any).customization ?? null;
-      arr.push({ product_id: it.product_id ?? "", quantity: qty, unit_price: price, customization: cust });
+      arr.push({ product_id: it.product_id ?? "", variant_id: (it as any).variant_id ?? null, line_weight: (it as any).unit_weight_kg != null ? Number((it as any).unit_weight_kg) : null, quantity: qty, unit_price: price, customization: cust });
       orderItemsMap.set(it.order_id, arr);
       orderTotalFromItems.set(it.order_id, (orderTotalFromItems.get(it.order_id) ?? 0) + (qty * price));
       const lineFreight = Number((cust && typeof cust === "object" ? (cust as any).__freight_fee : 0) ?? 0);
@@ -337,6 +337,15 @@ async function fallbackLogisticsQuery(
   let productShopMap = new Map<string, string>();
   let productWeightMap = new Map<string, number | null>();
   let shopSourceMap = new Map<string, string | null>();
+  // Poids en cascade : ligne commandée > variante > produit parent.
+  const variantWeightMap = new Map<string, number | null>();
+  const allVariantIds = Array.from(new Set(Array.from(orderItemsMap.values()).flat().map((i) => i.variant_id).filter(Boolean) as string[]));
+  if (allVariantIds.length > 0) {
+    try {
+      const { data: vs } = await supabase.from("product_variants").select("id, weight_kg").in("id", allVariantIds);
+      for (const v of vs ?? []) variantWeightMap.set(v.id as string, v.weight_kg != null ? Number(v.weight_kg) : null);
+    } catch { /* ignorer */ }
+  }
   if (allProductIds.length > 0) {
     try {
       const { data: products } = await supabase
@@ -370,6 +379,14 @@ async function fallbackLogisticsQuery(
       }
     } catch { /* ignorer */ }
   }
+
+  const itemWeight = (it: { product_id: string; variant_id: string | null; line_weight: number | null }): number | null => {
+    if (it.line_weight != null && it.line_weight > 0) return it.line_weight;
+    const vw = it.variant_id ? variantWeightMap.get(it.variant_id) : null;
+    if (vw != null && vw > 0) return vw;
+    const pw = productWeightMap.get(it.product_id);
+    return pw != null && pw > 0 ? pw : null;
+  };
 
   // ═════ ÉTAPE 5+6 PARALLÈLE : Paiements + Tracking (dépendent de l'étape 4)
   let paymentMap = new Map<string, Record<string, unknown>>();
@@ -480,7 +497,7 @@ async function fallbackLogisticsQuery(
     let unknownCount = 0;
     let detectedSrcCountryId: string | null = (order.source_country_id as string) ?? null;
     for (const it of items) {
-      const w = productWeightMap.get(it.product_id);
+      const w = itemWeight(it);
       if (w != null && w > 0) declaredCount += 1;
       else unknownCount += 1;
       if (!detectedSrcCountryId) {
@@ -525,7 +542,7 @@ async function fallbackLogisticsQuery(
         if (items.length === 0) return null;
         let total = 0;
         for (const it of items) {
-          const w = productWeightMap.get(it.product_id);
+          const w = itemWeight(it);
           if (w == null || w <= 0) return null; // un produit sans poids → on ne peut pas additionner
           total += w * (it.quantity ?? 1);
         }
@@ -541,7 +558,7 @@ async function fallbackLogisticsQuery(
             // Comparer au poids déclaré pour détecter une anomalie
             let declaredSum = 0;
             for (const it of items) {
-              const w = productWeightMap.get(it.product_id);
+              const w = itemWeight(it);
               if (w == null || w <= 0) { declaredSum = 0; break; }
               declaredSum += w * (it.quantity ?? 1);
             }
@@ -560,7 +577,7 @@ async function fallbackLogisticsQuery(
         let declaredSum = 0;
         let hasAll = items.length > 0;
         for (const it of items) {
-          const w = productWeightMap.get(it.product_id);
+          const w = itemWeight(it);
           if (w == null || w <= 0) { hasAll = false; break; }
           declaredSum += w * (it.quantity ?? 1);
         }

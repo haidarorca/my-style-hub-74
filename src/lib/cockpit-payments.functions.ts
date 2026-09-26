@@ -278,7 +278,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const { data: itemsFromDb, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("product_id, product_name, product_code, product_image_url, variant_id, size, color, unit_price, quantity, vendor_id, commission_rate, commission_amount, customization")
+      .select("product_id, product_name, product_code, product_image_url, variant_id, size, color, unit_price, quantity, vendor_id, commission_rate, commission_amount, customization, unit_weight_kg, cost_price_snapshot, cost_currency_snapshot, purchase_cost_total, freight_cost")
       .eq("order_id", data.order_id);
 
     if (itemsErr) {
@@ -297,7 +297,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
         ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, barcode, brand").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
-        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements").in("id", variantIds)
+        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements, weight_kg").in("id", variantIds)
         : Promise.resolve({ data: [] }),
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
