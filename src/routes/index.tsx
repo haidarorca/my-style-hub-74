@@ -124,6 +124,9 @@ function Home() {
   const { data: subCategories } = useQuery({
     queryKey: ["categories", "level2", universeId],
     enabled: universeId !== ALL,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
