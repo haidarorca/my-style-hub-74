@@ -65,23 +65,43 @@ function Home() {
 
   const { data: counts } = useCategoryProductCounts();
 
+  // Premier affichage prioritaire : les blocs secondaires (recommandations,
+  // tendances) ne partent qu'une fois l'écran initial libre, pour ne pas
+  // saturer le réseau au chargement.
+  const [showSecondary, setShowSecondary] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback && w.cancelIdleCallback) {
+      const id = w.requestIdleCallback(() => setShowSecondary(true), { timeout: 2500 });
+      return () => w.cancelIdleCallback!(id);
+    }
+    const id = window.setTimeout(() => setShowSecondary(true), 900);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Viviers larges : la déduplication globale pioche dedans sans jamais
   // compléter artificiellement une section.
-  const { data: reco, isLoading: recoLoading } = useRecommendations({ context: "home", limit: 24 });
-  const { data: trending, isLoading: trendingLoading } = useTrendingProducts(24);
+  const { data: reco, isLoading: recoLoading } = useRecommendations({ context: "home", limit: 24, enabled: showSecondary });
+  const { data: trending, isLoading: trendingLoading } = useTrendingProducts(24, showSecondary);
 
   // Source de vérité unique : sélection + priorités admin + déduplication.
   const feed = useHomeFeed({
     sections: homeSections ?? [],
     reco,
-    recoLoading,
+    recoLoading: recoLoading || !showSecondary,
     trending,
-    trendingLoading,
+    trendingLoading: trendingLoading || !showSecondary,
     blockSize: 8,
   });
 
   const { data: allUniverses } = useQuery({
     queryKey: ["categories", "level1"],
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
@@ -104,6 +124,9 @@ function Home() {
   const { data: subCategories } = useQuery({
     queryKey: ["categories", "level2", universeId],
     enabled: universeId !== ALL,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
@@ -119,6 +142,9 @@ function Home() {
   const { data: subSubCategories } = useQuery({
     queryKey: ["categories", "level3", subCategoryId],
     enabled: !!subCategoryId,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
@@ -144,6 +170,9 @@ function Home() {
   const { data: descendantIds } = useQuery({
     queryKey: ["category-descendants", universeId, subCategoryId, subSubCategoryId],
     enabled: universeId !== ALL,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const root = subSubCategoryId ?? subCategoryId ?? universeId;
       // Fetch level 2 + 3 children
