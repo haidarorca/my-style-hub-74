@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearErrorLog, logError } from "@/lib/error-logger";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   children: ReactNode;
@@ -115,41 +116,35 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
           </div>
 
-          <div className="rounded-md border bg-muted/40 p-3 text-xs">
-            <div className="font-medium">Erreur</div>
-            <div className="mt-1 break-words text-muted-foreground">
-              {this.state.error.message || "Erreur inconnue"}
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">Si le service de données est momentanément indisponible, réessayez dans quelques instants. Vos données restent conservées.</p>
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            <button
+            <Button
               type="button"
               onClick={this.reset}
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             >
               Réessayer
-            </button>
+            </Button>
             <a
               href="/"
               className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground"
             >
               Accueil
             </a>
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => void hardReloadForNewBuild()}
-              className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground"
             >
               Recharger l'app
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
               onClick={clearErrorLog}
-              className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium text-muted-foreground"
             >
               Effacer logs
-            </button>
+            </Button>
           </div>
         </div>
       </div>

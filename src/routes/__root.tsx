@@ -27,6 +27,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Button } from "@/components/ui/button";
 import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 
 function NotFoundComponent() {
@@ -54,20 +55,23 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const serviceUnavailable = /(?:521|522|523|524|web server is down|<!doctype html>|failed to fetch|networkerror)/i.test(error.message);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Une erreur est survenue
+        <h1 className="text-xl font-semibold text-foreground">
+          {serviceUnavailable ? "KawZone est momentanément indisponible" : "Une erreur est survenue"}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {serviceUnavailable ? "Le service de données ne répond pas pour le moment. Vos commandes et votre panier restent conservés. Réessayez dans quelques instants." : "Nous n'avons pas pu afficher cette page. Réessayez dans quelques instants."}
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
+          <Button
+            type="button"
             onClick={() => { router.invalidate(); reset(); }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
           >
             Réessayer
-          </button>
+          </Button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"

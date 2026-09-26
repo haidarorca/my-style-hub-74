@@ -24,3 +24,4 @@
 - [x] Suggestions sous les produits : famille pertinente avec repli non vide (vérification en situation réelle après retour de la base)
 - [ ] Pays d'origine des produits CJ existants : correction progressive lancée, contrôle final après retour de la base ; futurs imports renseignés
 - [x] Partage KawZone : QR vers le bon site et visuels propres à la marque (aperçu vérifié)
+- [x] Panne temporaire des données : message lisible et bouton de reprise au lieu d'un écran blanc ou d'une erreur technique

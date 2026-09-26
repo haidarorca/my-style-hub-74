@@ -26,6 +26,8 @@ import { RecommendationBlock } from "@/components/product/RecommendationBlock";
 import { useRecommendations, useTrendingProducts } from "@/hooks/use-recommendations";
 import { useHomeFeed } from "@/hooks/use-home-feed";
 import { withoutExcluded, withoutSeen } from "@/lib/home/merchandising";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -46,6 +48,7 @@ export const Route = createFileRoute("/")({
 const ALL = "__all__";
 
 function Home() {
+  const queryClient = useQueryClient();
   const [universeId, setUniverseId] = useState<string>(ALL);
   const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
   const [subSubCategoryId, setSubSubCategoryId] = useState<string | null>(null);
@@ -165,6 +168,7 @@ function Home() {
   const {
     data: productPages,
     isLoading: productsLoading,
+    isError: productsError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -469,7 +473,13 @@ function Home() {
               {universeId === ALL ? "À découvrir dans le catalogue" : t("home.section.trending")}
             </h2>
           </div>
-          {productsLoading ? (
+          {productsError && loadedProducts.length === 0 ? (
+            <div role="status" className="border-y border-border py-8 text-center">
+              <p className="font-semibold text-foreground">Le catalogue est momentanément indisponible.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Vos données sont conservées. Réessayez dans quelques instants.</p>
+              <Button className="mt-4" variant="outline" onClick={() => void queryClient.invalidateQueries({ queryKey: ["products", "approved"] })}>Réessayer</Button>
+            </div>
+          ) : productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
             <ProductPricesProvider productIds={products.map((p) => p.id)}>
