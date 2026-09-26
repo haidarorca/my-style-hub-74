@@ -3,45 +3,54 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { TRANSLATION_LANGS } from "@/lib/translation/langs";
-import { CSV_SCOPES, csvHeaders, downloadCsv, parseCsv, toCsv, type CsvScope } from "@/lib/translation/csv";
-import { csvExport, csvImport, csvPending } from "@/lib/translation/csv.functions";
+import { TRANSLATION_LANGS, TRANSLATION_LANG_CODES } from "@/lib/translation/langs";
+import { CSV_FIELDS, CSV_SCOPES, csvHeaders, downloadCsv, parseCsv, toCsv, type CsvMode, type CsvRow, type CsvScope } from "@/lib/translation/csv";
+import { csvExportPage, csvImport, csvPending } from "@/lib/translation/csv.functions";
 
 const CHUNK = 200;
 
-/** Export / import de traductions par fichier Excel (CSV) — sans aucun crédit IA. */
+/** Export / import de traductions par fichier Excel (CSV) — une colonne par langue, sans limite, 0 crédit IA. */
 export function TranslationCsvCard() {
   const pending = useServerFn(csvPending);
-  const doExport = useServerFn(csvExport);
+  const exportPage = useServerFn(csvExportPage);
   const doImport = useServerFn(csvImport);
 
-  const [lang, setLang] = useState("fr");
+  const [langs, setLangs] = useState<string[]>([...TRANSLATION_LANG_CODES]);
   const [scope, setScope] = useState<CsvScope>("products");
-  const [size, setSize] = useState("500");
+  const [mode, setMode] = useState<CsvMode>("missing");
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [progress, setProgress] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: counts } = useQuery({
-    queryKey: ["translation-csv-pending", lang],
-    queryFn: () => pending({ data: { lang } }) as Promise<Record<string, number>>,
+    queryKey: ["translation-csv-pending", langs[0] ?? "fr"],
+    queryFn: () => pending({ data: { lang: (langs[0] ?? "fr") as any } }) as Promise<Record<string, number>>,
   });
 
-  const langLabel = TRANSLATION_LANGS.find((l) => l.code === lang);
+  const toggleLang = (c: string) => setLangs((a) => (a.includes(c) ? a.filter((x) => x !== c) : [...a, c]));
 
   const onExport = async () => {
+    if (langs.length === 0) return;
     setBusy("export");
     try {
-      const rows = (await doExport({ data: { lang, scope, limit: Number(size) } })) as Record<string, string>[];
-      if (rows.length === 0) { toast.info("Rien à exporter", { description: "Tout est déjà traduit dans cette langue." }); return; }
-      downloadCsv(`kawzone-${scope}-${lang}-${rows.length}.csv`, toCsv(csvHeaders(scope, lang), rows));
-      toast.success(`${rows.length} lignes exportées`, { description: "Ouvrez le fichier dans Excel ou Google Sheets, remplissez la colonne de traduction, puis réimportez-le." });
+      const all: CsvRow[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = (await exportPage({ data: { langs: langs as any, scope, mode, cursor } })) as { rows: CsvRow[]; next: string | null };
+        all.push(...page.rows);
+        cursor = page.next;
+        setProgress(`Export en cours… ${all.length.toLocaleString("fr-FR")} lignes`);
+      } while (cursor);
+      if (all.length === 0) { toast.info("Rien à exporter", { description: "Tout est déjà traduit dans ces langues." }); return; }
+      downloadCsv(`kawzone-${scope}-${langs.join("-")}-${all.length}.csv`, toCsv(csvHeaders(scope, langs), all));
+      toast.success(`${all.length.toLocaleString("fr-FR")} lignes exportées`, { description: "Remplissez les colonnes de chaque langue puis réimportez le fichier." });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Export impossible");
-    } finally { setBusy(null); }
+    } finally { setBusy(null); setProgress(""); }
   };
 
   const onFile = async (file: File) => {
@@ -49,22 +58,23 @@ export function TranslationCsvCard() {
     setProgress("Lecture du fichier…");
     try {
       const rows = parseCsv(await file.text());
-      const need = csvHeaders(scope, lang);
-      const key = need[need.length - 1];
-      if (rows.length === 0 || !(key in rows[0])) {
-        toast.error("Fichier incompatible", { description: `La colonne « ${key} » est introuvable. Vérifiez la langue et le type de contenu sélectionnés.` });
+      const idCol = scope === "products" ? "product_id" : scope === "variants" ? "src_norm" : "category_id";
+      const keys = Object.keys(rows[0] ?? {});
+      const hasLang = TRANSLATION_LANG_CODES.some((l) => CSV_FIELDS[scope].some((f) => keys.includes(`${f.prefix}_${l}`)));
+      if (rows.length === 0 || !keys.includes(idCol) || !hasLang) {
+        toast.error("Fichier incompatible", { description: "Vérifiez que le type de contenu sélectionné correspond au fichier exporté." });
         return;
       }
       let updated = 0, empty = 0, unknown = 0;
       const errors: string[] = [];
       for (let i = 0; i < rows.length; i += CHUNK) {
-        setProgress(`Importation ${Math.min(i + CHUNK, rows.length)} / ${rows.length}…`);
-        const rep = (await doImport({ data: { lang, scope, rows: rows.slice(i, i + CHUNK) } })) as any;
+        setProgress(`Importation ${Math.min(i + CHUNK, rows.length).toLocaleString("fr-FR")} / ${rows.length.toLocaleString("fr-FR")}…`);
+        const rep = (await doImport({ data: { scope, rows: rows.slice(i, i + CHUNK) } })) as any;
         updated += rep.updated; empty += rep.empty; unknown += rep.unknown;
         errors.push(...(rep.errors ?? []));
       }
-      toast.success(`${updated} traductions enregistrées`, {
-        description: `${empty} lignes vides ignorées · ${unknown} lignes non reconnues${errors.length ? ` · erreur : ${errors[0]}` : ""}`,
+      toast.success(`${updated.toLocaleString("fr-FR")} lignes mises à jour`, {
+        description: `${empty} lignes sans changement · ${unknown} non reconnues${errors.length ? ` · erreur : ${errors[0]}` : ""}`,
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Import impossible");
@@ -72,31 +82,25 @@ export function TranslationCsvCard() {
   };
 
   return (
-    <Card className="border-emerald-500/30 bg-emerald-500/5">
+    <Card className="border-primary/30 bg-primary/5">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <FileSpreadsheet className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold">Traduire par fichier Excel (0 crédit)</div>
-            <div className="text-xs text-muted-foreground">Exportez, traduisez dans Excel ou Google Sheets, réimportez.</div>
+            <div className="text-xs text-muted-foreground">Une colonne par langue, sans limite de lignes.</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Select value={lang} onValueChange={setLang}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TRANSLATION_LANGS.map((l) => <SelectItem key={l.code} value={l.code}>{l.flag} {l.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={size} onValueChange={setSize}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {["200", "500", "1000", "2000"].map((n) => <SelectItem key={n} value={n}>Lot de {n}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-3 gap-2">
+          {TRANSLATION_LANGS.map((l) => (
+            <label key={l.code} className="flex cursor-pointer items-center gap-2 rounded-md border bg-card p-2 text-sm">
+              <Checkbox checked={langs.includes(l.code)} onCheckedChange={() => toggleLang(l.code)} />
+              <span>{l.flag} {l.code.toUpperCase()}</span>
+            </label>
+          ))}
         </div>
 
         <Select value={scope} onValueChange={(v) => setScope(v as CsvScope)}>
@@ -110,8 +114,16 @@ export function TranslationCsvCard() {
           </SelectContent>
         </Select>
 
+        <Select value={mode} onValueChange={(v) => setMode(v as CsvMode)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="missing">Seulement ce qui manque</SelectItem>
+            <SelectItem value="all">Tout le contenu (pour relire/corriger)</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" onClick={onExport} disabled={busy !== null}>
+          <Button variant="outline" onClick={onExport} disabled={busy !== null || langs.length === 0}>
             {busy === "export" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Exporter
           </Button>
@@ -126,7 +138,7 @@ export function TranslationCsvCard() {
         />
 
         <p className="text-xs text-muted-foreground">
-          {progress || `Astuce : dans Google Sheets, tapez =GOOGLETRANSLATE(D2;"auto";"${lang}") puis étirez la formule. Les traductions importées sont protégées et ne seront jamais réécrites automatiquement (${langLabel?.label}).`}
+          {progress || `Astuce Google Sheets : =GOOGLETRANSLATE(D2;"auto";"en") puis étirez. Seules les cellules remplies sont enregistrées ; les traductions importées sont protégées.`}
         </p>
       </CardContent>
     </Card>
