@@ -91,9 +91,9 @@ function Home() {
   const feed = useHomeFeed({
     sections: homeSections ?? [],
     reco,
-    recoLoading,
+    recoLoading: recoLoading || !showSecondary,
     trending,
-    trendingLoading,
+    trendingLoading: trendingLoading || !showSecondary,
     blockSize: 8,
   });
 
