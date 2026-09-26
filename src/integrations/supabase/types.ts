@@ -4148,6 +4148,7 @@ export type Database = {
           price: number | null
           product_id: string
           status: string | null
+          toks: string[]
           updated_at: string
           vendor_id: string | null
         }
@@ -4163,6 +4164,7 @@ export type Database = {
           price?: number | null
           product_id: string
           status?: string | null
+          toks?: string[]
           updated_at?: string
           vendor_id?: string | null
         }
@@ -4178,6 +4180,7 @@ export type Database = {
           price?: number | null
           product_id?: string
           status?: string | null
+          toks?: string[]
           updated_at?: string
           vendor_id?: string | null
         }
@@ -6445,6 +6448,7 @@ export type Database = {
       }
     }
     Functions: {
+      _search_dbg: { Args: { p_q: string }; Returns: Json }
       apply_currency_recompute: { Args: { _code: string }; Returns: number }
       apply_stock_delta: {
         Args: { _delta: number; _reason?: string; _variant_id: string }
