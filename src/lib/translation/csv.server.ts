@@ -32,16 +32,22 @@ export async function exportPage(scope: CsvScope, langs: string[], mode: CsvMode
   : Promise<{ rows: CsvRow[]; next: string | null }> {
   if (scope === "products") {
     let q = db.from("products")
-      .select("id, code, source_lang, name, designation, description, name_i18n, designation_i18n, description_i18n, material_i18n")
+      .select("id, code, category_id, source_lang, name, designation, description, name_i18n, designation_i18n, description_i18n, material_i18n")
       .order("id").limit(size);
     if (cursor) q = q.gt("id", cursor);
     if (mode === "missing") q = q.or(langs.map((l) => `name_i18n->>${l}.is.null`).concat(langs.map((l) => `description_i18n->>${l}.is.null`)).join(","));
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     const list = (data ?? []) as Json[];
+    const catIds = [...new Set(list.map((p) => p.category_id).filter((x): x is string => typeof x === "string"))];
+    const catNames = new Map<string, string>();
+    if (catIds.length > 0) {
+      const { data: cats } = await db.from("categories").select("id, name").in("id", catIds);
+      for (const c of (cats ?? []) as Json[]) catNames.set(c.id, c.name ?? "");
+    }
     const rows = list.map((p) => {
       const r: CsvRow = {
-        product_id: p.id, code: p.code ?? "", langue_source: p.source_lang ?? "",
+        product_id: p.id, code: p.code ?? "", categorie: catNames.get(p.category_id) ?? "", langue_source: p.source_lang ?? "",
         nom_source: p.name ?? "", designation_source: p.designation ?? "", description_source: p.description ?? "",
       };
       for (const f of CSV_FIELDS.products) for (const l of langs) r[`${f.prefix}_${l}`] = p[f.col]?.[l] ?? "";
