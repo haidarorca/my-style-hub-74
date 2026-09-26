@@ -78,7 +78,11 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       return data ? ({ ...DEFAULTS, ...(data as Partial<SiteSettings>) } as SiteSettings) : DEFAULTS;
     },
-    staleTime: 60_000,
+    // Réglages quasi statiques : gardés en mémoire pour ne pas rappeler la
+    // base à chaque navigation.
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const settings = data ?? DEFAULTS;
