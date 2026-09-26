@@ -74,7 +74,7 @@ const FORMATS: { key: PosterFormat; label: string; hint: string; icon: string }[
 ];
 
 const THEMES: { key: PosterTheme; label: string; desc: string; gradient: string }[] = [
-  { key: "alibaba", label: "Marketplace", desc: "Style marketplace — prix jaune, CTA orange", gradient: "from-amber-400 via-orange-500 to-pink-500" },
+  { key: "alibaba", label: "KawZone", desc: "Photo entière, prix lisible et QR KawZone", gradient: "from-primary via-surface to-brand" },
   { key: "discount", label: "Promo Choc", desc: "Fond image plein cadre, -% énorme", gradient: "from-red-600 via-orange-600 to-yellow-500" },
   { key: "spotlight", label: "Coup de cœur", desc: "Produit détouré, ambiance pastel", gradient: "from-amber-200 via-orange-300 to-pink-300" },
   { key: "editorial", label: "Éditorial", desc: "Minimal magazine noir & blanc", gradient: "from-neutral-200 via-neutral-100 to-white" },
