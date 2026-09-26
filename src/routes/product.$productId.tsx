@@ -9,6 +9,8 @@ import { fitTypeOption } from "@/lib/fit-types";
 import { formatComposition, type CompositionItem } from "@/lib/textile-materials";
 import { SEASONS, GENDERS, AGE_GROUPS, CARE_INSTRUCTIONS, labelOf } from "@/lib/clothing-attributes";
 import { parseVideoUrl } from "@/lib/product-video";
+import { childSizeHint } from "@/lib/child-sizes";
+
 
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { toast } from "sonner";
@@ -312,7 +314,7 @@ function ProductPage() {
     const names = variants.map((v) => v.cj_options).find((o) => o && Object.keys(o).length > 0);
     if (!names) return { sizeLabel: null as string | null, colorLabel: null as string | null };
     const keys = Object.keys(names).filter((k) => k !== "Option");
-    const sizeKey = keys.find((k) => /size|尺码|尺寸|码/i.test(k));
+    const sizeKey = keys.find((k) => /size|taille|height|stature|age|âge|尺码|尺寸|码|身高|年龄/i.test(k));
     const others = keys.filter((k) => k !== sizeKey);
     return {
       sizeLabel: sizeKey ? tn(sizeKey) : null,
