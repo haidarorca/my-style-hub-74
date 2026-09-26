@@ -184,6 +184,10 @@ export interface OrderArticle {
   line_kind?: import("@/lib/line-kind").LineKind;
   /** Fret figé au checkout pour cet article (uniquement IMPORT_KNOWN_WEIGHT > 0). */
   freight_fee?: number;
+  /** Poids unitaire connu (ligne > variante > produit). */
+  unit_weight_kg?: number | null;
+  /** Coût d'achat fournisseur figé au checkout (FCFA, total ligne). */
+  purchase_cost_total?: number | null;
   /** Clé sous-commande = `${vendor_id}::${line_kind}`. */
   sub_order_key?: string;
   // ─── Périmètre Cockpit (responsabilité Kawzone) ───

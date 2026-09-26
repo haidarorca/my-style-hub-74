@@ -43,6 +43,8 @@ interface CatalogItem {
   line_kind?: import("@/lib/line-kind").LineKind;
   freight_fee?: number;
   sub_order_key?: string;
+  unit_weight_kg?: number | null;
+  purchase_cost_total?: number | null;
 }
 
 /** Projette un statut initial cohérent avec le statut commande (pour les articles sans row DB). */
@@ -86,6 +88,8 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
     commission_amount: item.commission_amount ?? null,
     line_kind: lineKind,
     freight_fee: item.freight_fee ?? 0,
+    unit_weight_kg: item.unit_weight_kg ?? null,
+    purchase_cost_total: item.purchase_cost_total ?? null,
     sub_order_key: item.sub_order_key ?? `${vendorId ?? "unknown"}::${lineKind}`,
     status,
     delivered_qty: row?.delivered_qty ?? 0,

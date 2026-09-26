@@ -278,7 +278,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const { data: itemsFromDb, error: itemsErr } = await supabaseAdmin
       .from("order_items")
-      .select("product_id, product_name, product_code, product_image_url, variant_id, size, color, unit_price, quantity, vendor_id, commission_rate, commission_amount, customization")
+      .select("product_id, product_name, product_code, product_image_url, variant_id, size, color, unit_price, quantity, vendor_id, commission_rate, commission_amount, customization, unit_weight_kg, cost_price_snapshot, cost_currency_snapshot, purchase_cost_total, freight_cost")
       .eq("order_id", data.order_id);
 
     if (itemsErr) {
@@ -297,7 +297,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
         ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, barcode, brand").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
-        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements").in("id", variantIds)
+        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements, weight_kg").in("id", variantIds)
         : Promise.resolve({ data: [] }),
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
@@ -428,7 +428,7 @@ export const getOrderItems = createServerFn({ method: "POST" })
       if (stampedKind === "LOCAL" || stampedKind === "IMPORT_KNOWN_WEIGHT" || stampedKind === "IMPORT_UNKNOWN_WEIGHT") {
         lineKind = stampedKind;
       } else if (isImportProduct) {
-        const w = Number((prod as any)?.weight_kg ?? 0);
+        const w = Number((it as any).unit_weight_kg ?? 0) || Number((variant as any)?.weight_kg ?? 0) || Number((prod as any)?.weight_kg ?? 0);
         lineKind = w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
       }
       // Fret figé pour KNOWN uniquement. UNKNOWN n'a JAMAIS de fret avant pesée.
@@ -464,6 +464,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
         is_local: isLocalProduct,
         line_kind: lineKind,
         freight_fee: freightFee,
+        unit_weight_kg: Number((it as any).unit_weight_kg ?? 0) || Number((variant as any)?.weight_kg ?? 0) || Number((prod as any)?.weight_kg ?? 0) || null,
+        purchase_cost_total: (it as any).purchase_cost_total != null ? Number((it as any).purchase_cost_total) : null,
+        cost_price_snapshot: (it as any).cost_price_snapshot != null ? Number((it as any).cost_price_snapshot) : null,
+        cost_currency_snapshot: (it as any).cost_currency_snapshot ?? null,
         sub_order_key: subOrderKey,
         origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
