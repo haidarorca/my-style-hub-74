@@ -39,9 +39,15 @@ export async function exportPage(scope: CsvScope, langs: string[], mode: CsvMode
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     const list = (data ?? []) as Json[];
+    const catIds = [...new Set(list.map((p) => p.category_id).filter((x): x is string => typeof x === "string"))];
+    const catNames = new Map<string, string>();
+    if (catIds.length > 0) {
+      const { data: cats } = await db.from("categories").select("id, name").in("id", catIds);
+      for (const c of (cats ?? []) as Json[]) catNames.set(c.id, c.name ?? "");
+    }
     const rows = list.map((p) => {
       const r: CsvRow = {
-        product_id: p.id, code: p.code ?? "", langue_source: p.source_lang ?? "",
+        product_id: p.id, code: p.code ?? "", categorie: catNames.get(p.category_id) ?? "", langue_source: p.source_lang ?? "",
         nom_source: p.name ?? "", designation_source: p.designation ?? "", description_source: p.description ?? "",
       };
       for (const f of CSV_FIELDS.products) for (const l of langs) r[`${f.prefix}_${l}`] = p[f.col]?.[l] ?? "";
