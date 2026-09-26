@@ -45,6 +45,13 @@ export function SimilarProducts({
           const familyId = current?.parent_id ?? categoryId;
           const { data: siblings } = await supabase.from("categories").select("id").eq("parent_id", familyId);
           await add([familyId, ...(siblings ?? []).map((c) => c.id)]);
+          if (!current?.parent_id && selected.size < 4) {
+            const childIds = (siblings ?? []).map((c) => c.id);
+            if (childIds.length) {
+              const { data: leaves } = await supabase.from("categories").select("id").in("parent_id", childIds);
+              await add((leaves ?? []).map((c) => c.id));
+            }
+          }
           if (selected.size < 4 && current?.parent_id) {
             const { data: parent } = await supabase.from("categories").select("parent_id").eq("id", familyId).maybeSingle();
             if (parent?.parent_id) {
