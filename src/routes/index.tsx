@@ -362,7 +362,7 @@ function Home() {
             {visibleSubSubs.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSubSubCategoryId(c.id)}
+                onClick={() => { setSubSubCategoryId(c.id); scrollTop(); }}
                 className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   subSubCategoryId === c.id
                     ? "bg-accent text-foreground"
