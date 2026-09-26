@@ -4148,6 +4148,7 @@ export type Database = {
           price: number | null
           product_id: string
           status: string | null
+          toks: string[]
           updated_at: string
           vendor_id: string | null
         }
@@ -4163,6 +4164,7 @@ export type Database = {
           price?: number | null
           product_id: string
           status?: string | null
+          toks?: string[]
           updated_at?: string
           vendor_id?: string | null
         }
@@ -4178,6 +4180,7 @@ export type Database = {
           price?: number | null
           product_id?: string
           status?: string | null
+          toks?: string[]
           updated_at?: string
           vendor_id?: string | null
         }

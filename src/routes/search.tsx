@@ -14,13 +14,14 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { ProductPricesProvider, useProductDisplayPrice } from "@/components/product/ProductPricesProvider";
-import { rankBy, scoreLabel, scoreProduct } from "@/lib/search-rank";
+import { rankBy, scoreLabel } from "@/lib/search-rank";
 import { RecommendationBlock } from "@/components/product/RecommendationBlock";
 import { useRecommendations } from "@/hooks/use-recommendations";
 import { useTracker } from "@/hooks/use-tracker";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFormatDisplay } from "@/hooks/use-currencies";
+import { searchProducts, searchCategories } from "@/lib/search-engine";
 
 function SearchPriceTag({ productId }: { productId: string; currency?: string }) {
   const dp = useProductDisplayPrice(productId);
@@ -130,36 +131,26 @@ function SearchPage() {
     enabled: debounced.length >= 1 && (!countryId || deliverableVendorIds !== null),
     queryFn: async () => {
       const term = debounced;
-      const first = term.charAt(0);
-      let q1 = supabase
-        .from("products")
-        .select("id, name, name_i18n, price, category_id, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)")
-        .order("position", { referencedTable: "product_images", ascending: true })
-        .eq("status", "approved")
-        .or(
-          `name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%,designation.ilike.${first}%`,
-        )
-        .limit(40);
-      if (filters.minPrice) q1 = q1.gte("price", Number(filters.minPrice));
-      if (filters.maxPrice) q1 = q1.lte("price", Number(filters.maxPrice));
-      if (deliverableVendorIds) {
-        if (deliverableVendorIds.length === 0) return [];
-        q1 = q1.in("vendor_id", deliverableVendorIds);
-      }
-      const { data } = await q1;
-      let rows = data ?? [];
+      const { rows: found } = await searchProducts<any>({
+        q: term,
+        select: "id, name, name_i18n, price, category_id, designation, designation_i18n, code, sku, product_images(url, position), product_variants(size, color)",
+        vendorIds: deliverableVendorIds,
+        min: filters.minPrice ? Number(filters.minPrice) : null,
+        max: filters.maxPrice ? Number(filters.maxPrice) : null,
+        limit: 60,
+      });
+      let rows = found;
       if (filters.size) {
-        rows = rows.filter((p) =>
-          p.product_variants?.some((v) => (v.size ?? "").toLowerCase() === filters.size.toLowerCase()),
+        rows = rows.filter((p: any) =>
+          p.product_variants?.some((v: any) => (v.size ?? "").toLowerCase() === filters.size.toLowerCase()),
         );
       }
       if (filters.color) {
-        rows = rows.filter((p) =>
-          p.product_variants?.some((v) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())),
+        rows = rows.filter((p: any) =>
+          p.product_variants?.some((v: any) => (v.color ?? "").toLowerCase().includes(filters.color.toLowerCase())),
         );
       }
-      // Pertinence : Code/SKU exact > début de nom > nom > désignation
-      return rankBy(rows, (r) => scoreProduct(r as any, term));
+      return rows as Array<any>;
     },
   });
 
@@ -168,14 +159,7 @@ function SearchPage() {
     queryKey: ["search", "categories", debounced],
     enabled: debounced.length >= 1,
     queryFn: async () => {
-      const term = debounced;
-      const first = term.charAt(0);
-      const { data } = await supabase
-        .from("categories")
-        .select("id, name, name_i18n, level, logo_url")
-        .or(`name.ilike.%${term}%,name.ilike.${first}%`)
-        .limit(20);
-      return rankBy(data ?? [], (r) => scoreLabel(r.name, term));
+      return searchCategories(debounced, 12);
     },
   });
 
@@ -463,6 +447,43 @@ function SearchPage() {
         {/* Results */}
         {showResults && (
           <div className="mt-4 space-y-6">
+            {/* Products */}
+            {showProducts && (
+              <section>
+                <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
+                  <Package className="h-4 w-4" /> {t("search.tab_products")}
+                </h2>
+                {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
+                {!pLoading && products && products.length > 0 ? (
+                  <ProductPricesProvider productIds={products.map((p: any) => p.id)}>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {products.map((p) => (
+                        <Link
+                          key={p.id}
+                          to="/product/$productId"
+                          params={{ productId: p.id }}
+                          className="overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:bg-accent"
+                        >
+                          <div className="aspect-square overflow-hidden bg-muted">
+                            {p.product_images?.[0]?.url ? (
+                              <SensitiveThumb productId={p.id} categoryId={(p as any).category_id} src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
+                            ) : null}
+                          </div>
+                          <div className="p-2">
+                            <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
+                            <div className="mt-1 text-sm font-bold text-primary">
+                              <SearchPriceTag productId={p.id} currency={t("misc.currency")} />
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </ProductPricesProvider>
+                ) : (
+                  !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
+                )}
+              </section>
+            )}
             {/* Categories */}
             {showCategories && categories && categories.length > 0 && (
               <section>
@@ -518,43 +539,6 @@ function SearchPage() {
               </section>
             )}
 
-            {/* Products */}
-            {showProducts && (
-              <section>
-                <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Package className="h-4 w-4" /> {t("search.tab_products")}
-                </h2>
-                {pLoading && <p className="text-sm text-muted-foreground">{t("search.searching")}</p>}
-                {!pLoading && products && products.length > 0 ? (
-                  <ProductPricesProvider productIds={products.map((p: any) => p.id)}>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                      {products.map((p) => (
-                        <Link
-                          key={p.id}
-                          to="/product/$productId"
-                          params={{ productId: p.id }}
-                          className="overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:bg-accent"
-                        >
-                          <div className="aspect-square overflow-hidden bg-muted">
-                            {p.product_images?.[0]?.url ? (
-                              <SensitiveThumb productId={p.id} categoryId={(p as any).category_id} src={p.product_images[0].url} alt={pickI18n(p.name, p.name_i18n, lang)} className="h-full w-full object-cover" />
-                            ) : null}
-                          </div>
-                          <div className="p-2">
-                            <div className="line-clamp-2 text-xs font-semibold">{pickI18n(p.name, p.name_i18n, lang)}</div>
-                            <div className="mt-1 text-sm font-bold text-primary">
-                              <SearchPriceTag productId={p.id} currency={t("misc.currency")} />
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </ProductPricesProvider>
-                ) : (
-                  !pLoading && <p className="text-sm text-muted-foreground">{t("search.no_product_found")}</p>
-                )}
-              </section>
-            )}
 
             {/* Empty global */}
             {!pLoading &&

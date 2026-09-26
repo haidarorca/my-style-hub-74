@@ -5,11 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import Fuse from "fuse.js";
 import { Search, X, Clock, TrendingUp, Package, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { rankBy, scoreProduct } from "@/lib/search-rank";
 import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
 import { useFormatDisplay } from "@/hooks/use-currencies";
+import { searchProducts } from "@/lib/search-engine";
 
 const RECENT_KEY = "kawzone.recent_searches.v1";
 const MAX_RECENT = 6;
@@ -104,20 +104,13 @@ export function SearchAutocomplete() {
     enabled: hasQuery,
     staleTime: 60_000,
     queryFn: async () => {
-      const term = debounced;
-      const first = term.charAt(0);
-      let q = supabase
-        .from("products")
-        .select("id, name, name_i18n, code, designation, price, category_id, product_images(url, position)")
-        .eq("status", "approved")
-        .or(`name.ilike.%${term}%,designation.ilike.%${term}%,code.ilike.%${term}%,name.ilike.${first}%`)
-        .limit(20);
-      if (deliverableVendorIds) {
-        if (deliverableVendorIds.length === 0) return [];
-        q = q.in("vendor_id", deliverableVendorIds);
-      }
-      const { data } = await q;
-      return data ?? [];
+      const { rows } = await searchProducts<any>({
+        q: debounced,
+        select: "id, name, name_i18n, code, designation, price, category_id, product_images(url, position)",
+        vendorIds: deliverableVendorIds,
+        limit: 8,
+      });
+      return rows;
     },
   });
 
@@ -167,21 +160,7 @@ export function SearchAutocomplete() {
 
   // Fuzzy rerank for typo tolerance
   const products = useMemo(() => {
-    const rows = productSugg ?? [];
-    if (!hasQuery || rows.length === 0) return rows.slice(0, 6);
-    const fuse = new Fuse(rows, {
-      keys: ["name", "name_i18n.fr", "name_i18n.en", "name_i18n.ar"],
-      threshold: 0.45,
-      ignoreLocation: true,
-    });
-    // Pertinence métier d'abord (code exact, début de nom, nom, désignation)
-    const business = rankBy(rows, (r) => scoreProduct(r as any, debounced));
-    if (business.length > 0 && scoreProduct(business[0] as any, debounced) > 5) {
-      return business.slice(0, 6);
-    }
-    // Sinon tolérance aux fautes de frappe
-    const ranked = fuse.search(debounced).map((r) => r.item);
-    return (ranked.length ? ranked : rows).slice(0, 6);
+    return (productSugg ?? []).slice(0, 6);
   }, [productSugg, debounced, hasQuery]);
 
   const shops = useMemo(() => {
