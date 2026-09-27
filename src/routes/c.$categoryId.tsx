@@ -262,6 +262,28 @@ function CategoryPage() {
               <SlidersHorizontal className="h-3.5 w-3.5" />Filtrer
             </Link>
           </div>
+          <div className="mb-3 flex gap-2">
+            <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-border bg-muted px-3 focus-within:border-primary">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input
+                type="search"
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                placeholder={`Chercher dans ${categoryName || "cette catégorie"}`}
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              />
+            </label>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              aria-label="Trier"
+              className="h-9 shrink-0 rounded-full border border-border bg-background px-2 text-xs"
+            >
+              <option value="new">Nouveautés</option>
+              <option value="price_asc">Prix ↑</option>
+              <option value="price_desc">Prix ↓</option>
+            </select>
+          </div>
           {productsLoading ? (
             <ProductGridSkeleton count={8} />
           ) : products && products.length > 0 ? (
@@ -271,6 +293,18 @@ function CategoryPage() {
                   <ProductCard key={p.id} product={p as ProductCardProduct} onQuickAdd={setQuickAdd} />
                 ))}
               </div>
+              {hasNextPage && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="rounded-full border border-border px-5 py-2 text-sm font-semibold hover:border-primary disabled:opacity-50"
+                  >
+                    {isFetchingNextPage ? "Chargement…" : "Voir plus de produits"}
+                  </button>
+                </div>
+              )}
             </ProductPricesProvider>
           ) : (
             <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
