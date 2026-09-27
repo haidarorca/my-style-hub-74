@@ -448,6 +448,35 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       }
     }
 
+    // ── Catégorie CJ modifiée chez CJ → mise à jour KawZone ──
+    // À chaque synchro (légère ou complète) d'un produit existant, on compare
+    // la catégorie CJ actuelle à celle mémorisée. Si elle a changé, on
+    // replace le produit — sauf si un administrateur l'a déplacé à la main.
+    if (!isNew && productId && p.categoryId) {
+      try {
+        const newCjCat = String(p.categoryId);
+        const { data: prev } = await admin.from("cj_products")
+          .select("cj_category_id, kawzone_category_id").eq("cj_product_id", pid).maybeSingle();
+        if (prev && prev.cj_category_id && prev.cj_category_id !== newCjCat) {
+          const res = category.status !== "unchanged" && category.cjCategoryId === newCjCat
+            ? category
+            : await (await import("./categories.server")).resolveCjCategory(newCjCat, p.categoryName ?? null, cjCategoryPath);
+          const { data: cur } = await admin.from("products").select("category_id").eq("id", productId).maybeSingle();
+          const untouched = !cur?.category_id || cur.category_id === prev.kawzone_category_id;
+          if (res.kawzoneCategoryId && untouched) {
+            await admin.from("products").update({ category_id: res.kawzoneCategoryId }).eq("id", productId);
+            missing.push(`Catégorie mise à jour (changée chez CJ) : ${res.kawzoneChain.join(" › ")}`);
+          } else if (!untouched) {
+            missing.push("CJ a changé la catégorie, mais le classement manuel KawZone est conservé.");
+          }
+          await admin.from("cj_products").update({
+            cj_category_id: newCjCat, cj_category_name: p.categoryName ?? null, cj_category_path: cjCategoryPath,
+            ...(res.kawzoneCategoryId && untouched ? { kawzone_category_id: res.kawzoneCategoryId, category_mapping_status: res.status } : {}),
+          }).eq("cj_product_id", pid);
+        }
+      } catch { /* non bloquant */ }
+    }
+
     // ── Images ──
     lap("produit");
     let gallery: string[] | null = null;
