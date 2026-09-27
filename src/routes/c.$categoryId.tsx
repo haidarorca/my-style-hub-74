@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ChevronLeft, SlidersHorizontal } from "lucide-react";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { ChevronRight, ChevronLeft, SlidersHorizontal, Search } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ProductCard, type ProductCardProduct } from "@/components/product/ProductCard";
 import { RecommendationBlock } from "@/components/product/RecommendationBlock";
@@ -101,53 +101,21 @@ function CategoryPage() {
     },
   });
 
-  // CORRECTION: Récupérer TOUS les IDs de catégories descendantes
-  // incluant la catégorie elle-même, ses enfants et petits-enfants
+  // Branche stricte : la catégorie + ses sous-familles + sous-sous-familles.
+  // (Plus de mélange avec les catégories sœurs ou le parent.)
   const { data: descendantIds } = useQuery({
-    queryKey: ["category-descendants-all", categoryId],
+    queryKey: ["category-branch", categoryId],
+    staleTime: 10 * 60_000,
     queryFn: async () => {
-      const ids = new Set<string>();
-      ids.add(categoryId);
-
-      // Récupérer les enfants directs (niveau 2)
-      const { data: l2 } = await supabase
-        .from("categories")
-        .select("id")
-        .eq("parent_id", categoryId);
-
-      if (l2 && l2.length > 0) {
-        l2.forEach((c) => ids.add(c.id));
-
-        // Récupérer les petits-enfants (niveau 3)
-        const { data: l3 } = await supabase
-          .from("categories")
-          .select("id")
-          .in("parent_id", l2.map((c) => c.id));
-
-        if (l3 && l3.length > 0) {
-          l3.forEach((c) => ids.add(c.id));
-        }
+      const ids = new Set<string>([categoryId]);
+      let frontier = [categoryId];
+      for (let depth = 0; depth < 3 && frontier.length; depth++) {
+        const { data } = await supabase.from("categories").select("id").in("parent_id", frontier);
+        frontier = (data ?? []).map((c) => c.id).filter((id) => !ids.has(id));
+        frontier.forEach((id) => ids.add(id));
       }
-
-      // Si la catégorie a un parent, récupérer aussi les "cousins"
-      // (cas où un produit est assigné à la catégorie parent)
-      if (category?.parent_id) {
-        ids.add(category.parent_id);
-
-        // Récupérer les frères/sœurs de la catégorie courante
-        const { data: siblings } = await supabase
-          .from("categories")
-          .select("id")
-          .eq("parent_id", category.parent_id);
-
-        if (siblings && siblings.length > 0) {
-          siblings.forEach((c) => ids.add(c.id));
-        }
-      }
-
       return Array.from(ids);
     },
-    // CORRECTION: s'assurer que la requête s'exécute même si category n'est pas encore chargée
     enabled: !!categoryId,
   });
 
@@ -155,38 +123,49 @@ function CategoryPage() {
 
   const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
 
-  // CORRECTION: Requête des produits avec vérifications robustes
-  const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products-by-cat", categoryId, descendantIds, countryId, deliverableVendorIds],
-    // CORRECTION: enabled simplifié - on exécute si on a un categoryId et des descendantIds
-    enabled: !!categoryId && !!descendantIds && descendantIds.length > 0,
-    queryFn: async () => {
-      // Vérification défensive
-      if (!descendantIds || descendantIds.length === 0) {
-        return [];
-      }
+  // Recherche interne à la catégorie + tri + pagination (20 par page, sans plafond).
+  const [term, setTerm] = useState("");
+  const [debTerm, setDebTerm] = useState("");
+  const [sort, setSort] = useState<"new" | "price_asc" | "price_desc">("new");
+  useEffect(() => {
+    const id = setTimeout(() => setDebTerm(term.trim()), 250);
+    return () => clearTimeout(id);
+  }, [term]);
+  useEffect(() => { setTerm(""); setDebTerm(""); }, [categoryId]);
 
+  const PAGE = 20;
+  const {
+    data: pages,
+    isLoading: productsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["products-by-cat", categoryId, descendantIds, countryId, deliverableVendorIds, debTerm, sort],
+    enabled: !!categoryId && !!descendantIds && descendantIds.length > 0,
+    initialPageParam: 0,
+    getNextPageParam: (last: unknown[], all) => (last.length === PAGE ? all.length * PAGE : undefined),
+    queryFn: async ({ pageParam }) => {
+      if (!descendantIds || descendantIds.length === 0) return [];
       let q = supabase
         .from("products")
         .select(PRODUCT_CARD_SELECT)
         .order("position", { referencedTable: "product_images", ascending: true })
         .limit(1, { referencedTable: "product_images" })
-        // Groupes : on n'affiche que les articles visibles seuls + l'article principal du groupe
         .or("group_id.is.null,show_individually.eq.true,group_position.eq.0")
         .eq("status", "approved")
-        .not("category_id", "is", null) // CORRECTION: exclure les produits sans catégorie
-        .in("category_id", descendantIds)
-        .order("created_at", { ascending: false })
-        .limit(60);
-
-      // CORRECTION: Vérifier deliverableVendorIds de manière plus robuste
+        .in("category_id", descendantIds);
+      if (debTerm) {
+        const safe = debTerm.replace(/[%,()*]/g, " ").trim();
+        if (safe) q = q.or(`name.ilike.%${safe}%,code.ilike.%${safe}%,designation.ilike.%${safe}%`);
+      }
       if (deliverableVendorIds && deliverableVendorIds.length > 0) {
         q = q.in("vendor_id", deliverableVendorIds);
       }
-      // Si deliverableVendorIds est un tableau vide, on ne filtre pas par vendor
-      // pour permettre l'affichage des produits même sans restriction de livraison
-
-      const { data, error } = await q;
+      q = sort === "new"
+        ? q.order("created_at", { ascending: false }).order("id")
+        : q.order("price", { ascending: sort === "price_asc" }).order("id");
+      const { data, error } = await q.range(pageParam as number, (pageParam as number) + PAGE - 1);
       if (error) {
         console.error("[CategoryPage] Erreur requête produits:", error);
         throw error;
@@ -194,6 +173,7 @@ function CategoryPage() {
       return data ?? [];
     },
   });
+  const products = pages?.pages.flat();
 
   // Suivi de la consultation de catégorie (profil d'intérêt).
   const track = useTracker();
