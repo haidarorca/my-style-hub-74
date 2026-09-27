@@ -483,9 +483,9 @@ function RecomputeDialog({ code, onClose, onApplied }: { code: string | null; on
     try {
       let after: string | null = null; let total = 0;
       for (let i = 0; i < 1000; i++) {
-        const { data, error } = await (supabase as any).rpc("apply_currency_recompute_batch", { _code: code, _after: after, _limit: 1000 });
+        const { data, error }: { data: any; error: any } = await (supabase as any).rpc("apply_currency_recompute_batch", { _code: code, _after: after, _limit: 1000 });
         if (error) throw error;
-        const r = (data || [])[0];
+        const r: any = (data || [])[0];
         if (!r) break;
         total += Number(r.updated) || 0; setProgress(total);
         after = r.last_id;
