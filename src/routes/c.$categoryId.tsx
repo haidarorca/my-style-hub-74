@@ -144,7 +144,7 @@ function CategoryPage() {
     queryKey: ["products-by-cat", categoryId, descendantIds, countryId, deliverableVendorIds, debTerm, sort],
     enabled: !!categoryId && !!descendantIds && descendantIds.length > 0,
     initialPageParam: 0,
-    getNextPageParam: (last, all) => (last.length === PAGE ? all.length * PAGE : undefined),
+    getNextPageParam: (last, all) => ((last as unknown[]).length === PAGE ? all.length * PAGE : undefined),
     queryFn: async ({ pageParam }) => {
       if (!descendantIds || descendantIds.length === 0) return [];
       let q = supabase
