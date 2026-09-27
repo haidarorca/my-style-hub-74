@@ -38,6 +38,7 @@ import { NextActionBanner } from "./NextActionBanner";
 import { AggregateDebugPanel } from "./AggregateDebugPanel";
 import { SubOrdersPanel } from "./SubOrdersPanel";
 import { RelatedSubOrdersStrip } from "./RelatedSubOrdersStrip";
+import { EditAddressDialog } from "./EditAddressDialog";
 import { ArticlesPanel } from "./ArticlesPanel";
 
 
@@ -344,7 +345,17 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                     <a href={waLink(order.customer_phone, waMsg)} target="_blank" rel="noopener noreferrer" className="ml-2 text-emerald-600 text-xs flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full"><MessageCircle className="h-3 w-3" />WhatsApp</a>
                   </div>
                 )}
-                {order.customer_address && <div className="flex items-center gap-1.5 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{order.customer_address}</div>}
+                <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span>{[order.customer_address, order.customer_city].filter(Boolean).join(", ") || "Adresse non renseignée"}</span>
+                  {order.order_id && (
+                    <button type="button" onClick={() => setEditAddr(true)} className="ml-2 text-xs text-blue-600 hover:underline">Modifier</button>
+                  )}
+                </div>
+                {editAddr && order.order_id && (
+                  <EditAddressDialog open onClose={() => setEditAddr(false)} orderId={order.order_id}
+                    address={order.customer_address} city={order.customer_city} phone={order.customer_phone} />
+                )}
               </div>
 
               {/* Résumé financier supprimé du tab Résumé — déjà affiché en permanence
