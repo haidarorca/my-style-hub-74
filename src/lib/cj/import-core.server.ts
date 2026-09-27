@@ -369,11 +369,14 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const material: string | null = materialInfo.value;
     report.material = materialInfo;
     // Vidéo : champ officiel productVideo (URL ou liste), jamais inventée.
-    const video: string | null = (() => {
+    // Vidéos CJ désactivées (filigranes, lenteur) : jamais importées.
+    const _videoDisabled: string | null = (() => {
       const raw = p.productVideo;
       const list = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim() ? (() => { try { const x = JSON.parse(raw); return Array.isArray(x) ? x : [raw]; } catch { return [raw]; } })() : [];
       return list.map(String).find((u: string) => /^https?:\/\//i.test(u)) ?? null;
     })();
+    void _videoDisabled;
+    const video: string | null = null;
 
     // ── Catégorie ──
     const cjCategoryPath: string | null =

@@ -294,10 +294,10 @@ export const getOrderItems = createServerFn({ method: "POST" })
 
     const [productsResult, variantsResult, vendorsResult, imagesResult] = await Promise.allSettled([
       productIds.length > 0
-        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, barcode, brand").in("id", productIds)
+        ? supabaseAdmin.from("products").select("id, name, designation, description, vendor_id, price, weight_kg, sku, barcode, brand, source, code").in("id", productIds)
         : Promise.resolve({ data: [] }),
       variantIds.length > 0
-        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, measurements, weight_kg").in("id", variantIds)
+        ? supabaseAdmin.from("product_variants").select("id, product_id, size, color, color_hex, image_url, variant_ref, supplier_sku, supplier_ref, external_variant_id, measurements, weight_kg").in("id", variantIds)
         : Promise.resolve({ data: [] }),
       vendorIds.length > 0
         ? supabaseAdmin.from("profiles").select(
@@ -431,6 +431,11 @@ export const getOrderItems = createServerFn({ method: "POST" })
         const w = Number((it as any).unit_weight_kg ?? 0) || Number((variant as any)?.weight_kg ?? 0) || Number((prod as any)?.weight_kg ?? 0);
         lineKind = w > 0 ? "IMPORT_KNOWN_WEIGHT" : "IMPORT_UNKNOWN_WEIGHT";
       }
+      // Produits CJ : poids fournisseur toujours connu → jamais « poids inconnu » si un poids existe.
+      if (lineKind === "IMPORT_UNKNOWN_WEIGHT" && (prod as any)?.source === "cj_import") {
+        const w = Number((it as any).unit_weight_kg ?? 0) || Number((variant as any)?.weight_kg ?? 0) || Number((prod as any)?.weight_kg ?? 0);
+        if (w > 0) lineKind = "IMPORT_KNOWN_WEIGHT";
+      }
       // Fret figé pour KNOWN uniquement. UNKNOWN n'a JAMAIS de fret avant pesée.
       const freightFee = lineKind === "IMPORT_KNOWN_WEIGHT"
         ? Number(cust?.__freight_fee ?? 0) || 0
@@ -471,8 +476,8 @@ export const getOrderItems = createServerFn({ method: "POST" })
         sub_order_key: subOrderKey,
         origin_country: productOriginCountry?.name ?? (isImportProduct ? orderCountry : null),
         origin_country_flag: productOriginCountry?.flag ?? null,
-        sku: (prod as any)?.sku ?? null,
-        variant_ref: (variant as any)?.variant_ref ?? null,
+        sku: (prod as any)?.sku ?? (prod as any)?.code ?? it.product_code ?? null,
+        variant_ref: (variant as any)?.variant_ref ?? (variant as any)?.supplier_sku ?? (variant as any)?.supplier_ref ?? (variant as any)?.external_variant_id ?? null,
         barcode: (prod as any)?.barcode ?? null,
         brand: (prod as any)?.brand ?? null,
 

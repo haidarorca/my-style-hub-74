@@ -104,6 +104,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const { profile } = useAuth();
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
+  const [editAddr, setEditAddr] = useState(false);
   const [activeTab, setActiveTab] = useState<SubOrderActionTab>("resume");
   if (!order) return null;
 
