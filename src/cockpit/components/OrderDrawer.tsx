@@ -105,6 +105,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
+  const [shipPicker, setShipPicker] = useState(false);
   const [activeTab, setActiveTab] = useState<SubOrderActionTab>("resume");
   if (!order) return null;
 
@@ -506,6 +507,35 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Mode d'expédition + fret de la sous-commande */}
+              {isScoped && lineKind !== "LOCAL" && order.order_id && (
+                <div className="bg-white border rounded-lg p-3 space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5"><Truck className="h-4 w-4" />Expédition de cette sous-commande</h3>
+                  <ShippingServiceLine serviceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null} />
+                  <div className="text-xs space-y-1 border-t pt-2">
+                    <div className="flex justify-between"><span className="text-gray-500">Produits</span><b>{fmtF(ot)}</b></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Fret</span><b className={sf > 0 ? "text-orange-700" : "text-gray-400"}>{sf > 0 ? fmtF(sf) : "—"}</b></div>
+                    <div className="flex justify-between border-t pt-1"><span className="text-gray-700 font-medium">Total</span><b>{fmtF(gt)}</b></div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShipPicker(true)}
+                    className="w-full text-xs border border-blue-200 text-blue-700 bg-blue-50 rounded-md py-2 font-medium hover:bg-blue-100"
+                  >
+                    Choisir / modifier le mode d'expédition
+                  </button>
+                  {shipPicker && (
+                    <ShippingServicePickerDialog
+                      open
+                      orderId={order.order_id}
+                      assessmentId={subAssessment?.id ?? null}
+                      currentServiceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null}
+                      onClose={() => setShipPicker(false)}
+                    />
+                  )}
                 </div>
               )}
 
