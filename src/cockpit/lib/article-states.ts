@@ -190,6 +190,12 @@ export interface OrderArticle {
   purchase_cost_total?: number | null;
   /** Clé sous-commande = `${vendor_id}::${line_kind}`. */
   sub_order_key?: string;
+  /** Référence produit KawZone (code / SKU interne). */
+  sku?: string | null;
+  /** Référence exacte de la variante commandée (SKU fournisseur CJ en secours). */
+  variant_ref?: string | null;
+  /** Code-barres produit si disponible. */
+  barcode?: string | null;
   // ─── Périmètre Cockpit (responsabilité Kawzone) ───
   /** True si l'article appartient à une boutique gérée directement par Kawzone. */
   is_admin_shop?: boolean;

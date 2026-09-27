@@ -6,13 +6,21 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Package, Tag, Palette, Ruler, Truck, Store, Calendar, CheckCircle2, AlertTriangle, Box } from "lucide-react";
+import { Package, Tag, Palette, Ruler, Truck, Store, Calendar, CheckCircle2, AlertTriangle, Box, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { fmtF, fmtDateTime } from "@/cockpit/lib/workflow";
+import { LINE_KIND_LABELS } from "@/lib/line-kind";
 import {
   ARTICLE_STATUS_COLORS, ARTICLE_STATUS_LABELS,
   getArticleStatusLabel, STOCK_BREAK_ACTIONS,
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
+
+/** Le taux est stocké en pourcentage (10 = 10 %). Ne jamais remultiplier par 100. */
+function formatRate(rate: number): string {
+  const pct = rate <= 1 ? rate * 100 : rate;
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+}
 
 interface Props {
   article: OrderArticle | null;
@@ -81,10 +89,18 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
           {/* Identité produit */}
           <Section title="Identité produit" icon={Tag}>
             <Row label="Nom" value={a.product_name} />
-            <Row label="Réf. interne" value={a.product_id} mono />
-            {a.variant_id && <Row label="Variante" value={a.variant_label ?? a.variant_id} />}
+            <Row label="Réf. produit" value={a.sku ?? "Non renseignée"} mono={!!a.sku} copy={a.sku ?? undefined} />
+            <Row
+              label="Réf. variante"
+              value={a.variant_ref ?? (a.variant_id ? "Non renseignée" : "—")}
+              mono={!!a.variant_ref}
+              copy={a.variant_ref ?? undefined}
+            />
+            {a.barcode && <Row label="Code-barres" value={a.barcode} mono copy={a.barcode} />}
+            {a.variant_label && <Row label="Variante" value={a.variant_label} />}
             {a.color && <Row label="Couleur" value={a.color} icon={Palette} />}
             {a.size && <Row label="Taille" value={a.size} icon={Ruler} />}
+            <Row label="Identifiant interne" value={a.product_id} mono muted copy={a.product_id} />
           </Section>
 
           {/* Quantité & prix */}
@@ -101,7 +117,10 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
           {(a.is_import || freightFee) && (
             <Section title="Logistique & import" icon={Truck}>
               {a.origin_country && <Row label="Pays origine" value={`${a.origin_country_flag ?? ""} ${a.origin_country}`.trim()} />}
-              {a.line_kind && <Row label="Catégorie" value={a.line_kind} mono />}
+              {a.line_kind && <Row label="Catégorie" value={LINE_KIND_LABELS[a.line_kind]} />}
+              {a.unit_weight_kg != null && a.unit_weight_kg > 0 && (
+                <Row label="Poids unitaire" value={`${a.unit_weight_kg.toFixed(3)} kg`} />
+              )}
               {a.freight_fee != null && a.freight_fee > 0 && (
                 <Row label="Fret figé (checkout)" value={fmtF(a.freight_fee)} />
               )}
@@ -114,7 +133,7 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
               {a.vendor_name && <Row label="Boutique" value={a.vendor_name} />}
               {a.shop_type_label && <Row label="Type" value={a.shop_type_label} />}
               {a.commission_rate != null && a.commission_rate > 0 && (
-                <Row label="Commission" value={`${(a.commission_rate * 100).toFixed(1)}%`} />
+                <Row label="Commission" value={`${formatRate(a.commission_rate)} %`} />
               )}
               {a.commission_amount != null && a.commission_amount > 0 && (
                 <Row label="Montant commission" value={fmtF(a.commission_amount)} />
@@ -166,16 +185,31 @@ function Section({ title, icon: Icon, children }: { title: string; icon: any; ch
 }
 
 function Row({
-  label, value, mono, bold, icon: Icon,
-}: { label: string; value: string; mono?: boolean; bold?: boolean; icon?: any }) {
+  label, value, mono, bold, muted, copy, icon: Icon,
+}: { label: string; value: string; mono?: boolean; bold?: boolean; muted?: boolean; copy?: string; icon?: any }) {
   return (
-    <div className="flex items-center justify-between gap-2 text-[11px]">
-      <span className="text-gray-500 flex items-center gap-1">
+    <div className="flex items-start justify-between gap-2 text-[11px]">
+      <span className="text-gray-500 flex items-center gap-1 shrink-0">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
       </span>
-      <span className={`text-right ${mono ? "font-mono text-[10px]" : ""} ${bold ? "font-bold" : "font-medium"}`}>
-        {value}
+      <span className="flex items-center gap-1 justify-end text-right min-w-0">
+        <span className={`break-all ${mono ? "font-mono text-[10px]" : ""} ${bold ? "font-bold" : "font-medium"} ${muted ? "text-gray-400" : ""}`}>
+          {value}
+        </span>
+        {copy && (
+          <button
+            type="button"
+            aria-label={`Copier ${label}`}
+            onClick={() => {
+              navigator.clipboard?.writeText(copy);
+              toast.success("Référence copiée");
+            }}
+            className="shrink-0 text-gray-400 hover:text-gray-700"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        )}
       </span>
     </div>
   );

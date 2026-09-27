@@ -105,6 +105,7 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
   const adminName = profile?.full_name ?? profile?.email ?? "Admin";
   const [showEventCapture, setShowEventCapture] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
+  const [shipPicker, setShipPicker] = useState(false);
   const [activeTab, setActiveTab] = useState<SubOrderActionTab>("resume");
   if (!order) return null;
 
@@ -346,16 +347,25 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                     <a href={waLink(order.customer_phone, waMsg)} target="_blank" rel="noopener noreferrer" className="ml-2 text-emerald-600 text-xs flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full"><MessageCircle className="h-3 w-3" />WhatsApp</a>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span>{[order.customer_address, order.customer_city].filter(Boolean).join(", ") || "Adresse non renseignée"}</span>
+                <div className="flex items-start gap-1.5 text-sm text-gray-500 flex-wrap">
+                  <MapPin className="h-3.5 w-3.5 mt-0.5" />
+                  <span>
+                    {[order.customer_address, order.customer_city].filter(Boolean).join(", ") || "Adresse non renseignée"}
+                    <span className="block text-xs">
+                      Pays :{" "}
+                      <b className={order.destination_country_name ? "text-gray-700" : "text-orange-600"}>
+                        {order.destination_country_name ?? "non renseigné"}
+                      </b>
+                    </span>
+                  </span>
                   {order.order_id && (
                     <button type="button" onClick={() => setEditAddr(true)} className="ml-2 text-xs text-blue-600 hover:underline">Modifier</button>
                   )}
                 </div>
                 {editAddr && order.order_id && (
                   <EditAddressDialog open onClose={() => setEditAddr(false)} orderId={order.order_id}
-                    address={order.customer_address} city={order.customer_city} phone={order.customer_phone} />
+                    address={order.customer_address} city={order.customer_city} phone={order.customer_phone}
+                    customerName={order.customer_name} countryId={order.destination_country_id} />
                 )}
               </div>
 
@@ -497,6 +507,35 @@ export function OrderDrawer({ order, orderIndex, payments, audit, weighings, fin
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Mode d'expédition + fret de la sous-commande */}
+              {isScoped && lineKind !== "LOCAL" && order.order_id && (
+                <div className="bg-white border rounded-lg p-3 space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5"><Truck className="h-4 w-4" />Expédition de cette sous-commande</h3>
+                  <ShippingServiceLine serviceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null} />
+                  <div className="text-xs space-y-1 border-t pt-2">
+                    <div className="flex justify-between"><span className="text-gray-500">Produits</span><b>{fmtF(ot)}</b></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Fret</span><b className={sf > 0 ? "text-orange-700" : "text-gray-400"}>{sf > 0 ? fmtF(sf) : "—"}</b></div>
+                    <div className="flex justify-between border-t pt-1"><span className="text-gray-700 font-medium">Total</span><b>{fmtF(gt)}</b></div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShipPicker(true)}
+                    className="w-full text-xs border border-blue-200 text-blue-700 bg-blue-50 rounded-md py-2 font-medium hover:bg-blue-100"
+                  >
+                    Choisir / modifier le mode d'expédition
+                  </button>
+                  {shipPicker && (
+                    <ShippingServicePickerDialog
+                      open
+                      orderId={order.order_id}
+                      assessmentId={subAssessment?.id ?? null}
+                      currentServiceId={subAssessment?.shipping_service_id ?? order.shipping_service_id ?? null}
+                      onClose={() => setShipPicker(false)}
+                    />
+                  )}
                 </div>
               )}
 
@@ -697,6 +736,38 @@ function WeightFormUnknownSub({
         currentServiceId={shippingServiceId}
         onClose={() => setPickerOpen(false)}
       />
+    </div>
+  );
+}
+/** Affiche le mode d'expédition actuellement retenu pour la sous-commande. */
+function ShippingServiceLine({ serviceId }: { serviceId: string | null }) {
+  const { data: svc } = useQuery({
+    queryKey: ["shipping-service", serviceId],
+    queryFn: async () => {
+      if (!serviceId) return null;
+      const { data, error } = await (supabase as any)
+        .from("shipping_services")
+        .select("id, name, price_per_kg, pricing_unit")
+        .eq("id", serviceId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!serviceId,
+  });
+  if (!serviceId) {
+    return (
+      <div className="text-xs bg-orange-50 border border-orange-200 text-orange-800 rounded-md p-2">
+        Aucun mode d'expédition choisi — aucun fret n'est calculé pour cette sous-commande.
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs bg-gray-50 border rounded-md p-2 flex items-center justify-between gap-2">
+      <span className="font-medium">{svc?.name ?? "Mode d'expédition"}</span>
+      {svc?.price_per_kg != null && (
+        <span className="text-gray-500">{fmtF(Number(svc.price_per_kg))} / {svc.pricing_unit ?? "kg"}</span>
+      )}
     </div>
   );
 }
