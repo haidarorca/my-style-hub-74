@@ -739,3 +739,35 @@ function WeightFormUnknownSub({
     </div>
   );
 }
+/** Affiche le mode d'expédition actuellement retenu pour la sous-commande. */
+function ShippingServiceLine({ serviceId }: { serviceId: string | null }) {
+  const { data: svc } = useQuery({
+    queryKey: ["shipping-service", serviceId],
+    queryFn: async () => {
+      if (!serviceId) return null;
+      const { data, error } = await (supabase as any)
+        .from("shipping_services")
+        .select("id, name, price_per_kg, pricing_unit")
+        .eq("id", serviceId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!serviceId,
+  });
+  if (!serviceId) {
+    return (
+      <div className="text-xs bg-orange-50 border border-orange-200 text-orange-800 rounded-md p-2">
+        Aucun mode d'expédition choisi — aucun fret n'est calculé pour cette sous-commande.
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs bg-gray-50 border rounded-md p-2 flex items-center justify-between gap-2">
+      <span className="font-medium">{svc?.name ?? "Mode d'expédition"}</span>
+      {svc?.price_per_kg != null && (
+        <span className="text-gray-500">{fmtF(Number(svc.price_per_kg))} / {svc.pricing_unit ?? "kg"}</span>
+      )}
+    </div>
+  );
+}
