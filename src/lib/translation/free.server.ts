@@ -42,3 +42,34 @@ export async function proposeRows(scope: CsvScope, rows: CsvRow[], langs: string
   for (let i = 0; i < tasks.length; i += 8) await Promise.all(tasks.slice(i, i + 8).map((t) => t()));
   return { rows: proposed, filled, failed };
 }
+
+async function safeJson(res: Response): Promise<any> {
+  if (res.status === 429) throw new Error("Limite gratuite atteinte pour le moment, réessayez dans quelques minutes");
+  if (!res.ok) return null;
+  try { return JSON.parse(await res.text()); } catch { return null; }
+}
+
+async function post(url: string, q: string) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams({ q }).toString(),
+  });
+}
+
+async function viaGtx(q: string, tl: string): Promise<string | null> {
+  try {
+    const json = await safeJson(await post(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t`, q));
+    const s = Array.isArray(json?.[0]) ? json[0].map((p: any) => (typeof p?.[0] === "string" ? p[0] : "")).join("") : "";
+    return s.trim() || null;
+  } catch (e) { if (e instanceof Error && e.message.startsWith("Limite")) throw e; return null; }
+}
+
+async function viaDict(q: string, tl: string): Promise<string | null> {
+  try {
+    const json = await safeJson(await post(`https://translate.googleapis.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=${tl}`, q));
+    const first = Array.isArray(json) ? json[0] : null;
+    const s = typeof first === "string" ? first : Array.isArray(first) && typeof first[0] === "string" ? first[0] : "";
+    return s.trim() || null;
+  } catch (e) { if (e instanceof Error && e.message.startsWith("Limite")) throw e; return null; }
+}
