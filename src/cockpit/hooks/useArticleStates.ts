@@ -45,6 +45,9 @@ interface CatalogItem {
   sub_order_key?: string;
   unit_weight_kg?: number | null;
   purchase_cost_total?: number | null;
+  sku?: string | null;
+  variant_ref?: string | null;
+  barcode?: string | null;
 }
 
 /** Projette un statut initial cohérent avec le statut commande (pour les articles sans row DB). */
@@ -91,6 +94,9 @@ export function mergeRow(item: CatalogItem, row: ArticleStateRow | undefined, or
     unit_weight_kg: item.unit_weight_kg ?? null,
     purchase_cost_total: item.purchase_cost_total ?? null,
     sub_order_key: item.sub_order_key ?? `${vendorId ?? "unknown"}::${lineKind}`,
+    sku: item.sku ?? null,
+    variant_ref: item.variant_ref ?? null,
+    barcode: item.barcode ?? null,
     status,
     delivered_qty: row?.delivered_qty ?? 0,
     stock_break: (row?.stock_break as unknown as StockBreakDecision | undefined) ?? undefined,
