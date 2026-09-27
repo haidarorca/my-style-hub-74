@@ -185,16 +185,31 @@ function Section({ title, icon: Icon, children }: { title: string; icon: any; ch
 }
 
 function Row({
-  label, value, mono, bold, icon: Icon,
-}: { label: string; value: string; mono?: boolean; bold?: boolean; icon?: any }) {
+  label, value, mono, bold, muted, copy, icon: Icon,
+}: { label: string; value: string; mono?: boolean; bold?: boolean; muted?: boolean; copy?: string; icon?: any }) {
   return (
-    <div className="flex items-center justify-between gap-2 text-[11px]">
-      <span className="text-gray-500 flex items-center gap-1">
+    <div className="flex items-start justify-between gap-2 text-[11px]">
+      <span className="text-gray-500 flex items-center gap-1 shrink-0">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
       </span>
-      <span className={`text-right ${mono ? "font-mono text-[10px]" : ""} ${bold ? "font-bold" : "font-medium"}`}>
-        {value}
+      <span className="flex items-center gap-1 justify-end text-right min-w-0">
+        <span className={`break-all ${mono ? "font-mono text-[10px]" : ""} ${bold ? "font-bold" : "font-medium"} ${muted ? "text-gray-400" : ""}`}>
+          {value}
+        </span>
+        {copy && (
+          <button
+            type="button"
+            aria-label={`Copier ${label}`}
+            onClick={() => {
+              navigator.clipboard?.writeText(copy);
+              toast.success("Référence copiée");
+            }}
+            className="shrink-0 text-gray-400 hover:text-gray-700"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        )}
       </span>
     </div>
   );
