@@ -43,6 +43,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { TranslationSyncCard } from "@/components/admin/TranslationSyncCard";
 import { TranslationCsvCard } from "@/components/admin/TranslationCsvCard";
+import { TranslationReviewCard } from "@/components/admin/TranslationReviewCard";
 
 export const Route = createFileRoute("/admin/")({
   component: ActionCenter,
@@ -234,6 +235,7 @@ function ActionCenter() {
           </div>
 
           <TranslationSyncCard />
+          <TranslationReviewCard />
           <TranslationCsvCard />
 
 
