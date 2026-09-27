@@ -8,7 +8,6 @@ import { isClothingContext, getMeasurementFields, hasAnyMeasurement } from "@/li
 import { fitTypeOption } from "@/lib/fit-types";
 import { formatComposition, type CompositionItem } from "@/lib/textile-materials";
 import { SEASONS, GENDERS, AGE_GROUPS, CARE_INSTRUCTIONS, labelOf } from "@/lib/clothing-attributes";
-import { parseVideoUrl } from "@/lib/product-video";
 import { childSizeHint } from "@/lib/child-sizes";
 
 
