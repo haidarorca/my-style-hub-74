@@ -6,13 +6,21 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Package, Tag, Palette, Ruler, Truck, Store, Calendar, CheckCircle2, AlertTriangle, Box } from "lucide-react";
+import { Package, Tag, Palette, Ruler, Truck, Store, Calendar, CheckCircle2, AlertTriangle, Box, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { fmtF, fmtDateTime } from "@/cockpit/lib/workflow";
+import { LINE_KIND_LABELS } from "@/lib/line-kind";
 import {
   ARTICLE_STATUS_COLORS, ARTICLE_STATUS_LABELS,
   getArticleStatusLabel, STOCK_BREAK_ACTIONS,
 } from "@/cockpit/lib/article-states";
 import type { OrderArticle } from "@/cockpit/lib/article-states";
+
+/** Le taux est stocké en pourcentage (10 = 10 %). Ne jamais remultiplier par 100. */
+function formatRate(rate: number): string {
+  const pct = rate <= 1 ? rate * 100 : rate;
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+}
 
 interface Props {
   article: OrderArticle | null;
@@ -109,7 +117,10 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
           {(a.is_import || freightFee) && (
             <Section title="Logistique & import" icon={Truck}>
               {a.origin_country && <Row label="Pays origine" value={`${a.origin_country_flag ?? ""} ${a.origin_country}`.trim()} />}
-              {a.line_kind && <Row label="Catégorie" value={a.line_kind} mono />}
+              {a.line_kind && <Row label="Catégorie" value={LINE_KIND_LABELS[a.line_kind]} />}
+              {a.unit_weight_kg != null && a.unit_weight_kg > 0 && (
+                <Row label="Poids unitaire" value={`${a.unit_weight_kg.toFixed(3)} kg`} />
+              )}
               {a.freight_fee != null && a.freight_fee > 0 && (
                 <Row label="Fret figé (checkout)" value={fmtF(a.freight_fee)} />
               )}
@@ -122,7 +133,7 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
               {a.vendor_name && <Row label="Boutique" value={a.vendor_name} />}
               {a.shop_type_label && <Row label="Type" value={a.shop_type_label} />}
               {a.commission_rate != null && a.commission_rate > 0 && (
-                <Row label="Commission" value={`${(a.commission_rate * 100).toFixed(1)}%`} />
+                <Row label="Commission" value={`${formatRate(a.commission_rate)} %`} />
               )}
               {a.commission_amount != null && a.commission_amount > 0 && (
                 <Row label="Montant commission" value={fmtF(a.commission_amount)} />
