@@ -451,48 +451,55 @@ function EditCurrencyDialog({ row, onClose, onSaved }: { row: Row | null; onClos
   );
 }
 
-/* ─────── Recompute products ─────── */
-type PreviewRow = { product_id: string; name: string; code: string; origin_price: number; old_price: number; new_price: number };
+/* ─────── Recompute products (résumé instantané + lots) ─────── */
+type Summary = { product_count: number; to_change: number; old_total: number; new_total: number; rate: number; margin: number };
 
 function RecomputeDialog({ code, onClose, onApplied }: { code: string | null; onClose: () => void; onApplied: () => void }) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [preview, setPreview] = useState<PreviewRow[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (!code) { setPreview([]); return; }
+    if (!code) { setSummary(null); setProgress(0); return; }
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await (supabase as any).rpc("preview_currency_recompute", { _code: code });
+        const { data, error } = await (supabase as any).rpc("currency_recompute_summary", { _code: code });
         if (error) throw error;
-        setPreview((data || []) as PreviewRow[]);
+        setSummary(((data || [])[0] ?? null) as Summary | null);
       } catch (err: any) { toast.error(err.message || "Erreur"); }
       finally { setLoading(false); }
     })();
   }, [code]);
 
-  const totals = useMemo(() => {
-    let oldT = 0, newT = 0;
-    for (const r of preview) { oldT += Number(r.old_price) || 0; newT += Number(r.new_price) || 0; }
-    return { oldT, newT, diff: newT - oldT, pct: oldT > 0 ? ((newT - oldT) / oldT) * 100 : 0 };
-  }, [preview]);
+  const oldT = Number(summary?.old_total ?? 0), newT = Number(summary?.new_total ?? 0);
+  const diff = newT - oldT, pct = oldT > 0 ? (diff / oldT) * 100 : 0;
+  const count = Number(summary?.product_count ?? 0);
 
   async function apply() {
     if (!code) return;
-    setApplying(true);
+    setApplying(true); setProgress(0);
     try {
-      const { data, error } = await (supabase as any).rpc("apply_currency_recompute", { _code: code });
-      if (error) throw error;
-      toast.success(`${data ?? 0} produits recalculés`);
+      let after: string | null = null; let total = 0;
+      for (let i = 0; i < 1000; i++) {
+        const { data, error } = await (supabase as any).rpc("apply_currency_recompute_batch", { _code: code, _after: after, _limit: 1000 });
+        if (error) throw error;
+        const r = (data || [])[0];
+        if (!r) break;
+        total += Number(r.updated) || 0; setProgress(total);
+        after = r.last_id;
+        if (r.done || !after) break;
+      }
+      toast.success(`${total} produits recalculés`);
       onClose(); onApplied();
     } catch (err: any) { toast.error(err.message || "Erreur"); }
     finally { setApplying(false); }
   }
 
   return (
-    <Dialog open={!!code} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
+    <Dialog open={!!code} onOpenChange={(o) => !o && !applying && onClose()}>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Recalculer les produits en {code}</DialogTitle>
           <DialogDescription>
@@ -503,55 +510,31 @@ function RecomputeDialog({ code, onClose, onApplied }: { code: string | null; on
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Calcul…
           </div>
-        ) : (
+        ) : summary ? (
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Taux appliqué : 1 {code} = {fmtFcfa(Number(summary.rate))} · marge {Number(summary.margin)} %</p>
             <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted/40 p-3 text-xs sm:grid-cols-4">
-              <div><p className="text-muted-foreground">Produits</p><p className="font-bold">{preview.length}</p></div>
-              <div><p className="text-muted-foreground">Ancien total</p><p className="font-bold">{fmtFcfa(totals.oldT)}</p></div>
-              <div><p className="text-muted-foreground">Nouveau total</p><p className="font-bold">{fmtFcfa(totals.newT)}</p></div>
+              <div><p className="text-muted-foreground">Produits</p><p className="font-bold">{count}</p><p className="text-[10px] text-muted-foreground">{summary.to_change} à changer</p></div>
+              <div><p className="text-muted-foreground">Ancien total</p><p className="font-bold">{fmtFcfa(oldT)}</p></div>
+              <div><p className="text-muted-foreground">Nouveau total</p><p className="font-bold">{fmtFcfa(newT)}</p></div>
               <div>
                 <p className="text-muted-foreground">Différence</p>
-                <p className={`font-bold ${totals.diff >= 0 ? "text-emerald-700" : "text-destructive"}`}>
-                  {totals.diff >= 0 ? "+" : ""}{fmtFcfa(totals.diff)} ({totals.pct.toFixed(2)}%)
-                </p>
+                <p className={`font-bold ${diff >= 0 ? "text-emerald-700" : "text-destructive"}`}>{diff >= 0 ? "+" : ""}{fmtFcfa(diff)} ({pct.toFixed(2)}%)</p>
               </div>
             </div>
-            {preview.length > 0 && (
-              <div className="max-h-[320px] overflow-y-auto overflow-x-auto rounded-md border">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-muted/80 text-muted-foreground">
-                    <tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:font-medium [&>th]:text-left">
-                      <th>Code</th><th>Produit</th>
-                      <th className="text-right">Ancien</th><th className="text-right">Nouveau</th><th className="text-right">Δ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.map((r) => {
-                      const d = Number(r.new_price) - Number(r.old_price);
-                      return (
-                        <tr key={r.product_id} className="border-t [&>td]:px-2 [&>td]:py-1.5">
-                          <td className="font-mono text-[10px]">{r.code}</td>
-                          <td className="truncate max-w-[260px]">{r.name}</td>
-                          <td className="text-right font-mono">{fmtFcfa(Number(r.old_price))}</td>
-                          <td className="text-right font-mono">{fmtFcfa(Number(r.new_price))}</td>
-                          <td className={`text-right font-mono ${d >= 0 ? "text-emerald-700" : "text-destructive"}`}>
-                            {d >= 0 ? "+" : ""}{fmtFcfa(d)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            {applying && (
+              <div className="space-y-1">
+                <div className="h-2 overflow-hidden rounded bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${count ? Math.min(100, (progress / count) * 100) : 0}%` }} /></div>
+                <p className="text-xs text-muted-foreground">{progress} / {count} produits…</p>
               </div>
             )}
-            {preview.length === 0 && (
-              <p className="py-3 text-center text-xs text-muted-foreground">Aucun produit utilisant {code}.</p>
-            )}
           </div>
+        ) : (
+          <p className="py-3 text-center text-xs text-muted-foreground">Aucun produit utilisant {code}.</p>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button onClick={apply} disabled={applying || loading || preview.length === 0}>
+          <Button variant="outline" onClick={onClose} disabled={applying}>Annuler</Button>
+          <Button onClick={apply} disabled={applying || loading || count === 0}>
             {applying && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
             Confirmer le recalcul
           </Button>
