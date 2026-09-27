@@ -766,30 +766,7 @@ function ProductPage() {
             );
           })()}
 
-          {(() => {
-            const video = parseVideoUrl((data as any).video_url);
-            if (!video || !video.embedUrl) return null;
-            return (
-              <div className="space-y-1.5">
-                <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                  <Video className="h-3 w-3" /> Vidéo produit
-                </p>
-                <div className="overflow-hidden rounded-xl border bg-black aspect-video">
-                  {video.provider === "direct" ? (
-                    <video src={video.embedUrl} controls className="h-full w-full" />
-                  ) : (
-                    <iframe
-                      src={video.embedUrl}
-                      title="Vidéo produit"
-                      className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {/* Vidéos produit retirées de la fiche publique (décision KawZone). */}
 
           <Dialog open={sizeGuideOpen} onOpenChange={setSizeGuideOpen}>
             <DialogContent className="max-w-md">
