@@ -37,6 +37,23 @@ export const csvExportPage = createServerFn({ method: "POST" })
     return await exportPage(data.scope as any, data.langs, data.mode, data.cursor, 500);
   });
 
+/** Sas de relecture : prépare un lot traduit gratuitement, SANS rien enregistrer. */
+export const freeProposeBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    langs: z.array(lang).min(1), scope, mode: z.enum(["missing", "all"]), overwrite: z.boolean(),
+    cursor: z.string().max(100).nullable(), size: z.number().int().min(5).max(50),
+  }).parse(d))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { exportPage } = await import("./csv.server");
+    const { proposeRows } = await import("./free.server");
+    const page = await exportPage(data.scope as any, data.langs, data.mode, data.cursor, data.size);
+    const originals = page.rows;
+    const res = await proposeRows(data.scope as any, originals, data.langs, data.overwrite);
+    return { originals, rows: res.rows, filled: res.filled, failed: res.failed, next: page.next };
+  });
+
 export const csvImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ scope, rows: z.array(z.record(z.string(), z.string())).max(300) }).parse(d))

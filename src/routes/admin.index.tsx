@@ -234,6 +234,7 @@ function ActionCenter() {
           </div>
 
           <TranslationSyncCard />
+          <TranslationReviewCard />
           <TranslationCsvCard />
 
 
