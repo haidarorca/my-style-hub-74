@@ -81,10 +81,18 @@ export function ProductDetailDrawer({ article, freightFee, onClose }: Props) {
           {/* Identité produit */}
           <Section title="Identité produit" icon={Tag}>
             <Row label="Nom" value={a.product_name} />
-            <Row label="Réf. interne" value={a.product_id} mono />
-            {a.variant_id && <Row label="Variante" value={a.variant_label ?? a.variant_id} />}
+            <Row label="Réf. produit" value={a.sku ?? "Non renseignée"} mono={!!a.sku} copy={a.sku ?? undefined} />
+            <Row
+              label="Réf. variante"
+              value={a.variant_ref ?? (a.variant_id ? "Non renseignée" : "—")}
+              mono={!!a.variant_ref}
+              copy={a.variant_ref ?? undefined}
+            />
+            {a.barcode && <Row label="Code-barres" value={a.barcode} mono copy={a.barcode} />}
+            {a.variant_label && <Row label="Variante" value={a.variant_label} />}
             {a.color && <Row label="Couleur" value={a.color} icon={Palette} />}
             {a.size && <Row label="Taille" value={a.size} icon={Ruler} />}
+            <Row label="Identifiant interne" value={a.product_id} mono muted copy={a.product_id} />
           </Section>
 
           {/* Quantité & prix */}
