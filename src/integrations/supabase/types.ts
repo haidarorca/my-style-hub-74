@@ -6452,6 +6452,14 @@ export type Database = {
     }
     Functions: {
       apply_currency_recompute: { Args: { _code: string }; Returns: number }
+      apply_currency_recompute_batch: {
+        Args: { _after?: string; _code: string; _limit?: number }
+        Returns: {
+          done: boolean
+          last_id: string
+          updated: number
+        }[]
+      }
       apply_stock_delta: {
         Args: { _delta: number; _reason?: string; _variant_id: string }
         Returns: number
@@ -6551,6 +6559,17 @@ export type Database = {
           _variants: Json
         }
         Returns: Json
+      }
+      currency_recompute_summary: {
+        Args: { _code: string }
+        Returns: {
+          margin: number
+          new_total: number
+          old_total: number
+          product_count: number
+          rate: number
+          to_change: number
+        }[]
       }
       current_currency_rate: {
         Args: { _code: string }

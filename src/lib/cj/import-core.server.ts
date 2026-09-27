@@ -369,11 +369,14 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const material: string | null = materialInfo.value;
     report.material = materialInfo;
     // Vidéo : champ officiel productVideo (URL ou liste), jamais inventée.
-    const video: string | null = (() => {
+    // Vidéos CJ désactivées (filigranes, lenteur) : jamais importées.
+    const _videoDisabled: string | null = (() => {
       const raw = p.productVideo;
       const list = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim() ? (() => { try { const x = JSON.parse(raw); return Array.isArray(x) ? x : [raw]; } catch { return [raw]; } })() : [];
       return list.map(String).find((u: string) => /^https?:\/\//i.test(u)) ?? null;
     })();
+    void _videoDisabled;
+    const video: string | null = null;
 
     // ── Catégorie ──
     const cjCategoryPath: string | null =
@@ -557,6 +560,17 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       for (const { r, u } of res) if (r.error) throw new Error(`Variante ${u.label} : ${r.error.message}`);
     }
     lap("variantes");
+
+    // Poids/dimensions parent = 1re variante pesée (le Cockpit voit toujours « poids connu »).
+    try {
+      const { data: prodW } = await admin.from("products").select("weight_kg").eq("id", productId).maybeSingle();
+      if (!prodW?.weight_kg || Number(prodW.weight_kg) <= 0) {
+        const { data: vw } = await admin.from("product_variants")
+          .select("weight_kg, length_cm, width_cm, height_cm").eq("product_id", productId)
+          .gt("weight_kg", 0).order("created_at").limit(1).maybeSingle();
+        if (vw) await admin.from("products").update({ weight_kg: vw.weight_kg, length_cm: vw.length_cm, width_cm: vw.width_cm, height_cm: vw.height_cm }).eq("id", productId);
+      }
+    } catch { /* non bloquant */ }
 
     // Stock : la disponibilité (variante et produit) est recalculée
     // automatiquement en base à partir de supplier_stock. Le produit n'est
