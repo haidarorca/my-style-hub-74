@@ -13,15 +13,7 @@ export async function freeTranslate(text: string, target: string): Promise<strin
   for (let i = 0; i < t.length; i += 4500) chunks.push(t.slice(i, i + 4500));
   const out: string[] = [];
   for (const q of chunks) {
-    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body: new URLSearchParams({ q }).toString(),
-    });
-    if (res.status === 429) throw new Error("Limite gratuite atteinte pour le moment, réessayez dans quelques minutes");
-    if (!res.ok) return null;
-    const json = (await res.json()) as any;
-    const parts = Array.isArray(json?.[0]) ? json[0].map((p: any) => (typeof p?.[0] === "string" ? p[0] : "")).join("") : "";
+    const parts = (await viaGtx(q, target)) ?? (await viaDict(q, target));
     if (!parts) return null;
     out.push(parts);
   }
