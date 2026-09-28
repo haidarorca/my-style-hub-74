@@ -44,7 +44,7 @@ export async function resolveCjCategory(
   if (cjCategoryId) {
     await (supabaseAdmin as any).from("cj_category_map").update({ kawzone_category_id: catId, status: "auto" }).eq("cj_category_id", cjCategoryId);
   }
-  return { ...r, kawzoneCategoryId: catId, kawzoneChain: path.split(/\s*[>›]\s*/), unresolved: [], status: "auto", reason: null };
+  return { ...r, kawzoneCategoryId: catId, kawzoneChain: path.split(/\s*[>›/]\s*/), unresolved: [], status: "auto", reason: null };
 }
 
 async function resolveCjCategoryPath(
