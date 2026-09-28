@@ -105,7 +105,7 @@ const RULES: Rule[] = [
   { re: /\b(notebook|journal|diary)\b/, t: "Bureau & Fournitures > Papeterie > Cahiers" },
   { re: /\b(stationery)\b/, t: "Bureau & Fournitures > Papeterie" },
   // Sport
-  { re: /\b(resistance band|kettlebell|fitness|gym)\b/, t: "Sport & Fitness > Musculation" },
+  { re: /\b(resistance band|kettlebell|fitness|gym)\b/, not: CLOTH, t: "Sport & Fitness > Musculation" },
   { re: /\b(bicycle|bike|cycling)\b/, t: "Sport & Fitness > Cyclisme" },
   { re: /\b(swimsuit|swimwear|bikini|swim)\b/, t: "Sport & Fitness > Natation" },
   // Sacs
@@ -118,7 +118,7 @@ const RULES: Rule[] = [
   { re: /\b(wallet|card holder)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : `${MH} > Accessoires Homme > Portefeuilles` },
   // Bijoux / accessoires
   { re: /\b(earrings?|ear studs?|ear clips?)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Boucles d'oreilles` },
-  { re: /\b(necklace|pendant|choker)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Colliers` },
+  { re: /\b(necklace|pendant|choker)\b/, not: /\b(christmas|tree|lanyard|phone|keychain)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Colliers` },
   { re: /\b(bracelet|bangle)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Bracelets` },
   { re: /\b(ring|rings)\b/, need: /\b(finger|gold|silver|diamond|zircon|wedding|engagement|stainless|jewelry|opening|adjustable|couple)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Bagues` },
   { re: /\b(jewelry set)\b/, t: `${MF} > Bijoux Femme > Parures` },
@@ -145,7 +145,7 @@ const RULES: Rule[] = [
   { re: /\b(dress|dresses|gown)\b/, t: cloth(`${MF} > Robes`, null, (c) => c.sex !== "m" ? `${EB} > Bébé Fille > Robes bébé` : null) },
   { re: /\b(wedding dress|bridal gown)\b/, t: `${MF} > Robes > Robes de mariée` },
   { re: /\b(evening dress|party dress|cocktail dress)\b/, t: `${MF} > Robes > Robes de soirée` },
-  { re: /\b(skirt|skirts)\b/, t: cloth(`${MF} > Bas Femme > Jupes`, null) },
+  { re: /\b(skirt|skirts)\b/, not: /\b(dress|dresses)\b/, t: cloth(`${MF} > Bas Femme > Jupes`, null) },
   { re: /\b(jeans|denim pants)\b/, t: cloth(`${MF} > Bas Femme > Jeans`, `${MH} > Bas > Jeans`) },
   { re: /\b(leggings?|yoga pants)\b/, t: cloth(`${MF} > Bas Femme > Leggings`, null) },
   { re: /\b(joggers?|sweatpants|track pants)\b/, t: cloth(`${MF} > Bas Femme > Pantalons`, `${MH} > Bas > Joggings`) },
@@ -153,7 +153,7 @@ const RULES: Rule[] = [
   { re: /\b(shorts)\b/, t: cloth(`${MF} > Bas Femme > Shorts`, `${MH} > Bas > Shorts`) },
   { re: /\b(tshirt)\b/, t: cloth(`${MF} > Tops Femme > T-shirts`, `${MH} > Hauts > T-shirts`, bebe("Bodys bébé", "T-shirts bébé")) },
   { re: /\b(polo)\b/, t: cloth(`${MF} > Tops Femme`, `${MH} > Hauts > Polos`) },
-  { re: /\b(shirt|blouse)\b/, t: cloth(`${MF} > Tops Femme > Blouses`, `${MH} > Hauts > Chemises`) },
+  { re: /\b(shirt|blouse)\b/, not: /\bpolo\b/, t: cloth(`${MF} > Tops Femme > Blouses`, `${MH} > Hauts > Chemises`) },
   { re: /\b(sweaters?|cardigan|hoodie|hoodies|sweatshirt|pullover|knitwear|jumper)\b/, t: cloth(`${MF} > Tops Femme > Pulls & Cardigans`, `${MH} > Hauts > Sweats & Pulls`) },
   { re: /\b(tunic)\b/, t: cloth(`${MF} > Tops Femme > Tuniques`, null) },
   { re: /\b(crop top)\b/, t: cloth(`${MF} > Tops Femme > Crop tops`, null) },
@@ -161,7 +161,7 @@ const RULES: Rule[] = [
   { re: /\b(jacket|windbreaker|bomber)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Vestes`) },
   { re: /\b(coat|parka|trench|down jacket|overcoat)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Manteaux`) },
   { re: /\b(blazer|suit jacket)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Costumes & Blazers`) },
-  { re: /\b(two piece|2 piece|three piece|suit|set|outfit|tracksuit)\b/, need: /\b(two piece|2 piece|three piece|suit|tracksuit|pants|shorts|skirt|top|shirt|tshirt|sweater|hoodie|outfit|clothing|jacket)\b/, t: (c) => c.g === "H" && /\b(sport|sports|tracksuit|running|gym)\b/.test(c.t) ? "Sport & Fitness > Vêtements de sport" : cloth(`${MF} > Ensembles`, `${MH} > Hauts > Costumes & Blazers`)(c) },
+  { re: /\b(two piece|2 piece|three piece|suit|set|outfit|tracksuit)\b/, need: /\b(two piece|2 piece|three piece|suit|tracksuit|pants|shorts|skirt|top|shirt|tshirt|sweater|hoodie|outfit|clothing|jacket)\b/, t: (c) => c.g === "H" && /\b(sport|sports|tracksuit|running|gym)\b/.test(c.t) ? "Sport & Fitness > Vêtements de sport" : cloth(`${MF} > Ensembles`, /\b(blazer|formal|business|wedding)\b/.test(c.t) ? `${MH} > Hauts > Costumes & Blazers` : null)(c) },
   { re: /\b(underwear|boxers?|briefs)\b/, t: cloth(null, `${MH} > Sous-vêtements`) },
 ];
 
@@ -184,7 +184,8 @@ function detect(t: string, fallback: G): Ctx {
   const sexF = /\b(girls?|girls|princess|daughter)\b/.test(t);
   const sexM = /\b(boys?|boys|son)\b/.test(t);
   const sex: Sex = sexF && !sexM ? "f" : sexM && !sexF ? "m" : null;
-  let g: G = baby ? "B" : kid ? "K" : f && !h ? "F" : h && !f ? "H" : null;
+  const adult = (f || h || /\b(sexy|hot girl|lingerie)\b/.test(t)) && !/\b(kids?|child|children|childrens|boys and girls)\b/.test(t);
+  let g: G = baby && !adult ? "B" : kid && !adult ? "K" : f && !h ? "F" : h && !f ? "H" : null;
   if (!g) g = fallback;
   return { g, sex, t };
 }
