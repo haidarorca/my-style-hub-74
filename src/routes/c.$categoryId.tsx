@@ -16,6 +16,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { pickI18n } from "@/lib/i18n/localized";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { useDeliverableVendorIds } from "@/hooks/use-deliverable-vendors";
+import { useCategoryProductCounts } from "@/hooks/use-category-product-counts";
 
 export const Route = createFileRoute("/c/$categoryId")({
   component: CategoryPage,
@@ -58,6 +59,7 @@ function CategoryPage() {
   const { categoryId } = Route.useParams();
   const [quickAdd, setQuickAdd] = useState<string | null>(null);
   const { t, lang } = useI18n();
+  const { data: categoryCounts } = useCategoryProductCounts();
 
   // Récupérer la catégorie avec son niveau et parent
   const { data: category } = useQuery({
@@ -119,7 +121,8 @@ function CategoryPage() {
     enabled: !!categoryId,
   });
 
-  const hasChildren = (children?.length ?? 0) > 0;
+  const visibleChildren = (children ?? []).filter((child) => (categoryCounts?.get(child.id) ?? 0) > 0);
+  const hasChildren = visibleChildren.length > 0;
 
   const { countryId, vendorIds: deliverableVendorIds } = useDeliverableVendorIds();
 
@@ -223,7 +226,7 @@ function CategoryPage() {
           <section className="mb-6">
             <h2 className="mb-3 text-base font-bold">{t("category.choose_sub")}</h2>
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-              {children!.map((c) => {
+              {visibleChildren.map((c) => {
                 const cName = pickI18n(c.name, (c as { name_i18n?: Record<string, string> | null }).name_i18n, lang);
                 return (
                   <Link

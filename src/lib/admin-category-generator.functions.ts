@@ -165,13 +165,8 @@ export const findExistingCategories = createServerFn({ method: "POST" })
       (c) => similarity(c.name, data.categorie_name) >= SIMILARITY_THRESHOLD,
     ) ?? null;
 
-    // Si pas trouve sous le rayon, chercher partout
-    if (!matchedCategorie) {
-      const allCategories = all.filter((c) => c.level === 2);
-      matchedCategorie = allCategories.find(
-        (c) => similarity(c.name, data.categorie_name) >= SIMILARITY_THRESHOLD,
-      ) ?? null;
-    }
+    // Une sous-catégorie est identifiée par son nom ET sa famille parente.
+    // Ne jamais réutiliser une catégorie homonyme située dans une autre famille.
 
     // Trouver la sous-categorie
     let matchedSub = null;
@@ -240,7 +235,10 @@ export const createCategoryHierarchy = createServerFn({ method: "POST" })
 
     // 2. Creer la categorie (level 2)
     const existingCat = allExisting.find(
-      (c) => c.level === 2 && c.name.toLowerCase() === data.categorie_name.toLowerCase(),
+      (c) =>
+        c.level === 2 &&
+        c.parent_id === rayonId &&
+        c.name.toLowerCase() === data.categorie_name.toLowerCase(),
     );
     if (existingCat) {
       categorieId = existingCat.id;

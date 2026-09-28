@@ -10,6 +10,7 @@
 - [x] Sourcing CJ : sélection famille / sous-famille / sous-sous-famille (manuel + programmé), quota jusqu'à 5 000/jour, reprise du parcours d'un jour à l'autre
 - [x] Import manuel réorganisé (sélecteur en arbre, tri, détails repliés, import auto des nouveaux)
 - [x] Catalogue public filtrable (/catalogue) : matière, couleur, taille, pays, prix, stock, tri
+- [x] Catégories CJ : fusion des racines en double, chemin strict sur 3 niveaux et masquage des branches vides
 
 ## Intégration commandes CJ
 - [x] Contrôle stock n°1 (commande client) et n°2 (avant envoi CJ), par variante
