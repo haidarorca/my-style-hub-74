@@ -479,6 +479,30 @@ export type Database = {
           },
         ]
       }
+      category_reclass_log: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          new_category_id: string
+          old_category_id: string | null
+          product_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          new_category_id: string
+          old_category_id?: string | null
+          product_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          new_category_id?: string
+          old_category_id?: string | null
+          product_id?: string
+        }
+        Relationships: []
+      }
       category_requests: {
         Row: {
           admin_note: string | null
