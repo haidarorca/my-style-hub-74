@@ -1052,6 +1052,21 @@ export type Database = {
           },
         ]
       }
+      cj_path_cat_tmp: {
+        Row: {
+          cat: string | null
+          p: string | null
+        }
+        Insert: {
+          cat?: string | null
+          p?: string | null
+        }
+        Update: {
+          cat?: string | null
+          p?: string | null
+        }
+        Relationships: []
+      }
       cj_products: {
         Row: {
           category_mapping_status: string
