@@ -707,21 +707,6 @@ export type Database = {
         }
         Relationships: []
       }
-      cj_fix_tmp: {
-        Row: {
-          bad: string | null
-          good: string | null
-        }
-        Insert: {
-          bad?: string | null
-          good?: string | null
-        }
-        Update: {
-          bad?: string | null
-          good?: string | null
-        }
-        Relationships: []
-      }
       cj_import_job_items: {
         Row: {
           attempts: number
