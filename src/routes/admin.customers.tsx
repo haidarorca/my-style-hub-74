@@ -322,6 +322,14 @@ function CustomersPage() {
         </CardContent>
       </Card>
 
+      <CreateCustomerDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        countries={countries ?? []}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["admin", "customers"] })}
+        createAccount={createAccount}
+      />
+
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
