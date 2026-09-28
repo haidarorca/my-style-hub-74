@@ -321,3 +321,84 @@ export const deleteCustomer = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+const CreateCustomerSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(6).max(200),
+  full_name: z.string().trim().min(1).max(200),
+  phone: z.string().trim().max(50).nullable().optional(),
+  sex: z.enum(["homme", "femme"]).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  country_id: z.string().uuid().nullable().optional(),
+  city_text: z.string().trim().max(200).nullable().optional(),
+  region_text: z.string().trim().max(200).nullable().optional(),
+});
+
+/**
+ * Création d'un compte client par un admin (pour les personnes qui n'arrivent
+ * pas à s'inscrire seules). Pas de code email : le compte est confirmé
+ * directement et le client peut se connecter immédiatement.
+ */
+export const createCustomerAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => CreateCustomerSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertPermission(context.userId, "customers");
+
+    const email = data.email.trim().toLowerCase();
+
+    // Refuse si un compte existe déjà avec cet email
+    const { data: existing } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    if (existing) throw new Error("Un compte existe déjà avec cet email.");
+
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.full_name },
+    });
+    if (createErr || !created?.user) {
+      const m = (createErr?.message ?? "").toLowerCase();
+      if (m.includes("already") && m.includes("registered")) throw new Error("Un compte existe déjà avec cet email.");
+      if (m.includes("password")) throw new Error("Mot de passe refusé (6 caractères minimum).");
+      throw new Error(createErr?.message || "Création du compte échouée.");
+    }
+
+    const userId = created.user.id;
+
+    // Profil (le trigger handle_new_user l'a déjà créé)
+    const { error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        full_name: data.full_name,
+        sex: data.sex ?? null,
+        phone: data.phone ?? null,
+        address: data.address ?? null,
+      })
+      .eq("id", userId);
+    if (profErr) console.error("[createCustomerAccount] profile update failed", profErr);
+
+    // Adresse principale (si pays ou adresse fournis)
+    if (data.country_id || data.address) {
+      const { error: addrErr } = await supabaseAdmin.from("addresses").insert({
+        owner_type: "user",
+        owner_id: userId,
+        type: "shipping",
+        label: "Adresse principale",
+        is_default: true,
+        full_name: data.full_name,
+        phone: data.phone ?? null,
+        country_id: data.country_id ?? null,
+        region_text: data.region_text ?? null,
+        city_text: data.city_text ?? null,
+        address_line1: data.address ?? "",
+      });
+      if (addrErr) console.error("[createCustomerAccount] address insert failed", addrErr);
+    }
+
+    return { ok: true, user_id: userId };
+  });
