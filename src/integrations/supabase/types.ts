@@ -6614,6 +6614,7 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      ensure_cj_category_path: { Args: { _path: string }; Returns: string }
       get_admin_vendor_product_stats: {
         Args: never
         Returns: {
