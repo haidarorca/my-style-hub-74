@@ -32,17 +32,19 @@ export async function resolveCjCategory(
   cjCategoryPath: string | null,
   productName?: string | null,
 ): Promise<CategoryResolution> {
+  void productName;
   const r = await resolveCjCategoryPath(cjCategoryId, cjCategoryName, cjCategoryPath);
-  if (!productName || r.status === "mapped") return r;
-  // Le rayon CJ est large : le titre précise le vrai type d'article.
+  if (r.status === "mapped") return r;
+  // Arborescence exacte CJ : famille › sous-famille › sous-sous-famille créées/réutilisées.
+  const path = cjCategoryPath ?? cjCategoryName;
+  if (!path) return r;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: cats } = await (supabaseAdmin as any).from("categories").select("id, name, parent_id, level");
-  const { classifyByTitle, buildPathIndex } = await import("./title-classifier");
-  const idx = buildPathIndex((cats ?? []) as FlatCategory[]);
-  const cur = r.kawzoneChain.join(" > ");
-  const t = classifyByTitle(productName, cjCategoryPath ?? cjCategoryName, cur, idx);
-  if (!t || t.categoryId === r.kawzoneCategoryId || cur.startsWith(t.path + " >")) return r;
-  return { ...r, kawzoneCategoryId: t.categoryId, kawzoneChain: t.path.split(" > "), unresolved: [], status: "auto", reason: null };
+  const { data: catId } = await (supabaseAdmin as any).rpc("ensure_cj_category_path", { _path: path });
+  if (!catId) return r;
+  if (cjCategoryId) {
+    await (supabaseAdmin as any).from("cj_category_map").update({ kawzone_category_id: catId, status: "auto" }).eq("cj_category_id", cjCategoryId);
+  }
+  return { ...r, kawzoneCategoryId: catId, kawzoneChain: path.split(/\s*[>›]\s*/), unresolved: [], status: "auto", reason: null };
 }
 
 async function resolveCjCategoryPath(
