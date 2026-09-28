@@ -8,10 +8,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   Search, X, Eye, Ban, CheckCircle2, MoreHorizontal, Trash2, ShoppingBag,
-  Users, UserCheck, UserX, Wallet,
+  Users, UserCheck, UserX, Wallet, UserPlus,
 } from "lucide-react";
 import {
-  listCustomers, setCustomerBlocked, deleteCustomer,
+  listCustomers, setCustomerBlocked, deleteCustomer, createCustomerAccount,
   type CustomerListRow,
 } from "@/lib/admin-customers.functions";
 import { PermissionGate } from "@/components/admin/PermissionGate";
@@ -29,6 +29,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import { useCountries, useCountryLabel } from "@/hooks/use-countries";
