@@ -383,7 +383,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       p.categoryName ?? ([p.categoryFirstName, p.categorySecondName].filter(Boolean).join(" > ") || null);
     // Catégorie : utile seulement à la création ou à une synchro complète des données.
     const category = heavy
-      ? await resolveCjCategory(p.categoryId ? String(p.categoryId) : null, p.categoryName ?? null, cjCategoryPath)
+      ? await resolveCjCategory(p.categoryId ? String(p.categoryId) : null, p.categoryName ?? null, cjCategoryPath, nameEn)
       : { reason: null, status: "unchanged", kawzoneChain: [], unresolved: [], kawzoneCategoryId: null, cjCategoryId: p.categoryId ? String(p.categoryId) : null, cjCategoryName: p.categoryName ?? null, cjCategoryPath } as any;
     lap("categorie");
     if (category.reason) missing.push(category.reason);
@@ -460,7 +460,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
         if (prev && prev.cj_category_id && prev.cj_category_id !== newCjCat) {
           const res = category.status !== "unchanged" && category.cjCategoryId === newCjCat
             ? category
-            : await (await import("./categories.server")).resolveCjCategory(newCjCat, p.categoryName ?? null, cjCategoryPath);
+            : await (await import("./categories.server")).resolveCjCategory(newCjCat, p.categoryName ?? null, cjCategoryPath, nameEn);
           const { data: cur } = await admin.from("products").select("category_id").eq("id", productId).maybeSingle();
           const untouched = !cur?.category_id || cur.category_id === prev.kawzone_category_id;
           if (res.kawzoneCategoryId && untouched) {
