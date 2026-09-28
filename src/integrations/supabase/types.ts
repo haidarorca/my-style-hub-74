@@ -6824,6 +6824,10 @@ export type Database = {
         Args: { _action: string; _case_id: string; _payload?: Json }
         Returns: undefined
       }
+      merge_category: {
+        Args: { _src: string; _tgt: string }
+        Returns: undefined
+      }
       migrate_customer_addresses: { Args: never; Returns: number }
       next_order_reference: { Args: never; Returns: string }
       next_return_case_code: {
