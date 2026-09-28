@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.merge_category(uuid, uuid) FROM authenticated;

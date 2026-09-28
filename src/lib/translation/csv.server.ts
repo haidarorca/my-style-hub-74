@@ -73,20 +73,42 @@ export async function exportPage(scope: CsvScope, langs: string[], mode: CsvMode
     return { rows, next: list.length === size ? String(from + size) : null };
   }
 
-  let q = db.from("categories").select("id, name, name_i18n").order("id").limit(size);
-  if (cursor) q = q.gt("id", cursor);
-  const { data, error } = await q;
+  // Catégories : on charge l'arbre entier (petit volume) pour exporter dans l'ordre
+  // Famille > Sous-famille > Sous-sous-famille, avec le chemin en clair.
+  const { data, error } = await db.from("categories").select("id, name, level, parent_id, name_i18n");
   if (error) throw new Error(error.message);
-  const list = (data ?? []) as Json[];
-  const rows = list
+  const all = (data ?? []) as Json[];
+  const byId = new Map<string, Json>(all.map((c) => [c.id, c]));
+  const pathOf = (c: Json): string => {
+    const chain: string[] = [];
+    let cur: Json | undefined = c;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      chain.unshift(cur.name ?? "");
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    return chain.join(" > ");
+  };
+  const ordered = all
     .filter((c) => nonEmpty(c.name) && (mode === "all" || missingIn(c.name_i18n, langs)))
-    .map((c) => {
-      const o: CsvRow = { category_id: c.id, nom_source: c.name };
-      for (const l of langs) o[`nom_${l}`] = c.name_i18n?.[l] ?? "";
-      return o;
-    });
-  return { rows, next: list.length === size ? list[list.length - 1].id : null };
+    .map((c) => ({ c, path: pathOf(c) }))
+    .sort((a, b) => a.path.localeCompare(b.path, "fr"));
+  const from = Number(cursor ?? 0);
+  const page = ordered.slice(from, from + size);
+  const rows = page.map(({ c, path }) => {
+    const o: CsvRow = {
+      category_id: c.id,
+      niveau: String(c.level ?? ""),
+      chemin: path,
+      nom_source: c.name,
+    };
+    for (const l of langs) o[`nom_${l}`] = c.name_i18n?.[l] ?? "";
+    return o;
+  });
+  return { rows, next: from + size < ordered.length ? String(from + size) : null };
 }
+
 
 export type ImportReport = { updated: number; empty: number; unknown: number; errors: string[] };
 

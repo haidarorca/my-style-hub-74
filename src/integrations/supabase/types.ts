@@ -6493,6 +6493,7 @@ export type Database = {
         Args: { _buyer_id: string; _order_id: string }
         Returns: boolean
       }
+      cat_match_key: { Args: { _name: string }; Returns: string }
       cj_claim_job_items: {
         Args: { _job: string; _n: number }
         Returns: {
@@ -6523,6 +6524,7 @@ export type Database = {
         }
       }
       cj_refresh_job_counts: { Args: { _job: string }; Returns: undefined }
+      cj_root_family: { Args: { _name: string }; Returns: string }
       cj_try_lease_job: {
         Args: { _job: string; _seconds: number }
         Returns: boolean
@@ -6822,6 +6824,10 @@ export type Database = {
       }
       log_return_case_action: {
         Args: { _action: string; _case_id: string; _payload?: Json }
+        Returns: undefined
+      }
+      merge_category: {
+        Args: { _src: string; _tgt: string }
         Returns: undefined
       }
       migrate_customer_addresses: { Args: never; Returns: number }

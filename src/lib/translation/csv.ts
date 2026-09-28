@@ -80,7 +80,7 @@ export const CSV_FIELDS: Record<CsvScope, Array<{ prefix: string; col: string }>
 export function csvHeaders(scope: CsvScope, langs: readonly string[]): string[] {
   const base = scope === "products"
     ? ["product_id", "code", "categorie", "langue_source", "nom_source", "designation_source", "description_source"]
-    : scope === "variants" ? ["kind", "src_norm", "texte_source"] : ["category_id", "nom_source"];
+    : scope === "variants" ? ["kind", "src_norm", "texte_source"] : ["category_id", "niveau", "chemin", "nom_source"];
   const tr = CSV_FIELDS[scope].flatMap((f) => langs.map((l) => `${f.prefix}_${l}`));
   return [...base, ...tr];
 }
