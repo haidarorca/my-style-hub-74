@@ -89,6 +89,9 @@ function CustomersPage() {
   const fetchList = useServerFn(listCustomers);
   const setBlocked = useServerFn(setCustomerBlocked);
   const del = useServerFn(deleteCustomer);
+  const createAccount = useServerFn(createCustomerAccount);
+
+  const [createOpen, setCreateOpen] = useState(false);
 
   const [queryInput, setQueryInput] = useState(search.q);
   const debouncedQ = useDebouncedValue(queryInput, 300);
@@ -186,6 +189,9 @@ function CustomersPage() {
             {total} client{total > 1 ? "s" : ""}{isFetching ? " · …" : ""}
           </p>
         </div>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <UserPlus className="mr-1.5 h-4 w-4" /> Créer un client
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
