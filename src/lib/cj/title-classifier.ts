@@ -11,9 +11,10 @@ import type { FlatCategory } from "./category-match";
 
 type G = "F" | "H" | "B" | "K" | null; // femme, homme, bébé, enfant
 type Sex = "f" | "m" | null;
-interface Ctx { g: G; sex: Sex }
+interface Ctx { g: G; sex: Sex; t: string }
 type Target = string | null | ((c: Ctx) => string | null);
-interface Rule { re: RegExp; t: Target; strong?: boolean; need?: RegExp }
+interface Rule { re: RegExp; t: Target; strong?: boolean; need?: RegExp; not?: RegExp }
+const CLOTH = /\b(dress|coat|jacket|shirt|tshirt|pants|trousers|skirt|sweater|boxers?|briefs|top|shorts|jeans|hoodie|cardigan|outerwear|vest|jumpsuit|suit|underwear)\b/;
 
 const MF = "Mode Femme", MH = "Mode Homme", EB = "Enfants & Bébé";
 const kidsCloth = (c: Ctx) => c.g === "B" || c.g === "K"
@@ -50,10 +51,10 @@ const RULES: Rule[] = [
   { re: /\b(aquarium|fish tank)\b/, t: "Animaux > Poissons & Aquarium", strong: true },
   { re: /\b(dog|dogs|puppy|pet)\b/, need: /\b(leash|collar|harness|bed|bowl|toy|toys|feeder|clothes|kennel|cage|house|chew|grooming|pet|dog|puppy)\b/, t: "Animaux > Chiens", strong: true },
   { re: /\b(cat litter|cat tree|cat scratch\w*|cat toy|cat bed|kitten)\b/, t: "Animaux > Chats", strong: true },
-  { re: /\b(motorcycle|motorbike)\b/, t: "Auto & Moto > Moto", strong: true },
+  { re: /\b(motorcycle|motorbike)\b/, not: CLOTH, t: "Auto & Moto > Moto", strong: true },
   { re: /\b(yoga mat)\b/, t: "Sport & Fitness > Yoga & Pilates > Tapis de yoga", strong: true },
   { re: /\b(dumbbells?)\b/, t: "Sport & Fitness > Musculation > Haltères", strong: true },
-  { re: /\b(tent|camping|fishing|hiking)\b/, t: "Sport & Fitness > Plein air & Camping", strong: true },
+  { re: /\b(tent|camping|fishing|hiking)\b/, not: /\b(scarf|hat|cap|gloves|shoes|boots|jacket|pants|coat)\b/, t: "Sport & Fitness > Plein air & Camping" },
   { re: /\b(magnetic (tiles?|blocks?|building))\b/, t: "Jeux & Jouets > Jeux de Construction > Jeux Magnétiques", strong: true },
   { re: /\b(building blocks?|lego)\b/, t: "Jeux & Jouets > Jeux de Construction", strong: true },
 
@@ -76,7 +77,7 @@ const RULES: Rule[] = [
   { re: /\b(vase)\b/, t: "Maison & Décoration > Décoration > Vases" },
   { re: /\b(rug|carpet|doormat)\b/, t: "Maison & Décoration > Décoration > Tapis" },
   { re: /\b(photo frame|picture frame)\b/, t: "Maison & Décoration > Décoration > Cadres" },
-  { re: /\b(wall sticker|ornament|artificial flowers?|figurine|wall art|decoration)\b/, t: "Maison & Décoration > Décoration" },
+  { re: /\b(wall sticker|artificial flowers?|figurine|wall art)\b/, t: "Maison & Décoration > Décoration" },
   { re: /\b(storage box|storage bag|organizer|storage rack|shelf|hangers?|storage basket)\b/, t: "Maison & Décoration > Rangement" },
   { re: /\b(cup|mug|bowl|plate|spoon|fork|teapot|water bottle|thermos)\b/, t: "Maison & Décoration > Cuisine & Vaisselle" },
   // Bricolage
@@ -94,7 +95,7 @@ const RULES: Rule[] = [
   { re: /\b(massager|massage)\b/, t: "Beauté & Santé > Bien-être" },
   { re: /\b(wig|wigs)\b/, t: "Mode Femme > Cheveux Femme > Perruques" },
   // Jouets
-  { re: /\b(toys?|doll|plush|puzzle|rattle)\b/, t: (c) => c.g === "B" ? `${EB} > Jouets Bébé` : "Jeux & Jouets > Jouets enfants" },
+  { re: /\b(toys?|doll|plush toy|stuffed animal|puzzle|rattle)\b/, t: (c) => c.g === "B" ? `${EB} > Jouets Bébé` : "Jeux & Jouets > Jouets enfants" },
   { re: /\b(fidget|squishy|stress relief|decompression)\b/, t: "Jeux & Jouets > Jouets enfants > Anti-stress Enfants" },
   { re: /\b(water gun|kite|bubble machine|sandbox)\b/, t: "Jeux & Jouets > Jouets extérieur" },
   { re: /\b(board game|card game|chess)\b/, t: "Jeux & Jouets > Jeux de société" },
@@ -110,10 +111,10 @@ const RULES: Rule[] = [
   // Sacs
   { re: /\b(handbag|handbags|shoulder bag|crossbody|messenger bag)\b/, t: (c) => c.g === "H" || c.g === null ? "Bagagerie & Voyage > Sacs" : c.g === "F" ? `${MF} > Sacs Femme > Sacs à main` : null },
   { re: /\b(backpack|schoolbag|school bag)\b/, t: (c) => c.g === "K" || c.g === "B" ? `${EB} > École & Scolaire` : c.g === "F" ? `${MF} > Sacs Femme > Sacs à dos` : "Bagagerie & Voyage > Sacs" },
-  { re: /\b(clutch|evening bag)\b/, t: `${MF} > Sacs Femme > Pochettes` },
+  { re: /\b(clutch|evening bag)\b/, t: (c) => c.g === "H" ? `${MH} > Accessoires Homme > Portefeuilles` : `${MF} > Sacs Femme > Pochettes` },
   { re: /\b(tote)\b/, t: (c) => c.g === "F" ? `${MF} > Sacs Femme > Cabas` : "Bagagerie & Voyage > Sacs" },
   { re: /\b(toiletry bag|travel bag|cosmetic bag|makeup bag|travel pillow)\b/, t: "Bagagerie & Voyage > Accessoires voyage" },
-  { re: /\b(bag|bags)\b/, t: (c) => c.g === "F" ? `${MF} > Sacs Femme` : "Bagagerie & Voyage > Sacs" },
+  { re: /\b(bag|bags)\b/, not: /\b(gift bag|gift)\b/, t: (c) => c.g === "F" ? `${MF} > Sacs Femme` : "Bagagerie & Voyage > Sacs" },
   { re: /\b(wallet|card holder)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : `${MH} > Accessoires Homme > Portefeuilles` },
   // Bijoux / accessoires
   { re: /\b(earrings?|ear studs?|ear clips?)\b/, t: (c) => c.g === "H" ? `${MH} > Bijoux Homme` : `${MF} > Bijoux Femme > Boucles d'oreilles` },
@@ -123,9 +124,9 @@ const RULES: Rule[] = [
   { re: /\b(jewelry set)\b/, t: `${MF} > Bijoux Femme > Parures` },
   { re: /\b(watch|watches)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : `${MH} > Accessoires Homme > Montres` },
   { re: /\b(sunglasses|glasses|eyewear)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : `${MH} > Accessoires Homme > Lunettes` },
-  { re: /\b(belt)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme > Ceintures` : null },
-  { re: /\b(cap|baseball cap|beanie|hat)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme > Casquettes` : null },
-  { re: /\b(scarf|gloves)\b/, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme` : null },
+  { re: /\b(belt)\b/, not: CLOTH, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme > Ceintures` : null },
+  { re: /\b(cap|baseball cap|beanie|hat)\b/, not: CLOTH, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme > Casquettes` : null },
+  { re: /\b(scarf|gloves)\b/, not: CLOTH, t: (c) => c.g === "F" ? `${MF} > Accessoires Femme` : c.g === "H" ? `${MH} > Accessoires Homme` : null },
   // Chaussures
   { re: /\b(sneakers?|trainers|running shoes|canvas shoes|vulcanized)\b/, t: (c) => c.g === "B" || c.g === "K" ? `${EB} > Chaussures Enfant` : c.g === "F" ? `${MF} > Chaussures Femme > Sneakers` : c.g === "H" ? `${MH} > Chaussures Homme > Sneakers` : null },
   { re: /\b(sandals?|slippers?|flip flops)\b/, t: (c) => c.g === "B" || c.g === "K" ? `${EB} > Chaussures Enfant` : c.g === "F" ? `${MF} > Chaussures Femme > Sandales` : c.g === "H" ? `${MH} > Chaussures Homme > Sandales` : null },
@@ -160,7 +161,7 @@ const RULES: Rule[] = [
   { re: /\b(jacket|windbreaker|bomber)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Vestes`) },
   { re: /\b(coat|parka|trench|down jacket|overcoat)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Manteaux`) },
   { re: /\b(blazer|suit jacket)\b/, t: cloth(`${MF} > Vestes Femme`, `${MH} > Hauts > Costumes & Blazers`) },
-  { re: /\b(two piece|2 piece|three piece|suit|set|outfit|tracksuit)\b/, need: /\b(two piece|2 piece|three piece|suit|tracksuit|pants|shorts|skirt|top|shirt|tshirt|sweater|hoodie|outfit|clothing|jacket)\b/, t: cloth(`${MF} > Ensembles`, `${MH} > Hauts > Costumes & Blazers`) },
+  { re: /\b(two piece|2 piece|three piece|suit|set|outfit|tracksuit)\b/, need: /\b(two piece|2 piece|three piece|suit|tracksuit|pants|shorts|skirt|top|shirt|tshirt|sweater|hoodie|outfit|clothing|jacket)\b/, t: (c) => c.g === "H" && /\b(sport|sports|tracksuit|running|gym)\b/.test(c.t) ? "Sport & Fitness > Vêtements de sport" : cloth(`${MF} > Ensembles`, `${MH} > Hauts > Costumes & Blazers`)(c) },
   { re: /\b(underwear|boxers?|briefs)\b/, t: cloth(null, `${MH} > Sous-vêtements`) },
 ];
 
@@ -177,7 +178,7 @@ function normTitle(s: string): string {
 
 function detect(t: string, fallback: G): Ctx {
   const baby = /\b(baby|babies|infant|newborn|toddler|\d+ ?(m|months?))\b/.test(t);
-  const kid = /\b(kids?|child|children|childrens|boys?|boys|girls?|girls|junior|teen|student)\b/.test(t);
+  const kid = /\b(kids?|child|children|childrens|boys?|boys|girls?|girls|junior)\b/.test(t);
   const f = /\b(women|womens|woman|ladies|lady|female|maternity)\b/.test(t);
   const h = /\b(men|mens|man|male|gentleman)\b/.test(t);
   const sexF = /\b(girls?|girls|princess|daughter)\b/.test(t);
@@ -185,7 +186,7 @@ function detect(t: string, fallback: G): Ctx {
   const sex: Sex = sexF && !sexM ? "f" : sexM && !sexF ? "m" : null;
   let g: G = baby ? "B" : kid ? "K" : f && !h ? "F" : h && !f ? "H" : null;
   if (!g) g = fallback;
-  return { g, sex };
+  return { g, sex, t };
 }
 
 export interface TitleClass { path: string; categoryId: string }
@@ -221,6 +222,7 @@ export function classifyByTitle(title: string | null | undefined, cjPath: string
   let best: { pos: number; path: string } | null = null;
   for (const r of RULES) {
     if (r.need && !r.need.test(t)) continue;
+    if (r.not && r.not.test(t)) continue;
     const g = new RegExp(r.re.source, "g");
     let m: RegExpExecArray | null; let last = -1;
     while ((m = g.exec(t))) { last = m.index + m[0].length; if (m[0].length === 0) g.lastIndex++; }
