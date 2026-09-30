@@ -240,11 +240,8 @@ function ProductPage() {
       // vendeurs : on complète via la vue publique (pays d'origine requis
       // pour afficher les modes d'expédition).
       if (data && (data as any).vendor_id && !(data as any).profiles?.source_country_id) {
-        const { data: pv } = await (supabase as any)
-          .from("public_vendor_profiles")
-          .select("full_name, shop_name, source_country_id")
-          .eq("id", (data as any).vendor_id)
-          .maybeSingle();
+        const { data: pvs } = await (supabase as any).rpc("get_vendor_shipping_profiles", { _ids: [(data as any).vendor_id] });
+        const pv = Array.isArray(pvs) ? pvs[0] : null;
         if (pv) (data as any).profiles = { ...((data as any).profiles ?? {}), ...pv };
       }
       return data;

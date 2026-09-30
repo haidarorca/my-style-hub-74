@@ -131,10 +131,7 @@ export function useCart() {
           .map((it) => it.products.vendor_id as string),
       ));
       if (missingVendorIds.length > 0) {
-        const { data: pvs } = await (supabase as any)
-          .from("public_vendor_profiles")
-          .select("id, full_name, shop_name, vendor_mode, source_country_id")
-          .in("id", missingVendorIds);
+        const { data: pvs } = await (supabase as any).rpc("get_vendor_shipping_profiles", { _ids: missingVendorIds });
         const pvMap = new Map((pvs ?? []).map((v: any) => [v.id, v]));
         for (const it of raw) {
           const pv: any = it.products?.vendor_id ? pvMap.get(it.products.vendor_id) : null;
