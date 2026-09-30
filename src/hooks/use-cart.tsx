@@ -125,6 +125,19 @@ export function useCart() {
       } else {
         raw = (await hydrateGuestLines(readGuestCart())) as any[];
       }
+      // Compléter le profil vendeur via la vue publique (RLS profiles = admin/soi).
+      const missingVendorIds = Array.from(new Set(
+        raw.filter((it) => it.products?.vendor_id && !it.products?.profiles?.source_country_id)
+          .map((it) => it.products.vendor_id as string),
+      ));
+      if (missingVendorIds.length > 0) {
+        const { data: pvs } = await (supabase as any).rpc("get_vendor_shipping_profiles", { _ids: missingVendorIds });
+        const pvMap = new Map((pvs ?? []).map((v: any) => [v.id, v]));
+        for (const it of raw) {
+          const pv: any = it.products?.vendor_id ? pvMap.get(it.products.vendor_id) : null;
+          if (pv) it.products = { ...it.products, profiles: { ...(it.products.profiles ?? {}), ...pv } };
+        }
+      }
       // Render-side dedupe : merge duplicate rows by (product_id, variant_id, clean customization).
       // Les métadonnées logistiques historiques sont ignorées dans la signature.
       const byKey = new Map<string, any>();

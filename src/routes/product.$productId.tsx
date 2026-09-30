@@ -236,6 +236,14 @@ function ProductPage() {
         .eq("id", productId)
         .maybeSingle();
       if (error) throw error;
+      // Les clients (non admin) ne peuvent pas lire la table profiles des
+      // vendeurs : on complète via la vue publique (pays d'origine requis
+      // pour afficher les modes d'expédition).
+      if (data && (data as any).vendor_id && !(data as any).profiles?.source_country_id) {
+        const { data: pvs } = await (supabase as any).rpc("get_vendor_shipping_profiles", { _ids: [(data as any).vendor_id] });
+        const pv = Array.isArray(pvs) ? pvs[0] : null;
+        if (pv) (data as any).profiles = { ...((data as any).profiles ?? {}), ...pv };
+      }
       return data;
     },
   });
