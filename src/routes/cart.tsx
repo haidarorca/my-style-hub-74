@@ -650,16 +650,23 @@ function CartPage() {
     }
 
     const payload = {
-      ...parsed.data,
+      owner_type: "user",
+      owner_id: user.id,
+      type: "shipping",
+      label: parsed.data.label,
+      full_name: parsed.data.full_name,
+      phone: parsed.data.phone,
+      address_line1: parsed.data.address,
+      city_text: parsed.data.city || null,
+      neighborhood_text: parsed.data.city || null,
+      country_id: destinationCountryId,
       note: parsed.data.note || null,
       latitude: newForm.latitude,
       longitude: newForm.longitude,
-      user_id: user.id,
       is_default: addresses.length === 0,
-      destination_country_id: destinationCountryId,
     };
     const { data, error } = await (supabase as any)
-      .from("customer_addresses")
+      .from("addresses")
       .insert(payload)
       .select("*")
       .single();
@@ -667,7 +674,20 @@ function CartPage() {
       toast.error(t("checkout.address_save_error"));
       return null;
     }
-    return data as Address;
+    return {
+      id: data.id,
+      label: data.label ?? parsed.data.label,
+      full_name: data.full_name ?? parsed.data.full_name,
+      phone: data.phone ?? parsed.data.phone,
+      address: data.address_line1 ?? parsed.data.address,
+      city: data.city_text ?? parsed.data.city,
+      destination_country_id: data.country_id ?? destinationCountryId,
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+      note: data.note ?? null,
+      is_default: !!data.is_default,
+    } as Address;
+
   };
 
   const isCommissionItem = (it: any): boolean => {
