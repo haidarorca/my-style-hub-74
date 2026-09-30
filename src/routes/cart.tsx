@@ -126,13 +126,37 @@ function CartPage() {
       setMode("new");
       return;
     }
-    const { data } = await (supabase as any)
-      .from("customer_addresses")
+    // Adresses du compte (table moderne, remplie dès l'inscription).
+    const { data: modern } = await (supabase as any)
+      .from("addresses")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("owner_type", "user")
+      .eq("owner_id", user.id)
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true });
-    const list = (data ?? []) as Address[];
+    let list: Address[] = (modern ?? []).map((a: any) => ({
+      id: a.id,
+      label: a.label ?? t("checkout.default_label_home"),
+      full_name: a.full_name ?? "",
+      phone: a.phone ?? "",
+      address: a.address_line1 ?? "",
+      city: a.city_text ?? a.neighborhood_text ?? "",
+      destination_country_id: a.country_id ?? null,
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      note: a.note ?? null,
+      is_default: !!a.is_default,
+    }));
+    if (list.length === 0) {
+      // Repli : anciennes adresses clients.
+      const { data: legacy } = await (supabase as any)
+        .from("customer_addresses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true });
+      list = (legacy ?? []) as Address[];
+    }
     setAddresses(list);
     if (list.length > 0) {
       setMode("saved");
@@ -147,6 +171,7 @@ function CartPage() {
       }));
     }
   };
+
 
   useEffect(() => {
     if (checkoutOpen) void loadAddresses();
