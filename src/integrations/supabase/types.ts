@@ -6698,6 +6698,16 @@ export type Database = {
           sales_count: number
         }[]
       }
+      get_vendor_shipping_profiles: {
+        Args: { _ids: string[] }
+        Returns: {
+          full_name: string
+          id: string
+          shop_name: string
+          source_country_id: string
+          vendor_mode: Database["public"]["Enums"]["vendor_mode"]
+        }[]
+      }
       has_admin_permission: {
         Args: {
           _perm: Database["public"]["Enums"]["admin_permission"]
