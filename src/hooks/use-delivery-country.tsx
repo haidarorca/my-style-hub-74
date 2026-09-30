@@ -58,6 +58,23 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
     if (!ready || !user) return;
     let cancelled = false;
     (async () => {
+      // Source principale : table d'adresses moderne (remplie à l'inscription).
+      const { data: modern } = await (supabase as any)
+        .from("addresses")
+        .select("country_id, is_default, created_at")
+        .eq("owner_type", "user")
+        .eq("owner_id", user.id)
+        .not("country_id", "is", null)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const modernCountry = Array.isArray(modern) ? modern[0]?.country_id : null;
+      if (!cancelled && modernCountry) {
+        setCountryIdState(modernCountry);
+        setIsManual(false);
+        return;
+      }
+      // Repli : anciennes adresses clients.
       const { data } = await (supabase as any)
         .from("customer_addresses")
         .select("destination_country_id")
@@ -71,6 +88,7 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
     })();
     return () => { cancelled = true; };
   }, [ready, user]);
+
 
   // 3) auto-detect via geo-IP if still nothing and no manual pick
   useEffect(() => {
