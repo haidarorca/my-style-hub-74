@@ -12,6 +12,7 @@ import { BackButton } from "@/components/layout/BackButton";
 import { useI18n } from "@/hooks/use-i18n";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { useCountries } from "@/hooks/use-countries";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import {
   sendSignupVerificationCode,
   verifySignupAndCreateAccount,
@@ -228,6 +229,8 @@ function SignupPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Rejoins-nous pour shopper et personnaliser tes produits. Vous pouvez aussi commander sans compte.
             </p>
+            <GoogleSignInButton label="S'inscrire avec Google" />
+
 
             <form onSubmit={onSubmit} className="mt-2 space-y-4">
               <div className="space-y-1.5">

@@ -1,34 +1,46 @@
 import { useState } from "react";
-import { lovable } from "@/integrations/lovable/index";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { lovable } from "@/integrations/lovable/index";
 
 export function GoogleSignInButton({ label = "Continuer avec Google" }: { label?: string }) {
   const [loading, setLoading] = useState(false);
+
   const onClick = async () => {
     setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+      extraParams: { prompt: "select_account" },
+    });
     if (result.error) {
-      toast.error("Connexion Google impossible. Réessayez.");
       setLoading(false);
+      toast.error("Connexion Google impossible. Réessayez.");
       return;
     }
     if (result.redirected) return;
-    window.location.href = "/";
+    window.location.assign("/");
   };
+
   return (
-    <div className="space-y-3">
-      <Button type="button" variant="outline" size="lg" className="w-full" onClick={onClick} disabled={loading}>
-        <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="#4285F4" d="M22.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h6a5.1 5.1 0 0 1-2.2 3.4v2.8h3.6c2-1.9 3.2-4.7 3.2-8z" />
-          <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z" />
-          <path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10l3.7-2.9z" />
-          <path fill="#EA4335" d="M12 5.4c1.6 0 3 .6 4.2 1.6l3.1-3.1A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z" />
-        </svg>
-        {loading ? "Connexion…" : label}
+    <div className="mt-4 space-y-4">
+      <Button type="button" variant="outline" size="lg" className="w-full gap-2" onClick={onClick} disabled={loading}>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.77.43 3.45 1.18 4.94l3.66-2.84z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+          </svg>
+        )}
+        {label}
       </Button>
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="h-px flex-1 bg-border" />ou<div className="h-px flex-1 bg-border" />
+        <span className="h-px flex-1 bg-border" />
+        ou
+        <span className="h-px flex-1 bg-border" />
       </div>
     </div>
   );
