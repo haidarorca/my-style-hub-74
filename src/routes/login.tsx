@@ -10,6 +10,7 @@ import { Eye, EyeOff, Home } from "lucide-react";
 import { BackButton } from "@/components/layout/BackButton";
 import { EditableLabel } from "@/components/admin/EditableLabel";
 import { useI18n } from "@/hooks/use-i18n";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -67,6 +68,7 @@ function LoginPage() {
         </div>
         <h1 className="mt-4 text-2xl font-bold">{t("auth.login_title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("auth.login_subtitle")}</p>
+        <GoogleSignInButton />
 
         <form onSubmit={onSubmit} className="mt-2 space-y-4">
           <div className="space-y-1.5">
