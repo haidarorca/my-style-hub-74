@@ -108,6 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: "Kawzone" },
       { property: "og:locale", content: "fr_FR" },
       { name: "format-detection", content: "telephone=no" },
+      { name: "google-site-verification", content: "_92NSvMKylmvBcAdOaoFEvuVzRrF8u_VOv4VpmA0ZmA" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
