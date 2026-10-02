@@ -52,10 +52,11 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const serviceUnavailable = /(?:521|522|523|524|web server is down|<!doctype html>|failed to fetch|networkerror)/i.test(error.message);
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const serviceUnavailable = /(?:521|522|523|524|web server is down|<!doctype html>|failed to fetch|networkerror)/i.test(message);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -108,6 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: "Kawzone" },
       { property: "og:locale", content: "fr_FR" },
       { name: "format-detection", content: "telephone=no" },
+      { name: "google-site-verification", content: "_92NSvMKylmvBcAdOaoFEvuVzRrF8u_VOv4VpmA0ZmA" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
