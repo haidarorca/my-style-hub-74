@@ -55,7 +55,8 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const serviceUnavailable = /(?:521|522|523|524|web server is down|<!doctype html>|failed to fetch|networkerror)/i.test(error.message);
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const serviceUnavailable = /(?:521|522|523|524|web server is down|<!doctype html>|failed to fetch|networkerror)/i.test(message);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
