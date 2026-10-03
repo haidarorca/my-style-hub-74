@@ -67,6 +67,14 @@ const FR_EN: Record<string, string[]> = {
   inox: ["stainless steel"], coton: ["cotton"], cuir: ["leather"], impermeable: ["waterproof"],
 };
 
+/** Formes canoniques anglaises (mots composés écrits de plusieurs façons). Pas du français. */
+const CANON_EN: Record<string, string[]> = {
+  tshirt: ["t-shirt", "tshirt", "tee"], sweatshirt: ["sweatshirt", "hoodie"], hoodie: ["hoodie", "sweatshirt"],
+  smartwatch: ["smart watch", "smartwatch"], powerbank: ["power bank", "powerbank"], earbuds: ["earbuds", "earphones"],
+};
+// Français → forme canonique.
+Object.assign(FR_EN, { teeshirt: ["t-shirt", "tshirt", "tee"], sweat: ["sweatshirt", "hoodie"], polo: ["polo"], debardeur: ["tank top", "vest"], short: ["shorts"] });
+
 /** Synonymes anglais (groupes cohérents seulement — jamais d'élargissement absurde). */
 const EN_SYN: string[][] = [
   ["cake decoration", "cake decorating", "cake topper", "cake decorating supplies", "baking decoration"],
@@ -78,6 +86,13 @@ const EN_SYN: string[][] = [
   ["mold", "mould"], ["storage", "organizer", "storage box"], ["rug", "carpet", "mat"], ["sneakers", "shoes", "trainers"],
   ["bag", "handbag", "tote"], ["jewelry", "jewellery"], ["kids", "children", "child"], ["women", "womens", "ladies"],
   ["men", "mens"], ["light", "lamp", "lighting"], ["watering", "irrigation", "sprinkler"], ["hose", "pipe", "tube"],
+  ["t-shirt", "tshirt", "tee"],
+];
+
+// Mots composés : « T-Shirt », « T Shirt », « Tshirt », « Tee Shirt » doivent être le même mot.
+const COMPOUNDS: Array<[RegExp, string]> = [
+  [/\b(?:t|tee)[\s-]?shirts?\b/g, "tshirt"], [/\bsweat[\s-]?shirts?\b/g, "sweatshirt"], [/\bhoodies\b/g, "hoodie"],
+  [/\bsmart[\s-]?watch(?:es)?\b/g, "smartwatch"], [/\bpower[\s-]?banks?\b/g, "powerbank"], [/\bear[\s-]?buds?\b/g, "earbuds"],
 ];
 
 export function normalize(s: string | null | undefined): string {
@@ -118,11 +133,29 @@ function vocab(): string[] {
 }
 
 /** Corrige une faute probable (1 erreur ≤ 6 lettres, 2 au-delà). */
+
+/** Texte de comparaison : normalisé, mots composés unifiés, tirets → espaces. */
+export function matchText(s: string | null | undefined): string {
+  let t = normalize(s);
+  for (const [re, r] of COMPOUNDS) t = t.replace(re, r);
+  return t.replace(/-/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Recherche par code : PID CJ (longue suite de chiffres) ou SKU / référence (lettres + chiffres, sans espace). */
+export function detectCode(raw: string): { kind: "pid" | "sku"; value: string } | null {
+  const v = String(raw ?? "").trim();
+  if (/^\d{12,24}$/.test(v)) return { kind: "pid", value: v };
+  if (!/\s/.test(v) && v.length >= 4 && /\d/.test(v) && /[a-z]/i.test(v)) return { kind: "sku", value: v.toUpperCase() };
+  return null;
+}
+
+/** Corrige une faute probable (1 erreur ≤ 6 lettres, 2 au-delà). Jamais sur un code ou un mot composé. */
 export function correctWord(w: string): string {
-  if (w.length < 4 || FR_EN[w] || vocab().includes(w)) return w;
+  if (w.length < 4 || /\d/.test(w) || FR_EN[w] || CANON_EN[w] || vocab().includes(w)) return w;
   const max = w.length <= 6 ? 1 : 2;
   let best = w, bestD = max + 1;
   for (const v of vocab()) {
+    if (v.includes(" ") || v.includes("-")) continue;
     const d = lev(w, v);
     if (d < bestD) { best = v; bestD = d; }
   }
@@ -134,8 +167,9 @@ export interface QueryPlan {
   original: string;
   corrected: string;
   concepts: Concept[];
-  /** Nom principal : 1er mot en français (« coque » téléphone), dernier en anglais (phone « case »). */
+  /** Conservé pour compatibilité ; la pertinence ne dépend plus de l'ordre des mots. */
   head: number;
+  code: { kind: "pid" | "sku"; value: string } | null;
   /** Requêtes CJ ordonnées, de la plus précise à la plus large. */
   queries: Array<{ q: string; stage: "exact" | "traduction" | "synonymes" | "combinaison" | "élargie" }>;
 }
@@ -148,13 +182,14 @@ function synonymsOf(term: string): string[] {
 
 export function buildQueryPlan(raw: string): QueryPlan {
   const original = String(raw ?? "").trim();
-  const words = normalize(original).split(" ").filter((w) => w && !STOP.has(w));
-  const fixed = words.map(correctWord);
-  const concepts: Concept[] = fixed.map((w) => {
-    const en = FR_EN[w] ?? [w];
-    const terms = [...new Set(en.flatMap(synonymsOf))].slice(0, 8);
-    // Racines : mot principal (dernier mot) de chaque équivalent — « water pump » → pump, jamais « water ».
-    const stems = [...new Set(terms.map((t) => stem(t.split(" ").pop() ?? t)))];
+  const code = detectCode(original);
+  const words = matchText(original).split(" ").filter((w) => w && !STOP.has(w));
+  const fixed = code ? words : words.map(correctWord);
+  const concepts: Concept[] = fixed.map((w, i) => {
+    const orig = words[i];
+    const en = [...(FR_EN[w] ?? CANON_EN[w] ?? [w]), ...(orig !== w ? (FR_EN[orig] ?? CANON_EN[orig] ?? [orig]) : [])];
+    const terms = [...new Set([...en.flatMap(synonymsOf), w, orig])].slice(0, 10);
+    const stems = [...new Set(terms.map((t) => stem(matchText(t).split(" ").pop() ?? t)))];
     return { source: w, terms, stems, fr: !!FR_EN[w] && FR_EN[w][0] !== w };
   });
   const queries: QueryPlan["queries"] = [];
@@ -163,68 +198,65 @@ export function buildQueryPlan(raw: string): QueryPlan {
     if (n && !queries.some((x) => x.q === n)) queries.push({ q: n, stage });
   };
   push(original, "exact");
-  if (fixed.join(" ") !== words.join(" ")) push(fixed.join(" "), "exact");
-  if (concepts.length) {
-    // Anglais : le qualificatif précède le nom (« décoration gâteau » → « cake decoration »).
+  if (!code && fixed.join(" ") !== words.join(" ")) push(fixed.join(" "), "exact");
+  if (!code && concepts.length) {
     const primary = concepts.map((c) => c.terms[0]);
     push([...primary].reverse().join(" "), "traduction");
     push(primary.join(" "), "traduction");
-    // Synonymes des expressions composées connues.
     const phrase = [...primary].reverse().join(" ");
     for (const s of [...synonymsOf(phrase), ...synonymsOf(primary.join(" "))]) push(s, "synonymes");
-    // Combinaisons : 2e/3e équivalent de chaque concept.
     if (concepts.length >= 2) {
       const [a, b] = [concepts[concepts.length - 1], concepts[0]];
       for (const ta of a.terms.slice(0, 3)) for (const tb of b.terms.slice(0, 3)) push(`${ta} ${tb}`, "combinaison");
+      // Chaque concept seul en dernier recours (le filtrage de pertinence exige tous les mots).
+      for (const c of concepts) push(c.terms[0], "élargie");
     } else {
       for (const t of concepts[0].terms.slice(1, 4)) push(t, "synonymes");
     }
-    // Élargissement : concept le plus spécifique seul (le premier en français = nom principal).
-    if (concepts.length >= 2) push(concepts[concepts.length - 1].terms[0] + " " + concepts[0].terms[0], "élargie");
   }
   const french = concepts.some((c) => c.fr);
-  return { original, corrected: fixed.join(" "), concepts, head: french ? 0 : Math.max(0, concepts.length - 1), queries: queries.slice(0, 10) };
+  return { original, corrected: fixed.join(" "), concepts, code, head: french ? 0 : Math.max(0, concepts.length - 1), queries: queries.slice(0, 12) };
 }
 
 /**
- * Score de pertinence 0–100. `relevant=false` si un concept essentiel est
- * absent du titre ET de la catégorie (résultat hors sujet).
+ * Score de pertinence 0–100, indépendant de l'ordre des mots.
+ * Pertinent si tous les concepts (≥ 2/3 à partir de 3 mots) sont dans le titre
+ * ou la catégorie, avec au moins un dans le titre.
  */
 export function scoreHit(
   plan: QueryPlan,
-  item: { name?: string | null; categoryPath?: string | null; sku?: string | null; stock?: number | null; image?: string | null; price?: number | null },
+  item: { pid?: string | null; name?: string | null; categoryPath?: string | null; sku?: string | null; stock?: number | null; image?: string | null; price?: number | null },
 ): { score: number; relevant: boolean } {
+  if (plan.code) {
+    const v = plan.code.value.toUpperCase();
+    const sku = String(item.sku ?? "").toUpperCase();
+    if (plan.code.kind === "pid" ? String(item.pid ?? "") === v : sku === v) return { score: 100, relevant: true };
+    if (plan.code.kind === "sku" && sku && (sku.startsWith(v) || sku.includes(v))) return { score: 90, relevant: true };
+  }
   if (!plan.concepts.length) return { score: 50, relevant: true };
-  const title = normalize(item.name);
-  const cat = normalize(item.categoryPath);
+  const title = matchText(item.name);
+  const cat = matchText(item.categoryPath);
   const tStems = new Set(title.split(" ").map(stem));
   const cStems = new Set(cat.split(" ").map(stem));
-  const sku = normalize(item.sku);
-  if (sku && sku === normalize(plan.original)) return { score: 100, relevant: true };
-
   const pt = ` ${title} `, pc = ` ${cat} `;
-  let inTitle = 0, inCat = 0, headInTitle = false;
-  for (const [idx, c] of plan.concepts.entries()) {
-    // Mots entiers uniquement (« pump » ne doit pas matcher « pumpkin »).
-    const hitT = c.terms.some((t) => pt.includes(` ${t} `)) || c.stems.some((s) => tStems.has(s));
-    const hitC = c.terms.some((t) => pc.includes(` ${t} `)) || c.stems.some((s) => cStems.has(s));
+  let inTitle = 0, inCat = 0;
+  for (const c of plan.concepts) {
+    const ts = c.terms.map(matchText);
+    const hitT = ts.some((t) => pt.includes(` ${t} `)) || c.stems.some((s) => tStems.has(s));
+    const hitC = ts.some((t) => pc.includes(` ${t} `)) || c.stems.some((s) => cStems.has(s));
     if (hitT) inTitle++; else if (hitC) inCat++;
-    if (idx === plan.head && hitT) headInTitle = true;
   }
   const n = plan.concepts.length;
   let score = (inTitle / n) * 55 + (inCat / n) * 20;
-  // Expression complète dans le titre (ex. « cake decoration »).
-  if (plan.queries.slice(0, 6).some((q) => q.q.includes(" ") && pt.includes(` ${q.q} `))) score += 25;
+  const phrases = plan.queries.filter((q) => q.q.includes(" ")).map((q) => matchText(q.q));
+  if (phrases.slice(0, 6).some((q) => pt.includes(` ${q} `))) score += 25;
+  const catPhrase = phrases.some((q) => pc.includes(` ${q} `));
+  if (catPhrase) score += 15;
   if ((item.stock ?? 0) > 0) score += 5;
   if (item.image) score += 3;
   if (item.price != null) score += 2;
-  // Pertinent : tous les concepts couverts (titre ou catégorie) ; au moins la moitié dans le titre.
   const covered = inTitle + inCat;
-  // Le nom principal doit figurer dans le titre (sinon : hors sujet).
-  // Exception : la catégorie CJ porte l'expression complète (« Cake Decorating Supplies »)
-  // et au moins un concept figure dans le titre.
-  const catPhrase = plan.queries.some((q) => q.q.includes(" ") && pc.includes(` ${q.q} `));
-  if (catPhrase) score += 15;
-  const relevant = (headInTitle && (n === 1 || covered >= Math.ceil(n * (n >= 3 ? 0.67 : 1)))) || (catPhrase && inTitle >= 1);
+  const need = n >= 3 ? Math.ceil(n * 0.67) : n;
+  const relevant = (inTitle >= 1 && covered >= need) || (catPhrase && inTitle >= 1);
   return { score: Math.min(100, Math.round(score)), relevant };
 }

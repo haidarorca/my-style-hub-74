@@ -26,3 +26,12 @@
 - [ ] Pays d'origine des produits CJ existants : correction progressive lancée, contrôle final après retour de la base ; futurs imports renseignés
 - [x] Partage KawZone : QR vers le bon site et visuels propres à la marque (aperçu vérifié)
 - [x] Panne temporaire des données : message lisible et bouton de reprise au lieu d'un écran blanc ou d'une erreur technique
+
+## Refonte import CJ (validée le 3 oct.)
+- [x] Recherche CJ : causes corrigées (t-shirt/tshirt, correction abusive, ordre des mots, PID/SKU, vue « Nouveaux » qui masquait, filtres relancent la même recherche, erreurs CJ affichées, réserve de points)
+- [ ] Test en direct sur CJ — bloqué : points CJ du jour épuisés
+- [ ] Contrôle qualité bloquant + écran Produits incomplets (Synchroniser / Compléter / Supprimer / Publier)
+- [ ] Synchronisation non destructive (données CJ séparées des données validées)
+- [ ] Anti-doublon SKU / Variant ID en plus du PID
+- [ ] Comparaison fournisseurs + coût d'arrivée Dakar + compatibilité critères
+- [ ] Moteur de recherche commun pour produits importés / validation / catalogue
