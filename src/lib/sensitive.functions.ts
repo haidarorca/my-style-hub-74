@@ -206,23 +206,27 @@ export async function runBatchCore(sb: any, opts: { ai?: boolean; limit?: number
       for (const r of rows.filter((x) => manualIds.has(x.product_id)))
         await sb.from("product_image_sensitivity").update({ input_hash: r.input_hash }).eq("product_id", r.product_id);
       const autoRows = rows.filter((x) => !manualIds.has(x.product_id));
+      const builderIds = new Set(autoRows.filter((x) => x._builder).map((x) => x.product_id));
+      for (const r of autoRows) delete r._builder;
       if (autoRows.length) {
         const { error: upErr } = await sb.from("product_image_sensitivity").upsert(autoRows, { onConflict: "product_id" });
         if (upErr) throw new Error(upErr.message);
       }
-      // Vision uniquement si nécessaire : sensible ou à vérifier (jamais les produits normaux)
-      const { enqueueProduct } = await import("./sensitive/vision.server");
-      for (const r of autoRows) if (r.decision !== "normal") vision += await enqueueProduct(sb, r.product_id);
+      // Vision uniquement en analyse admin, jamais pour une décision de règle ni en mode automatique.
+      if (useAi) {
+        const { enqueueProduct } = await import("./sensitive/vision.server");
+        for (const r of autoRows) if (r.decision !== "normal" && r.confidence !== "ai_pending" && !builderIds.has(r.product_id)) vision += await enqueueProduct(sb, r.product_id);
+      }
     }
     for (const [id, n] of ruleHits) {
       const r = await sb.from("sensitive_image_rules").select("hits").eq("id", id).single();
       await sb.from("sensitive_image_rules").update({ hits: ((r.data as any)?.hits ?? 0) + n }).eq("id", id);
     }
-    const learned = await learnFromAi(
+    const learned = useAi ? await learnFromAi(
       sb,
       toAi.filter((p) => p.term && p.category_id).map((p) => ({ term: p.term!, categoryId: p.category_id! })),
-    );
-    const { data: remaining } = await (sb as any).rpc("sensitive_pending_count");
+    ) : 0;
+    const { data: remaining } = await (sb as any).rpc("sensitive_pending_count2", { _with_ai: useAi });
     return {
       processed: rows.length,
       byRule: rows.length - aiCount,
