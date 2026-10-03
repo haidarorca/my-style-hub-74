@@ -1,6 +1,7 @@
 // Validation produits — liste scalable (curseur), filtres serveur, sélection
 // globale par filtre et actions en masse groupées.
 import { createServerFn } from "@tanstack/react-start";
+import { searchTokenGroups } from "@/lib/cj/smart-search";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -76,6 +77,8 @@ function applyFilters(q: any, f: ValidationFilter, shopIds: string[]) {
   }
   return q;
 }
+
+const fieldsFor = (p: string) => [`name.ilike.${p}`, `designation.ilike.${p}`, `code.ilike.${p}`, `sku.ilike.${p}`, `supplier_ref.ilike.${p}`, `external_product_id.ilike.${p}`];
 
 async function shopIdsFor(f: ValidationFilter): Promise<string[]> {
   const safe = f.q.trim().replace(/[,()%*\\]/g, " ").trim();
