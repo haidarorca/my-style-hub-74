@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.guard_cj_publish_without_image() FROM PUBLIC, anon, authenticated;
