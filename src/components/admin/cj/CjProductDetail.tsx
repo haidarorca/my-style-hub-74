@@ -6,6 +6,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCjDetail } from "@/lib/cj-center.functions";
+import { landedCost, fcfa } from "@/lib/cj/landed-cost";
+import { useCurrencies } from "@/hooks/use-currencies";
 
 const LABELS: Record<string, string> = { images: "images", sku: "SKU", price: "prix", stock: "stock", weight: "poids", dimensions: "dimensions", variants: "variantes", description: "description" };
 const fmt = (n: number | null | undefined, d = 2) => n == null ? "—" : String(Number(n.toFixed(d)));
@@ -21,6 +23,9 @@ export function CjProductDetail({ pid, onClose, onImport, onSync }: { pid: strin
     enabled: Boolean(pid), staleTime: 10 * 60_000,
   });
   const d = data?.detail;
+  const usdRate = useCurrencies().rates["USD"]?.rate ?? null;
+  const v0: any = d?.variants?.find((v: any) => v.lengthCm && v.widthCm && v.heightCm) ?? null;
+  const lc = d ? landedCost({ priceUsd: d.minPrice, weightKg: d.maxWeightKg, lengthCm: v0?.lengthCm, widthCm: v0?.widthCm, heightCm: v0?.heightCm, usdToXof: usdRate }) : null;
   const missing = d ? Object.entries(d.completeness).filter(([, ok]) => !ok).map(([key]) => LABELS[key] ?? key) : [];
 
   return <Dialog open={Boolean(pid)} onOpenChange={(open) => !open && onClose()}>
@@ -37,6 +42,8 @@ export function CjProductDetail({ pid, onClose, onImport, onSync }: { pid: strin
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2"><Badge variant={data.exists ? "secondary" : "default"}>{data.exists ? "Déjà importé" : "Nouveau"}</Badge><QualityBadge score={d.score} missing={missing} /></div>
             <div className="grid grid-cols-2 gap-3"><Info label="Prix CJ" value={d.minPrice == null ? "À vérifier" : d.minPrice === d.maxPrice ? `${d.minPrice} USD` : `${d.minPrice} – ${d.maxPrice} USD`} /><Info label="Stock CJ" value={d.totalStock == null ? "À vérifier" : String(d.totalStock)} /><Info label="Variantes" value={String(d.variantCount)} /><Info label="Poids max" value={d.maxWeightKg == null ? "À vérifier" : `${fmt(d.maxWeightKg, 4)} kg`} /></div>
+            {lc && <div className="rounded-md border p-3 text-xs"><p className="mb-2 text-sm font-medium">Coût estimé d'arrivée à Dakar</p><div className="grid grid-cols-2 gap-2"><Info label="Prix CJ en FCFA" value={fcfa(lc.priceXof)} /><Info label="Poids facturé" value={lc.chargeableKg != null ? `${fmt(lc.chargeableKg, 3)} kg` : "Donnée manquante"} /><Info label="Total avion (8 000/kg)" value={fcfa(lc.totalAvion)} /><Info label="Total rapide (10 000/kg)" value={fcfa(lc.totalRapide)} /></div>{lc.missing.length > 0 && <p className="mt-2 text-warning">Manque : {lc.missing.join(" · ")}</p>}</div>}
+            <div className="grid grid-cols-2 gap-3 text-xs"><Info label="Fournisseur" value={d.supplierName ?? "Donnée non disponible"} /><Info label="Supplier ID" value={d.supplierId ?? "Donnée non disponible"} /><Info label="Entrepôt vérifié" value={d.verifiedWarehouse == null ? "Donnée non disponible" : d.verifiedWarehouse ? "Oui" : "Non"} /><Info label="Délai annoncé" value={d.deliveryCycle ?? "Donnée non disponible"} /></div>
             <div><p className="text-xs text-muted-foreground">Catégorie</p><p className="text-sm font-medium">{d.category ?? "Non renseignée"}</p></div>
             {missing.length ? <div className="rounded-md border border-warning/40 bg-warning/10 p-3"><p className="flex items-center gap-2 text-sm font-medium"><AlertTriangle className="h-4 w-4 text-warning" />Données manquantes</p><p className="mt-1 text-xs text-muted-foreground">{missing.join(" · ")}</p></div> : <div className="flex items-center gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-sm font-medium"><CheckCircle2 className="h-4 w-4 text-success" />Données complètes</div>}
             {data.exists ? <Button className="w-full" variant="outline" onClick={() => onSync(d.pid)}><RefreshCw className="h-4 w-4" />Synchroniser ce produit</Button> : <Button className="w-full" onClick={() => onImport(d.pid, d.name, d.image)}><Download className="h-4 w-4" />Ajouter à la sélection</Button>}
