@@ -198,6 +198,11 @@ export function summarizeCjProduct(p: any) {
     score,
     quality,
     imageCount,
+    // Données fournisseur brutes, seulement si CJ les fournit (jamais de note inventée).
+    supplierId: p?.supplierId ? String(p.supplierId) : null,
+    supplierName: p?.supplierName ? String(p.supplierName) : null,
+    deliveryCycle: p?.deliveryCycle != null && String(p.deliveryCycle).trim() ? String(p.deliveryCycle) : null,
+    verifiedWarehouse: p?.verifiedWarehouse != null ? Boolean(Number(p.verifiedWarehouse) === 1 || p.verifiedWarehouse === true) : null,
     material: mat.value,
     materialSource: mat.source,
     minWeightKg: weights.length ? Math.min(...weights) : null,
