@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   const exploreFn = useServerFn(exploreCj);
   const jobFn = useServerFn(createCjJob);
   const smartFn = useServerFn(smartSearchCj);
-  const [smart, setSmart] = useState<null | { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }>(null);
+  const [smart, setSmart] = useState<null | { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; filteredOut?: number; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }>(null);
   const [criteria, setCriteria] = useState<Criteria>({ ...EMPTY_CRITERIA });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -29,8 +29,10 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   const [selected, setSelected] = useState<Map<string, ExploreHit>>(new Map());
   const [detail, setDetail] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [resultFilter, setResultFilter] = useState<ResultFilter>("new");
+  const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [level, setLevel] = useState(1);
   const [sortBy, setSortBy] = useState<"relevance" | "price_asc" | "price_desc" | "stock">("relevance");
 
   const visible = useMemo(() => (res?.hits ?? []).filter((h) => {
@@ -51,29 +53,51 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   const pageSelected = visible.length > 0 && visible.every((h) => selected.has(h.pid));
   const categoryLabel = (nodes.find((n) => n.id === criteria.categoryId) ?? categories.find((c) => c.id === criteria.categoryId))?.path;
 
-  async function search(p = 1) {
-    if (!criteria.keyword?.trim() && !criteria.categoryId) { toast.error("Indiquez un mot-clé ou choisissez une catégorie."); return; }
+  const counts = useMemo(() => {
+    const h = res?.hits ?? [];
+    return { all: h.length, new: h.filter((x) => !x.exists).length, existing: h.filter((x) => x.exists).length, sync: h.filter((x) => x.needsSync).length, incomplete: h.filter((x) => x.missing.length > 0).length };
+  }, [res]);
+
+  // Recherche et filtres forment UN état : tout changement de filtre relance
+  // la même recherche (mot-clé conservé) ; retirer un filtre fait revenir les résultats.
+  const { keyword: _kw, ...filterPart } = criteria;
+  const filterKey = JSON.stringify(filterPart);
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current === filterKey) return;
+    lastFilterKey.current = filterKey;
+    if (!res) return;
+    const t = setTimeout(() => search(1), 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+
+  function resetFilters() {
+    setCriteria({ ...EMPTY_CRITERIA, keyword: criteria.keyword, categoryId: criteria.categoryId });
+  }
+
+  async function search(p = 1, lvl = 1) {
     setLoading(true);
+    setError(null);
     try {
       if (criteria.keyword?.trim()) {
-        const r = await smartFn({ data: { keyword: criteria.keyword, criteria, deep: p > 1 } });
-        if (!r.ok || !r.stats) { toast.error(r.error ?? "Recherche impossible"); return; }
-        setPage(p);
+        const r = await smartFn({ data: { keyword: criteria.keyword, criteria, level: lvl } });
+        if (!r.ok || !r.stats) { setError(r.error ?? "Recherche impossible"); setRes(null); return; }
+        setLevel(lvl);
+        setPage(1);
         setSmart(r.stats);
         setRes({
           hits: r.hits.map((h: any) => ({ ...h, weightKg: null, missing: [], needsSync: false, score: null, relevance: h.relevance })),
           total: r.hits.length, totalPages: 1, excluded: r.stats.offTopic, deepChecked: false,
         });
-        setResultFilter(criteria.newOnly === false ? "all" : "new");
         return;
       }
       setSmart(null);
       const r = await exploreFn({ data: { criteria, page: p, size: 50 } });
-      if (!r.ok) { toast.error(r.error ?? "Recherche impossible"); return; }
+      if (!r.ok) { setError(r.error ?? "Recherche impossible"); setRes(null); return; }
       setPage(p);
       setRes({ hits: r.hits, total: r.total, totalPages: r.totalPages, excluded: r.excluded ?? 0, deepChecked: !!r.deepChecked });
-      setResultFilter(criteria.newOnly === false ? "all" : "new");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Erreur"); }
     finally { setLoading(false); }
   }
 
@@ -158,7 +182,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
             <Checkbox checked={resultFilter === "new"} onCheckedChange={(checked) => setResultFilter(checked === true ? "new" : "all")} />
             Nouveaux uniquement
           </label>
-          {(criteria.minPrice != null || criteria.maxPrice != null || criteria.minStock != null || criteria.maxWeightKg != null || criteria.requireImages || criteria.requireSku || criteria.requireDimensions) && <Badge variant="secondary">Filtres actifs</Badge>}
+          {(criteria.minPrice != null || criteria.maxPrice != null || criteria.minStock != null || criteria.maxWeightKg != null || criteria.requireImages || criteria.requireSku || criteria.requireDimensions || criteria.verifiedOnly || criteria.freeShipping) && <><Badge variant="secondary">Filtres actifs</Badge><Button type="button" size="sm" variant="ghost" onClick={resetFilters}>Réinitialiser les filtres</Button></>}
         </div>
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
           <CollapsibleContent className="rounded-md border bg-muted/20 p-3">
@@ -167,17 +191,18 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
         </Collapsible>
       </section>
 
-      {!res && !loading && <div className="grid min-h-64 place-items-center border-b py-12 text-center"><div><PackageSearch className="mx-auto mb-3 h-9 w-9 text-muted-foreground" /><h2 className="font-semibold">Explorez le catalogue CJ</h2><p className="mt-1 text-sm text-muted-foreground">Recherchez par nom, SKU ou catégorie.</p></div></div>}
+      {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+      {!res && !loading && !error && <div className="grid min-h-64 place-items-center border-b py-12 text-center"><div><PackageSearch className="mx-auto mb-3 h-9 w-9 text-muted-foreground" /><h2 className="font-semibold">Explorez le catalogue CJ</h2><p className="mt-1 text-sm text-muted-foreground">Recherchez par nom, SKU ou catégorie.</p></div></div>}
 
       {res && <>
         <section className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            {smart && <SmartSummaryInner s={smart} deep={page > 1} loading={loading} onDeeper={() => search(2)} />}
+            {smart && <SmartSummaryInner s={smart} deep={level >= 5} loading={loading} onDeeper={() => search(1, level + 1)} />}
           {!smart && <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>}
             {!smart && <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>}
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
-            {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés'], ['sync', 'À synchroniser'], ['incomplete', 'Incomplets']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label}</Button>)}
+            {([['all', 'Tous'], ['new', 'Nouveaux'], ['existing', 'Déjà importés'], ['sync', 'À synchroniser'], ['incomplete', 'Incomplets']] as const).map(([key, label]) => <Button key={key} size="sm" variant={resultFilter === key ? "default" : "ghost"} onClick={() => setResultFilter(key)}>{label} ({counts[key]})</Button>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -213,7 +238,8 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
             </div>
           </article>)}
         </div>
-        {!visible.length && <p className="py-12 text-center text-sm text-muted-foreground">{smart ? (smart.relevant ? "Tous les produits pertinents trouvés sont déjà importés." : "Aucun produit pertinent trouvé, même après élargissement de la recherche.") : "Aucun produit dans cette vue."}</p>}
+        {!visible.length && counts.all > 0 && <p className="py-6 text-center text-sm">{counts.all} résultat(s) trouvé(s) mais masqué(s) par la vue « {resultFilter === "new" ? "Nouveaux" : resultFilter} ». <Button variant="link" className="h-auto p-0" onClick={() => setResultFilter("all")}>Afficher tous</Button></p>}
+        {!visible.length && counts.all === 0 && <p className="py-12 text-center text-sm text-muted-foreground">{smart ? (smart.relevant ? "Tous les produits pertinents trouvés sont déjà importés." : "Aucun produit pertinent trouvé, même après élargissement de la recherche.") : "Aucun produit dans cette vue."}</p>}
       </>}
 
       {selected.size > 0 && <div className="sticky bottom-3 z-30 mx-auto grid max-w-3xl gap-3 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -235,7 +261,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 const STAGE_FR: Record<string, string> = { exact: "exacte", traduction: "traduction", synonymes: "synonyme", combinaison: "combinaison", "élargie": "élargie" };
 
-function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }; deep: boolean; loading: boolean; onDeeper: () => void }) {
+function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; filteredOut?: number; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }; deep: boolean; loading: boolean; onDeeper: () => void }) {
   return (
     <div className="col-span-2 min-w-0 space-y-2">
       {s.corrected && <p className="text-xs text-muted-foreground">Recherche corrigée : <span className="font-medium text-foreground">{s.corrected}</span></p>}
@@ -246,8 +272,9 @@ function SmartSummaryInner({ s, deep, loading, onDeeper }: { s: { initialCount: 
         <p className="mt-1">{s.examined.toLocaleString("fr-FR")} produits examinés · {s.apiCalls} appel(s) CJ · {(s.ms / 1000).toFixed(1)} s</p>
         <ul className="mt-1 space-y-0.5">{s.queriesTried.map((q) => <li key={q.q}>« {q.q} » ({STAGE_FR[q.stage] ?? q.stage}) — {q.total.toLocaleString("fr-FR")} chez CJ, {q.relevant} pertinent(s)</li>)}</ul>
         {s.offTopic > 0 && <p className="mt-1">{s.offTopic} résultat(s) hors sujet écarté(s).</p>}
+        {!!s.filteredOut && <p className="mt-1">{s.filteredOut} résultat(s) pertinent(s) exclu(s) par vos filtres.</p>}
       </details>
-      {!deep && <Button size="sm" variant="outline" disabled={loading} onClick={onDeeper}>Élargir davantage la recherche</Button>}
+      {!deep && <Button size="sm" variant="outline" disabled={loading} onClick={onDeeper}>Charger plus de résultats</Button>}
     </div>
   );
 }
