@@ -3838,6 +3838,7 @@ export type Database = {
           input_hash: string
           matched_term: string | null
           product_id: string
+          protection: string
           reason: string | null
           rule_id: string | null
           source: string
@@ -3851,6 +3852,7 @@ export type Database = {
           input_hash: string
           matched_term?: string | null
           product_id: string
+          protection?: string
           reason?: string | null
           rule_id?: string | null
           source: string
@@ -3864,6 +3866,7 @@ export type Database = {
           input_hash?: string
           matched_term?: string | null
           product_id?: string
+          protection?: string
           reason?: string | null
           rule_id?: string | null
           source?: string
@@ -5199,39 +5202,117 @@ export type Database = {
         }
         Relationships: []
       }
+      sensitive_classifications: {
+        Row: {
+          audience: Database["public"]["Enums"]["user_sex"] | null
+          color: string
+          decision: string
+          key: string
+          label: string
+          position: number
+        }
+        Insert: {
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          color?: string
+          decision: string
+          key: string
+          label: string
+          position?: number
+        }
+        Update: {
+          audience?: Database["public"]["Enums"]["user_sex"] | null
+          color?: string
+          decision?: string
+          key?: string
+          label?: string
+          position?: number
+        }
+        Relationships: []
+      }
       sensitive_image_rules: {
         Row: {
           active: boolean
           audience: Database["public"]["Enums"]["user_sex"] | null
-          category_id: string
+          category_id: string | null
+          classification: string | null
+          combine: string
           created_at: string
+          created_by: string | null
           decision: string
+          engine: string
+          exclusions: string[]
+          fields: string[]
           hits: number
           id: string
+          keywords: string[]
+          match_mode: string
+          matched_count: number | null
+          name: string | null
           origin: string
-          term: string
+          priority: number
+          proposal: Json | null
+          protection: string
+          scope: string
+          source_lang: string | null
+          status: string
+          term: string | null
+          updated_at: string
         }
         Insert: {
           active?: boolean
           audience?: Database["public"]["Enums"]["user_sex"] | null
-          category_id: string
+          category_id?: string | null
+          classification?: string | null
+          combine?: string
           created_at?: string
+          created_by?: string | null
           decision: string
+          engine?: string
+          exclusions?: string[]
+          fields?: string[]
           hits?: number
           id?: string
+          keywords?: string[]
+          match_mode?: string
+          matched_count?: number | null
+          name?: string | null
           origin: string
-          term: string
+          priority?: number
+          proposal?: Json | null
+          protection?: string
+          scope?: string
+          source_lang?: string | null
+          status?: string
+          term?: string | null
+          updated_at?: string
         }
         Update: {
           active?: boolean
           audience?: Database["public"]["Enums"]["user_sex"] | null
-          category_id?: string
+          category_id?: string | null
+          classification?: string | null
+          combine?: string
           created_at?: string
+          created_by?: string | null
           decision?: string
+          engine?: string
+          exclusions?: string[]
+          fields?: string[]
           hits?: number
           id?: string
+          keywords?: string[]
+          match_mode?: string
+          matched_count?: number | null
+          name?: string | null
           origin?: string
-          term?: string
+          priority?: number
+          proposal?: Json | null
+          protection?: string
+          scope?: string
+          source_lang?: string | null
+          status?: string
+          term?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -7037,6 +7118,7 @@ export type Database = {
         Returns: string
       }
       sensitive_pending_count: { Args: never; Returns: number }
+      sensitive_pending_count2: { Args: { _with_ai: boolean }; Returns: number }
       sensitive_pending_products: {
         Args: { _limit: number }
         Returns: {
@@ -7046,6 +7128,38 @@ export type Database = {
           input_hash: string
           material: string
           name: string
+        }[]
+      }
+      sensitive_pending_products2: {
+        Args: { _limit: number; _with_ai: boolean }
+        Returns: {
+          category_id: string
+          description: string
+          id: string
+          input_hash: string
+          material: string
+          name: string
+        }[]
+      }
+      sensitive_rule_candidates: {
+        Args: {
+          _after: string
+          _cat_ids: string[]
+          _fields: string[]
+          _limit: number
+          _patterns: string[]
+        }
+        Returns: {
+          attributes: string
+          category_id: string
+          description: string
+          designation: string
+          id: string
+          image_count: number
+          image_url: string
+          name: string
+          source_lang: string
+          variants: string
         }[]
       }
       set_currency_rate: {
