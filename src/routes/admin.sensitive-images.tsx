@@ -20,6 +20,7 @@ import {
   testTextPrompt, testVisionPrompt, updateVisionSettings,
 } from "@/lib/sensitive-vision.functions";
 import { ClassifyMenu, SOURCE_LABEL, STATUS_LABEL, StatusPill, statusOf } from "@/components/admin/sensitive/SensitiveControls";
+import { RuleBuilder } from "@/components/admin/sensitive/RuleBuilder";
 
 export const Route = createFileRoute("/admin/sensitive-images")({
   head: () => ({
@@ -51,14 +52,16 @@ function Page() {
         <h1 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="h-5 w-5 text-primary" /> Catalogue → Images sensibles</h1>
         <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">OPENAI DIRECT · votre compte OpenAI</span>
       </div>
-      <Tabs defaultValue="images">
+      <Tabs defaultValue="builder">
         <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="builder">Générateur de règles</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="products">Produits</TabsTrigger>
           <TabsTrigger value="openai">OpenAI & statistiques</TabsTrigger>
           <TabsTrigger value="prompts">Prompts</TabsTrigger>
           <TabsTrigger value="rules">Règles</TabsTrigger>
         </TabsList>
+        <TabsContent value="builder"><RuleBuilder /></TabsContent>
         <TabsContent value="images"><ImagesTab /></TabsContent>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="openai"><OpenAiTab /></TabsContent>

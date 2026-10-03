@@ -102,19 +102,48 @@ export const runSensitiveBatch = createServerFn({ method: "POST" })
     return runBatchCore(await admin());
   });
 
-export async function runBatchCore(sb: any) {
+export async function runBatchCore(sb: any, opts: { ai?: boolean; limit?: number } = {}) {
+    const useAi = opts.ai !== false;
     const pathOf = await categoryPaths(sb);
-    const { data: ruleRows } = await sb.from("sensitive_image_rules").select("id, term, category_id, decision, audience").eq("active", true);
+    const { data: ruleRows } = await sb.from("sensitive_image_rules").select("id, term, category_id, decision, audience")
+      .eq("active", true).eq("engine", "legacy").not("term", "is", null).not("category_id", "is", null);
     const rules = (ruleRows ?? []) as LearnedRule[];
 
-    const { data: pending, error } = await (sb as any).rpc("sensitive_pending_products", { _limit: 40 });
+    const { data: pending, error } = await (sb as any).rpc("sensitive_pending_products2", { _limit: opts.limit ?? 40, _with_ai: useAi });
     if (error) throw new Error(error.message);
     const list = (pending ?? []) as Array<{ id: string; name: string; description: string | null; category_id: string | null; material: string | null; input_hash: string }>;
+
+    // Couche 2/3 : règles du générateur (manuelles > IA validées), avant le classifieur local et l'IA.
+    const { loadTree, loadActiveRules } = await import("./sensitive/rules.server");
+    const { pickWinner, classToDecision } = await import("./sensitive/rules-engine");
+    const builder = await loadActiveRules(sb);
+    const extra = new Map<string, any>();
+    if (builder.length && list.length) {
+      const { data: ex } = await sb.from("products").select("id, designation, source_lang, specifications, gender").in("id", list.map((p) => p.id));
+      for (const e of ex ?? []) extra.set(e.id, e);
+    }
+    const { tree } = builder.length ? await loadTree(sb) : { tree: null as any };
 
     const rows: any[] = [];
     const toAi: Array<(typeof list)[number] & { term: string | null; concepts: string[] }> = [];
     const ruleHits = new Map<string, number>();
     for (const p of list) {
+      if (builder.length) {
+        const e = extra.get(p.id) ?? {};
+        const w = pickWinner({
+          id: p.id, name: p.name, designation: e.designation, description: p.description, category_id: p.category_id,
+          source_lang: e.source_lang, attributes: [p.material, e.gender, e.specifications ? JSON.stringify(e.specifications) : ""].join(" "),
+        }, builder, tree);
+        if (w) {
+          const d = classToDecision(w.rule.classification);
+          rows.push({
+            product_id: p.id, decision: d.decision, audience: d.audience, source: "RULE", confidence: "high",
+            reason: `Règle « ${w.rule.name || "sans nom"} »${w.term ? ` — mot « ${w.term} »` : ""}`, concepts: [], matched_term: w.term,
+            rule_id: w.rule.id, protection: w.rule.protection, input_hash: p.input_hash, analyzed_at: new Date().toISOString(), _builder: true,
+          });
+          continue;
+        }
+      }
       const r = classifyLocal({ name: p.name, description: p.description, categoryId: p.category_id, categoryPath: pathOf(p.category_id) }, rules);
       if (r.kind === "final") {
         rows.push({
@@ -123,7 +152,13 @@ export async function runBatchCore(sb: any) {
           input_hash: p.input_hash, analyzed_at: new Date().toISOString(),
         });
         if (r.ruleId) ruleHits.set(r.ruleId, (ruleHits.get(r.ruleId) ?? 0) + 1);
-      } else toAi.push({ ...p, term: r.term, concepts: r.concepts });
+      } else if (useAi) toAi.push({ ...p, term: r.term, concepts: r.concepts });
+      else rows.push({
+        // Mode automatique sans IA : en attente d'analyse IA (non affiché comme sensible).
+        product_id: p.id, decision: "review", audience: null, source: "RULE", confidence: "ai_pending",
+        reason: `À analyser par l'IA : ${r.why}`, concepts: r.concepts, matched_term: r.term, rule_id: null,
+        input_hash: p.input_hash, analyzed_at: new Date().toISOString(),
+      });
     }
 
     let aiError: string | null = null;
@@ -171,23 +206,27 @@ export async function runBatchCore(sb: any) {
       for (const r of rows.filter((x) => manualIds.has(x.product_id)))
         await sb.from("product_image_sensitivity").update({ input_hash: r.input_hash }).eq("product_id", r.product_id);
       const autoRows = rows.filter((x) => !manualIds.has(x.product_id));
+      const builderIds = new Set(autoRows.filter((x) => x._builder).map((x) => x.product_id));
+      for (const r of autoRows) delete r._builder;
       if (autoRows.length) {
         const { error: upErr } = await sb.from("product_image_sensitivity").upsert(autoRows, { onConflict: "product_id" });
         if (upErr) throw new Error(upErr.message);
       }
-      // Vision uniquement si nécessaire : sensible ou à vérifier (jamais les produits normaux)
-      const { enqueueProduct } = await import("./sensitive/vision.server");
-      for (const r of autoRows) if (r.decision !== "normal") vision += await enqueueProduct(sb, r.product_id);
+      // Vision uniquement en analyse admin, jamais pour une décision de règle ni en mode automatique.
+      if (useAi) {
+        const { enqueueProduct } = await import("./sensitive/vision.server");
+        for (const r of autoRows) if (r.decision !== "normal" && r.confidence !== "ai_pending" && !builderIds.has(r.product_id)) vision += await enqueueProduct(sb, r.product_id);
+      }
     }
     for (const [id, n] of ruleHits) {
       const r = await sb.from("sensitive_image_rules").select("hits").eq("id", id).single();
       await sb.from("sensitive_image_rules").update({ hits: ((r.data as any)?.hits ?? 0) + n }).eq("id", id);
     }
-    const learned = await learnFromAi(
+    const learned = useAi ? await learnFromAi(
       sb,
       toAi.filter((p) => p.term && p.category_id).map((p) => ({ term: p.term!, categoryId: p.category_id! })),
-    );
-    const { data: remaining } = await (sb as any).rpc("sensitive_pending_count");
+    ) : 0;
+    const { data: remaining } = await (sb as any).rpc("sensitive_pending_count2", { _with_ai: useAi });
     return {
       processed: rows.length,
       byRule: rows.length - aiCount,
