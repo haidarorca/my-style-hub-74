@@ -214,7 +214,7 @@ export const bulkValidationAction = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z.object({
       ids: z.array(z.string().uuid()).min(1).max(200),
-      action: z.enum(["approve", "reject", "delete"]),
+      action: z.enum(["approve", "reject", "delete", "publish_compliant", "sync_cj"]),
       reason: z.string().trim().max(500).nullable().default(null),
     }).parse(i),
   )
@@ -232,8 +232,56 @@ export const bulkValidationAction = createServerFn({ method: "POST" })
     let archivedIds: string[] = [];
     const now = new Date().toISOString();
 
+    if (data.action === "sync_cj") {
+      // Synchronisation CJ en arrière-plan : complète les données manquantes sans
+      // écraser les valeurs KawZone (logique non destructive du cœur d'import).
+      const { data: links } = await supabaseAdmin.from("cj_products").select("cj_product_id, product_id, name_en").in("product_id", ids);
+      const pids = (links ?? []).map((l) => ({ pid: String(l.cj_product_id), name: l.name_en }));
+      const linked = new Set((links ?? []).map((l) => l.product_id));
+      for (const id of ids) if (found.has(id) && !linked.has(id)) errors.push({ id, name: found.get(id)?.name ?? null, reason: "Produit non lié à CJ" });
+      if (pids.length) {
+        const { createJob } = await import("@/lib/cj/jobs.server");
+        await createJob({ name: `Synchronisation depuis la validation (${pids.length})`, kind: "sync", pids, criteria: null, targetCount: null,
+          syncParts: ["images", "variants", "data", "price", "stock"] as never, withStock: true, userId: context.userId });
+        okIds = (links ?? []).map((l) => l.product_id as string);
+      }
+      logAdminAction({ action: "product.bulk_sync_cj", targetType: "product", targetId: ids[0], newValues: { count: okIds.length } });
+      return { done: okIds.length, archived: 0, errors };
+    }
+
+    if (data.action === "publish_compliant") {
+      // Contrôle qualité : image, nom, prix de vente, prix d'achat, poids, catégorie.
+      const { data: full } = await supabaseAdmin.from("products")
+        .select("id, name, price, cost_price, weight_kg, category_id, archived_at, pending_category_request_id").in("id", ids);
+      const { data: imgs } = await supabaseAdmin.from("product_images").select("product_id").in("product_id", ids);
+      const withImg = new Set((imgs ?? []).map((i) => i.product_id));
+      const pass: string[] = [];
+      for (const r of full ?? []) {
+        const why: string[] = [];
+        if (r.archived_at) why.push("archivé");
+        if (!withImg.has(r.id)) why.push("aucune image");
+        if (!r.name?.trim()) why.push("nom absent");
+        if (!(Number(r.price) > 0)) why.push("prix de vente absent");
+        if (!(Number(r.cost_price) > 0)) why.push("prix d'achat absent");
+        if (!(Number(r.weight_kg) > 0)) why.push("poids absent");
+        if (!r.category_id || r.pending_category_request_id) why.push("catégorie à valider");
+        if (why.length) errors.push({ id: r.id, name: r.name, reason: `Non conforme : ${why.join(", ")}` });
+        else pass.push(r.id);
+      }
+      if (pass.length) {
+        const { error: upErr } = await supabaseAdmin.from("products").update({ status: "approved", is_active: true, rejection_reason: null, is_edit: false, validation_mode: "manual", validated_at: now, review_reasons: [] }).in("id", pass);
+        if (upErr) for (const id of pass) errors.push({ id, name: found.get(id)?.name ?? null, reason: upErr.message });
+        else okIds = pass;
+      }
+      logAdminAction({ action: "product.bulk_publish_compliant", targetType: "product", targetId: ids[0], newValues: { count: okIds.length, refused: errors.length } });
+      return { done: okIds.length, archived: 0, errors };
+    }
+
     if (data.action === "approve" || data.action === "reject") {
+      const { data: imgRows } = data.action === "approve" ? await supabaseAdmin.from("product_images").select("product_id").in("product_id", ids) : { data: [] as { product_id: string }[] };
+      const hasImg = new Set((imgRows ?? []).map((i) => i.product_id));
       for (const r of rows ?? []) {
+        if (data.action === "approve" && !hasImg.has(r.id)) { errors.push({ id: r.id, name: r.name, reason: "Aucune image : publication impossible" }); continue; }
         if (r.archived_at) { errors.push({ id: r.id, name: r.name, reason: "Produit archivé" }); continue; }
         if (data.action === "approve" && r.pending_category_request_id) { errors.push({ id: r.id, name: r.name, reason: "Catégorie proposée à valider d'abord" }); continue; }
         okIds.push(r.id);

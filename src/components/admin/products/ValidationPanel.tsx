@@ -28,11 +28,13 @@ const DEFAULT_FILTER: ValidationFilter = {
   dateFrom: null, dateTo: null, quality: "all", sort: "created_at", dir: "desc",
 };
 const CHUNK = 100;
-type BulkAction = "approve" | "reject" | "delete";
+type BulkAction = "approve" | "reject" | "delete" | "publish_compliant" | "sync_cj";
 const ACTION_LABEL: Record<BulkAction, { verb: string; done: string }> = {
   approve: { verb: "approuver", done: "Approuvés" },
   reject: { verb: "rejeter", done: "Rejetés" },
   delete: { verb: "supprimer", done: "Supprimés" },
+  publish_compliant: { verb: "publier (si conformes)", done: "Publiés" },
+  sync_cj: { verb: "synchroniser avec CJ", done: "Envoyés en synchronisation" },
 };
 
 function fmtMoney(n: number) {
@@ -245,6 +247,8 @@ export function ValidationPanel() {
               <div className="ml-auto flex flex-wrap gap-1.5">
                 <Button size="sm" className="h-8" disabled={running} onClick={() => setConfirm("approve")}><Check className="mr-1 h-3.5 w-3.5" />Approuver</Button>
                 <Button size="sm" variant="outline" className="h-8" disabled={running} onClick={() => setConfirm("reject")}><X className="mr-1 h-3.5 w-3.5" />Rejeter</Button>
+                <Button size="sm" variant="outline" className="h-8" disabled={running} onClick={() => setConfirm("publish_compliant")}><Check className="mr-1 h-3.5 w-3.5" />Publier si conforme</Button>
+                <Button size="sm" variant="outline" className="h-8" disabled={running} onClick={() => setConfirm("sync_cj")}>Synchroniser avec CJ</Button>
                 <Button size="sm" variant="destructive" className="h-8" disabled={running} onClick={() => setConfirm("delete")}><Trash2 className="mr-1 h-3.5 w-3.5" />Supprimer</Button>
                 <Button size="sm" variant="ghost" className="h-8" disabled={running} onClick={clearSel}>Désélectionner</Button>
               </div>
@@ -298,7 +302,9 @@ export function ValidationPanel() {
             <AlertDialogDescription>
               Vous êtes sur le point de {confirm ? ACTION_LABEL[confirm].verb : ""} <strong>{selected.size}</strong> produit(s).
               {confirm === "delete" ? " Les produits déjà vendus seront archivés pour préserver l'historique ; les autres seront supprimés définitivement." : ""}
-              {confirm === "approve" ? " L'approbation ne change pas l'activation : un produit inactif reste non publié." : ""}
+              {confirm === "publish_compliant" ? " Seuls les produits avec image, nom, prix de vente, prix d'achat, poids et catégorie seront publiés ; les autres restent bloqués avec la raison." : ""}
+              {confirm === "sync_cj" ? " Récupère les données manquantes chez CJ en arrière-plan (consomme des points CJ) sans écraser vos modifications." : ""}
+              {confirm === "approve" ? " Les produits sans image seront refusés. L'approbation ne change pas l'activation : un produit inactif reste non publié." : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {confirm === "reject" ? (
@@ -364,7 +370,7 @@ function Row({ row, checked, onCheck, disabled }: { row: ValidationRow; checked:
           <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}><Eye className="mr-1 h-3 w-3" />Examiner</Link>
         </Button>
         <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
-          <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}><Pencil className="mr-1 h-3 w-3" />Modifier</Link>
+          <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}><Pencil className="mr-1 h-3 w-3" />{row.review_reasons.length ? "Compléter" : "Modifier"}</Link>
         </Button>
       </div>
     </div>
