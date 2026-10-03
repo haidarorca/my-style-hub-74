@@ -556,3 +556,12 @@ function cjErrorFr(e: unknown): string {
   if (/Too Many Requests|QPS/i.test(m)) return "CJ limite le nombre de requêtes par seconde. Réessayez dans quelques secondes.";
   return m || "Erreur CJ";
 }
+
+/** Points CJ restants connus (relevés lors des derniers appels) + seuil de réserve. */
+export const getCjPoints = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { lastKnownCjPoints, CJ_POINTS_RESERVE } = await import("@/lib/cj/client.server");
+    return { remaining: await lastKnownCjPoints().catch(() => null), reserve: CJ_POINTS_RESERVE };
+  });

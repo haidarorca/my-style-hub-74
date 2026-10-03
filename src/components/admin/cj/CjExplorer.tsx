@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CheckCircle2, ChevronDown, Download, Filter, Loader2, PackageSearch, Search, SlidersHorizontal, X } from "lucide-react";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { exploreCj, createCjJob, smartSearchCj, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
+import { exploreCj, createCjJob, smartSearchCj, getCjPoints, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
 import { CriteriaForm, EMPTY_CRITERIA } from "./CriteriaForm";
 import { CjProductDetail } from "./CjProductDetail";
 import { CategoryTreePicker, type CjNode } from "./CategoryTreePicker";
@@ -21,6 +21,9 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   const exploreFn = useServerFn(exploreCj);
   const jobFn = useServerFn(createCjJob);
   const smartFn = useServerFn(smartSearchCj);
+  const pointsFn = useServerFn(getCjPoints);
+  const points = useQuery({ queryKey: ["cj-points"], queryFn: () => pointsFn(), refetchInterval: 60_000 });
+  const lastQuery = useRef<{ key: string; at: number } | null>(null);
   const [smart, setSmart] = useState<null | { initialCount: number; broadenedCount: number; examined: number; relevant: number; offTopic: number; alreadyImported: number; fresh: number; apiCalls: number; cachedCalls: number; ms: number; corrected: string | null; filteredOut?: number; queriesTried: Array<{ q: string; stage: string; total: number; relevant: number }> }>(null);
   const [criteria, setCriteria] = useState<Criteria>({ ...EMPTY_CRITERIA });
   const [page, setPage] = useState(1);
@@ -77,6 +80,10 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   }
 
   async function search(p = 1, lvl = 1) {
+    // Pas de nouvel appel pour une requête identique relancée dans la minute.
+    const qKey = JSON.stringify([criteria, p, lvl]);
+    if (res && lastQuery.current?.key === qKey && Date.now() - lastQuery.current.at < 60_000) return;
+    lastQuery.current = { key: qKey, at: Date.now() };
     setLoading(true);
     setError(null);
     try {
@@ -94,6 +101,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
       }
       setSmart(null);
       const r = await exploreFn({ data: { criteria, page: p, size: 50 } });
+      points.refetch();
       if (!r.ok) { setError(r.error ?? "Recherche impossible"); setRes(null); return; }
       setPage(p);
       setRes({ hits: r.hits, total: r.total, totalPages: r.totalPages, excluded: r.excluded ?? 0, deepChecked: !!r.deepChecked });
@@ -191,6 +199,10 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
         </Collapsible>
       </section>
 
+      {points.data && <p className={`text-xs ${points.data.remaining != null && points.data.remaining < points.data.reserve ? "text-destructive" : "text-muted-foreground"}`}>
+        Points CJ restants : {points.data.remaining == null ? "inconnu (mis à jour au prochain appel CJ)" : points.data.remaining.toLocaleString("fr-FR")}
+        {points.data.remaining != null && points.data.remaining < points.data.reserve ? ` · imports automatiques en pause (réserve ${points.data.reserve.toLocaleString("fr-FR")}), reprise automatique dès que le quota revient` : ""}
+      </p>}
       {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
       {!res && !loading && !error && <div className="grid min-h-64 place-items-center border-b py-12 text-center"><div><PackageSearch className="mx-auto mb-3 h-9 w-9 text-muted-foreground" /><h2 className="font-semibold">Explorez le catalogue CJ</h2><p className="mt-1 text-sm text-muted-foreground">Recherchez par nom, SKU ou catégorie.</p></div></div>}
 
@@ -231,6 +243,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
                 <Metric label="Stock" value={h.stock != null ? h.stock.toLocaleString("fr-FR") : "À vérifier"} />
                 {h.variantCount != null && <Metric label="Variantes" value={String(h.variantCount)} />}
                 {h.weightKg != null && <Metric label="Poids" value={`${h.weightKg} kg`} />}
+                {h.weightKg != null && h.weightKg > 0 && <Metric label="Fret avion estimé" value={`${Math.round(h.weightKg * 8000).toLocaleString("fr-FR")} FCFA`} />}
                 {h.material != null && <Metric label="Matière" value={h.material} />}
                 {h.imageCount != null && <Metric label="Images" value={String(h.imageCount)} />}
               </div>
