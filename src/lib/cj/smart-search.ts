@@ -67,7 +67,6 @@ const FR_EN: Record<string, string[]> = {
   inox: ["stainless steel"], coton: ["cotton"], cuir: ["leather"], impermeable: ["waterproof"],
 };
 
-/** Synonymes anglais (groupes cohérents seulement — jamais d'élargissement absurde). */
 /** Formes canoniques anglaises (mots composés écrits de plusieurs façons). Pas du français. */
 const CANON_EN: Record<string, string[]> = {
   tshirt: ["t-shirt", "tshirt", "tee"], sweatshirt: ["sweatshirt", "hoodie"], hoodie: ["hoodie", "sweatshirt"],
