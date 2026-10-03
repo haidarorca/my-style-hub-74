@@ -164,7 +164,7 @@ export const exploreCj = createServerFn({ method: "POST" })
         await a.from("cj_api_cache").upsert({ cache_key: key, payload: r, fetched_at: new Date().toISOString() });
       }
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [] as ExploreHit[], total: 0, totalPages: 0, cached, apiCalls: traces.length, excluded: 0, deepChecked: false };
+      return { ok: false, error: cjErrorFr(e), hits: [] as ExploreHit[], total: 0, totalPages: 0, cached, apiCalls: traces.length, excluded: 0, deepChecked: false };
     }
     const list: any[] = (Array.isArray(r?.content) ? r.content : []).flatMap((x: any) => x?.productList ?? []);
     const items = list.map(mapListItem).filter((i) => i.pid && (!famLeaves || (i.categoryId && famLeaves.has(String(i.categoryId)))));
@@ -476,10 +476,10 @@ export const runCjScheduleNow = createServerFn({ method: "POST" })
 // ── Recherche intelligente (multi-étapes, sans IA) ─────────────
 export const smartSearchCj = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { keyword: string; criteria?: any; deep?: boolean }) => ({
+  .inputValidator((i: { keyword: string; criteria?: any; deep?: boolean; level?: number }) => ({
     keyword: String(i?.keyword ?? "").trim().slice(0, 200),
     criteria: cleanCriteria(i?.criteria ?? {}),
-    deep: !!i?.deep,
+    level: Math.max(1, Math.min(5, Number(i?.level ?? (i?.deep ? 2 : 1)) || 1)),
   }))
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
@@ -493,10 +493,11 @@ export const smartSearchCj = createServerFn({ method: "POST" })
       base.categoryId = null;
     }
     try {
-      const r = await smartSearch({ keyword: data.keyword, criteria: base, leafFilter: famLeaves ? [...famLeaves] : undefined, want: data.deep ? 80 : 40, maxCalls: data.deep ? 12 : 6 });
+      const L = data.level;
+      const r = await smartSearch({ keyword: data.keyword, criteria: base, leafFilter: famLeaves ? [...famLeaves] : undefined, want: 40 * L, maxCalls: 6 * L, pagesPerQuery: 1 + L });
       return { ok: true, error: null as string | null, hits: r.hits, stats: r.stats, queries: r.plan.queries };
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "Erreur CJ", hits: [], stats: null, queries: [] };
+      return { ok: false, error: cjErrorFr(e), hits: [], stats: null, queries: [] };
     }
   });
 
@@ -546,3 +547,12 @@ export const getCjJobReport = createServerFn({ method: "POST" })
       }),
     };
   });
+
+
+/** Message d'erreur CJ compréhensible (jamais une liste vide silencieuse). */
+function cjErrorFr(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e ?? "");
+  if (/Insufficient API points/i.test(m)) return "Points CJ du jour épuisés : CJ refuse toute recherche jusqu'à la remise à zéro quotidienne. Ce n'est pas une absence de produits.";
+  if (/Too Many Requests|QPS/i.test(m)) return "CJ limite le nombre de requêtes par seconde. Réessayez dans quelques secondes.";
+  return m || "Erreur CJ";
+}

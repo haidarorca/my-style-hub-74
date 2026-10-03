@@ -258,6 +258,10 @@ export async function cancelJob(jobId: string, reason?: string) {
 export async function runWorkerTick(budgetMs = 50_000) {
   const a = await admin();
   const started = Date.now();
+  // Réserve : sous le seuil, on laisse les points aux recherches manuelles.
+  const { lastKnownCjPoints, CJ_POINTS_RESERVE } = await import("./client.server");
+  const pts = await lastKnownCjPoints().catch(() => null);
+  if (pts != null && pts < CJ_POINTS_RESERVE) return { created: 0, jobs: [] as Array<{ jobId: string; state: string; processed: number }>, reserved: true };
   const created = await runDueSchedules().catch(() => [] as string[]);
   const { data } = await a.from("cj_import_jobs").select("id").in("status", ACTIVE).order("created_at").limit(10);
   const out: Array<{ jobId: string; state: string; processed: number }> = [];

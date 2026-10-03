@@ -217,6 +217,9 @@ export async function cjGet<T = any>(
   for (let attempt = 0; ; attempt += 1) {
     await throttle();
     const r = await cjFetch(path, { method: "GET", headers: { "CJ-Access-Token": token } }, traces);
+    const pts = traces[traces.length - 1]?.pointsRemaining;
+    if (typeof pts === "number") void recordCjPoints(pts);
+    if (r.body?.code === 16900500) void recordCjPoints(0, true);
     if (r.body?.result === true) {
       intervalMs = Math.max(BASE_INTERVAL_MS, Math.round(intervalMs * 0.9));
       return r.body.data as T;
@@ -272,4 +275,27 @@ export async function saveCjState(patch: Record<string, unknown>, traces: CjCall
     last_latency_ms: last?.latencyMs ?? null,
     ...patch,
   });
+}
+
+
+// ── Réserve de points CJ ─────────────────────────────────────────
+// Les imports d'arrière-plan s'arrêtent sous ce seuil pour garder des
+// points disponibles pour les recherches manuelles de l'administrateur.
+export const CJ_POINTS_RESERVE = 5000;
+let lastPointsSave = 0;
+export async function recordCjPoints(remaining: number, force = false) {
+  if (!force && Date.now() - lastPointsSave < 20_000) return;
+  lastPointsSave = Date.now();
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await (supabaseAdmin as any).from("cj_api_cache").upsert({ cache_key: "cj:points", payload: { remaining }, fetched_at: new Date().toISOString() });
+  } catch { /* indicatif seulement */ }
+}
+/** Derniers points restants connus (null si inconnus ou relevé de plus de 2 h). */
+export async function lastKnownCjPoints(): Promise<number | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await (supabaseAdmin as any).from("cj_api_cache").select("payload, fetched_at").eq("cache_key", "cj:points").maybeSingle();
+  if (!data || Date.now() - new Date(data.fetched_at).getTime() > 2 * 3600_000) return null;
+  const n = Number(data.payload?.remaining);
+  return Number.isFinite(n) ? n : null;
 }
