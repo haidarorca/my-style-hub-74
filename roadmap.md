@@ -33,7 +33,8 @@
 - [x] Contrôle qualité bloquant + actions Synchroniser / Compléter / Supprimer / Publier si conforme
 - [x] Synchronisation non destructive (titre, description, poids, dimensions, taille, couleur protégés)
 - [x] Anti-doublon PID / SKU / Variant ID
-- [ ] Comparaison fournisseurs + coût complet Dakar (prix converti) + compatibilité critères (fret avion seul affiché)
-- [ ] Moteur de recherche commun pour produits importés / validation / catalogue
+- [x] Comparaison fournisseurs (données CJ réelles) + coût Dakar FCFA (avion/rapide, poids volumétrique) + indicateur 🟢/🟠/🔴
+- [x] Moteur commun appliqué à la validation / produits importés (mots dans n'importe quel ordre, FR→EN, t-shirt, pluriels, codes)
+- [ ] Catalogue public : garde search_products_v3 (déjà multi-niveaux)
 - [x] Points CJ affichés, réserve 5 000, pause/reprise auto, pas de relance identique < 1 min
 - [ ] Tests réels CJ (nom, multi-mots, FR/EN, SKU complet/partiel, PID, filtres, pagination, Charger plus) — bloqué : quota CJ à 0
