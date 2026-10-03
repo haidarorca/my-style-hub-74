@@ -55,6 +55,8 @@ export interface SmartStats {
   cachedCalls: number;
   ms: number;
   corrected: string | null;
+  /** Pertinents mais exclus par les filtres (images, prix, stock). */
+  filteredOut: number;
 }
 
 /**
@@ -74,10 +76,48 @@ export async function smartSearch(opts: {
   const seen = new Map<string, SmartHit>();
   const stats: SmartStats = {
     initialCount: 0, broadenedCount: 0, examined: 0, relevant: 0, offTopic: 0, alreadyImported: 0, fresh: 0,
-    queriesTried: [], apiCalls: 0, cachedCalls: 0, ms: 0,
+    queriesTried: [], apiCalls: 0, cachedCalls: 0, ms: 0, filteredOut: 0,
     corrected: plan.corrected && plan.corrected !== plan.original.toLowerCase() ? plan.corrected : null,
   };
   let calls = 0;
+  const c0 = opts.criteria ?? {};
+  // Filtres appliqués aussi côté KawZone : CJ ignore parfois ses propres filtres.
+  const passes = (i: { image: string | null; price: number | null; stock: number | null }) =>
+    (!c0.requireImages || !!i.image)
+    && (c0.minPrice == null || i.price == null || i.price >= c0.minPrice)
+    && (c0.maxPrice == null || i.price == null || i.price <= c0.maxPrice)
+    && (c0.minStock == null || (i.stock ?? 0) >= c0.minStock);
+  // Code (PID / SKU) : correspondance directe, d'abord dans KawZone puis fiche CJ.
+  if (plan.code) {
+    const a = await admin();
+    const v = plan.code.value;
+    const q = plan.code.kind === "pid"
+      ? a.from("cj_products").select("cj_product_id, product_id, cj_sku, name_en, main_image, cj_category_path").eq("cj_product_id", v)
+      : a.from("cj_products").select("cj_product_id, product_id, cj_sku, name_en, main_image, cj_category_path").ilike("cj_sku", `${v.replace(/[%_]/g, "")}%`);
+    const { data: local } = await q.limit(20);
+    for (const r of local ?? []) seen.set(String(r.cj_product_id), {
+      pid: String(r.cj_product_id), name: r.name_en, sku: r.cj_sku, image: r.main_image, price: null, stock: null, categoryPath: r.cj_category_path ?? null,
+      variantCount: null, relevance: 100, exists: true, existingProductId: r.product_id ?? null, matchedQuery: v,
+    });
+    if (!local?.length && (plan.code.kind === "pid" || v.length >= 8)) {
+      try {
+        const { cjGet } = await import("./client.server");
+        const p: any = await cjGet(`/product/query?${plan.code.kind === "pid" ? "pid" : "productSku"}=${encodeURIComponent(v)}`, traces);
+        calls++;
+        if (p?.pid) {
+          const ex = await existingPidMap([String(p.pid)]);
+          seen.set(String(p.pid), {
+            pid: String(p.pid), name: p.productNameEn ?? null, sku: p.productSku ?? null, image: p.productImage ? String(p.productImage).split(",")[0].replace(/[\[\]"]/g, "") : null,
+            price: Number(p.sellPrice) || null, stock: null, categoryPath: p.categoryName ?? null, variantCount: Array.isArray(p.variants) ? p.variants.length : null,
+            relevance: 100, exists: ex.has(String(p.pid)), existingProductId: ex.get(String(p.pid)) ?? null, matchedQuery: v,
+          });
+        }
+      } catch { /* code introuvable chez CJ : on poursuit avec la recherche texte */ }
+    }
+    stats.relevant = seen.size;
+    stats.alreadyImported = [...seen.values()].filter((h) => h.exists).length;
+    stats.fresh = seen.size - stats.alreadyImported;
+  }
   outer: for (const [qi, q] of plan.queries.entries()) {
     const qStat = { q: q.q, stage: q.stage, total: 0, relevant: 0 };
     stats.queriesTried.push(qStat);
@@ -94,6 +134,7 @@ export async function smartSearch(opts: {
         stats.examined++;
         const s = scoreHit(plan, i);
         if (!s.relevant) { stats.offTopic++; seen.set(i.pid, null as any); continue; }
+        if (!passes(i)) { stats.filteredOut++; seen.set(i.pid, null as any); continue; }
         qStat.relevant++; stats.relevant++; pageRelevant++;
         const exists = ex.has(i.pid);
         if (exists) stats.alreadyImported++; else { stats.fresh++; newRelevant++; }
