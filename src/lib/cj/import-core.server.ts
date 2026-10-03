@@ -308,6 +308,11 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     await step("Récupération du produit CJ");
     const p = await fetchCjProduct(pid, traces, parts.has("stock") && !isNew ? 0 : 30 * 60 * 1000);
     lap("cjProduit");
+    // Anti-doublon : même SKU CJ déjà lié à un produit KawZone (PID différent).
+    if (isNew && p?.productSku) {
+      const { data: dupSku } = await admin.from("cj_products").select("product_id").eq("cj_sku", p.productSku).not("product_id", "is", null).limit(1).maybeSingle();
+      if (dupSku?.product_id) return done("ALREADY_EXISTS", dupSku.product_id, `SKU ${p.productSku} déjà importé`);
+    }
     const heavy = isNew || parts.has("data") || parts.has("images") || parts.has("variants");
     if (!p?.pid) return done("FAILED", existingId, "Produit introuvable chez CJ.");
 
@@ -437,7 +442,21 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       const upd: Record<string, unknown> = {};
       // Jamais de changement de statut/publication lors d'une synchronisation.
       if (parts.has("data")) {
-        Object.assign(upd, { name: nameEn ?? nameCn ?? pid, designation: nameCn ?? null, description: parsed.html, specifications: parsed.specs.length ? parsed.specs : null, material, ...(video ? { video_url: video } : {}) });
+        // Non destructif : titre remplacé seulement s'il est vide ou encore
+        // identique au dernier titre CJ connu ; les autres champs ne sont que complétés.
+        const [{ data: cur }, { data: lastCj }] = await Promise.all([
+          admin.from("products").select("name, designation, description, specifications, material, video_url").eq("id", productId).maybeSingle(),
+          admin.from("cj_products").select("name_en").eq("cj_product_id", pid).maybeSingle(),
+        ]);
+        const empty = (v: unknown) => v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.length);
+        const newName = nameEn ?? nameCn ?? null;
+        if (newName && (empty(cur?.name) || cur?.name === lastCj?.name_en || cur?.name === pid)) upd.name = newName;
+        if (nameCn && empty(cur?.designation)) upd.designation = nameCn;
+        if (parsed.html && empty(cur?.description)) upd.description = parsed.html;
+        if (parsed.specs.length && empty(cur?.specifications)) upd.specifications = parsed.specs;
+        if (material && empty(cur?.material)) upd.material = material;
+        if (video && empty(cur?.video_url)) upd.video_url = video;
+        if (newName) await admin.from("cj_products").update({ name_en: nameEn ?? null }).eq("cj_product_id", pid);
       }
       if (parts.has("price") && minCost !== null) {
         Object.assign(upd, { origin_price: minCost, origin_currency_code: "USD", cost_price: minCost, cost_currency_code: "USD" });
@@ -518,7 +537,7 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     const toInsert: any[] = [];
     const toUpdate: Array<{ id: string; payload: any; label: string }> = [];
     const { data: existingVars } = await admin
-      .from("product_variants").select("id, external_variant_id, product_id").in("external_variant_id", cjVariants.map((v) => String(v.vid)));
+      .from("product_variants").select("id, external_variant_id, product_id, size, color, weight_kg, length_cm, width_cm, height_cm, supplier_sku").in("external_variant_id", cjVariants.map((v) => String(v.vid)));
     const byVid = new Map<string, any>((existingVars ?? []).map((r: any) => [String(r.external_variant_id), r]));
 
     for (const v of cjVariants) {
@@ -561,6 +580,14 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
       }
 
       if (ex) {
+        // Synchronisation non destructive : une valeur KawZone déjà renseignée
+        // (poids, dimensions, taille, couleur) n'est jamais remplacée, et une
+        // valeur CJ vide n'efface jamais une donnée existante.
+        for (const k of Object.keys(payload)) {
+          const cur = ex[k];
+          if (payload[k] == null || payload[k] === "") delete payload[k];
+          else if (["weight_kg", "length_cm", "width_cm", "height_cm", "size", "color"].includes(k) && cur != null && cur !== "" && !(typeof cur === "number" && cur <= 0)) delete payload[k];
+        }
         if (Object.keys(payload).length) toUpdate.push({ id: ex.id, payload, label: v.variantSku ?? vid });
       } else if (isNew || parts.has("variants")) {
         toInsert.push({ ...payload, product_id: productId, stock: 0, external_variant_id: vid });
