@@ -30,8 +30,10 @@
 ## Refonte import CJ (validée le 3 oct.)
 - [x] Recherche CJ : causes corrigées (t-shirt/tshirt, correction abusive, ordre des mots, PID/SKU, vue « Nouveaux » qui masquait, filtres relancent la même recherche, erreurs CJ affichées, réserve de points)
 - [ ] Test en direct sur CJ — bloqué : points CJ du jour épuisés
-- [ ] Contrôle qualité bloquant + écran Produits incomplets (Synchroniser / Compléter / Supprimer / Publier)
-- [ ] Synchronisation non destructive (données CJ séparées des données validées)
-- [ ] Anti-doublon SKU / Variant ID en plus du PID
-- [ ] Comparaison fournisseurs + coût d'arrivée Dakar + compatibilité critères
+- [x] Contrôle qualité bloquant + actions Synchroniser / Compléter / Supprimer / Publier si conforme
+- [x] Synchronisation non destructive (titre, description, poids, dimensions, taille, couleur protégés)
+- [x] Anti-doublon PID / SKU / Variant ID
+- [ ] Comparaison fournisseurs + coût complet Dakar (prix converti) + compatibilité critères (fret avion seul affiché)
 - [ ] Moteur de recherche commun pour produits importés / validation / catalogue
+- [x] Points CJ affichés, réserve 5 000, pause/reprise auto, pas de relance identique < 1 min
+- [ ] Tests réels CJ (nom, multi-mots, FR/EN, SKU complet/partiel, PID, filtres, pagination, Charger plus) — bloqué : quota CJ à 0
