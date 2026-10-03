@@ -370,7 +370,7 @@ function Row({ row, checked, onCheck, disabled }: { row: ValidationRow; checked:
           <Link to="/admin/products/$productId/moderate" params={{ productId: row.id }}><Eye className="mr-1 h-3 w-3" />Examiner</Link>
         </Button>
         <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
-          <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}><Pencil className="mr-1 h-3 w-3" />Modifier</Link>
+          <Link to="/admin/products/$productId/edit" params={{ productId: row.id }}><Pencil className="mr-1 h-3 w-3" />{row.review_reasons.length ? "Compléter" : "Modifier"}</Link>
         </Button>
       </div>
     </div>
