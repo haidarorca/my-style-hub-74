@@ -260,3 +260,24 @@ export function scoreHit(
   const relevant = (inTitle >= 1 && covered >= need) || (catPhrase && inTitle >= 1);
   return { score: Math.min(100, Math.round(score)), relevant };
 }
+
+/**
+ * Moteur commun pour les recherches en base (validation, produits importés) :
+ * découpe en mots utiles, chaque mot devient un groupe d'alternatives
+ * (forme saisie, écritures du mot composé, traduction FR→EN mono-mot).
+ * Tous les groupes doivent correspondre (ET), une alternative suffit (OU).
+ * Les codes (PID/SKU) restent un seul groupe exact-partiel.
+ */
+export function searchTokenGroups(raw: string): string[][] {
+  const original = String(raw ?? "").trim();
+  if (!original) return [];
+  if (detectCode(original)) return [[original]];
+  const words = matchText(original).split(" ").filter((w) => w && !STOP.has(w)).slice(0, 6);
+  return words.map((w) => {
+    const alts = new Set<string>([w]);
+    for (const t of CANON_EN[w] ?? []) alts.add(t);
+    for (const t of (FR_EN[w] ?? []).slice(0, 2)) if (!t.includes(" ")) alts.add(t);
+    if (w.length > 4 && w.endsWith("s")) alts.add(w.slice(0, -1));
+    return [...alts].map((a) => a.replace(/[,()%*\\]/g, "")).filter((a) => a.length >= 2);
+  }).filter((g) => g.length);
+}

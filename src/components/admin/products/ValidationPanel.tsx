@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { qualityFromReasons, QUALITY_LABEL } from "@/lib/cj/quality";
 import { Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -338,6 +339,7 @@ function Tile({ label, value, icon: Icon, tone, onClick, active }: { label: stri
 function StatusBadges({ row }: { row: ValidationRow }) {
   const out: React.ReactNode[] = [];
   if (row.source === "cj_import") out.push(<Badge key="src" variant="outline" className="text-[10px]">Import CJ</Badge>);
+  if (row.source === "cj_import" && !row.is_archived) { const ql = qualityFromReasons(row.review_reasons); out.push(<Badge key="q" variant="outline" className="text-[10px]" title={[...ql.blocking, ...ql.toComplete].join(" · ") || "Tous les critères KawZone sont remplis"}>{QUALITY_LABEL[ql.level]}</Badge>); }
   if (row.is_archived) out.push(<Badge key="s" variant="secondary">Archivé</Badge>);
   else if (row.status === "pending") out.push(<Badge key="s" variant="outline" className="border-amber-500 text-amber-600">{row.review_reasons.length ? "À vérifier" : row.is_edit ? "Modification à valider" : "À valider"}</Badge>);
   else if (row.status === "rejected") out.push(<Badge key="s" variant="destructive">Rejeté</Badge>);

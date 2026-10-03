@@ -1,6 +1,7 @@
 // Validation produits — liste scalable (curseur), filtres serveur, sélection
 // globale par filtre et actions en masse groupées.
 import { createServerFn } from "@tanstack/react-start";
+import { searchTokenGroups } from "@/lib/cj/smart-search";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -63,16 +64,21 @@ function applyFilters(q: any, f: ValidationFilter, shopIds: string[]) {
   if (f.quality === "incomplete") q = q.or("category_id.is.null,price.is.null,price.lte.0,cost_price.is.null");
   const search = f.q.trim();
   if (search) {
-    const safe = search.replace(/[,()%*\\]/g, " ").trim();
-    if (safe) {
-      const p = `%${safe}%`;
-      const ors = [`name.ilike.${p}`, `designation.ilike.${p}`, `code.ilike.${p}`, `sku.ilike.${p}`, `supplier_ref.ilike.${p}`, `external_product_id.ilike.${p}`];
-      if (shopIds.length) ors.push(`vendor_id.in.(${shopIds.join(",")})`);
-      q = q.or(ors.join(","));
+    // Moteur commun : chaque mot (ou ses variantes/traductions) doit correspondre, peu importe l'ordre.
+    const groups = searchTokenGroups(search);
+    const shopOr = shopIds.length ? `vendor_id.in.(${shopIds.join(",")})` : null;
+    if (shopOr && groups.length) {
+      const safe = search.replace(/[,()%*\\]/g, " ").trim();
+      const all = groups.map((g) => `or(${g.flatMap((t) => fieldsFor(`%${t}%`)).join(",")})`);
+      q = q.or(`and(${all.join(",")}),${shopOr},name.ilike.%${safe}%`);
+    } else {
+      for (const g of groups) q = q.or(g.flatMap((t) => fieldsFor(`%${t}%`)).join(","));
     }
   }
   return q;
 }
+
+const fieldsFor = (p: string) => [`name.ilike.${p}`, `designation.ilike.${p}`, `code.ilike.${p}`, `sku.ilike.${p}`, `supplier_ref.ilike.${p}`, `external_product_id.ilike.${p}`];
 
 async function shopIdsFor(f: ValidationFilter): Promise<string[]> {
   const safe = f.q.trim().replace(/[,()%*\\]/g, " ").trim();

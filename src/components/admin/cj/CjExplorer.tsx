@@ -12,6 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { exploreCj, createCjJob, smartSearchCj, getCjPoints, type Criteria, type ExploreHit } from "@/lib/cj-center.functions";
 import { CriteriaForm, EMPTY_CRITERIA } from "./CriteriaForm";
 import { CjProductDetail } from "./CjProductDetail";
+import { CjCompareDialog } from "./CjCompareDialog";
+import { qualityFromHit, QUALITY_LABEL } from "@/lib/cj/quality";
+import { landedCost, fcfa } from "@/lib/cj/landed-cost";
+import { useCurrencies } from "@/hooks/use-currencies";
 import { CategoryTreePicker, type CjNode } from "./CategoryTreePicker";
 
 type ResultFilter = "all" | "new" | "existing" | "sync" | "incomplete";
@@ -31,6 +35,8 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
   const [res, setRes] = useState<{ hits: ExploreHit[]; total: number; totalPages: number; excluded: number; deepChecked: boolean } | null>(null);
   const [selected, setSelected] = useState<Map<string, ExploreHit>>(new Map());
   const [detail, setDetail] = useState<string | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const usdRate = useCurrencies().rates["USD"]?.rate ?? null;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [busy, setBusy] = useState(false);
@@ -219,6 +225,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
           <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 text-sm font-medium"><Checkbox checked={pageSelected} onCheckedChange={togglePage} />Tout sélectionner</label>
+              <Button size="sm" variant="outline" disabled={selected.size < 2} onClick={() => setCompareOpen(true)}>Comparer ({selected.size})</Button>
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
                 <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="relevance">Pertinence</SelectItem><SelectItem value="price_asc">Prix croissant</SelectItem><SelectItem value="price_desc">Prix décroissant</SelectItem><SelectItem value="stock">Stock le plus élevé</SelectItem></SelectContent>
@@ -243,11 +250,11 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
                 <Metric label="Stock" value={h.stock != null ? h.stock.toLocaleString("fr-FR") : "À vérifier"} />
                 {h.variantCount != null && <Metric label="Variantes" value={String(h.variantCount)} />}
                 {h.weightKg != null && <Metric label="Poids" value={`${h.weightKg} kg`} />}
-                {h.weightKg != null && h.weightKg > 0 && <Metric label="Fret avion estimé" value={`${Math.round(h.weightKg * 8000).toLocaleString("fr-FR")} FCFA`} />}
+                {(() => { const lc = landedCost({ priceUsd: h.price, weightKg: h.weightKg, usdToXof: usdRate }); return <Metric label="Coût Dakar (avion)" value={lc.totalAvion != null ? `≈ ${fcfa(lc.totalAvion)}` : lc.priceXof != null ? `${fcfa(lc.priceXof)} + fret (poids manquant)` : "Donnée manquante"} />; })()}
                 {h.material != null && <Metric label="Matière" value={h.material} />}
                 {h.imageCount != null && <Metric label="Images" value={String(h.imageCount)} />}
               </div>
-              <div className="flex items-center justify-between border-t pt-2"><span className={`inline-flex items-center gap-1 text-xs ${h.missing.length ? "text-warning" : "text-muted-foreground"}`}><SlidersHorizontal className="h-3.5 w-3.5" />{h.score != null ? `Complet à ${h.score} %` : h.missing.length ? "Données manquantes" : "—"}</span><Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
+              <div className="flex items-center justify-between border-t pt-2">{(() => { const q = qualityFromHit(h); return <span className="inline-flex items-center gap-1 text-xs" title={q.reasons.join(" · ") || "Critères KawZone remplis"}><SlidersHorizontal className="h-3.5 w-3.5" />{QUALITY_LABEL[q.level]}{h.score != null ? ` · ${h.score} %` : ""}</span>; })()}<Button size="sm" variant="ghost" onClick={() => setDetail(h.pid)}>Aperçu</Button></div>
             </div>
           </article>)}
         </div>
@@ -264,6 +271,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
         </div>
       </div>}
 
+      <CjCompareDialog open={compareOpen} onClose={() => setCompareOpen(false)} hits={[...selected.values()]} usdRate={usdRate} />
       <CjProductDetail pid={detail} onClose={() => setDetail(null)} onImport={(pid, name, image) => { const hit = (res?.hits ?? []).find((h) => h.pid === pid); if (hit) setSelected(new Map(selected).set(pid, hit)); else setSelected(new Map(selected).set(pid, { pid, name, image, sku: null, price: null, stock: null, categoryPath: null, existingProductId: null, exists: false, variantCount: null, weightKg: null, missing: [], needsSync: false } as ExploreHit)); setDetail(null); }} onSync={syncOne} />
     </div>
   );
