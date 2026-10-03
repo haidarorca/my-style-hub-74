@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sensitive_product_untouch_images() FROM PUBLIC, anon, authenticated;
