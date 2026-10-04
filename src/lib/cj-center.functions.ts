@@ -479,7 +479,7 @@ export const smartSearchCj = createServerFn({ method: "POST" })
   .inputValidator((i: { keyword: string; criteria?: any; deep?: boolean; level?: number }) => ({
     keyword: String(i?.keyword ?? "").trim().slice(0, 200),
     criteria: cleanCriteria(i?.criteria ?? {}),
-    level: Math.max(1, Math.min(5, Number(i?.level ?? (i?.deep ? 2 : 1)) || 1)),
+    level: Math.max(1, Math.min(10, Number(i?.level ?? (i?.deep ? 2 : 1)) || 1)),
   }))
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
@@ -494,7 +494,7 @@ export const smartSearchCj = createServerFn({ method: "POST" })
     }
     try {
       const L = data.level;
-      const r = await smartSearch({ keyword: data.keyword, criteria: base, leafFilter: famLeaves ? [...famLeaves] : undefined, want: 40 * L, maxCalls: 6 * L, pagesPerQuery: 1 + L });
+      const r = await smartSearch({ keyword: data.keyword, criteria: base, leafFilter: famLeaves ? [...famLeaves] : undefined, want: 100 * L, maxCalls: 6 * L, pagesPerQuery: 1 + L });
       return { ok: true, error: null as string | null, hits: r.hits, stats: r.stats, queries: r.plan.queries };
     } catch (e) {
       return { ok: false, error: cjErrorFr(e), hits: [], stats: null, queries: [] };

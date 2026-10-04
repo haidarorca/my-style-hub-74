@@ -510,12 +510,12 @@ export async function runCjProductImport(opts: CoreOptions): Promise<CoreResult>
     // n'arrête pas le produit : il est signalé dans « missing ».
     const { mirrorMany } = await import("./media.server");
     const needVariantImages = parts.has("images") || parts.has("variants") || isNew;
-    const orderedGallery = parts.has("images") ? orderSupplierImages(p.productImage, images, parsed.imageUrls).slice(0, 40) : [];
+    const orderedGallery = parts.has("images") ? orderSupplierImages(p.productImage, images, parsed.imageUrls).slice(0, 8) : [];
     const variantImgUrls = needVariantImages ? cjVariants.map((v) => v.variantImage).filter(Boolean) : [];
     let hostedMap = new Map<string, string | null>();
     if (orderedGallery.length || variantImgUrls.length) {
       await step(`Téléchargement des images (${new Set([...orderedGallery, ...variantImgUrls]).size})`);
-      hostedMap = await mirrorMany([...orderedGallery, ...variantImgUrls], media, mediaCache, 8);
+      hostedMap = await mirrorMany([...orderedGallery, ...variantImgUrls], media, mediaCache, 12);
       if (media.failed) missing.push(`${media.failed} image(s) non rapatriée(s) — à réessayer`);
     }
     lap("images");

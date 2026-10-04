@@ -215,7 +215,7 @@ export function CjExplorer({ categories, nodes = [], onJobCreated }: { categorie
       {res && <>
         <section className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            {smart && <SmartSummaryInner s={smart} deep={level >= 5} loading={loading} onDeeper={() => search(1, level + 1)} />}
+            {smart && <SmartSummaryInner s={smart} deep={level >= 10} loading={loading} onDeeper={() => search(1, level + 1)} />}
           {!smart && <div className="min-w-0"><h2 className="text-lg font-semibold">{res.total.toLocaleString("fr-FR")} produits trouvés</h2><p className="text-xs text-muted-foreground">Page {page} sur {Math.max(res.totalPages, 1)} · {selected.size} sélectionné(s)</p>{res.deepChecked && <p className="text-xs text-muted-foreground">Filtres avancés vérifiés sur les fiches complètes : {res.hits.length} conservé(s), {res.excluded} écarté(s) sur cette page.</p>}</div>}
             {!smart && <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => search(page - 1)}>Préc.</Button><Button size="sm" variant="outline" disabled={page >= res.totalPages || loading} onClick={() => search(page + 1)}>Suiv.</Button></div>}
           </div>
