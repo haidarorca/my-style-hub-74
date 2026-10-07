@@ -41,7 +41,6 @@ export interface CjSearchResult {
   pointsRemaining: number | null;
 }
 
-const isPid = (q: string) => /^\d{12,}$/.test(q);
 
 /**
  * Recherche un produit CJ par identifiant, SKU ou mots-clés.
@@ -56,7 +55,6 @@ export const searchCjProducts = createServerFn({ method: "POST" })
   }))
   .handler(async ({ context, data }): Promise<CjSearchResult> => {
     await assertAdmin(context);
-    const { cjGet } = await import("@/lib/cj/client.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const traces: CjCallTrace[] = [];
