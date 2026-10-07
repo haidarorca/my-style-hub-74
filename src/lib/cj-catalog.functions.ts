@@ -41,7 +41,6 @@ export interface CjSearchResult {
   pointsRemaining: number | null;
 }
 
-const isPid = (q: string) => /^\d{12,}$/.test(q);
 
 /**
  * Recherche un produit CJ par identifiant, SKU ou mots-clés.
@@ -56,7 +55,6 @@ export const searchCjProducts = createServerFn({ method: "POST" })
   }))
   .handler(async ({ context, data }): Promise<CjSearchResult> => {
     await assertAdmin(context);
-    const { cjGet } = await import("@/lib/cj/client.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const traces: CjCallTrace[] = [];
@@ -75,61 +73,16 @@ export const searchCjProducts = createServerFn({ method: "POST" })
     try {
       let hits: CjSearchHit[] = [];
 
-      if (isPid(data.query) || /^CJ[A-Z0-9]+$/i.test(data.query)) {
-        // Accès direct : identifiant CJ ou SKU produit.
-        out.endpoint = "/product/query";
-        const param = isPid(data.query) ? "pid" : "productSku";
-        const p = await cjGet<any>(
-          `/product/query?${param}=${encodeURIComponent(data.query)}`,
-          traces,
-        );
-        if (p?.pid) {
-          const costs = (Array.isArray(p.variants) ? p.variants : [])
-            .map((v: any) => Number(v?.variantSellPrice))
-            .filter((n: number) => Number.isFinite(n));
-          hits = [
-            {
-              pid: String(p.pid),
-              name: p.productNameEn ?? p.productName ?? null,
-              sku: p.productSku ?? null,
-              image: p.productImage ?? p.bigImage ?? null,
-              cost: costs.length ? Math.min(...costs) : null,
-              currency: "USD",
-              categoryPath: p.categoryName ?? null,
-              alreadyImported: false,
-              productId: null,
-            },
-          ];
-        }
-      } else {
-        // Recherche par mots-clés : endpoint officiel listV2.
-        out.endpoint = "/product/listV2";
-        const r = await cjGet<any>(
-          `/product/listV2?keyWord=${encodeURIComponent(data.query)}&page=${data.page}&size=20`,
-          traces,
-        );
-        const content: any[] = Array.isArray(r?.content) ? r.content : [];
-        const list: any[] = content.flatMap((c) =>
-          Array.isArray(c?.productList) ? c.productList : [],
-        );
-        out.total = Number(r?.totalRecords ?? list.length) || list.length;
-        hits = list.map((item) => ({
-          // listV2 nomme l'identifiant produit « id » (et non « pid »).
-          pid: String(item?.id ?? item?.pid ?? ""),
-          name: item?.nameEn ?? null,
-          sku: item?.sku ?? null,
-          image: item?.bigImage ?? null,
-          cost: Number.isFinite(Number(item?.sellPrice)) ? Number(item.sellPrice) : null,
-          currency: "USD",
-          categoryPath:
-            [item?.oneCategoryName, item?.twoCategoryName, item?.threeCategoryName]
-              .filter(Boolean)
-              .join(" > ") || null,
-          alreadyImported: false,
-          productId: null,
-        }));
-      }
-
+      // Même moteur que l'Explorer : PID/SKU (local puis CJ), traduction FR→EN,
+      // fautes, pluriels, mots dans n'importe quel ordre.
+      out.endpoint = "recherche intelligente";
+      const { smartSearch } = await import("@/lib/cj/smart-search.server");
+      const r = await smartSearch({ keyword: data.query, want: 40, maxCalls: 4, pagesPerQuery: 2, traces });
+      hits = r.hits.map((h) => ({
+        pid: h.pid, name: h.name, sku: h.sku, image: h.image, cost: h.price, currency: "USD",
+        categoryPath: h.categoryPath, alreadyImported: h.exists, productId: h.existingProductId,
+      }));
+      out.total = hits.length;
       // Marquage des produits déjà importés (aucun appel API).
       const pids = hits.map((h) => h.pid).filter(Boolean);
       if (pids.length) {
