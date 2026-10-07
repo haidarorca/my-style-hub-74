@@ -19,6 +19,8 @@ export function StuckLoadingDetector({ children, thresholdMs = 15_000 }: Props) 
 
   useEffect(() => {
     setStuck(false);
+    // Alerte seulement si la page est réellement encore en chargement.
+    if (!isLoading) return;
     const id = window.setTimeout(() => setStuck(true), thresholdMs);
     return () => window.clearTimeout(id);
   }, [pathname, isLoading, thresholdMs]);
