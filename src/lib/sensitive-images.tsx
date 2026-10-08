@@ -20,7 +20,7 @@ type Row = { id: string; parent_id: string | null; sensitive_images: boolean; se
 function useSensitiveMap() {
   return useQuery({
     queryKey: ["sensitive-images", "rules"],
-    staleTime: 5 * 60_000,
+    staleTime: 60_000, refetchInterval: 2 * 60_000,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("categories")
@@ -114,7 +114,7 @@ export function useAdminSensitiveView(): { on: boolean; filter: AdminSensitiveFi
 function useProductMap() {
   return useQuery({
     queryKey: ["sensitive-images", "products"],
-    staleTime: 5 * 60_000,
+    staleTime: 60_000, refetchInterval: 2 * 60_000,
     queryFn: async () => {
       // Décision au niveau PRODUIT : { target (genre autorisé) , manual, review }
       const out = new Map<string, { target: SensitiveGender | null; manual: boolean; review: boolean }>();
@@ -141,7 +141,7 @@ function useProductMap() {
 function useImageMap() {
   return useQuery({
     queryKey: ["sensitive-images", "images"],
-    staleTime: 5 * 60_000,
+    staleTime: 60_000, refetchInterval: 2 * 60_000,
     queryFn: async () => {
       const out = new Map<string, SensitiveGender | null>();
       for (let from = 0; from < 50000; from += 1000) {
